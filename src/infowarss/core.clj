@@ -17,6 +17,8 @@
    [compojure.core :refer :all]
    [liberator.core :refer [resource defresource]]
    [compojure.route :as route]
+   [clojure.java.shell :as shell]
+   [ring.adapter.jetty :refer [run-jetty]]
     ))
 
 (comment {:feed-items [items]})
@@ -64,7 +66,17 @@
         (str " <" email ">")))))
 
 (defn- html2text [html]
-  html)
+  (let [{:keys [exit out]}
+        (shell/sh "w3m" "-T" "text/html" "-dump" :in html)]
+    (if (= exit 0)
+      out
+      "")))
+
+(defn- extract-feed-description [description]
+  (if (= (:type description) "text/html")
+    {:html (:value description)
+     :default (html2text (:value description))}
+    {:default (:value description)}))
 
 (defn- extract-feed-content [contents]
   (let [by-type (into {}
@@ -90,13 +102,14 @@
             feed (rome/build-feed (-> http :raw))]
         (for [e (:entries feed)]
           (let [authors (extract-feed-authors (:authors e))
-                content (extract-feed-content (:contents e))]
+                content (extract-feed-content (:contents e))
+                description (extract-feed-description (:description e))]
             (-> http
               (dissoc :raw :parsed-html :http)
-              (assoc :feed-entry (select-keys e [:description :link
-                                                 :published-date :title]))
+              (assoc :feed-entry (select-keys e [:link :published-date :title]))
               (assoc-in [:feed-entry :authors] authors)
               (assoc-in [:feed-entry :contents] content)
+              (assoc-in [:feed-entry :description] description)
               (assoc :feed (select-keys feed [:title :language :link :description
                                               :encoding :published-date :feed-type]))
               (assoc :hash (digest/sha-256 (str (:title e) (:default content))))
@@ -161,16 +174,32 @@
   (Feed. "http://irq0.org/news/index.atom" "irq0.org feed" nil)
   (Feed. "http://blog.fefe.de/rss.xml?html" "fefe" nil))
 
-(defn- postproc [result source]
-  (if (:postproc source)
-    (apply (:postproc source) result)
+
+(defn- make-postproc-chain-func [chain]
+  (let [with-logging (map (fn [fun]
+                            (fn [x]
+                              (log/infof "Postproc: (%s %s)" fun x)
+                              (fun x)))
+                       chain)]
+    (apply comp with-logging)))
+
+
+(defn- postproc [result]
+  (log/infof "Postprocessing: %s -> %s"
+    (get-in result [:source :title])
+    (get-in result [:summary :title]))
+  (if-let [chain (get-in result [:source :postproc])]
+    (let [fun (make-postproc-chain-func chain)]
+      (fun result))
     result))
 
 (defn handle-fetch [source dst-chan]
   "Fetch sources and push results to channel"
   (log/info "Fetching: " (:title source))
   (try+
-    (let [result (map #(assoc % :source source)
+    (let [result (map #(-> %
+                        (assoc :source source)
+                        (postproc))
                    (fetch-source source))]
       (>!! dst-chan result))
     (catch [:status 404] {:keys [request-time headers body]}
@@ -426,11 +455,14 @@
 
 
 (comment
-
   (reset! *db* nil)
   (def chan (async/chan 100))
-  (handle-fetch (Feed. "http://irq0.org/news/index.atom" "irq0.org feed" nil) chan)
-  (handle-fetch (Feed. "http://blog.fefe.de/rss.xml?html" "fefe" nil) chan)
+  (handle-fetch (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
+                  nil) chan)
+  (handle-fetch (Feed. "http://blog.fefe.de/rss.xml?html" "fefe2"
+                  [#(assoc-in % [:feed-entry :contents]
+                     (get-in % [:feed-entry :description]))]) chan )
+
   (def irq (<!! chan))
   (def fefe (<!! chan))
 
