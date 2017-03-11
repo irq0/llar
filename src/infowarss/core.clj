@@ -214,34 +214,9 @@
   {:email "infowarss@irq0.org"
    :pass  "foo"})
 
-(defn fever-api-key []
-  (let [{:keys [email pass]} *api-config*]
-    (digest/md5 (str email ":" pass))))
-
-(defn fever-auth [key]
-  (= (string/lower-case (str key)) (fever-api-key)))
-
-(defn fever-auth-error []
-  (-> (response/response "Auth error!")
-    (response/status 401)))
-
-(defn wrap-fever-auth [handler]
-  "Check fever api key and set :fever-auth in request
-   Overwrite response with (fever-auth-error) if unauthorized"
-  (fn [request]
-    #spy/p request
-    (let [api-key ((request :params) :api_key)
-          auth? (fever-auth api-key)
-          request (assoc-in request [:fever-auth] auth?)
-          response (handler request)]
-      (if auth?
-        #spy/p response
-        (fever-auth-error)))))
-
 ;; (defresource parameter [txt]
 ;;   :available-media-types ["text/plain"]
 ;;   :handle-ok (fn [_] (format "The text is %s" txt)))
-
 
 ;;(defresource feed-item [id])
 
@@ -376,7 +351,6 @@
       (ANY "/feeds/:id{[0-9]+}.json" [id] (feed (Long. id)))
       (ANY "/feeds/:feed-id{[0-9]+}/entries.json" [feed-id] (feed-entires feed-id))
 
-
       ;; Entries
       ;; https://github.com/feedbin/feedbin-api/blob/master/content/entries.md
       (ANY "/entries.json" [page per_page]
@@ -386,7 +360,6 @@
       ;; Unread Entries
       ;; https://github.com/feedbin/feedbin-api/blob/master/content/unread-entries.md
       (ANY "/unread_entries.json" [] list-unread-entries)
-
 
       ;; Starred Entries
       ;; https://github.com/feedbin/feedbin-api/blob/master/content/starred-entries.md
@@ -410,12 +383,7 @@
       ;; Updates Entries
       ;; https://github.com/feedbin/feedbin-api/blob/master/content/updated-entries.md
       (ANY "/updated_entries.json" _ (not-implemented))
-
-
-      (ANY "/subscriptions.json" _ (not-implemented))
-      (ANY "/subscriptions.json" _ (not-implemented))
-      (ANY "/subscriptions.json" _ (not-implemented))
-        )
+      )
   (GET "/dump" request (str request))
   (GET "/" [] "<h1>Hello World</h1>")
   (route/not-found "<h1>Page not found</h1>"))

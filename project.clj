@@ -20,4 +20,5 @@
                  [ring/ring-devel "1.5.0"]
                  [ring/ring-jetty-adapter "1.5.0"]
                  [ring/ring-json "0.4.0"]
+                 [ring-basic-authentication "1.0.5"]
                  [clj-time "0.5.1"]])
