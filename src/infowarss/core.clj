@@ -38,23 +38,44 @@
 
 (defn- fetch-http-generic [url]
   "Generic HTTP fetcher"
-  (let [response (http/get url)
-        parsed-html (-> response :body hick/parse hick/as-hickory)]
-    [{:meta {:source {:app "infowar-core/fetch-http"
-                      :address url}
-             :fetch-ts (time/now)
-             :version 0}
-      :http (select-keys response [:headers :status])
-      :raw (:body response)
-      :hash (digest/sha-256 (:body response))
-      :summary {:from url
-                :title (-> (hick-s/select (hick-s/child
-                                            (hick-s/tag :title))
-                             parsed-html)
-                         first
-                         :content
-                         first
-                         string/trim)}}]))
+  (try+
+    (let [response (http/get url)
+          parsed-html (-> response :body hick/parse hick/as-hickory)]
+      [{:meta {:source {:app "infowar-core/fetch-http"
+                        :address url}
+               :fetch-ts (time/now)
+               :version 0}
+        :http (select-keys response [:headers :status])
+        :raw (:body response)
+        :hash (digest/sha-256 (:body response))
+        :summary {:from url
+                  :title (-> (hick-s/select (hick-s/child
+                                             (hick-s/tag :title))
+                              parsed-html)
+                           first
+                           :content
+                           first
+                           string/trim)}}])
+
+    (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
+        {:keys [headers body status]}
+      (log/errorf "Client error probably due to broken request (%s): %s %s"
+        status headers body)
+      (throw+ (assoc &throw-context :type ::request-error)))
+
+    (catch (contains? #{500 501 502 503 504} (get % :status))
+        {:keys [headers body status] :as orig}
+      (log/errorf "Server Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::server-error-retry-later)))
+
+    (catch [:status 408]
+        {:keys [headers body status]}
+      (log/errorf "Client Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::client-error-retry-later)))
+
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (throw+ (assoc &throw-context :type ::unexpected-error)))))
 
 
 (defn- extract-feed-authors [authors]
@@ -193,19 +214,14 @@
       (fun result))
     result))
 
-(defn handle-fetch [source dst-chan]
-  "Fetch sources and push results to channel"
+(defn fetch-and-process-source [source]
+  "Fetches source, postprocesses results and handles exceptions in the
+  process"
   (log/info "Fetching: " (:title source))
-  (try+
-    (let [result (map #(-> %
-                        (assoc :source source)
-                        (postproc))
-                   (fetch-source source))]
-      (>!! dst-chan result))
-    (catch [:status 404] {:keys [request-time headers body]}
-      (log/error "NOT FOUND 404: " request-time headers body))
-    (catch Object _
-      (log/error (:throwable &throw-context) "unexpected error"))))
+  (map #(-> %
+         (assoc :source source)
+         (postproc))
+    (fetch-source source)))
 
 
 (defonce ^:dynamic *api-version* 3)
@@ -425,11 +441,12 @@
 (comment
   (reset! *db* nil)
   (def chan (async/chan 100))
-  (handle-fetch (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
-                  nil) chan)
-  (handle-fetch (Feed. "http://blog.fefe.de/rss.xml?html" "fefe2"
-                  [#(assoc-in % [:feed-entry :contents]
-                     (get-in % [:feed-entry :description]))]) chan )
+  (fetch-and-process-source (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
+                              nil))
+  (fetch-and-process-source (Feed. "http://irq0.org/does/not/exists" "404 test" nil))
+  (fetch-and-process-source (Feed. "http://blog.fefe.de/rss.xml?html" "fefe2"
+                              [#(assoc-in % [:feed-entry :contents]
+                                 (get-in % [:feed-entry :description]))]))
 
   (def irq (<!! chan))
   (def fefe (<!! chan))
