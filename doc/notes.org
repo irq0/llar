@@ -1,0 +1,26 @@
+* Similar Software
+- Fever
+- [[https://feedbin.com/][FeedBin]]
+* API Choices
+** FeedHQ / Google Reader API
+http://feedhq.readthedocs.io/en/latest/api/reference.html
+** Feedbin
+https://github.com/feedbin/feedbin-api
+* Clients
+https://feedbin.com/apps
+** Mr. Reader
+
+** Reeder
+
+* TASKS and IDEAS
+
+** Replace logging framework
+- please no xml configuration
+
+** System (Component) design pattern?
+
+** Add scheduler
+
+** Feedbin API
+
+** Add persistence layer
