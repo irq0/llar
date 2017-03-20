@@ -19,13 +19,13 @@
    [compojure.route :as route]
    [clojure.java.shell :as shell]
    [ring.adapter.jetty :refer [run-jetty]]
+   [com.ashafa.clutch :as couch]
+   [cheshire.core :refer :all
+    ]
+   [cheshire.generate :refer [add-encoder encode-map]]
     ))
 
 (comment {:feed-items [items]})
-
-
-
-
 
 ;; Helpers
 
@@ -38,6 +38,7 @@
 
 (defn- fetch-http-generic [url]
   "Generic HTTP fetcher"
+
   (try+
     (let [response (http/get url)
           parsed-html (-> response :body hick/parse hick/as-hickory)]
@@ -112,6 +113,27 @@
 (defrecord HttpItem [source meta summary hash http raw])
 (defrecord FeedItem [source meta summary hash feed-entry feed])
 
+(add-encoder org.joda.time.DateTime
+  (fn [dt jg]
+    (.writeString jg (tc/to-string dt))))
+
+(add-encoder FeedItem
+  (fn [item jsonGenerator]
+    (let [s (:source item)]
+      (encode-map {:meta (:meta item)
+                   :summary (.summary item)
+                   :type :feed
+                   :hash (str "SHA-256:" (.hash item))
+                   :feed-entry (.feed_entry item)
+                   :feed (.feed item)
+                   :source {:url (.url s)
+                            :title (.title s)
+                            :postproc (some? (.postproc s))}
+                   }
+        jsonGenerator))))
+
+
+
 (extend-protocol FetchSource
   Http
   (fetch-source [src]
@@ -137,7 +159,18 @@
               (assoc :summary {:from authors
                                :title (:title e)}))))))))
 
+
+(defonce ^:dynamic *couch-db* "http://10.23.1.42:5984/db/")
 (defonce ^:dynamic *db* (atom nil))
+
+
+(defn couch-add-document! [params]
+  (http/post *couch-db*
+    {:form-params params
+     :content-type :json
+     :accept :json
+     :as :json}))
+
 
 (defn known-feed-hashes []
   (->> @*db*
@@ -145,25 +178,32 @@
     (mapv :hash)
     (set)))
 
-(defprotocol ProcessItem
+
+
+(defprotocol StorableItem
   "Protocol to work with items (fetched by a source)"
-  (process-item [item] "Process new item")
+  (store-item! [item] "Process new item")
   (duplicate? [item] "Already processed?"))
 
-(extend-protocol ProcessItem
+(defonce ^:dynamic *last-item* (atom nil))
+
+(extend-protocol StorableItem
   FeedItem
   (duplicate? [item]
-    (contains? (known-feed-hashes) (:hash item)))
-  (process-item [item]
-    (swap! *db* (fn [old]
-                  (assoc old :feed-items
-                    (conj (:feed-items old) item))))))
+    false)
+    ;; (contains? (known-feed-hashes) (:hash item)))
+  (store-item! [item]
+    (couch-add-document! item)))
+
+    ;; (swap! *db* (fn [old]
+    ;;               (assoc old :feed-items
+    ;;                 (conj (:feed-items old) item))))))
 
 
-(defn process [mixed-items]
+(defn store-items! [mixed-items]
   ;; Each vector may contain multiple item types.
   ;; -> Group them by type and call the store method
-  (let [by-type (group-by type mixed-items)]
+  (let [by-type (group-by :type mixed-items)]
     (log/infof "Processing %d items with keys: %s"
       (count mixed-items) (keys by-type))
     (doseq [[type items] by-type]
@@ -173,18 +213,9 @@
           (do
             (log/infof "Processing item \"%s\""
               (get-in item [:summary :title]))
-            (process-item item))
+            (store-item! item))
           (log/infof "Skipping item \"%s\": duplicate"
             (get-in item [:summary :title])))))))
-
-(defn processor [chans]
-  "Run in background to process incomming data"
-  (go
-    (while true
-      (let [[v ch] (alts! chans)]
-        (log/infof "Recived from chan %s" ch)
-        (process v)))))
-
 
 (defonce ^:dynamic *subscriptions*
   (atom [(Feed. "http://irq0.org/news/index.atom" "irq0.org feed" nil)
@@ -351,7 +382,7 @@
 
 
 (defroutes feedbin-api
-    (context "/v2" []
+  (context "/v2" []
       (GET "/authentication.json" _ (response/response nil))
 
       ;; Subscriptions
@@ -440,7 +471,7 @@
 
 (comment
   (reset! *db* nil)
-  (def chan (async/chan 100))
+
   (fetch-and-process-source (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
                               nil))
   (fetch-and-process-source (Feed. "http://irq0.org/does/not/exists" "404 test" nil))
@@ -448,8 +479,8 @@
                               [#(assoc-in % [:feed-entry :contents]
                                  (get-in % [:feed-entry :description]))]))
 
-  (def irq (<!! chan))
-  (def fefe (<!! chan))
-
-  (process irq)
-  (process fefe))
+  (store-items!
+    (fetch-and-process-source
+      (Feed. "http://blog.fefe.de/rss.xml?html" "fefe2"
+        [#(assoc-in % [:feed-entry :contents]
+           (get-in % [:feed-entry :description]))]))))
