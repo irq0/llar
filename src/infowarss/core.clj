@@ -9,7 +9,8 @@
    [hickory.select :as hick-s]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
-   [clojure.tools.logging :as log]
+   [taoensso.timbre :as log]
+   [taoensso.timbre.appenders.core :as appenders]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [clojurewerkz.serialism.core :as s]
@@ -26,6 +27,16 @@
     ))
 
 (comment {:feed-items [items]})
+
+
+(log/merge-config!
+  {:appenders {:spit (appenders/spit-appender {:fname "/tmp/inforwarss.log"})}
+   :ns-blacklist  [] #_["org.apache.http.wire"]
+   :level :debug})
+
+(log/merge-config!
+  {:appenders {:println {:min-level :info
+                         :stream :std-err}}})
 
 ;; Helpers
 
