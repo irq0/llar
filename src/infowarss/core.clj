@@ -21,10 +21,10 @@
    [clojure.java.shell :as shell]
    [ring.adapter.jetty :refer [run-jetty]]
    [com.ashafa.clutch :as couch]
-   [cheshire.core :refer :all
-    ]
-   [cheshire.generate :refer [add-encoder encode-map]]
-    ))
+   [cheshire.core :refer :all]
+   [clojure.tools.nrepl.server :as nrepl]
+   [cheshire.generate :refer [add-encoder encode-map]])
+  (:import [java.util.Base64.Encoder]))
 
 (comment {:feed-items [items]})
 
@@ -107,18 +107,22 @@
 
 (defn- extract-feed-description [description]
   (if (= (:type description) "text/html")
-    {:html (:value description)
-     :default (html2text (:value description))}
-    {:default (:value description)}))
+    {"text/html" (:value description)
+     "text/plain" (html2text (:value description))}
+    {"text/plain" (:value description)}))
+
+(def rome-content-type-to-mime {"html" "text/html"
+                                "text" "text/plain"})
 
 (defn- extract-feed-content [contents]
   (let [by-type (into {}
                   (for [{:keys [type value]} contents]
-                    [(keyword type) value]))]
+                    [(get rome-content-type-to-mime
+                       type "application/octet-stream") value]))]
+    ;; Convert non plain text content types
     (condp #(contains? %2 %1) by-type
-      :text (assoc by-type :default (:text by-type))
-      :html (assoc by-type :default (html2text (:html by-type)))
-      (assoc by-type :default (first (vals by-type))))))
+      "text/html" (assoc by-type "text/plain" (html2text (get by-type "text/html")))
+      (assoc by-type "text/plain" (first (vals by-type))))))
 
 
 (defrecord HttpItem [source meta summary hash http raw])
@@ -127,23 +131,6 @@
 (add-encoder org.joda.time.DateTime
   (fn [dt jg]
     (.writeString jg (tc/to-string dt))))
-
-(add-encoder FeedItem
-  (fn [item jsonGenerator]
-    (let [s (:source item)]
-      (encode-map {:meta (:meta item)
-                   :summary (.summary item)
-                   :type :feed
-                   :hash (str "SHA-256:" (.hash item))
-                   :feed-entry (.feed_entry item)
-                   :feed (.feed item)
-                   :source {:url (.url s)
-                            :title (.title s)
-                            :postproc (some? (.postproc s))}
-                   }
-        jsonGenerator))))
-
-
 
 (extend-protocol FetchSource
   Http
@@ -174,22 +161,77 @@
 (defonce ^:dynamic *couch-db* "http://10.23.1.42:5984/db/")
 (defonce ^:dynamic *db* (atom nil))
 
+(defn couch-clear-db! []
+  (let [resp (http/post (str *couch-db* "/_find")
+               {:content-type :json
+                :form-params {:selector {:hash {"$exists" true}}
+                              :fields ["_id" "_rev"]}
+                :accept :json
+                :as :json})
+        f (fn [row]
+            {"_id" (:_id row)
+             "_rev" (:_rev row)
+             "_deleted" true})
+        ds (map f (get-in resp [:body :docs]))]
+    (log/spy ds)
+    (http/post (str *couch-db* "/_bulk_docs")
+      {:form-params {:docs ds}
+       :content-type :json
+       :accept :json
+       :as :json})))
 
 (defn couch-add-document! [params]
-  (http/post *couch-db*
-    {:form-params params
-     :content-type :json
+  (try+
+    (let [{:keys [body]} (http/post *couch-db*
+                           {:form-params params
+                            :content-type :json
+                            :accept :json
+                            :as :json})]
+      (if (:ok body)
+        body
+        (throw+ {:type ::couch-error :body body})))
+
+    (catch (contains? #{400 401 404 409} (get % :status))
+        {:keys [headers body status]}
+      (log/errorf "Client Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::request-error)))
+
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (throw+ (assoc &throw-context :type ::unexpected-error)))))
+
+
+(defn couch-get [id]
+  (http/get (str *couch-db* "/" id)))
+
+(defn couch-change-document! [id rev params]
+  (try+
+    (let [{:keys [body]} (http/put (str *couch-db* "/" id)
+                           {:form-params params
+                            :headers {"If-Match" rev}
+                            :content-type :json
+                            :accept :json
+                            :as :json})]
+      (if (:ok body)
+        body
+        (throw+ {:type ::couch-error :body body})))
+
+    (catch (contains? #{400 401 404 409} (get % :status))
+        {:keys [headers body status]}
+      (log/errorf "Client Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::request-error)))
+
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (throw+ (assoc &throw-context :type ::unexpected-error)))))
+
+
+(defn couch-lookup-hash [hash]
+  (http/get (str *couch-db* "/_design/lookup/_view/hashes")
+    {:content-type :json
+     :query-params {:key (str "\"" hash "\"")}
      :accept :json
      :as :json}))
-
-
-(defn known-feed-hashes []
-  (->> @*db*
-    (:feed-items)
-    (mapv :hash)
-    (set)))
-
-
 
 (defprotocol StorableItem
   "Protocol to work with items (fetched by a source)"
@@ -198,35 +240,66 @@
 
 (defonce ^:dynamic *last-item* (atom nil))
 
+
+;; (defn couch-add-attachement! [docid name content-type data]
+
+(def couch-attachment-extensions
+  {"text/html" "html"
+   "text/plain" "txt"})
+
 (extend-protocol StorableItem
   FeedItem
   (duplicate? [item]
-    false)
-    ;; (contains? (known-feed-hashes) (:hash item)))
+    (let [resp (couch-lookup-hash (str "SHA-256:" (:hash item)))]
+      (seq (get-in resp [:body :rows]))))
+
   (store-item! [item]
-    (couch-add-document! item)))
+    (let [contents (get-in item [:feed-entry :contents])
+          source (get item :source)
+          atts (into {} (for [[content-type data] contents]
+                          (when-not (nil? data)
+                            [(str "content" "."
+                               (get couch-attachment-extensions content-type))
+                             {:content_type content-type
+                              :data (.encodeToString
+                                      (java.util.Base64/getMimeEncoder)
+                                      (.getBytes data))}])))
+          doc (-> {:meta (:meta item)
+                  :summary (:summary item)
+                  :type :feed
+                  :hash (str "SHA-256:" (:hash item))
+                  :feed-entry (:feed-entry item)
+                  :feed (:feed item)
+                  :source {:url (:url source)
+                           :title (:title source)
+                           :postproc (some? (:postproc source))}}
+                (assoc-in [:feed-entry :contents] nil))]
+      (when-not (empty? atts)
+        (assoc doc "_attachments" atts))
+      (couch-add-document! doc))))
 
-    ;; (swap! *db* (fn [old]
-    ;;               (assoc old :feed-items
-    ;;                 (conj (:feed-items old) item))))))
 
+(defn- store-item-skip-duplicate! [item]
+  (if (duplicate? item)
+    (log/infof "Skipping item \"%s\": duplicate"
+      (get-in item [:summary :title]))
+    (let [{:keys [id]} (store-item! item)]
+      (log/infof "Stored item \"%s\": %s"
+        (get-in item [:summary :title]) id)
+      id)))
 
 (defn store-items! [mixed-items]
   ;; Each vector may contain multiple item types.
   ;; -> Group them by type and call the store method
-  (let [by-type (group-by :type mixed-items)]
-    (log/infof "Processing %d items with keys: %s"
+  (let [by-type (group-by type mixed-items)]
+    (log/infof "Processing %d items with types: %s"
       (count mixed-items) (keys by-type))
-    (doseq [[type items] by-type]
-      (log/infof "Processing type %s items" type)
-      (doseq [item items]
-        (if-not (duplicate? item)
-          (do
-            (log/infof "Processing item \"%s\""
-              (get-in item [:summary :title]))
-            (store-item! item))
-          (log/infof "Skipping item \"%s\": duplicate"
-            (get-in item [:summary :title])))))))
+    (doall
+      (apply concat
+        (for [[type items] by-type]
+          (do (log/infof "Processing %s items" type)
+              (remove nil? (map #(store-item-skip-duplicate! %) items ))))))))
+
 
 (defonce ^:dynamic *subscriptions*
   (atom [(Feed. "http://irq0.org/news/index.atom" "irq0.org feed" nil)
@@ -450,8 +523,6 @@
 (defonce ^:dynamic *users* (atom {"foo" {:username "foo"
                                      :password "bar"}}))
 
-
-
 (defn api-authenticated? [user pass]
   (let [entry (@*users* user)]
     (and
@@ -479,19 +550,107 @@
   (.stop jetty))
 
 
+(def src-state-template
+  (atom  {:last-successful-fetch-ts nil
+          :state :new
+          :last-exception nil
+          :retry-count 0}))
 
-(comment
-  (reset! *db* nil)
+(defonce ^:dynamic *srcs*
+  (atom
+    {:fefe {:src
+            (Feed. "http://blog.fefe.de/rss.xml?html" "fefe"
+              [(fn [item] (update-in item [:feed-entry]
+                            #(-> % (assoc :contents (:description %))
+                              (assoc :description nil))))])
+            :cron []}
 
-  (fetch-and-process-source (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
-                              nil))
-  (fetch-and-process-source (Feed. "http://irq0.org/does/not/exists" "404 test" nil))
-  (fetch-and-process-source (Feed. "http://blog.fefe.de/rss.xml?html" "fefe2"
-                              [#(assoc-in % [:feed-entry :contents]
-                                 (get-in % [:feed-entry :description]))]))
+     :irq0 {:src
+            (Feed. "http://irq0.org/news/index.atom" "irq0.org feed" nil)
+            :cron []}
+     :fail {:src
+            (Feed. "http://irq0.org/404" "404" nil)}
+     }))
 
-  (store-items!
-    (fetch-and-process-source
-      (Feed. "http://blog.fefe.de/rss.xml?html" "fefe2"
-        [#(assoc-in % [:feed-entry :contents]
-           (get-in % [:feed-entry :description]))]))))
+(defn add-feed-src! [key src]
+  (swap! *srcs* (fn [cur]
+                  (assoc cur key {:src src}))))
+
+(defn merge-state [src new]
+  (let [old (:state src)
+        merged (merge old new)]
+    (assoc src :state merged )))
+
+(defn- update-feed! [feed]
+  (try+
+    (let [items (fetch-and-process-source (:src feed))
+          dbks (store-items! items)]
+      (log/infof "[%s] Fetched %d, %d new stored to db"
+        (get-in feed [:src :title])  (count items) (count dbks))
+
+      (merge-state feed
+        {:last-successful-fetch-ts (time/now)
+         :state :ok
+         :retry-count 0}))
+
+    (catch [:type ::server-error-retry-later] _
+      (merge-state feed
+        {:state :temp-fail
+         :last-exception &throw-context
+         :retry-count (inc (get-in feed [:state :retry-count]))}))
+
+    (catch [:type ::request-error] _
+      (merge-state feed
+        {:state :perm-fail
+         :last-exception &throw-context
+         :retry-count 0}))
+
+    (catch [:type ::unexpected-error] _
+      (merge-state feed
+        {:state :perm-fail
+         :last-exception &throw-context
+         :retry-count 0}))
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (merge-state feed
+        {:state :perm-fail
+         :last-exception &throw-context
+         :retry-count 0}))))
+
+(def ^:dynamic *update-max-retires* 5)
+
+
+(defn save-new-state! [feed-k new-state]
+  (swap! *srcs* (fn [current]
+                  (assoc-in current [feed-k :state] new-state))))
+
+(defn update-all! []
+  (doseq [[k v] @*srcs*]
+    (let [feed (if (contains? v :state)
+                v
+                (assoc v :state @src-state-template))
+          src (:src feed)
+          old-state (:state feed)]
+
+      (condp = (:state old-state)
+        :new
+        (log/info "New feed: " k)
+        :ok
+        (log/info "Working feed: " k)
+        :temp-fail
+        (log/info "Temporary failing feed %d/%d: %s"
+          (:retry-count old-state) *update-max-retires* k)
+        :perm-fail
+        (log/info "Skipping perm fail feed: " k))
+
+      (when (or
+              (#{:ok :new} (:state old-state))
+              (and
+                (= (:state old-state) :temp-fail)
+                (< (:retry-count old-state) *update-max-retires* )))
+        (let [new-feed (update-feed! feed)
+              new-state (:state new-feed)]
+          (log/infof "[%s] State: %s -> %s " k
+            (:state old-state) (:state new-state))
+          (swap! *srcs* (fn [current]
+                          (assoc-in current [k :state] new-state))))))))
