@@ -12,6 +12,7 @@
                  [clojurewerkz/serialism "1.3.0"]
                  [clj-rome "0.4.0"]
                  [digest "1.4.4"]
+                 [table "0.5.0"]
                  [com.taoensso/timbre "4.8.0"]
                  [org.slf4j/log4j-over-slf4j "1.7.14"]
                  [org.slf4j/jul-to-slf4j "1.7.14"]

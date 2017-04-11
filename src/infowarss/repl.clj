@@ -3,14 +3,17 @@
    [infowarss.core :refer :all]
    [infowarss.postproc :refer [postproc]]
    [infowarss.persistency :refer [store-items! duplicate?]]
+   [infowarss.couchdb :as couch]
    [infowarss.update :refer :all]
+   [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
+   [table.core :refer [table]]
    [taoensso.timbre.appenders.core :as appenders]))
 
-
-(defn- src-light [[k v]]
+(defn- human-src [[k v]]
+  "Extract interesting informations from source data structure"
   (let [base {:key k
               :title (get-in v [:src :title])
               :status (get-in v [:state :status])
@@ -21,4 +24,19 @@
       base)))
 
 (defn sources []
-  (map src-light @*srcs*))
+  "Return list of sources for human consumption"
+  (map human-src @*srcs*))
+
+(defn- human-feed-item [i]
+  {:src-title (get-in i [:source :title])
+   :title (get-in i [:feed-entry :title])
+   :link (get-in i [:feed-entry :link])
+   :content (get-in i [:feed-entry :contents "text/plain"])})
+
+(defn items-with-tag [tag & {:keys [group]}]
+  (let [items (for [id (couch/doc-ids-with-tag tag)]
+                (let [doc (couch/get-document-with-attachments id)]
+                  (human-feed-item doc)))]
+    (if group
+      (group-by :src-title items)
+      items)))

@@ -15,6 +15,8 @@
 
 (defonce ^:dynamic *couch-db* "http://10.23.1.42:5984/db/")
 (defonce ^:dynamic *db* (atom nil))
+(defonce ^:dynamic *last-document* (atom nil))
+
 
 (defn clear-db! []
   (let [resp (http/post (str *couch-db* "/_find")
@@ -36,6 +38,7 @@
        :as :json})))
 
 (defn add-document! [params]
+  (reset! *last-document* params)
   (try+
     (let [{:keys [body]} (http/post *couch-db*
                            {:form-params params
@@ -57,9 +60,31 @@
 
 
 (defn get-document [id]
-  (http/get (str *couch-db* "/" id)))
+  (:body
+   (http/get (str *couch-db* "/" id)
+     {:content-type :json
+      :accept :json
+      :as :json})))
+
+(defn get-attachment [docid attk]
+  (let [resp (http/get (str *couch-db* "/" docid "/" (name attk)))]
+    [(get-in resp [:headers "Content-Type"])
+     (get resp :body)]))
+
+(defn get-document-with-attachments [id]
+  (let [doc (get-document id)
+        attks (-> doc :_attachments keys)
+        atts (->>
+               attks
+               (map #(get-attachment id %))
+               (into {}))]
+    (assoc-in doc [:feed-entry :contents] atts)))
+
 
 (defn change-document! [id rev params]
+  (when (some empty? [id rev params])
+    (throw+ {:type ::params-must-not-be-empty
+             :params {:id id :rev rev :params params}}))
   (try+
     (let [{:keys [body]} (http/put (str *couch-db* "/" id)
                            {:form-params params
@@ -92,3 +117,22 @@
 (def attachment-extensions
   {"text/html" "html"
    "text/plain" "txt"})
+
+
+(defn swap-document! [id f]
+  (let [doc (get-document id)]
+    (let [id (get doc :_id)
+          rev (get doc :_rev)
+          new-doc (f doc)]
+      (log/spy new-doc)
+      (change-document! id rev new-doc))))
+
+(defn doc-ids-with-tag [tag]
+  (->>
+    (couch/get-view *couch-db* "lookup" "by-tag" {:key tag})
+    (map :id)))
+
+(defn all-doc-ids []
+  (->>
+    (couch/get-view *couch-db* "lookup" "ids")
+    (map :id)))

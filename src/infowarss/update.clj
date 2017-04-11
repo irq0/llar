@@ -102,7 +102,7 @@
       (let [new-feed (update-feed! feed)
             new-state (:state new-feed)]
         (log/infof "[%s] State: %s -> %s " k
-          (:state old-state) (:state new-state))
+          (:status old-state) (:status new-state))
         (swap! *srcs* (fn [current]
                         (assoc-in current [k :state] new-state)))))))
 

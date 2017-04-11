@@ -16,9 +16,6 @@
   (store-item! [item] "Process new item")
   (duplicate? [item] "Already processed?"))
 
-;; For inspection
-(defonce ^:dynamic *last-item* (atom nil))
-
 (extend-protocol StorableItem
   FeedItem
   (duplicate? [item]
@@ -46,10 +43,11 @@
                            :title (:title source)
                            :postproc (some? (:postproc source))}}
                 (assoc-in [:feed-entry :contents] nil))]
-      (when-not (empty? atts)
-        (assoc doc "_attachments" atts))
-      (couch/add-document! doc))))
-
+      (log/spy doc)
+      (log/spy atts)
+      (couch/add-document! (if (empty? atts)
+                             doc
+                             (assoc doc "_attachments" atts))))))
 
 (defn- store-item-skip-duplicate! [item]
   (if (duplicate? item)

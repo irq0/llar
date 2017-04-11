@@ -23,16 +23,22 @@
 (defrecord HttpItem [source meta summary hash http raw])
 (defrecord FeedItem [source meta summary hash feed-entry feed])
 
+(defn- make-meta [url]
+  "Make meta entry for *Item"
+  {:source {:app "infowar-core/fetch-http"
+            :address url}
+   :fetch-ts (time/now)
+   :tags #{:unread}
+   :version 0})
+
+
 (defn- fetch-http-generic [url]
   "Generic HTTP fetcher"
 
   (try+
     (let [response (http/get url)
           parsed-html (-> response :body hick/parse hick/as-hickory)]
-      [{:meta {:source {:app "infowar-core/fetch-http"
-                        :address url}
-               :fetch-ts (time/now)
-               :version 0}
+      [{:meta (make-meta url)
         :http (select-keys response [:headers :status])
         :raw (:body response)
         :hash (digest/sha-256 (:body response))
@@ -98,8 +104,6 @@
       "text/html" (assoc by-type "text/plain" (conv/html2text (get by-type "text/html")))
       (assoc by-type "text/plain" (first (vals by-type))))))
 
-
-
 ;; Fetch source protocol
 
 (defprotocol FetchSource
@@ -131,7 +135,11 @@
               (assoc-in [:feed-entry :description] description)
               (assoc :feed (select-keys feed [:title :language :link :description
                                               :encoding :published-date :feed-type]))
-              (assoc :hash (digest/sha-256 (str (:title e) (:default content))))
+              (assoc :hash (digest/sha-256
+                             (str
+                               (:title e)
+                               (:link e)
+                               (get content "text/plain"))))
               (assoc :summary {:from authors
                                :title (:title e)}))))))))
 
