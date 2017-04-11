@@ -1,7 +1,9 @@
 (ns infowarss.core
   (:require
    [taoensso.timbre :as log]
-   [taoensso.timbre.appenders.core :as appenders])
+   [taoensso.timbre.appenders.core :as appenders]
+   [infowarss.postproc :as postproc]
+   )
   (:import [infowarss.src Feed]))
 
 ;; Log config
@@ -26,13 +28,13 @@
   (atom
     {:fefe {:src
             (Feed. "http://blog.fefe.de/rss.xml?html" "fefe"
-              [(fn [item] (update-in item [:feed-entry]
-                            #(-> % (assoc :contents (:description %))
-                              (assoc :description nil))))])
+              [(postproc/move [:feed-entry] :description :contents)])
             :cron []}
 
      :irq0 {:src
-            (Feed. "http://irq0.org/news/index.atom" "irq0.org feed" nil)
+            (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
+              [(postproc/add-tag :personal)]
+              )
             :cron []}
      :fail {:src
             (Feed. "http://irq0.org/404" "404" nil)}

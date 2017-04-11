@@ -17,7 +17,6 @@
 (defonce ^:dynamic *db* (atom nil))
 (defonce ^:dynamic *last-document* (atom nil))
 
-
 (defn clear-db! []
   (let [resp (http/post (str *couch-db* "/_find")
                {:content-type :json
@@ -30,7 +29,6 @@
              "_rev" (:_rev row)
              "_deleted" true})
         ds (map f (get-in resp [:body :docs]))]
-    (log/spy ds)
     (http/post (str *couch-db* "/_bulk_docs")
       {:form-params {:docs ds}
        :content-type :json
@@ -124,7 +122,6 @@
     (let [id (get doc :_id)
           rev (get doc :_rev)
           new-doc (f doc)]
-      (log/spy new-doc)
       (change-document! id rev new-doc))))
 
 (defn doc-ids-with-tag [tag]

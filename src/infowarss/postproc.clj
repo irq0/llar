@@ -21,3 +21,16 @@
     (let [fun (make-postproc-chain-func chain)]
       (fun result))
     result))
+
+
+;; postproc functions
+
+(defn add-tag [tag]
+  (fn [item]
+    (update-in item [:meta :tags] conj tag)))
+
+(defn move [ks src dst]
+  (fn [item]
+    (update-in item ks
+      #(-> % (assoc dst (get % src))
+        (assoc src nil)))))

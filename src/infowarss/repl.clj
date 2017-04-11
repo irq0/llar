@@ -5,11 +5,13 @@
    [infowarss.persistency :refer [store-items! duplicate?]]
    [infowarss.couchdb :as couch]
    [infowarss.update :refer :all]
+   [infowarss.webapp :as webapp]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [table.core :refer [table]]
+   [ring.adapter.jetty :refer [run-jetty]]
    [taoensso.timbre.appenders.core :as appenders]))
 
 (defn- human-src [[k v]]
@@ -40,3 +42,10 @@
     (if group
       (group-by :src-title items)
       items)))
+
+
+(comment
+  (defonce jetty (run-jetty #'webapp/fever-app {:port 8765 :join? false}))
+  (defonce jetty (run-jetty #'feedbin-app {:port 8765 :join? false}))
+  (.start jetty)
+  (.stop jetty))
