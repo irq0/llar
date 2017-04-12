@@ -30,12 +30,14 @@
     {:fefe {:src
             (Feed. "http://blog.fefe.de/rss.xml?html" "fefe"
               [(postproc/move [:feed-entry] :description :contents)])
+            :tags #{:tech}
             :cron []}
 
      :irq0 {:src
             (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
               [(postproc/add-tag :personal)]
               )
+            :tags #{:personal}
             :cron []}
      :fail {:src
             (Feed. "http://irq0.org/404" "404" nil)}

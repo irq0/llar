@@ -40,15 +40,6 @@
 (use-fixtures :once setup-database)
 (use-fixtures :once schema.test/validate-schemas)
 
-
-;; (deftest test-add-last-update-ts
-;;   (let [delta 30
-;;         now (System/currentTimeMillis)
-;;         feed (add-last-update-ts test-feed)]
-;;     (is (:last-update feed) "Feed doesn't have key :last-update")
-;;     (is (< (- delta now) (:last-update feed) (+ delta now)))))
-
-
 (defn mock-req [uri]
   (mock/request :post uri {:api_key (api-key)}))
 
@@ -57,7 +48,6 @@
     (let [resp (fever-app (mock-req uri))
           data (deserialize (:body resp) :json)]
       (s/validate sch data))))
-
 
 (deftest schema
   (check-schema "?api" FeverAPIRoot)
@@ -68,10 +58,3 @@
   (check-schema "?api&favicons" FeverAPIFavicons)
   (check-schema "?api&unread_item_ids" FeverAPIUnreadItemIds)
   (check-schema "?api&saved_item_ids" FeverAPISavedItemIds))
-
-;; (deftest auth
-;;   (is (= (fever-app (mock-req "?api"))
-
-;;          {:status  200
-;;           :headers {"content-type" "text/plain"}
-;;           :body    "Your expected result"})))

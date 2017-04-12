@@ -5,7 +5,6 @@
    [ring.middleware params keyword-params json stacktrace lint reload basic-authentication]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
-   [taoensso.timbre.appenders.core :as appenders]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [compojure.core :refer :all]
@@ -18,8 +17,6 @@
 
 (def ^:dynamic *subscriptions* (atom nil))
 (def ^:dynamic *db* (atom nil))
-
-
 
 (defonce ^:dynamic *api-version* 3)
 
@@ -145,7 +142,6 @@
 
 (defn- empty-response []
   (response/response "[]"))
-
 
 (defroutes feedbin-api
   (context "/v2" []

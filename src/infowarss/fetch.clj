@@ -104,6 +104,13 @@
       "text/html" (assoc by-type "text/plain" (conv/html2text (get by-type "text/html")))
       (assoc by-type "text/plain" (first (vals by-type))))))
 
+(defn- extract-feed-timestamp
+  "Extract feed entry timestamp"
+  [e http]
+  (or (get e :published-date)
+    (get e :updated-date)
+    (get-in http [:meta :fetch-ts])))
+
 ;; Fetch source protocol
 
 (defprotocol FetchSource
@@ -126,10 +133,11 @@
         (for [e (:entries feed)]
           (let [authors (extract-feed-authors (:authors e))
                 content (extract-feed-content (:contents e))
+                timestamp (extract-feed-timestamp e http)
                 description (extract-feed-description (:description e))]
             (-> http
               (dissoc :raw :parsed-html :http)
-              (assoc :feed-entry (select-keys e [:link :published-date :title]))
+              (assoc :feed-entry (select-keys e [:link :updated-date :published-date :title]))
               (assoc-in [:feed-entry :authors] authors)
               (assoc-in [:feed-entry :contents] content)
               (assoc-in [:feed-entry :description] description)
@@ -141,6 +149,7 @@
                                (:link e)
                                (get content "text/plain"))))
               (assoc :summary {:from authors
+                               :ts timestamp
                                :title (:title e)}))))))))
 
 (defn fetch-and-process-source [source]
