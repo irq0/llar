@@ -22,9 +22,11 @@
                  [ring/ring-core "1.5.0"]
                  [compojure "1.5.2"]
                  [liberator "0.14.1"]
+                 [prismatic/schema "1.1.5"]
                  [ring/ring-devel "1.5.0"]
                  [ring/ring-jetty-adapter "1.5.0"]
                  [ring/ring-json "0.4.0"]
+                 [ring/ring-mock "0.3.0"]
                  [ring-basic-authentication "1.0.5"]
                  [com.ashafa/clutch "0.4.0"]
                  [clj-time "0.5.1"]])

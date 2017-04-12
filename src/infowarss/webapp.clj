@@ -32,7 +32,7 @@
     ring.middleware.json/wrap-json-response
     ring.middleware.keyword-params/wrap-keyword-params
     ring.middleware.params/wrap-params
-    ring.middleware.stacktrace/wrap-stacktrace
+    ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
 

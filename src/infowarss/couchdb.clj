@@ -10,12 +10,31 @@
    [clojure.string :as string]
    [clojurewerkz.serialism.core :as s]
    [com.ashafa.clutch :as couch]
+   [clojure.java.io :as io]
    [cheshire.core :refer :all])
   (:import [java.util.Base64.Encoder]))
 
 (defonce ^:dynamic *couch-db* "http://10.23.1.42:5984/db/")
+(defonce ^:dynamic *couch-db-auth* "admin:admin")
 (defonce ^:dynamic *db* (atom nil))
 (defonce ^:dynamic *last-document* (atom nil))
+
+(defn get-res-json [res]
+  (slurp (io/resource res)))
+
+(defn init-db! []
+  (let [views {:hashes {:map (get-res-json "hashes_map.js")}
+               :by-tag {:map (get-res-json "by-tag_map.js")}
+               :ids {:map (get-res-json "ids_map.js")}
+               :by-src {:map (get-res-json "by-src_map.js")}}]
+
+    (http/put (str *couch-db* "/_design/lookup")
+      {:content-type :json
+       :basic-auth *couch-db-auth*
+       :form-params {:language "javascript"
+                     :views views}
+       :accept :json
+       :as :json})))
 
 (defn clear-db! []
   (let [resp (http/post (str *couch-db* "/_find")

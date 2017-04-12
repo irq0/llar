@@ -2,6 +2,7 @@
   (:require
    [taoensso.timbre :as log]
    [taoensso.timbre.appenders.core :as appenders]
+   [infowarss.src]
    [infowarss.postproc :as postproc]
    )
   (:import [infowarss.src Feed]))
