@@ -60,8 +60,6 @@
       (java.util.Base64/getMimeEncoder)
       (.getBytes (slurp filename)))))
 
-(defn- seq-contains? [coll target] (some #(= target %) coll))
-
 (def fever-timestamp
   (fnil tc/to-long 0))
 
@@ -262,29 +260,30 @@
    :is_read (if (-> doc (get-in [:meta :tags]) (contains? :unread)) 1 0)
    :created_on_time (-> doc (get-in [:feed :published-date]) fever-timestamp)}))
 
-(s/defn items :- FeverItems
-  [{:keys [since-id max-id with-ids]}]
-  (let [ids (couch/all-doc-ids)
+(defn items
+  ([] (do-items {}))
+  ([params] (do-items params)))
 
-        since (swallow-exceptions (Long/parseLong since-id)),
-        max (swallow-exceptions (Long/parseLong max-id)),
-        with (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" with-ids)))
-        sincef (if since
-                 (fn [items] (filter (fn [id] (> id since)) ids))
-                 (fn [items] ids))
-        maxf (if max
-               (fn [items] (filter (fn [id] (< id max)) ids))
-               (fn [items] ids))
+(s/defn do-items :- FeverItems [params]
+  (let [{:keys [since max with]} params
+        ids (->> (couch/all-doc-ids)
+              (map (fn [couchid] [(fever-feed-id couchid) couchid]))
+              (into (sorted-map)))
 
-        withf (if with
-                (fn [items] (filter (fn [id] (seq-contains? with id)) ids))
-                (fn [items] ids))
+        filtered-ids (cond->> ids
+                       (number? since) (filter (fn [[fid _]] (<= since fid )))
+                       (number? max) (filter (fn [[fid _]] (> max fid)))
+                       (not (empty? with)) (filter (fn [[fid _]] ((set with) fid))))
+        ids-to-return (->> filtered-ids
+                        (vals)
+                        (take 50))]
 
-        ids-to-return (-> ids
-                       sort
-                       withf
-                       sincef
-                       maxf)]
+    (log/spy (seq ids))
+    (log/spy since)
+    (log/spy max)
+    (log/spy with)
+    (log/spy (seq ids-to-return))
+
     {:last_refreshed_on_time 0
      :total_items (count ids)
      :items (for [id ids-to-return
@@ -334,7 +333,12 @@
     (condp = op
       :groups (groups)
       :feeds (feeds)
-      :items (items params)
+      :items (items {:since
+                     (swallow-exceptions (Long/parseLong (get params :since_id)))
+                     :max
+                     (swallow-exceptions (Long/parseLong (get params :max_id)))
+                     :with
+                     (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params "with_ids"))))})
       :links (links)
       :favicons (favicons)
       :unread_item_ids (unread-item-ids)
@@ -353,6 +357,8 @@
   (let [op (extract-op req)
         params (:query-params req)
         resp-body (handle-op op params)]
+    (log/debugf "[Fever API REQ ] %s - %s" op params)
+    (log/debugf "[Fever API RESP] %s" resp-body)
     (response/response (-> resp-body
                          (merge (api-root)))
 
