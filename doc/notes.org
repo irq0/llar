@@ -1,6 +1,46 @@
 * Similar Software
 - Fever
 - [[https://feedbin.com/][FeedBin]]
+
+** newsbeuter
+*** tags
+tag feeds
+*** scripts and filters
+An "execurl" script can be any program that gets executed and whose
+output is interpreted as RSS feed,
+
+while "filter" scripts are fed with the content of a configured URL and whose output is interpreted as RSS feed.
+
+
+
+- execurl - special sources
+- filter not yet
+
+http://newsbeuter.org/doc/newsbeuter.html#_advanced_features
+*** filter language
+attributes:
+
+| title          | article       | article title                                       |
+| link           | article       | article link                                        |
+| author         | article       | article author                                      |
+| content        | article       | article body                                        |
+| date           | article       | publication date of the article                     |
+| guid           | article       | a unique identifier of the article                  |
+| unread         | article       | indicates whether the article has been read         |
+| enclosure_url  | article       | the URL of a possible enclosure (e.g. podcast file) |
+| enclosure_type | article       | the MIME type of the enclosure URL                  |
+| flags          | article       | The set of flags of the article                     |
+| age            | article       | Age of an article (in days)                         |
+| articleindex   | article       | Index of an article in an article list              |
+| feedtitle      | feed, article | title of the feed                                   |
+| description    | feed, article | feed description                                    |
+| feedlink       | feed, article | link to the feed                                    |
+| feeddate       | feed, article | publication date of the feed                        |
+| rssurl         | feed, article | RSS URL of the feed                                 |
+| unread_count   | feed, article | number of unread articles in the feed               |
+| total_count    | feed, article | total number of articles in the feed                |
+| tags           | feed, article | all tags that are associated with the feed          |
+| feedindex      | feed, article | Index of a feed in the feed list                    |
 * API Choices
 ** FeedHQ / Google Reader API
 http://feedhq.readthedocs.io/en/latest/api/reference.html
