@@ -2,10 +2,9 @@
   (:require
    [taoensso.timbre :as log]
    [taoensso.timbre.appenders.core :as appenders]
-   [infowarss.src]
+   [infowarss.src :as src]
    [infowarss.postproc :as postproc]
-   )
-  (:import [infowarss.src Feed]))
+   ))
 
 ;; Log config
 
@@ -28,17 +27,16 @@
 (defonce ^:dynamic *srcs*
   (atom
     {:fefe {:src
-            (Feed. "http://blog.fefe.de/rss.xml?html" "fefe"
-              [(postproc/move [:feed-entry] :description :contents)])
+            (src/feed "http://blog.fefe.de/rss.xml?html" "fefe"
+              [(postproc/exchange [:feed-entry :description] [:feed-entry :contents])])
             :tags #{:tech}
             :cron []}
 
      :irq0 {:src
-            (Feed. "http://irq0.org/news/index.atom" "irq0.org feed"
-              [(postproc/add-tag :personal)]
-              )
+            (src/feed "http://irq0.org/news/index.atom" "irq0.org feed"
+              [(postproc/add-tag :personal)])
             :tags #{:personal}
             :cron []}
      :fail {:src
-            (Feed. "http://irq0.org/404" "404" nil)}
+            (src/feed "http://irq0.org/404" "404")}
      }))

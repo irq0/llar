@@ -41,11 +41,13 @@
 (defn- fever-timestamp
   "Convert clj-time time object to fever unix timestamp"
   [time]
-  (let [time (if (nil? time) 0 time)]
+  (try+
     (-> time
       tc/to-long
       (/ 1000)
-      (.longValue))))
+      (.longValue))
+    (catch Object _
+      0)))
 
 (defn mk-favicon
   "
@@ -291,8 +293,8 @@
     {:id (fever-feed-id (:title src))
      :favicon_id 1337
      :title (:title src)
-     :url (:url src)
-     :site_url (:url src)
+     :url (-> src :url str)
+     :site_url (-> src :url str)
      :is_spark 0
      :last_updated_on_time (-> state
                              :last-successful-fetch-ts
@@ -326,14 +328,14 @@
   [doc]
   (let [contents (get-in doc [:feed-entry :contents])]
   {:id (fever-item-id (:_id doc))
-   :feed_id (-> doc (get-in [:source :title]) (fever-feed-id ))
-   :title (get-in doc [:summary :title])
+   :feed_id (-> doc :meta :source :title fever-feed-id)
+   :title (-> doc :summary :title)
    :author (as-> doc d (get-in d [:feed-entry :authors]) (string/join ", " d))
    :html (or (get contents "text/html") (get contents "text/plain"))
-   :url (get-in doc [:feed-entry :link])
+   :url (-> doc :feed-entry :url str)
    :is_saved 0
-   :is_read (if (-> doc (get-in [:meta :tags]) (contains? :unread)) 1 0)
-   :created_on_time (-> doc (get-in [:summary :ts]) fever-timestamp)}))
+   :is_read (if (-> doc :meta :tags (contains? :unread)) 1 0)
+   :created_on_time (-> doc :summary :ts fever-timestamp)}))
 
 (s/defn items :- FeverItems
   "

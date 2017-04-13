@@ -15,9 +15,9 @@
 
 (defn postproc [result]
   (log/infof "Postprocessing: %s -> %s"
-    (get-in result [:source :title])
-    (get-in result [:summary :title]))
-  (if-let [chain (get-in result [:source :postproc])]
+    (-> result :meta :source :title)
+    (-> result :summary :title))
+  (if-let [chain (get-in result [:meta :source :postproc])]
     (let [fun (make-postproc-chain-func chain)]
       (fun result))
     result))
@@ -29,8 +29,23 @@
   (fn [item]
     (update-in item [:meta :tags] conj tag)))
 
-(defn move [ks src dst]
+(defn copy [src dst]
   (fn [item]
-    (update-in item ks
-      #(-> % (assoc dst (get % src))
-        (assoc src nil)))))
+    (let [src-val (get-in item src)]
+      (-> item
+        (assoc-in dst src-val)))))
+
+(defn move [src dst]
+  (fn [item]
+    (let [src-val (get-in item src)]
+      (-> item
+        (assoc-in dst src-val)
+        (assoc-in src nil)))))
+
+(defn exchange [src dst]
+  (fn [item]
+    (let [src-val (get-in item src)
+          dst-val (get-in item dst)]
+      (-> item
+        (assoc-in dst src-val)
+        (assoc-in src dst-val)))))

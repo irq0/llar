@@ -56,13 +56,13 @@
          :last-exception &throw-context
          :retry-count 0}))
     (catch Object _
-      (log/error "Unexpected error: " (:throwable &throw-context))
+      (log/error "Unexpected error: "  &throw-context)
       (merge-state feed
         {:status :perm-fail
          :last-exception &throw-context
          :retry-count 0}))))
 
-(defn set-state! [k new-status]
+(defn set-status! [k new-status]
   (let [src (get @*srcs* k)]
     (when (contains? src :state)
       (swap! *srcs* (fn [current]
@@ -70,7 +70,7 @@
 
 (defn reset-all-failed! []
   (doseq [[k v] @*srcs*]
-    (set-state! k :new)))
+    (set-status! k :new)))
 
 
 (defn update! [k]

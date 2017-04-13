@@ -2,17 +2,27 @@
   (:require
    [infowarss.core :refer :all]
    [infowarss.postproc :refer [postproc]]
-   [infowarss.persistency :refer [store-items! duplicate?]]
+   [infowarss.persistency :as persistency :refer [store-items! duplicate?]]
    [infowarss.couchdb :as couch]
    [infowarss.update :refer :all]
    [infowarss.webapp :as webapp]
+   [infowarss.src :as src]
+   [infowarss.fetch :as fetch]
+   [infowarss.postproc :as postproc]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
+   [clj-time.core :as time]
    [clj-time.coerce :as tc]
+   [clj-time.format :as tf]
    [taoensso.timbre :as log]
    [table.core :refer [table]]
+   [clojure.java.io :as io]
+   [schema.core :as s]
+   [cheshire.core :as json]
    [ring.adapter.jetty :refer [run-jetty]]
    [taoensso.timbre.appenders.core :as appenders]))
+
+(s/set-fn-validation! true)
 
 (defn- human-src [[k v]]
   "Extract interesting informations from source data structure"
