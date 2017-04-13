@@ -34,7 +34,7 @@
 (defn- fever-group-id-for-tag
   "Convert infowarss feed id to fever compatible id"
   [tag]
-  (let [hash (digest/sha-256 tag)]
+  (let [hash (digest/sha-256 (name tag))]
     (Long/parseUnsignedLong (subs hash 0 8) 16)))
 
 
@@ -250,7 +250,7 @@
                   vals
                   (map #(get-in % [:src :title]))
                   (map fever-feed-id))]
-    {:group_id (fever-group-id-for-tag "all")
+    {:group_id (fever-group-id-for-tag :all)
      :feed_ids (string/join "," feedids)}))
 
 (defn- feedids-for-tag
@@ -267,22 +267,25 @@
 (s/defn tag-feeds-group :- FeverFeedsGroup
   "Return group containing all feed items with tag"
   [tag]
-    {:group_id (fever-group-id-for-tag (name tag))
+    {:group_id (fever-group-id-for-tag tag)
      :feed_ids (string/join "," (feedids-for-tag tag))})
 
 (s/defn feeds-groups :- FeverFeedsGroups
   "Return feeds_groups array"
   []
   [(all-feeds-group)
-   (tag-feeds-group "personal")])
+   (tag-feeds-group :jobs)
+   (tag-feeds-group :personal)])
 
 (s/defn groups  :- FeverGroups
   "Return feed groups"
   []
   {:last_refreshed_on_time 0
-   :groups [{:id (fever-group-id-for-tag "all"),
+   :groups [{:id (fever-group-id-for-tag :all),
              :title "All"}
-            {:id (fever-group-id-for-tag "personal")
+            {:id (fever-group-id-for-tag :jobs)
+             :title "Jobs"}
+            {:id (fever-group-id-for-tag :personal)
              :title "Personal"}]
    :feeds_groups (feeds-groups)})
 

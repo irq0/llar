@@ -1,8 +1,9 @@
 (ns infowarss.update
   (:require
    [infowarss.core :refer [*srcs* *update-max-retires*]]
-   [infowarss.fetch :refer [fetch-and-process-source]]
+   [infowarss.fetch :as fetch]
    [infowarss.persistency :refer [store-items! duplicate?]]
+   [infowarss.postproc :as proc]
    [clj-time.core :as time]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
@@ -28,10 +29,11 @@
 (defn- update-feed! [feed]
   "Update feed. Return new state"
   (try+
-    (let [items (fetch-and-process-source (:src feed))
-          dbks (store-items! items)]
-      (log/infof "[%s] Fetched %d, %d new stored to db"
-        (get-in feed [:src :title])  (count items) (count dbks))
+    (let [fetched (fetch/fetch feed)
+          processed (proc/process feed fetched)
+          dbks (store-items! processed)]
+      (log/infof "[%s] fetched: %d, after processing: %d, new in db: %d"
+        (-> feed :src :title) (count fetched) (count processed) (count dbks))
 
       (merge-state feed
         {:last-successful-fetch-ts (time/now)

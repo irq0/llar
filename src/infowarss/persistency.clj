@@ -51,8 +51,7 @@
       (cond->
           (-> item
             (assoc :type :feed)
-            (assoc-in [:feed-entry :contents] nil)
-            (assoc-in [:meta :source :postproc] (-> item :meta :source :postproc some?)))
+            (assoc-in [:feed-entry :contents] nil))
         (not (empty? atts)) (assoc "_attachments" atts)))))
 
 (extend-protocol StorableItem
@@ -68,21 +67,24 @@
 
 (defn- store-item-skip-duplicate! [item]
   (if (duplicate? item)
-    (log/infof "Skipping item \"%s\": duplicate"
-      (get-in item [:summary :title]))
+    (log/infof "Skipping item %s/\"%s\": duplicate"
+      (-> item :meta :source :title)
+      (-> item :summary :title))
     (let [{:keys [id]} (store-item! item)]
-      (log/infof "Stored item \"%s\": %s"
-        (get-in item [:summary :title]) id)
+      (log/infof "Stored item %s/\"%s\": %s"
+        (-> item :meta :source :title)
+        (-> item :summary :title)
+        id)
       id)))
 
 (defn store-items! [mixed-items]
   ;; Each vector may contain multiple item types.
   ;; -> Group them by type and call the store method
   (let [by-type (group-by type mixed-items)]
-    (log/infof "Processing %d items with types: %s"
+    (log/infof "Persisting %d items with types: %s"
       (count mixed-items) (keys by-type))
     (doall
       (apply concat
         (for [[type items] by-type]
-          (do (log/infof "Processing %s items" type)
+          (do (log/infof "Persisting %s items" type)
               (remove nil? (map #(store-item-skip-duplicate! %) items ))))))))

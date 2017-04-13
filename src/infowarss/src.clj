@@ -4,31 +4,22 @@
             [clojure.java.io :as io]
             ))
 
-(def Func
-  (s/pred function?))
-
-(def FuncList
-  [Func])
+;; Http source
 
 (s/defrecord Http
     [url :- java.net.URL
-     title :- s/Str
-     postproc :- FuncList])
+     title :- s/Str])
 
 (s/defn http :- Http
-  ([url title]
-   (Http. (io/as-url url) title []))
-  ([url title postproc]
-   (Http. (io/as-url url) title postproc)))
+  [url title]
+  (Http. (io/as-url url) title))
 
+;; Feed source
 
 (s/defrecord Feed
     [url :- java.net.URL
-     title :- s/Str
-     postproc :- FuncList])
+     title :- s/Str])
 
 (s/defn feed :- Feed
-  ([url title]
-   (Feed. (io/as-url url) title []))
-  ([url title postproc]
-   (Feed. (io/as-url url) title postproc)))
+  [url title]
+  (Feed. (io/as-url url) title))

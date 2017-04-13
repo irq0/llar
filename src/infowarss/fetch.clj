@@ -1,7 +1,7 @@
 (ns infowarss.fetch
   (:require
    [infowarss.converter :as conv]
-   [infowarss.postproc :refer [postproc]]
+   [infowarss.postproc :as proc :refer [postproc]]
    [infowarss.src :refer :all]
    [clj-rome.reader :as rome]
    [digest]
@@ -24,6 +24,8 @@
            [infowarss.src.Feed])
   )
 
+;; Schemas and records
+
 (def Metadata
   "Metadata about an item"
   {:source s/Any
@@ -42,14 +44,13 @@
   (s/constrained s/Str (partial re-matches #"SHA-256\:[0-9a-f]{64}")))
 
 (def HttpResponse
+  "Http Response"
   {:headers s/Any
    :status s/Int
-   :body s/Str})
-
-(s/defn make-item-hash :- Hash
-  "Make hash to use in *Item"
-  [& args]
-  (str "SHA-256:" (-> args string/join digest/sha-256)))
+   :body s/Str
+   :request-time s/Int
+   :trace-redirects [s/Str]
+   :orig-content-encoding s/Str})
 
 (s/defrecord HttpItem
     [meta :- Metadata
@@ -84,17 +85,23 @@
      feed-entry :- FeedEntry
      feed :- Feed])
 
+;; Constructors
+
+(s/defn make-item-hash :- Hash
+  "Make hash to use in *Item"
+  [& args]
+  (str "SHA-256:" (-> args string/join digest/sha-256)))
+
 (s/defn make-meta :- Metadata
   "Make meta entry from source and optional initial tags"
-  ([src :- s/Any]
-   (make-meta src #{}))
-  ([src :- s/Any
-    initial-tags :- (s/pred set?)]
+  [src :- s/Any]
   {:source src
    :app "infowarss.fetch"
    :fetch-ts (time/now)
-   :tags initial-tags
-   :version 0}))
+   :tags #{}
+   :version 0})
+
+;; Content extraction helper functions
 
 (defn- extract-http-title
   [parsed-html]
@@ -116,42 +123,6 @@
         (parser (get headers "Date")))
       (catch Object _
         (time/now)))))
-
-(defn fetch-http-generic
-  "Generic HTTP fetcher"
-  [src]
-  (try+
-    (let [url (-> src :url str)
-          response (http/get url)
-          parsed-html (-> response :body hick/parse hick/as-hickory)]
-      {:meta (make-meta src #{:unread})
-       :http (select-keys response [:headers :status :body])
-       :hash (make-item-hash (:body response))
-       :hickory parsed-html
-       :summary {:ts (extract-http-timestamp response)
-                 :title (extract-http-title parsed-html)}})
-
-    (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
-        {:keys [headers body status]}
-      (log/errorf "Client error probably due to broken request (%s): %s %s"
-        status headers body)
-      (throw+ (assoc &throw-context :type ::request-error)))
-
-    (catch (contains? #{500 501 502 503 504} (get % :status))
-        {:keys [headers body status] :as orig}
-      (log/errorf "Server Error (%s): %s %s" status headers body)
-      (throw+ (assoc &throw-context :type ::server-error-retry-later)))
-
-    (catch [:status 408]
-        {:keys [headers body status]}
-      (log/errorf "Client Error (%s): %s %s" status headers body)
-      (throw+ (assoc &throw-context :type ::client-error-retry-later)))
-
-    (catch Object _
-      (log/error "Unexpected error: " (:throwable &throw-context))
-      (throw+ (assoc &throw-context :type ::unexpected-error)))))
-
-;; Extractors for rome feed items
 
 (defn- extract-feed-authors [authors]
   "Extract feed author from rome feed item"
@@ -197,6 +168,42 @@
     (io/as-url s)
     (catch java.net.MalformedURLException _
       nil)))
+
+;; Fetcher
+
+(defn fetch-http-generic
+  "Generic HTTP fetcher"
+  [src]
+  (try+
+    (let [url (-> src :url str)
+          response (http/get url)
+          parsed-html (-> response :body hick/parse hick/as-hickory)]
+      {:meta (make-meta src)
+       :http response
+       :hash (make-item-hash (:body response))
+       :hickory parsed-html
+       :summary {:ts (extract-http-timestamp response)
+                 :title (extract-http-title parsed-html)}})
+
+    (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
+        {:keys [headers body status]}
+      (log/errorf "Client error probably due to broken request (%s): %s %s"
+        status headers body)
+      (throw+ (assoc &throw-context :type ::request-error)))
+
+    (catch (contains? #{500 501 502 503 504} (get % :status))
+        {:keys [headers body status] :as orig}
+      (log/errorf "Server Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::server-error-retry-later)))
+
+    (catch [:status 408]
+        {:keys [headers body status]}
+      (log/errorf "Client Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::client-error-retry-later)))
+
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (throw+ (assoc &throw-context :type ::unexpected-error)))))
 
 ;; Fetch source protocol
 
@@ -244,10 +251,8 @@
                       :summary {:ts timestamp
                                 :title (:title re)}}))))))))
 
-(defn fetch-and-process-source [source]
-  "Fetches source, postprocesses results and handles exceptions in the
-  process"
-  (log/info "Fetching: " (:title source))
-  (let [items (fetch-source source)
-        processed (map postproc items)]
-    processed))
+(defn fetch [feed]
+  "Fetch feed. Return seq of new items"
+  (let [{:keys [src]} feed]
+    (log/info "Fetching: " (-> src :title))
+    (fetch-source src)))
