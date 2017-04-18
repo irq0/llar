@@ -14,10 +14,17 @@
    [cheshire.core :refer :all])
   (:import [java.util.Base64.Encoder]))
 
-(defonce ^:dynamic *couch-db* "http://10.23.1.42:5984/db/")
+(defonce ^:dynamic *couch-base-url* "http://10.23.1.42:5984/")
+(defonce ^:dynamic *couch-default-db* "db")
 (defonce ^:dynamic *couch-db-auth* "admin:admin")
 (defonce ^:dynamic *db* (atom nil))
 (defonce ^:dynamic *last-document* (atom nil))
+
+(defn- couch-url
+  [& ps]
+  (let [base (str *couch-base-url* *couch-default-db*)
+        path (string/join "/" (map str ps))]
+    (str base "/" path)))
 
 (defn get-res-json [res]
   (slurp (io/resource res)))
@@ -28,7 +35,7 @@
                :ids {:map (get-res-json "ids_map.js")}
                :by-src {:map (get-res-json "by-src_map.js")}}]
 
-    (http/put (str *couch-db* "/_design/lookup")
+    (http/put (couch-url "_design" "lookup")
       {:content-type :json
        :basic-auth *couch-db-auth*
        :form-params {:language "javascript"
@@ -37,7 +44,7 @@
        :as :json})))
 
 (defn clear-db! []
-  (let [resp (http/post (str *couch-db* "/_find")
+  (let [resp (http/post (couch-url "_find")
                {:content-type :json
                 :form-params {:selector {:hash {"$exists" true}}
                               :fields ["_id" "_rev"]}
@@ -48,7 +55,7 @@
              "_rev" (:_rev row)
              "_deleted" true})
         ds (map f (get-in resp [:body :docs]))]
-    (http/post (str *couch-db* "/_bulk_docs")
+    (http/post (couch-url "_bulk_docs")
       {:form-params {:docs ds}
        :content-type :json
        :accept :json
@@ -57,7 +64,7 @@
 (defn add-document! [params]
   (reset! *last-document* params)
   (try+
-    (let [{:keys [body]} (http/post *couch-db*
+    (let [{:keys [body]} (http/post (couch-url)
                            {:form-params params
                             :content-type :json
                             :accept :json
@@ -78,13 +85,13 @@
 
 (defn get-document [id]
   (:body
-   (http/get (str *couch-db* "/" id)
+   (http/get (couch-url id)
      {:content-type :json
       :accept :json
       :as :json})))
 
 (defn get-attachment [docid attk]
-  (let [resp (http/get (str *couch-db* "/" docid "/" (name attk)))]
+  (let [resp (http/get (couch-url docid (name attk)))]
     [(get-in resp [:headers "Content-Type"])
      (get resp :body)]))
 
@@ -103,7 +110,7 @@
     (throw+ {:type ::params-must-not-be-empty
              :params {:id id :rev rev :params params}}))
   (try+
-    (let [{:keys [body]} (http/put (str *couch-db* "/" id)
+    (let [{:keys [body]} (http/put (couch-url id)
                            {:form-params params
                             :headers {"If-Match" rev}
                             :content-type :json
@@ -124,7 +131,7 @@
 
 
 (defn lookup-hash [hash]
-  (http/get (str *couch-db* "/_design/lookup/_view/hashes")
+  (http/get (couch-url "_design" "lookup" "_view" "hashes")
     {:content-type :json
      :query-params {:key (str "\"" hash "\"")}
      :accept :json
@@ -145,10 +152,10 @@
 
 (defn doc-ids-with-tag [tag]
   (->>
-    (couch/get-view *couch-db* "lookup" "by-tag" {:key tag})
+    (couch/get-view (couch-url) "lookup" "by-tag" {:key tag})
     (map :id)))
 
 (defn all-doc-ids []
   (->>
-    (couch/get-view *couch-db* "lookup" "ids")
+    (couch/get-view (couch-url) "lookup" "ids")
     (map :id)))

@@ -30,7 +30,7 @@
              :title "example"}})
 
 (defn setup-database [f]
-  (binding [couch/*couch-db* "http://10.3.1.42:5984/testdb/"]
+  (binding [couch/*couch-default-db* "testdb"]
     (couch/init-db!)
     (couch/add-document! demo-item)
     (f)
