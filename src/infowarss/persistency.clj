@@ -10,7 +10,7 @@
    [cheshire.generate :refer [add-encoder encode-map]]
    [clojure.string :as string])
   (:import [java.util.Base64.Encoder]
-           [infowarss.fetch FeedItem]
+           [infowarss.fetch FeedItem TweetItem]
            ))
 
 (add-encoder org.joda.time.DateTime
@@ -36,22 +36,30 @@
 
 (defn- to-couch-atts
     "Convert feed entry contents to couch attachments"
-  [item]
-  (let [contents (-> item :feed-entry :contents)]
-    (into {} (for [[content-type data] contents]
-               (when-not (nil? data)
-                 [(str "content" "." (get couch/attachment-extensions content-type))
-                  {:content_type content-type
-                   :data (base64-enc data)}])))))
+  [contents]
+  (into {} (for [[content-type data] contents]
+             (when-not (nil? data)
+               [(str "content" "." (get couch/attachment-extensions content-type))
+                {:content_type content-type
+                 :data (base64-enc data)}]))))
 
 (extend-protocol CouchItem
   FeedItem
   (to-couch [item]
-    (let [atts (to-couch-atts item)]
+    (let [atts (to-couch-atts (get-in item [:feed-entry :contents]))]
       (cond->
           (-> item
             (assoc :type :feed)
             (assoc-in [:feed-entry :contents] nil))
+        (not (empty? atts)) (assoc "_attachments" atts))))
+  TweetItem
+  (to-couch [item]
+    (let [atts (to-couch-atts (get-in item [:entry :contents]))]
+      (cond->
+          (-> item
+            (assoc :type :tweet)
+            (assoc-in [:meta :source :oauth-creds] nil)
+            (assoc-in [:entry :contents] nil))
         (not (empty? atts)) (assoc "_attachments" atts)))))
 
 (extend-protocol StorableItem
@@ -63,19 +71,27 @@
   (store-item! [item]
     (let [doc (to-couch item)]
       (log/spy doc)
+      (couch/add-document! doc)))
+
+  TweetItem
+  (duplicate? [item]
+    (let [resp (couch/lookup-hash (:hash item))]
+      (seq (get-in resp [:body :rows]))))
+
+  (store-item! [item]
+    (let [doc (to-couch item)]
+      (log/spy doc)
       (couch/add-document! doc))))
 
+
 (defn- store-item-skip-duplicate! [item]
-  (if (duplicate? item)
-    (log/infof "Skipping item %s/\"%s\": duplicate"
-      (-> item :meta :source :title)
-      (-> item :summary :title))
-    (let [{:keys [id]} (store-item! item)]
-      (log/infof "Stored item %s/\"%s\": %s"
-        (-> item :meta :source :title)
-        (-> item :summary :title)
-        id)
-      id)))
+  (let [name (get-in item [:meta :source-name])
+        title (get-in item [:summary :title])]
+    (if (duplicate? item)
+      (log/infof "Skipping item %s/\"%s\": duplicate" name title)
+      (let [{:keys [id]} (store-item! item)]
+        (log/infof "Stored item %s/\"%s\": %s" name title id)
+        id))))
 
 (defn store-items! [mixed-items]
   ;; Each vector may contain multiple item types.

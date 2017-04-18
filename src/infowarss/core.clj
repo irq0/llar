@@ -24,11 +24,40 @@
 
 ;; sources
 
+(def ^:dynamic *creds*
+ {:twitter-api {:app-key "IVETINAHUBVPZMSKbHyhfA"
+                :app-secret "DLxxNciB7gab8DspVSENZLQz8MvilwQoJmHVXHwk"
+                :user-token "1042742413-js3KvfT4RoKMjlYhrmMzyCMyxT6Nujp42Pxj9fS"
+                :user-token-secret "sC0B84RvSlYt4hI9U6uudhIDe2hLWD6UOKoDjRpdP0"}})
+
 (def ^:dynamic *srcs*
   (atom
-    {:fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html" "fefe")
+    {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api *creds*))
+                 :proc (proc/make
+                         :filter (fn [item]
+                                   (->> item
+                                     :entry
+                                     :type
+                                     #{:retweet})))
+                 :tags #{}
+                 :cron []}
+     :twit-augsburg-pics {:src (src/twitter-search "augsburg filter:images"
+                                 (:twitter-api *creds*))
+                          :proc (proc/make
+                                  :filter (fn [item]
+                                            (let [type (get-in item [:entry :type])
+                                                  text (get-in item [:entry :contents "text/plain"])
+                                                  {:keys [status score]} (proc/spamassassin text)]
+                                              (log/debugf "Spamassassin for %s: %s %s"
+                                                text status score)
+                                              (or (#{:retweet} type)
+                                                (re-find #"pussy|porn|camsex|webcam" text)
+                                                status))))
+                 :tags #{}
+                 :cron []}
+     :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
             :proc (proc/make
-                    :post [(postproc/exchange
+                    :post [(proc/exchange
                              [:feed-entry :description]
                              [:feed-entry :contents])]
                     :filter (fn [item]
@@ -38,15 +67,15 @@
                                 (re-find #"Zu Sarin"))))
             :tags #{:tech}
             :cron []}
-     :upwork-personal {:src (src/feed "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353" "upwork-personal")
+     :upwork-personal {:src (src/feed "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
                        :tags #{:jobs}
                        :cron []}
 
-     :irq0 {:src (src/feed "http://irq0.org/news/index.atom" "irq0.org feed")
+     :irq0 {:src (src/feed "http://irq0.org/news/index.atom")
             :proc (proc/make
-                    :post [(postproc/add-tag :personal)])
+                    :post [(proc/add-tag :personal)])
             :tags #{:personal}
             :cron []}
      :fail {:src
-            (src/feed "http://irq0.org/404" "404")}
+            (src/feed "http://irq0.org/404")}
      }))

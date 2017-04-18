@@ -26,14 +26,23 @@
         merged (merge old new)]
     (assoc src :state merged )))
 
-(defn- update-feed! [feed]
+(defn- update-feed!
+  [feed & {:keys [skip-proc skip-store]
+           :or {skip-proc false skip-store false}}]
   "Update feed. Return new state"
   (try+
-    (let [fetched (fetch/fetch feed)
-          processed (proc/process feed fetched)
-          dbks (store-items! processed)]
-      (log/infof "[%s] fetched: %d, after processing: %d, new in db: %d"
-        (-> feed :src :title) (count fetched) (count processed) (count dbks))
+    (let [{:keys [src]} feed
+          fetched (fetch/fetch feed)
+          processed (if-not skip-proc
+                      (proc/process feed fetched)
+                      fetched)
+          dbks (if-not skip-store
+                 (store-items! processed)
+                 processed)]
+
+      (log/infof "Updating %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
+        (str src) (count fetched) (count processed) (count dbks)
+        skip-proc skip-store)
 
       (merge-state feed
         {:last-successful-fetch-ts (time/now)
@@ -57,6 +66,14 @@
         {:status :perm-fail
          :last-exception &throw-context
          :retry-count 0}))
+
+    (catch java.net.ConnectException _
+      (log/error "Connection error: "  &throw-context)
+      (merge-state feed
+        {:status :temp-fail
+         :last-exception &throw-context
+         :retry-count 0}))
+
     (catch Object _
       (log/error "Unexpected error: "  &throw-context)
       (merge-state feed
@@ -68,15 +85,19 @@
   (let [src (get @*srcs* k)]
     (when (contains? src :state)
       (swap! *srcs* (fn [current]
-                      (assoc-in current [k :state :status] new-status))))))
+                      (assoc-in current [k :state :status] new-status)))
+      new-status)))
 
 (defn reset-all-failed! []
   (doseq [[k v] @*srcs*]
     (set-status! k :new)))
 
 
-(defn update! [k]
+(defn update!
   "Update feed by id (see: *srcs*)"
+  [k & {:keys [force skip-proc skip-store]
+        :as args}]
+
   (let [v (get @*srcs* k)
         feed (if (contains? v :state)
                v
@@ -86,9 +107,9 @@
 
     (condp = (:status old-state)
       :new
-      (log/info "New feed: " k)
+      (log/info "Updating new feed: " k)
       :ok
-      (log/info "Working feed: " k)
+      (log/info "Updating working feed: " k)
       :temp-fail
       (log/info "Temporary failing feed %d/%d: %s"
         (:retry-count old-state) *update-max-retires* k)
@@ -96,18 +117,26 @@
       (log/info "Skipping perm fail feed: " k)
       (log/infof "Unknown status \"%s\": %s" (:status old-state) k))
 
+    (log/spy (dissoc args :force))
+
+    (when force
+      (log/infof "Force updating %s feed %s" (:status old-state) k))
+
     (when (or
+            force
             (#{:ok :new} (:status old-state))
             (and
               (= (:status old-state) :temp-fail)
               (< (:retry-count old-state) *update-max-retires* )))
-      (let [new-feed (update-feed! feed)
+      (let [new-feed (apply update-feed! feed (mapcat identity (dissoc args :force)))
             new-state (:state new-feed)]
         (log/infof "[%s] State: %s -> %s " k
           (:status old-state) (:status new-state))
         (swap! *srcs* (fn [current]
-                        (assoc-in current [k :state] new-state)))))))
+                        (assoc-in current [k :state] new-state)))
+        (:status new-state)))))
 
-(defn update-all! []
-  (doseq [[k v] @*srcs*]
-    (update! k)))
+(defn update-all! [& args]
+  (doall
+    (for [[k v] @*srcs*]
+      (apply update! k args))))

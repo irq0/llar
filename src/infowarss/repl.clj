@@ -1,14 +1,14 @@
 (ns infowarss.repl
   (:require
    [infowarss.core :refer :all]
-   [infowarss.postproc :refer [postproc]]
    [infowarss.persistency :as persistency :refer [store-items! duplicate?]]
    [infowarss.couchdb :as couch]
    [infowarss.update :refer :all]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
    [infowarss.fetch :as fetch]
-   [infowarss.postproc :as postproc]
+   [infowarss.postproc :as proc]
+   [infowarss.live :as live]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.core :as time]
@@ -17,8 +17,13 @@
    [taoensso.timbre :as log]
    [table.core :refer [table]]
    [clojure.java.io :as io]
+   [clojure.string :as string]
+   [postal.core :as postal]
    [schema.core :as s]
    [cheshire.core :as json]
+   [twitter.oauth :as twitter-oauth]
+   [twitter.api.restful :as twitter]
+   [clojure.inspector :refer [inspect inspect-table inspect-tree]]
    [ring.adapter.jetty :refer [run-jetty]]
    [taoensso.timbre.appenders.core :as appenders]))
 
@@ -27,7 +32,7 @@
 (defn- human-src [[k v]]
   "Extract interesting informations from source data structure"
   (let [base {:key k
-              :title (get-in v [:src :title])
+              :name (str (get v :src))
               :status (get-in v [:state :status])
               :last-success (tc/to-string (get-in v [:state :last-successful-fetch-ts]))}]
     (if (#{:perm-fail :temp-fail} (:status base))

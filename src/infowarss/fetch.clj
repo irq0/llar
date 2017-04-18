@@ -1,8 +1,7 @@
 (ns infowarss.fetch
   (:require
    [infowarss.converter :as conv]
-   [infowarss.postproc :as proc :refer [postproc]]
-   [infowarss.src :refer :all]
+   [infowarss.src]
    [clj-rome.reader :as rome]
    [digest]
    [clj-http.client :as http]
@@ -17,19 +16,21 @@
    [clojure.string :as string]
    [clojure.tools.nrepl.server :as nrepl]
    [clojure.java.io :as io]
+   [twitter.api.restful :as twitter]
    [schema.core :as s]
    )
-  (:import [java.util.Base64.Encoder]
-           [org.joda.time.DateTime]
-           [infowarss.src.Feed])
-  )
+  (:import
+   [java.util.Base64.Encoder]
+   [org.joda.time.DateTime]))
 
 ;; Schemas and records
 
 (def Metadata
   "Metadata about an item"
   {:source s/Any
+   :source-name s/Str
    :app s/Str
+   :ns s/Str
    :fetch-ts org.joda.time.DateTime
    :tags (s/pred set?)
    :version s/Int})
@@ -48,9 +49,10 @@
   {:headers s/Any
    :status s/Int
    :body s/Str
+   (s/optional-key :cookies) s/Any
    :request-time s/Int
-   :trace-redirects [s/Str]
-   :orig-content-encoding s/Str})
+   :trace-redirects (s/maybe [s/Str])
+   :orig-content-encoding (s/maybe s/Str)})
 
 (s/defrecord HttpItem
     [meta :- Metadata
@@ -85,6 +87,27 @@
      feed-entry :- FeedEntry
      feed :- Feed])
 
+(def TweetEntry
+  {:url (s/maybe java.net.URL)
+   :pub-ts (s/maybe org.joda.time.DateTime)
+   :score {:favs s/Int
+           :retweets s/Int}
+   :language s/Str
+   :id s/Int
+   :type #{:retweet :reply :tweet}
+   :entities {:hashtags [s/Str]
+              :user_mentions [s/Str]
+              :photos [java.net.URL]}
+   :authors [s/Str]
+   :contents {(s/required-key "text/plain") (s/maybe s/Str)
+              (s/optional-key "text/html") s/Str}})
+
+(s/defrecord TweetItem
+    [meta :- Metadata
+     summary :- Summary
+     hash :- Hash
+     entry :- TweetEntry])
+
 ;; Constructors
 
 (s/defn make-item-hash :- Hash
@@ -96,12 +119,123 @@
   "Make meta entry from source and optional initial tags"
   [src :- s/Any]
   {:source src
-   :app "infowarss.fetch"
+   :source-name (str src)
+   :app "infowarss"
+   :ns (str *ns*)
    :fetch-ts (time/now)
    :tags #{}
    :version 0})
 
 ;; Content extraction helper functions
+
+(defn- parse-http-ts [ts]
+  (when-not (nil? ts)
+    (tf/parse (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z") ts)))
+
+(defn- parse-twitter-ts [ts]
+  (when-not (nil? ts)
+    (tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy") ts)))
+
+(defn- tweet-title [s]
+  (let [new (subs s 0 (min (count s) 50))]
+    (if (< (count new) (count s))
+      (str new "…")
+      new)))
+
+(defn- tweet-type [tweet]
+  (cond
+    (contains? tweet :retweeted_status) :retweet
+    (not (nil? (get tweet :in_reply_to_user_id))) :reply
+    :else :tweet))
+
+(defn- tweet-to-entry [tweet]
+  (let [user (get-in tweet [:user :screen_name])
+        id (get tweet :id)
+        entities (get tweet :entities)]
+
+    {:url (io/as-url (format "https://twitter.com/%s/status/%s"
+                       user id))
+     :pub-ts (parse-twitter-ts (get tweet :created_at))
+     :score {:favs (get tweet :favorite_count)
+             :retweets (get tweet :retweet_count)}
+     :language (get tweet :lang)
+     :id id
+     :type (tweet-type tweet)
+     :entities {:hashtags (some->> (get entities :hashtags)
+                            (map :text))
+                :mentions (some->> (get entities :user_mentions)
+                            (map :screen_name))
+                :photos (some->> (get entities :media)
+                          (map :media_url))}
+     :authors [(get-in tweet [:user :screen_name])]
+     :contents {"text/plain" (get tweet :text)}}))
+
+(def tweet-symbols
+  {:hashtags "#"
+   :user_mentions "@"
+   :urls "URL"})
+
+(defn htmlize-entity
+  "Return html representation of entity"
+  [category data]
+
+  (condp = category
+    :hashtags
+    (format "<a href=\"https://twitter.com/hashtag/%s\">%s%s</a>"
+      data (get tweet-symbols category) data)
+    :user_mentions
+    (format "<a href=\"https://twitter.com/%s\">%s%s</a>"
+      data (get tweet-symbols category) data)
+    :media
+    (format "<img src=\"%s\">" data)
+    :urls
+    (format "<a href=\"%s\">%s</a>"
+      data (get tweet-symbols category))
+    nil
+    ""))
+
+(defn make-changes-list
+  "Generate sorted list of changes to apply to tweet text"
+  [tweet]
+  (sort
+    (apply concat
+      (for [[category key] [[:hashtags :text]
+                            [:user_mentions :screen_name]
+                            [:media :media_url]
+                            [:urls :expanded_url]]]
+        (for [item (get-in tweet [:entities category])]
+          (let [{:keys [indices]} item]
+            [[(first indices) (second indices)]
+             [category (get item key)]]))))))
+(comment
+  (-> (StringBuilder.) (.appendCodePoint 128514) (.toString))
+  (->> "a😂b😂😂😂😂" .codePoints .toArray (map-indexed (fn [i cp] [i cp (Character/charCount cp) (Character/toChars cp) ] ))))
+
+
+(defn htmlize-tweet-text
+  "Get html representation of tweet text"
+  [tweet]
+  (let [text (get tweet :text)
+        changes (make-changes-list tweet)
+        sb (StringBuilder.)
+        text-code-points (->> text
+                           .codePoints
+                           .toArray
+                           vec)
+        text-len (count text-code-points)
+        ]
+    (doseq [ [[[start end] [cat data]]
+              [[next-start next-end] [next-cat next-data]]]
+            (partition 2 1 (concat
+                             [[[0 0] [nil nil]]]
+                             changes
+                             [[[text-len text-len] [nil nil]]]))]
+      (let [subs (subvec text-code-points end next-start)]
+                  (.append sb (htmlize-entity cat data))
+                  (doseq [s subs]
+                    (.appendCodePoint sb s))
+                  ))
+      (.toString sb)))
 
 (defn- extract-http-title
   [parsed-html]
@@ -113,7 +247,7 @@
     first
     string/trim))
 
-(defn extract-http-timestamp
+(defn- extract-http-timestamp
   [resp]
   (let [{:keys [headers]} resp
         parser (partial
@@ -171,19 +305,20 @@
 
 ;; Fetcher
 
-(defn fetch-http-generic
+(s/defn fetch-http-generic :- HttpItem
   "Generic HTTP fetcher"
   [src]
   (try+
     (let [url (-> src :url str)
           response (http/get url)
           parsed-html (-> response :body hick/parse hick/as-hickory)]
-      {:meta (make-meta src)
-       :http response
-       :hash (make-item-hash (:body response))
-       :hickory parsed-html
-       :summary {:ts (extract-http-timestamp response)
-                 :title (extract-http-title parsed-html)}})
+      (map->HttpItem
+        {:meta (make-meta src)
+         :http response
+         :hash (make-item-hash (:body response))
+         :hickory parsed-html
+         :summary {:ts (extract-http-timestamp response)
+                   :title (extract-http-title parsed-html)}}))
 
     (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
         {:keys [headers body status]}
@@ -214,7 +349,7 @@
 (extend-protocol FetchSource
   infowarss.src.Http
   (fetch-source [src]
-    [(map->HttpItem (fetch-http-generic src))])
+    [(fetch-http-generic src)])
   infowarss.src.Feed
   (fetch-source [src]
     (let [http-item (fetch-http-generic src)
@@ -249,10 +384,33 @@
                               (:title re) (:link re)
                               (get contents "text/plain"))
                       :summary {:ts timestamp
-                                :title (:title re)}}))))))))
+                                :title (:title re)}})))))))
+
+  infowarss.src.TwitterSearch
+  (fetch-source [src]
+    (let [{:keys [query oauth-creds]} src
+          resp (twitter/search-tweets
+                 :oauth-creds oauth-creds
+                 :params {:q query})
+          tweets (get-in resp [:body :statuses])]
+      (for [tweet tweets
+            :let [entry (tweet-to-entry tweet)
+                  content (get-in entry [:contents "text/plain"])]]
+        (map->TweetItem
+          {:meta (make-meta src)
+           :summary {:ts (get entry :pub-ts )
+                     :title (tweet-title content)}
+           :hash (make-item-hash
+                   (get entry :id)
+                   content)
+           :entry entry})))))
+
+
+(defn htmlize-tweet [entry]
+  (let [text (get-in entry [
 
 (defn fetch [feed]
   "Fetch feed. Return seq of new items"
   (let [{:keys [src]} feed]
-    (log/info "Fetching: " (-> src :title))
+    (log/info "Fetching: " (str src))
     (fetch-source src)))
