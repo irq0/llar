@@ -148,28 +148,6 @@
     (not (nil? (get tweet :in_reply_to_user_id))) :reply
     :else :tweet))
 
-(defn- tweet-to-entry [tweet]
-  (let [user (get-in tweet [:user :screen_name])
-        id (get tweet :id)
-        entities (get tweet :entities)]
-
-    {:url (io/as-url (format "https://twitter.com/%s/status/%s"
-                       user id))
-     :pub-ts (parse-twitter-ts (get tweet :created_at))
-     :score {:favs (get tweet :favorite_count)
-             :retweets (get tweet :retweet_count)}
-     :language (get tweet :lang)
-     :id id
-     :type (tweet-type tweet)
-     :entities {:hashtags (some->> (get entities :hashtags)
-                            (map :text))
-                :mentions (some->> (get entities :user_mentions)
-                            (map :screen_name))
-                :photos (some->> (get entities :media)
-                          (map :media_url))}
-     :authors [(get-in tweet [:user :screen_name])]
-     :contents {"text/plain" (get tweet :text)}}))
-
 (def tweet-symbols
   {:hashtags "#"
    :user_mentions "@"
@@ -181,20 +159,20 @@
 
   (condp = category
     :hashtags
-    (format "<a href=\"https://twitter.com/hashtag/%s\">%s%s</a>"
+    (format "<a class=\"hashtag-entity\" href=\"https://twitter.com/hashtag/%s\">%s%s</a>"
       data (get tweet-symbols category) data)
     :user_mentions
-    (format "<a href=\"https://twitter.com/%s\">%s%s</a>"
+    (format "<a class=\"mention-entity\" href=\"https://twitter.com/%s\">%s%s</a>"
       data (get tweet-symbols category) data)
     :media
-    (format "<img src=\"%s\">" data)
+    (format "<img class=\"media-entity\" src=\"%s\">" data)
     :urls
-    (format "<a href=\"%s\">%s</a>"
+    (format "<a class=\"url-entity\" href=\"%s\">%s</a>"
       data (get tweet-symbols category))
     nil
     ""))
 
-(defn make-changes-list
+(defn- tweet-text-changes
   "Generate sorted list of changes to apply to tweet text"
   [tweet]
   (sort
@@ -207,16 +185,20 @@
           (let [{:keys [indices]} item]
             [[(first indices) (second indices)]
              [category (get item key)]]))))))
-(comment
-  (-> (StringBuilder.) (.appendCodePoint 128514) (.toString))
-  (->> "a😂b😂😂😂😂" .codePoints .toArray (map-indexed (fn [i cp] [i cp (Character/charCount cp) (Character/toChars cp) ] ))))
 
-
-(defn htmlize-tweet-text
+(defn- htmlize-tweet-text
   "Get html representation of tweet text"
   [tweet]
+
+  ;;Java strings are UTF16 and substring/subs indexes by char not code
+  ;;point. The tweet text usually contains many UTF16 chars that are
+  ;;not in the basic plane. We therefore first convert the string to a
+  ;;vec of code points which can be indexed by "perceived" character.
+  ;;We use a mutable StringBuffer to reassemble since it supports
+  ;;adding code points.
+
   (let [text (get tweet :text)
-        changes (make-changes-list tweet)
+        changes (tweet-text-changes tweet)
         sb (StringBuilder.)
         text-code-points (->> text
                            .codePoints
@@ -236,6 +218,31 @@
                     (.appendCodePoint sb s))
                   ))
       (.toString sb)))
+
+(defn- tweet-to-entry [tweet]
+  (let [user (get-in tweet [:user :screen_name])
+        id (get tweet :id)
+        text (get tweet :text)
+        entities (get tweet :entities)]
+
+    {:url (io/as-url (format "https://twitter.com/%s/status/%s"
+                       user id))
+     :pub-ts (parse-twitter-ts (get tweet :created_at))
+     :score {:favs (get tweet :favorite_count)
+             :retweets (get tweet :retweet_count)}
+     :language (get tweet :lang)
+     :id id
+     :type (tweet-type tweet)
+     :entities {:hashtags (some->> (get entities :hashtags)
+                            (map :text))
+                :mentions (some->> (get entities :user_mentions)
+                            (map :screen_name))
+                :photos (some->> (get entities :media)
+                          (map :media_url))}
+     :authors [(get-in tweet [:user :screen_name])]
+     :contents {"text/plain" text
+                "text/html" (htmlize-tweet-text tweet)}}))
+
 
 (defn- extract-http-title
   [parsed-html]
