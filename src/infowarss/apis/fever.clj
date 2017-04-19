@@ -28,7 +28,7 @@
 (defn- fever-feed-id
   "Convert infowarss feed id to fever compatible id"
   [id]
-  (let [hash (digest/sha-256 id)]
+  (let [hash (digest/sha-256 (str id))]
     (Long/parseUnsignedLong (subs hash 0 8) 16)))
 
 (defn- fever-group-id-for-tag
@@ -248,7 +248,7 @@
   []
   (let [feedids (->> @*srcs*
                   vals
-                  (map #(get-in % [:src :title]))
+                  (map :src)
                   (map fever-feed-id))]
     {:group_id (fever-group-id-for-tag :all)
      :feed_ids (string/join "," feedids)}))
@@ -259,7 +259,7 @@
     (->> @*srcs*
       vals
       (filter (fn [src] (-> src :tags (contains? tag))))
-      (map #(get-in % [:src :title]))
+      (map :src)
       (map fever-feed-id))
     (catch Object _
       [])))
@@ -293,9 +293,9 @@
   "Convert infowarss src to fever feed"
   [src]
   (let [[k {:keys [src state]}] src]
-    {:id (fever-feed-id (:title src))
+    {:id (fever-feed-id src)
      :favicon_id 1337
-     :title (:title src)
+     :title (str src) ;; FIXME use stored feed names
      :url (-> src :url str)
      :site_url (-> src :url str)
      :is_spark 0
@@ -309,7 +309,7 @@
   (let [feedids
         (->> @*srcs*
           vals
-          (map #(get-in % [:src :title]))
+          (map :src)
           (map fever-feed-id))]
   {:last_refreshed_on_time 0,
    :feeds (for [src @*srcs*]
@@ -331,7 +331,7 @@
   [doc]
   (let [contents (get-in doc [:feed-entry :contents])]
   {:id (fever-item-id (:_id doc))
-   :feed_id (-> doc :meta :source :title fever-feed-id)
+   :feed_id (-> doc :meta :source-name fever-feed-id)
    :title (-> doc :summary :title)
    :author (as-> doc d (get-in d [:feed-entry :authors]) (string/join ", " d))
    :html (or (get contents "text/html") (get contents "text/plain"))
