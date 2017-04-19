@@ -3,10 +3,11 @@
    [clojure.java.shell :as shell]))
 
 
-(defn html2text [html]
+(defn html2text
   "Convert html to text"
+  [html]
   (let [{:keys [exit out]}
         (shell/sh "w3m" "-T" "text/html" "-dump" :in html)]
-    (if (= exit 0)
+    (if (zero? exit)
       out
       "")))

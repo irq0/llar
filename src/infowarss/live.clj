@@ -11,8 +11,6 @@
    [taoensso.timbre :as log])
   (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))
 
-
-
 (defn make-firebase-logger [level]
   (let [firebase-to-taoensso {Logger$Level/DEBUG :debug
                               Logger$Level/INFO :info
@@ -108,8 +106,7 @@
 
 (s/defn get-hn-entry :- HackerNewsEntry
   [id :- s/Int]
-  (let [ref (-> (make-ref hacker-news-base-url)
-              (make-path "item" id))
+  (let [ref (make-path (make-ref hacker-news-base-url) "item" id)
         raw (get-value ref)]
     (make-hn-entry raw)))
 
@@ -144,7 +141,7 @@
 (extend-protocol LiveSource
   infowarss.src.HackerNews
   (start-collecting! [src item-chan]
-    (let [story-feed (-> src :story-feed)
+    (let [story-feed (:story-feed src)
           state @(get src :state)
           hn (make-ref hacker-news-base-url)
           ref (make-path hn story-feed)]

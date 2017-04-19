@@ -19,9 +19,10 @@
    :retry-count 0})
 
 (defn- update-feed!
+  "Update feed. Return new state"
   [k & {:keys [skip-proc skip-store]
            :or {skip-proc false skip-store false}}]
-  "Update feed. Return new state"
+
   (let [feed (get @*srcs* k)
         state (get @*state* k)
         now (time/now)
@@ -94,18 +95,21 @@
     (set-status! k :new)))
 
 
+
+
 (defn update!
   "Update feed by id (see: *srcs*)"
   [k & {:keys [force skip-proc skip-store]
         :as args}]
 
+
   (when-not (contains? @*state* k)
     (swap! *state* assoc k src-state-template))
 
     ;; don't update the same feed in parallel
-    (locking (get-in @*state* [k :update-lock])
-      (let [cur-state (get @*state* k)
-            cur-status (:status cur-state)]
+  (locking (get-in @*state* [k :update-lock])
+    (let [cur-state (get @*state* k)
+          cur-status (:status cur-state)]
 
       (condp = cur-status
         :new

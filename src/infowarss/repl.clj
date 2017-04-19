@@ -44,12 +44,12 @@
     (.print formatter period)))
 
 (defn period-since-now [ts]
-  (-> (time/interval ts (time/now))
-    (.toPeriod)))nb
+  (.toPeriod (time/interval ts (time/now))))
 
 
-(defn- human-src [[k v]]
+(defn- human-src
   "Extract interesting informations from source data structure"
+  [[k v]]
   (let [base {:key k
               :name (str (get v :src))
               :status (get-in @*state* [k :status])
@@ -67,8 +67,9 @@
         (get-in @*state* [k :last-exception :message]))
       base)))
 
-(defn sources []
+(defn sources
   "Return list of sources for human consumption"
+  []
   (map human-src @*srcs*))
 
 (defn- human-feed-item [i]

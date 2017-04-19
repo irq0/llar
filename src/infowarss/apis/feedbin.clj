@@ -136,9 +136,7 @@
 
 
 (defn- not-implemented []
-  (->
-    (response/response "Not Implemented")
-    (response/status 500)))
+  (response/status (response/response "Not Implemented") 500))
 
 (defn- empty-response []
   (response/response "[]"))

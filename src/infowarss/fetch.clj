@@ -186,7 +186,7 @@
             [[(first indices) (second indices)]
              [category (get item key)]]))))))
 
-(defn- htmlize-tweet-text
+(defn htmlize-tweet-text
   "Get html representation of tweet text"
   [tweet]
 
@@ -217,7 +217,7 @@
                   (doseq [s subs]
                     (.appendCodePoint sb s))
                   ))
-      (.toString sb)))
+      (str sb)))
 
 (defn- tweet-to-entry [tweet]
   (let [user (get-in tweet [:user :screen_name])
@@ -265,8 +265,9 @@
       (catch Object _
         (time/now)))))
 
-(defn- extract-feed-authors [authors]
+(defn- extract-feed-authors
   "Extract feed author from rome feed item"
+  [authors]
   (for [{:keys [name email]} authors]
     (str
       (when-not (nil? name)
@@ -275,8 +276,9 @@
         (str " <" email ">")))))
 
 
-(defn- extract-feed-description [description]
+(defn- extract-feed-description
   "Extract feed description from rome reed item"
+  [description]
   (if (= (:type description) "text/html")
     {"text/html" (:value description)
      "text/plain" (conv/html2text (:value description))}
@@ -285,8 +287,9 @@
 (def rome-content-type-to-mime {"html" "text/html"
                                 "text" "text/plain"})
 
-(defn- extract-feed-content [contents]
+(defn- extract-feed-content
   "Extract feed content from rome feed item"
+  [contents]
   (let [by-type (into {}
                   (for [{:keys [type value]} contents]
                     [(get rome-content-type-to-mime
@@ -413,11 +416,9 @@
            :entry entry})))))
 
 
-(defn htmlize-tweet [entry]
-  (let [text (get-in entry [
-
-(defn fetch [feed]
+(defn fetch
   "Fetch feed. Return seq of new items"
+  [feed]
   (let [{:keys [src]} feed]
     (log/info "Fetching: " (str src))
     (fetch-source src)))

@@ -61,8 +61,7 @@
 (defn copy [src dst]
   (fn [item]
     (let [src-val (get-in item src)]
-      (-> item
-        (assoc-in dst src-val)))))
+      (assoc-in item dst src-val))))
 
 (defn move [src dst]
   (fn [item]
@@ -105,7 +104,7 @@
   (let [msg (dummy-mail text)
         {:keys [exit out]} (shell/sh "spamassassin" "--local" "--test-mode" :in msg)]
 
-    (if (= exit 0)
+    (if (zero? exit)
       (let [[_ sa-bool score] (re-find #"X-Spam-Status: (.+), score=(\d+\.\d+)" out)]
         {:status (get sa-to-bool sa-bool)
          :score (Float/parseFloat score)})
@@ -134,7 +133,7 @@
     (let [out? (boolean (f item))]
       (log/debugf "filter: (%s, %s) -> %s"
         f item out?)
-      (if out? nil item))
+      (when-not out? item))
     item))
 
 (defn process-item [feed item]
@@ -151,7 +150,7 @@
     (comp #(log/info "foo %s" %) (partial + 3))
 
     (log/infof "Processing %s: %s/\"%s\""
-      (-> item type)
+      (type item)
       (str src)
       (-> item :summary :title))
 

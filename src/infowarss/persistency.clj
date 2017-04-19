@@ -51,7 +51,7 @@
           (-> item
             (assoc :type :feed)
             (assoc-in [:feed-entry :contents] nil))
-        (not (empty? atts)) (assoc "_attachments" atts))))
+        (seq atts) (assoc "_attachments" atts))))
   TweetItem
   (to-couch [item]
     (let [atts (to-couch-atts (get-in item [:entry :contents]))]
@@ -60,7 +60,7 @@
             (assoc :type :tweet)
             (assoc-in [:meta :source :oauth-creds] nil)
             (assoc-in [:entry :contents] nil))
-        (not (empty? atts)) (assoc "_attachments" atts)))))
+        (seq atts) (assoc "_attachments" atts)))))
 
 (extend-protocol StorableItem
   FeedItem

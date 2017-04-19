@@ -78,23 +78,19 @@
   (= (string/lower-case (str key)) (api-key)))
 
 (defn- auth-error []
-  (-> (response/response "Auth error!")
-      (response/status 401)))
+  (response/status (response/response "Auth error!") 401))
 
 (defn wrap-auth
   "Check fever api key and set :fever-auth in request
    Overwrite response with (fever-auth-error) if unauthorized"
   [handler]
   (fn [request]
-    #spy/p request
     (let [api-key ((request :params) :api_key)
           auth? (auth? api-key)
           request (assoc-in request [:fever-auth] auth?)
           response (handler request)]
       (if auth?
-        #spy/p response
         (auth-error)))))
-
 
 ;; Fever API Schema
 
@@ -354,7 +350,7 @@
         filtered-ids (cond->> ids
                        (number? since) (filter (fn [[fid _]] (< since fid )))
                        (number? max) (filter (fn [[fid _]] (>= max fid)))
-                       (not (empty? with)) (filter (fn [[fid _]] ((set with) fid))))
+                       (seq with) (filter (fn [[fid _]] ((set with) fid))))
         ids-to-return (->> filtered-ids
                         (vals)
                         (take 50))]
@@ -444,7 +440,7 @@
 (defn handle-write-op
   [req]
   (try+
-    (let [{:keys [mark as id before]} (-> req :params)
+    (let [{:keys [mark as id before]} (:params req)
           id (Long/parseLong id)]
       (log/infof "[Fever API] WRITE OP (%s:%s -> %s)"
         mark id as)
@@ -457,7 +453,7 @@
         (log/error "Unsupported write op")))
     (catch Object _
       (log/error "Unexpected error: " (:throwable &throw-context))
-      (log/spy (-> req :params))))
+      (log/spy (:params req))))
   {})
 
 (defn extract-op
@@ -473,7 +469,7 @@
   "Dispatch fever api operation to handler function"
   [req]
   (let [op (extract-op req)
-        params (-> req :params)]
+        params (:params req)]
     (s/with-fn-validation
       (log/infof "[Fever API] OP: %s params: %s" op params)
       (condp = op
@@ -499,5 +495,4 @@
   (let [resp-body (handle-request req)]
     (log/debugf "[Fever API RESPONSE] %s" resp-body)
     (response/response
-      (-> resp-body
-        (merge (api-root))))))
+      (merge resp-body (api-root)))))

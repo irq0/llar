@@ -151,11 +151,7 @@
       (change-document! id rev new-doc))))
 
 (defn doc-ids-with-tag [tag]
-  (->>
-    (couch/get-view (couch-url) "lookup" "by-tag" {:key tag})
-    (map :id)))
+  (map :id (couch/get-view (couch-url) "lookup" "by-tag" {:key tag})))
 
 (defn all-doc-ids []
-  (->>
-    (couch/get-view (couch-url) "lookup" "ids")
-    (map :id)))
+  (map :id (couch/get-view (couch-url) "lookup" "ids")))
