@@ -30,6 +30,8 @@
                 :user-token "1042742413-js3KvfT4RoKMjlYhrmMzyCMyxT6Nujp42Pxj9fS"
                 :user-token-secret "sC0B84RvSlYt4hI9U6uudhIDe2hLWD6UOKoDjRpdP0"}})
 
+(def ^:dynamic *state* (atom {}))
+
 (def ^:dynamic *srcs*
   (atom
     {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api *creds*))
@@ -46,13 +48,9 @@
                           :proc (proc/make
                                   :filter (fn [item]
                                             (let [type (get-in item [:entry :type])
-                                                  text (get-in item [:entry :contents "text/plain"])
-                                                  {:keys [status score]} (proc/spamassassin text)]
-                                              (log/debugf "Spamassassin for %s: %s %s"
-                                                text status score)
+                                                  text (get-in item [:entry :contents "text/plain"])]
                                               (or (#{:retweet} type)
-                                                (re-find #"pussy|porn|camsex|webcam" text)
-                                                status))))
+                                                (re-find #"pussy|porn|camsex|webcam" text)))))
                  :tags #{}
                  :cron []}
      :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")

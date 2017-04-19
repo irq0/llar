@@ -1,6 +1,6 @@
 (ns infowarss.update
   (:require
-   [infowarss.core :refer [*srcs* *update-max-retires*]]
+   [infowarss.core :refer [*srcs* *state* *update-max-retires*]]
    [infowarss.fetch :as fetch]
    [infowarss.persistency :refer [store-items! duplicate?]]
    [infowarss.postproc :as proc]
@@ -11,81 +11,74 @@
 
 
 (def src-state-template
-  (atom  {:last-successful-fetch-ts nil
-          :status :new
-          :last-exception nil
-          :retry-count 0}))
-
-(defn add-feed-src! [key src]
-  (swap! *srcs* (fn [cur]
-                  (assoc cur key {:src src}))))
-
-
-(defn- merge-state [src new]
-  (let [old (:state src)
-        merged (merge old new)]
-    (assoc src :state merged )))
+  {:last-successful-fetch-ts nil
+   :status :new
+   :update-lock (Object.)
+   :last-exception nil
+   :retry-count 0})
 
 (defn- update-feed!
-  [feed & {:keys [skip-proc skip-store]
+  [k & {:keys [skip-proc skip-store]
            :or {skip-proc false skip-store false}}]
   "Update feed. Return new state"
-  (try+
-    (let [{:keys [src]} feed
-          fetched (fetch/fetch feed)
-          processed (if-not skip-proc
-                      (proc/process feed fetched)
-                      fetched)
-          dbks (if-not skip-store
-                 (store-items! processed)
-                 processed)]
+  (let [feed (get @*srcs* k)
+        state (get @*state* k)
+        {:keys [src]} feed]
+    (try+
+      (let [fetched (fetch/fetch feed)
+            processed (if-not skip-proc
+                        (proc/process feed fetched)
+                        fetched)
+            dbks (if-not skip-store
+                   (store-items! processed)
+                   processed)]
 
-      (log/infof "Updating %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
-        (str src) (count fetched) (count processed) (count dbks)
-        skip-proc skip-store)
+        (log/infof "Updating %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
+          (str src) (count fetched) (count processed) (count dbks)
+          skip-proc skip-store)
 
-      (merge-state feed
-        {:last-successful-fetch-ts (time/now)
-         :status :ok
-         :retry-count 0}))
+        (merge state
+          {:last-successful-fetch-ts (time/now)
+           :status :ok
+           :retry-count 0}))
 
-    (catch [:type ::server-error-retry-later] _
-      (merge-state feed
-        {:status :temp-fail
-         :last-exception &throw-context
-         :retry-count (inc (get-in feed [:state :retry-count]))}))
+      (catch [:type ::server-error-retry-later] _
+        (merge state
+          {:status :temp-fail
+           :last-exception &throw-context
+           :retry-count (inc (get-in feed [:state :retry-count]))}))
 
-    (catch [:type ::request-error] _
-      (merge-state feed
-        {:status :perm-fail
-         :last-exception &throw-context
-         :retry-count 0}))
+      (catch [:type ::request-error] _
+        (merge state
+          {:status :perm-fail
+           :last-exception &throw-context
+           :retry-count 0}))
 
-    (catch [:type ::unexpected-error] _
-      (merge-state feed
-        {:status :perm-fail
-         :last-exception &throw-context
-         :retry-count 0}))
+      (catch [:type ::unexpected-error] _
+        (merge state
+          {:status :perm-fail
+           :last-exception &throw-context
+           :retry-count 0}))
 
-    (catch java.net.ConnectException _
-      (log/error "Connection error: "  &throw-context)
-      (merge-state feed
-        {:status :temp-fail
-         :last-exception &throw-context
-         :retry-count 0}))
+      (catch java.net.ConnectException _
+        (log/error "Connection error: "  &throw-context)
+        (merge state
+          {:status :temp-fail
+           :last-exception &throw-context
+           :retry-count 0}))
 
-    (catch Object _
-      (log/error "Unexpected error: "  &throw-context)
-      (merge-state feed
-        {:status :perm-fail
-         :last-exception &throw-context
-         :retry-count 0}))))
+      (catch Object _
+        (log/error "Unexpected error: "  &throw-context)
+        (merge state
+          {:status :perm-fail
+           :last-exception &throw-context
+           :retry-count 0})))))
 
 (defn set-status! [k new-status]
-  (let [src (get @*srcs* k)]
-    (when (contains? src :state)
-      (swap! *srcs* (fn [current]
-                      (assoc-in current [k :state :status] new-status)))
+  (let [src (get @*state* k)]
+    (when (contains? src k)
+      (swap! *state* (fn [current]
+                      (assoc-in current [k :status] new-status)))
       new-status)))
 
 (defn reset-all-failed! []
@@ -98,43 +91,43 @@
   [k & {:keys [force skip-proc skip-store]
         :as args}]
 
-  (let [v (get @*srcs* k)
-        feed (if (contains? v :state)
-               v
-               (assoc v :state @src-state-template))
-        src (:src feed)
-        old-state (:state feed)]
+  (when-not (contains? @*state* k)
+    (swap! *state* assoc k src-state-template))
 
-    (condp = (:status old-state)
-      :new
-      (log/info "Updating new feed: " k)
-      :ok
-      (log/info "Updating working feed: " k)
-      :temp-fail
-      (log/info "Temporary failing feed %d/%d: %s"
-        (:retry-count old-state) *update-max-retires* k)
-      :perm-fail
-      (log/info "Skipping perm fail feed: " k)
-      (log/infof "Unknown status \"%s\": %s" (:status old-state) k))
+    ;; don't update the same feed in parallel
+    (locking (get-in @*state* [k :update-lock])
+      (let [cur-state (get @*state* k)
+            cur-status (:status cur-state)]
 
-    (log/spy (dissoc args :force))
+      (condp = cur-status
+        :new
+        (log/info "Updating new feed: " k)
+        :ok
+        (log/info "Updating working feed: " k)
+        :temp-fail
+        (log/info "Temporary failing feed %d/%d: %s"
+          (:retry-count cur-state) *update-max-retires* k)
+        :perm-fail
+        (log/info "Skipping perm fail feed: " k)
+        (log/infof "Unknown status \"%s\": %s" cur-status k))
 
-    (when force
-      (log/infof "Force updating %s feed %s" (:status old-state) k))
+      (when force
+        (log/infof "Force updating %s feed %s" cur-status k))
 
-    (when (or
-            force
-            (#{:ok :new} (:status old-state))
-            (and
-              (= (:status old-state) :temp-fail)
-              (< (:retry-count old-state) *update-max-retires* )))
-      (let [new-feed (apply update-feed! feed (mapcat identity (dissoc args :force)))
-            new-state (:state new-feed)]
-        (log/infof "[%s] State: %s -> %s " k
-          (:status old-state) (:status new-state))
-        (swap! *srcs* (fn [current]
-                        (assoc-in current [k :state] new-state)))
-        (:status new-state)))))
+      (when (or
+              force
+              (#{:ok :new} cur-status)
+              (and
+                (= cur-status :temp-fail)
+                (< (:retry-count cur-state) *update-max-retires*)))
+        (let [kw-args (mapcat identity (dissoc args :force))
+              new-state (apply update-feed! k kw-args)
+              new-status (:status new-state)]
+          (log/infof "[%s] State: %s -> %s " k
+            cur-status new-status)
+          (swap! *state* (fn [current]
+                           (assoc current k new-state)))
+          new-status)))))
 
 (defn update-all! [& args]
   (doall

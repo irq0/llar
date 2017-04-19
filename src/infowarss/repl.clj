@@ -33,11 +33,11 @@
   "Extract interesting informations from source data structure"
   (let [base {:key k
               :name (str (get v :src))
-              :status (get-in v [:state :status])
-              :last-success (tc/to-string (get-in v [:state :last-successful-fetch-ts]))}]
+              :status (get-in @*state* [k :status])
+              :last-success (tc/to-string (get-in @*state* [k :last-successful-fetch-ts]))}]
     (if (#{:perm-fail :temp-fail} (:status base))
       (assoc base :last-exception-msg
-        (get-in v [:state :last-exception :message]))
+        (get-in @*state* [k :last-exception :message]))
       base)))
 
 (defn sources []
