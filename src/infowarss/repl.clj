@@ -23,18 +23,45 @@
    [cheshire.core :as json]
    [twitter.oauth :as twitter-oauth]
    [twitter.api.restful :as twitter]
-   [clojure.inspector :refer [inspect inspect-table inspect-tree]]
    [ring.adapter.jetty :refer [run-jetty]]
    [taoensso.timbre.appenders.core :as appenders]))
 
 (s/set-fn-validation! true)
+
+(defn format-interval [period]
+  (let [formatter (some-> (org.joda.time.format.PeriodFormatterBuilder.)
+                    .printZeroNever
+                    .appendDays
+                    (.appendSuffix "d")
+                    .appendHours
+                    (.appendSuffix "h")
+                    .appendMinutes
+                    (.appendSuffix "m")
+                    .printZeroAlways
+                    .appendSeconds
+                    (.appendSuffix "s")
+                    .toFormatter)]
+    (.print formatter period)))
+
+(defn period-since-now [ts]
+  (-> (time/interval ts (time/now))
+    (.toPeriod)))nb
+
 
 (defn- human-src [[k v]]
   "Extract interesting informations from source data structure"
   (let [base {:key k
               :name (str (get v :src))
               :status (get-in @*state* [k :status])
-              :last-success (tc/to-string (get-in @*state* [k :last-successful-fetch-ts]))}]
+              :last-attempt (some-> (get-in @*state* [k :last-attempt-ts])
+                              period-since-now
+                              format-interval
+                              (str " ago"))
+              :last-success (some-> (get-in @*state* [k :last-successful-fetch-ts])
+                              period-since-now
+                              format-interval
+                              (str " ago"))}]
+
     (if (#{:perm-fail :temp-fail} (:status base))
       (assoc base :last-exception-msg
         (get-in @*state* [k :last-exception :message]))
