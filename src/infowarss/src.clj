@@ -42,6 +42,7 @@
 
 (s/defrecord TwitterSearch
     [query :- NotEmptyStr
+     url :- java.net.URL
      oauth-creds :- OauthCredentials]
   Object
   (toString [src] (str "[TwitterSearch: " (:query src) "]")))
@@ -52,6 +53,7 @@
    oauth-creds :- TwitterCreds]
   (->TwitterSearch
     query
+    (io/as-url (str "https://twitter.com/search?q=" query))
     (make-oauth-creds
       (:app-key oauth-creds)
       (:app-secret oauth-creds)

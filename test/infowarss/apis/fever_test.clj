@@ -44,18 +44,29 @@
 (defn mock-req [uri]
   (mock/request :post uri {:api_key (api-key)}))
 
-(defn check-schema [uri sch]
-  (testing (format "URI: %s - %s" uri (name (quote sch)))
-    (let [resp (fever-app (mock-req uri))
-          data (deserialize (:body resp) :json)]
-      (s/validate sch data))))
 
 (deftest schema
-  (check-schema "?api" schema/FeverAPIRoot)
-  (check-schema "?api&groups" schema/FeverAPIGroups)
-  (check-schema "?api&feeds" schema/FeverAPIFeeds)
-  (check-schema "?api&items" schema/FeverAPIItems)
-  (check-schema "?api&links" schema/FeverAPILinks)
-  (check-schema "?api&favicons" schema/FeverAPIFavicons)
-  (check-schema "?api&unread_item_ids" schema/FeverAPIUnreadItemIds)
-  (check-schema "?api&saved_item_ids" schema/FeverAPISavedItemIds))
+  (let [do-req (fn [uri sch]
+                 (let [{:keys [body status] :as resp} (fever-app (mock-req uri))
+                         data (deserialize body :json)]
+                   (is (= 200 status))
+                   (is (= 3 (:api_version data)))
+                   (is (= 1 (:auth data)))
+                   {:http resp :data (s/validate sch data)}))]
+
+    (testing "Empty req (?api)"
+      (do-req "?api" schema/FeverAPIRoot))
+    (testing "Groups req"
+      (do-req "?api&groups" schema/FeverAPIGroups))
+    (testing "Feeds req"
+      (do-req "?api&feeds" schema/FeverAPIFeeds))
+    (testing "Items req"
+      (do-req "?api&items" schema/FeverAPIItems))
+    (testing "Links req"
+      (do-req "?api&links" schema/FeverAPILinks))
+    (testing "Favicons req"
+      (do-req "?api&favicons" schema/FeverAPIFavicons))
+    (testing "Unread item ids req"
+      (do-req "?api&unread_item_ids" schema/FeverAPIUnreadItemIds))
+    (testing "Saved item ids req"
+      (do-req "?api&saved_item_ids" schema/FeverAPISavedItemIds))))

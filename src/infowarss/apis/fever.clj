@@ -91,6 +91,7 @@
           request (assoc-in request [:fever-auth] auth?)
           response (handler request)]
       (if auth?
+        response
         (auth-error)))))
 
 ;; Fever API
