@@ -3,6 +3,7 @@
    [infowarss.converter :as conv]
    [infowarss.src]
    [clj-rome.reader :as rome]
+   [infowarss.schema :as schema]
    [digest]
    [clj-http.client :as http]
    [hickory.core :as hick]
@@ -25,97 +26,36 @@
 
 ;; Schemas and records
 
-(def Metadata
-  "Metadata about an item"
-  {:source s/Any
-   :source-name s/Str
-   :app s/Str
-   :ns s/Str
-   :fetch-ts org.joda.time.DateTime
-   :tags (s/pred set?)
-   :version s/Int})
-
-(def Summary
-  "Summary data about an item"
-  {:ts org.joda.time.DateTime
-   :title s/Str})
-
-(def Hash
-  "Hash value of the item"
-  (s/constrained s/Str (partial re-matches #"SHA-256\:[0-9a-f]{64}")))
-
-(def HttpResponse
-  "Http Response"
-  {:headers s/Any
-   :status s/Int
-   :body s/Str
-   (s/optional-key :cookies) s/Any
-   :request-time s/Int
-   :trace-redirects (s/maybe [s/Str])
-   :orig-content-encoding (s/maybe s/Str)})
-
 (s/defrecord HttpItem
-    [meta :- Metadata
-     summary :- Summary
-     hash :- Hash
-     http :- HttpResponse
+    [meta :- schema/Metadata
+     summary :- schema/Summary
+     hash :- schema/Hash
+     http :- schema/HttpResponse
      hickory :- s/Any])
 
-(def FeedEntry
-  {:url (s/maybe java.net.URL)
-   :updated-ts (s/maybe org.joda.time.DateTime)
-   :pub-ts (s/maybe org.joda.time.DateTime)
-   :title s/Str
-   :authors [s/Str]
-   :contents {(s/required-key "text/plain") (s/maybe s/Str)
-              (s/optional-key "text/html") s/Str}
-   :description {(s/required-key "text/plain") (s/maybe s/Str)}})
-
-(def Feed
-  {:title s/Str
-   :language (s/maybe s/Str)
-   :url (s/maybe java.net.URL)
-   :description {(s/required-key "text/plain") (s/maybe s/Str)}
-   :encoding (s/maybe s/Str)
-   :pub-ts (s/maybe org.joda.time.DateTime)
-   :feed-type s/Str})
 
 (s/defrecord FeedItem
-    [meta :- Metadata
-     summary :- Summary
-     hash :- Hash
-     feed-entry :- FeedEntry
-     feed :- Feed])
+    [meta :- schema/Metadata
+     summary :- schema/Summary
+     hash :- schema/Hash
+     feed-entry :- schema/FeedEntry
+     feed :- schema/Feed])
 
-(def TweetEntry
-  {:url (s/maybe java.net.URL)
-   :pub-ts (s/maybe org.joda.time.DateTime)
-   :score {:favs s/Int
-           :retweets s/Int}
-   :language s/Str
-   :id s/Int
-   :type #{:retweet :reply :tweet}
-   :entities {:hashtags [s/Str]
-              :user_mentions [s/Str]
-              :photos [java.net.URL]}
-   :authors [s/Str]
-   :contents {(s/required-key "text/plain") (s/maybe s/Str)
-              (s/optional-key "text/html") s/Str}})
 
 (s/defrecord TweetItem
-    [meta :- Metadata
-     summary :- Summary
-     hash :- Hash
-     entry :- TweetEntry])
+    [meta :- schema/Metadata
+     summary :- schema/Summary
+     hash :- schema/Hash
+     entry :- schema/TweetEntry])
 
 ;; Constructors
 
-(s/defn make-item-hash :- Hash
+(s/defn make-item-hash :- schema/Hash
   "Make hash to use in *Item"
   [& args]
   (str "SHA-256:" (-> args string/join digest/sha-256)))
 
-(s/defn make-meta :- Metadata
+(s/defn make-meta :- schema/Metadata
   "Make meta entry from source and optional initial tags"
   [src :- s/Any]
   {:source src

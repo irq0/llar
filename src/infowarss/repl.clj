@@ -9,6 +9,7 @@
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.live :as live]
+   [infowarss.schema :as schema]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.core :as time]

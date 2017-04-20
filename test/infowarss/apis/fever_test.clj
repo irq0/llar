@@ -6,6 +6,7 @@
             [ring.mock.request :as mock]
             [infowarss.couchdb :as couch]
             [infowarss.webapp :refer [fever-app]]
+            [infowarss.schema :as schema]
             [schema.core :as s]
             [schema.test]
             [infowarss.apis.fever :refer :all]))
@@ -50,11 +51,11 @@
       (s/validate sch data))))
 
 (deftest schema
-  (check-schema "?api" FeverAPIRoot)
-  (check-schema "?api&groups" FeverAPIGroups)
-  (check-schema "?api&feeds" FeverAPIFeeds)
-  (check-schema "?api&items" FeverAPIItems)
-  (check-schema "?api&links" FeverAPILinks)
-  (check-schema "?api&favicons" FeverAPIFavicons)
-  (check-schema "?api&unread_item_ids" FeverAPIUnreadItemIds)
-  (check-schema "?api&saved_item_ids" FeverAPISavedItemIds))
+  (check-schema "?api" schema/FeverAPIRoot)
+  (check-schema "?api&groups" schema/FeverAPIGroups)
+  (check-schema "?api&feeds" schema/FeverAPIFeeds)
+  (check-schema "?api&items" schema/FeverAPIItems)
+  (check-schema "?api&links" schema/FeverAPILinks)
+  (check-schema "?api&favicons" schema/FeverAPIFavicons)
+  (check-schema "?api&unread_item_ids" schema/FeverAPIUnreadItemIds)
+  (check-schema "?api&saved_item_ids" schema/FeverAPISavedItemIds))

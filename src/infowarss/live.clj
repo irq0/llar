@@ -1,6 +1,6 @@
 (ns infowarss.live
   (:require
-   [infowarss.fetch :refer [Hash Metadata Summary]]
+   [infowarss.schema :as schema]
    [schema.core :as s]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
@@ -61,23 +61,12 @@
 (defn make-path [ref & path]
   (reduce #(.child %1 (str %2)) ref path))
 
-(def HackerNewsEntry
-  {:score s/Int
-   :author s/Str
-   :id s/Int
-   :pub-ts (s/maybe org.joda.time.DateTime)
-   :title s/Str
-   :type s/Str
-   :url (s/maybe java.net.URL) ;; something
-   :hn-url (s/maybe java.net.URL) ;; https://news.ycombinator.com/item?id=
-   :contents {(s/required-key "text/plain") (s/maybe s/Str)
-              (s/optional-key "text/html") s/Str}})
 
 (s/defrecord HackerNewsItem
-    [meta :- Metadata
-     summary :- Summary
-     hash :- Hash
-     entry :- HackerNewsEntry])
+    [meta :- schema/Metadata
+     summary :- schema/Summary
+     hash :- schema/Hash
+     entry :- schema/HackerNewsEntry])
 
 (defn make-meta [src]
   {:source src
@@ -86,8 +75,8 @@
    :tags #{}
    :version 0})
 
-(s/defn make-hn-summary :- Summary
-  [hn-entry :- HackerNewsEntry]
+(s/defn make-hn-summary :- schema/Summary
+  [hn-entry :- schema/HackerNewsEntry]
   (let [{:keys [title pub-ts]} hn-entry]
     {:ts pub-ts
      :title title}))
@@ -104,8 +93,8 @@
      :contents {"text/plain" (get item "text")}})
 
 
-(s/defn get-hn-entry :- HackerNewsEntry
-  [id :- s/Int]
+(s/defn get-hn-entry :- schema/HackerNewsEntry
+  [id :- schema/PosInt]
   (let [ref (make-path (make-ref hacker-news-base-url) "item" id)
         raw (get-value ref)]
     (make-hn-entry raw)))

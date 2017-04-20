@@ -2,6 +2,7 @@
   (:require
    [infowarss.core :refer [*srcs*]]
    [infowarss.couchdb :as couch]
+   [infowarss.schema :as schema]
    [ring.util.response :as response]
    [digest]
    [clj-time.coerce :as tc]
@@ -92,154 +93,9 @@
       (if auth?
         (auth-error)))))
 
-;; Fever API Schema
-
-(def FeverPosInt
-  (s/constrained s/Num pos?))
-
-(def FeverPosFloat
-  (s/constrained s/Num pos?))
-
-(def FeverBoolInt
-  (s/constrained s/Num #{0 1}))
-
-(def FeverUnixTimestamp
-  (s/constrained s/Num (partial <= 0)))
-
-(def FeverIntList
-  (s/constrained s/Str (partial re-matches #"(\d+(,\d+)*)?")))
-
-(def FeverImageData
-  (s/constrained s/Str #(.startsWith % "image/gif;base64;")))
-
-(def FeverURLStr
-  (s/constrained s/Str io/as-url))
-
-(def FeverAPIRoot
-  {:api_version FeverPosInt
-   :auth FeverBoolInt})
-
-(def FeverGroup
-  "Fever API: group object"
-  {:id FeverPosInt
-   :title s/Str})
-
-(def FeverFeedsGroup
-  "Fever API: feeds_group object"
-  {:group_id FeverPosInt
-   :feed_ids FeverIntList})
-
-(def FeverFeedsGroups
-  "Fever API: feeds_groups object"
-  [FeverFeedsGroup])
-
-(def FeverGroups
-  "Fever API: groups object"
-  {(s/optional-key :last_refreshed_on_time) FeverUnixTimestamp
-   :groups [FeverGroup]
-   :feeds_groups [FeverFeedsGroup]})
-
-(def FeverAPIGroups
-  "Fever API: groups response"
-  (merge FeverAPIRoot FeverGroups))
-
-(def FeverFeed
-  "Fever API: feed object"
-  {:id FeverPosInt
-   :favicon_id FeverPosInt
-   :title s/Str
-   :url s/Str
-   :site_url s/Str
-   :is_spark FeverBoolInt
-   :last_updated_on_time FeverUnixTimestamp})
-
-(def FeverFeeds
-  "Fever API: feeds object"
-  {(s/optional-key :last_refreshed_on_time) FeverUnixTimestamp
-   :feeds [FeverFeed]
-   :feeds_groups [FeverFeedsGroup]})
-
-(def FeverAPIFeeds
-  "Fever API: feeds request"
-  (merge FeverAPIRoot FeverFeeds))
-
-(def FeverFavicon
-  "Fever API: favicon object"
-  {:id FeverPosInt
-   :data FeverImageData})
-
-(def FeverFavicons
-  "Fever API: favicons object"
-  {:favicons [FeverFavicon]})
-
-(def FeverAPIFavicons
-  "Fever API: favicons request"
-  (merge FeverAPIRoot FeverFavicons))
-
-(def FeverItem
-  "Fever API: item object"
-  {:id FeverPosInt
-   :feed_id FeverPosInt
-   :title s/Str
-   :author s/Str
-   :html s/Str
-   :url FeverURLStr
-   :is_saved FeverBoolInt
-   :is_read FeverBoolInt
-   :created_on_time FeverUnixTimestamp})
-
-(def FeverItems
-  "Fever API: items object"
-  {(s/optional-key :last_refreshed_on_time) FeverUnixTimestamp
-   :items [FeverItem]
-   :total_items (s/constrained s/Num (partial < 0))})
-
-(def FeverAPIItems
-  "Fever API: items request"
-  (merge FeverAPIRoot FeverItems))
-
-(def FeverLink
-  "Fever API: link object"
-
-  {:id FeverPosInt
-   :feed_id FeverPosInt
-   :item_id FeverPosInt
-   :temperature FeverPosFloat
-   :is_item FeverBoolInt
-   :is_local FeverBoolInt
-   :is_saved FeverBoolInt
-   :title s/Str
-   :url FeverURLStr
-   :item_ids FeverIntList})
-
-(def FeverLinks
-  "Fever API: links object"
-  {:links [FeverLink]})
-
-(def FeverAPILinks
-  "Fever API: links request"
-  (merge FeverAPIRoot FeverLinks))
-
-(def FeverUnreadItemIds
-  "Fever API: unread_item_ids object"
-  {:unread_item_ids FeverIntList})
-
-(def FeverAPIUnreadItemIds
-  "Fever API: unread_item_ids request"
-  (merge FeverAPIRoot FeverUnreadItemIds))
-
-(def FeverSavedItemIds
-  "Fever API: saved_item_ids object"
-  {:saved_item_ids FeverIntList})
-
-(def FeverAPISavedItemIds
-  "Fever API: saved_item_ids request"
-  (merge FeverAPIRoot FeverSavedItemIds))
-
-
 ;; Fever API
 
-(s/defn all-feeds-group :- FeverFeedsGroup
+(s/defn all-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feeds"
   []
   (let [feedids (->> @*srcs*
@@ -260,20 +116,20 @@
     (catch Object _
       [])))
 
-(s/defn tag-feeds-group :- FeverFeedsGroup
+(s/defn tag-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feed items with tag"
   [tag]
     {:group_id (fever-group-id-for-tag tag)
      :feed_ids (string/join "," (feedids-for-tag tag))})
 
-(s/defn feeds-groups :- FeverFeedsGroups
+(s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
   []
   [(all-feeds-group)
    (tag-feeds-group :jobs)
    (tag-feeds-group :personal)])
 
-(s/defn groups  :- FeverGroups
+(s/defn groups  :- schema/FeverGroups
   "Return feed groups"
   []
   {:last_refreshed_on_time 0
@@ -285,7 +141,7 @@
              :title "Personal"}]
    :feeds_groups (feeds-groups)})
 
-(s/defn feed :- FeverFeed
+(s/defn feed :- schema/FeverFeed
   "Convert infowarss src to fever feed"
   [src]
   (let [[k {:keys [src state]}] src]
@@ -299,7 +155,7 @@
                              :last-successful-fetch-ts
                              fever-timestamp)}))
 
-(s/defn feeds :- FeverFeeds
+(s/defn feeds :- schema/FeverFeeds
   "Return fever feeds"
   []
   (let [feedids
@@ -312,17 +168,17 @@
             (feed src))
    :feeds_groups (feeds-groups)}))
 
-(s/defn dummy-favicon :- FeverFavicon
+(s/defn dummy-favicon :- schema/FeverFavicon
   []
   {:id 1337
    :data (mk-favicon (io/resource "favicon.ico"))})
 
-(s/defn favicons :- FeverFavicons
+(s/defn favicons :- schema/FeverFavicons
   "Return favicons for fever"
   []
   {:favicons [(dummy-favicon)]})
 
-(s/defn item :- FeverItem
+(s/defn item :- schema/FeverItem
   "Convert infowarss document to fever feed item"
   [doc]
   (let [contents (get-in doc [:feed-entry :contents])]
@@ -336,7 +192,7 @@
    :is_read (if (-> doc :meta :tags (contains? :unread)) 1 0)
    :created_on_time (-> doc :summary :ts fever-timestamp)}))
 
-(s/defn items :- FeverItems
+(s/defn items :- schema/FeverItems
   "
   Return feed items for fever. Call without params to get all items
   Limit return values with since, max, with
@@ -363,7 +219,7 @@
 ;; Or the first page (page=1) of Hot links for the past week (range=7)
 ;; starting now (offset=0).
 
-(s/defn dummy-link :- FeverLink
+(s/defn dummy-link :- schema/FeverLink
   []
   {:id 10
    :feed_id 23
@@ -376,19 +232,19 @@
    :url "http://example.com"
    :item_ids ""})
 
-(s/defn links :- FeverLinks
+(s/defn links :- schema/FeverLinks
   "Return fever links"
   []
   {:links [(dummy-link)]})
 
-(s/defn unread-item-ids :- FeverUnreadItemIds
+(s/defn unread-item-ids :- schema/FeverUnreadItemIds
   "Return ids of unread items"
   []
   {:unread_item_ids
    (string/join ","
      (map fever-item-id (couch/doc-ids-with-tag :unread)))})
 
-(s/defn saved-item-ids :- FeverSavedItemIds
+(s/defn saved-item-ids :- schema/FeverSavedItemIds
   "Return ids of saved items"
   []
   {:saved_item_ids
