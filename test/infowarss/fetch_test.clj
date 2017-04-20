@@ -55,7 +55,7 @@
   (let [body (slurp (io/resource "fetch_test.html"))
         src (g/generate schema/HttpSource schema-test/leaf-generators)]
     (with-redefs [http/get (fn [_] (fake-http-response body))]
-      (let [resp (s/validate infowarss.fetch.HttpItem (fetch-http-generic src))]
+      (let [resp (fetch-http-generic src)]
         (is (= 200 (get-in resp [:http :status])))
         (is (= body (get-in resp [:http :body])))))))
 
