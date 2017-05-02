@@ -13,12 +13,14 @@
    [clojure.java.io :as io])
   (:import [java.util.Base64.Encoder]))
 
+;;;; Fever compatible API
+
 ;; Utility functions
 
 (defmacro swallow-exceptions [& body]
   `(try ~@body (catch Exception e#)))
 
-(defn- fever-item-id
+(defn fever-item-id
   "Convert infowarss feed item id to fever compatible id"
   [id]
   ;; our database keys are to long for the fever api
@@ -27,9 +29,10 @@
     (Long/parseLong (string/join parts) 16)))
 
 (defn- fever-feed-id
-  "Convert infowarss feed id to fever compatible id"
-  [id]
-  (let [hash (digest/sha-256 (str id))]
+  "Calculate pseudo id from database feed entry"
+  [db-feed]
+  (let [{:keys [title url]} db-feed
+        hash (digest/sha-256 (str title url))]
     (Long/parseUnsignedLong (subs hash 0 8) 16)))
 
 (defn- fever-group-id-for-tag
@@ -46,7 +49,8 @@
     (-> time
       tc/to-long
       (/ 1000)
-      (.longValue))
+      (.longValue)
+      (max 0))
     (catch Object _
       0)))
 
@@ -99,10 +103,8 @@
 (s/defn all-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feeds"
   []
-  (let [feedids (->> @*srcs*
-                  vals
-                  (map :src)
-                  (map fever-feed-id))]
+  (let [feeds (couch/get-feeds)
+        feedids (map fever-feed-id feeds)]
     {:group_id (fever-group-id-for-tag :all)
      :feed_ids (string/join "," feedids)}))
 
@@ -118,7 +120,8 @@
       [])))
 
 (s/defn tag-feeds-group :- schema/FeverFeedsGroup
-  "Return group containing all feed items with tag"
+  "Return group containing all feed items with tag
+   Kind of broken since we take the feed info from db not *srcs*"
   [tag]
     {:group_id (fever-group-id-for-tag tag)
      :feed_ids (string/join "," (feedids-for-tag tag))})
@@ -126,9 +129,7 @@
 (s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
   []
-  [(all-feeds-group)
-   (tag-feeds-group :jobs)
-   (tag-feeds-group :personal)])
+  [(all-feeds-group)])
 
 (s/defn groups  :- schema/FeverGroups
   "Return feed groups"
@@ -144,30 +145,22 @@
 
 (s/defn feed :- schema/FeverFeed
   "Convert infowarss src to fever feed"
-  [src]
-  (let [[k {:keys [src state]}] src]
-    {:id (fever-feed-id src)
+  [feed]
+  (let [{:keys [last-fetch-ts title url]} feed]
+    {:id (fever-feed-id feed)
      :favicon_id 1337
-     :title (str src) ;; FIXME use stored feed names
-     :url (-> src :url str)
-     :site_url (-> src :url str)
+     :title title
+     :url (str url)
+     :site_url (str url)
      :is_spark 0
-     :last_updated_on_time (-> state
-                             :last-successful-fetch-ts
-                             fever-timestamp)}))
+     :last_updated_on_time (fever-timestamp last-fetch-ts)}))
 
 (s/defn feeds :- schema/FeverFeeds
   "Return fever feeds"
   []
-  (let [feedids
-        (->> @*srcs*
-          vals
-          (map :src)
-          (map fever-feed-id))]
   {:last_refreshed_on_time 0,
-   :feeds (for [src @*srcs*]
-            (feed src))
-   :feeds_groups (feeds-groups)}))
+   :feeds (for [f (couch/get-feeds)] (feed f))
+   :feeds_groups (feeds-groups)})
 
 (s/defn dummy-favicon :- schema/FeverFavicon
   []
@@ -182,25 +175,29 @@
 (s/defn item :- schema/FeverItem
   "Convert infowarss document to fever feed item"
   [doc]
-  (let [contents (get-in doc [:feed-entry :contents])]
+  (let [contents (get-in doc [:entry :contents])
+        description (get-in doc [:entry :description])]
   {:id (fever-item-id (:_id doc))
    :feed_id (-> doc :meta :source-name fever-feed-id)
    :title (-> doc :summary :title)
-   :author (as-> doc d (get-in d [:feed-entry :authors]) (string/join ", " d))
-   :html (or (get contents "text/html") (get contents "text/plain"))
-   :url (-> doc :feed-entry :url str)
+   :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
+   :html (or (get contents "text/html")
+           (get contents "text/plain")
+           (get description "text/html")
+           (get description "text/plain")
+           "")
+   :url (-> doc :entry :url str)
    :is_saved 0
    :is_read (if (-> doc :meta :tags (contains? :unread)) 1 0)
    :created_on_time (-> doc :summary :ts fever-timestamp)}))
 
-(s/defn items :- schema/FeverItems
+(defn items
   "
   Return feed items for fever. Call without params to get all items
   Limit return values with since, max, with
   "
-  [params]
-  (let [{:keys [since max with]} params
-        ids (->> (couch/all-doc-ids)
+  [& {:keys [since max with]}]
+  (let [ids (->> (couch/all-doc-ids)
               (map (fn [couchid] [(fever-item-id couchid) couchid]))
               (into (sorted-map)))
 
@@ -211,11 +208,12 @@
         ids-to-return (->> filtered-ids
                         (vals)
                         (take 50))]
-    {:last_refreshed_on_time 0
-     :total_items (count ids)
-     :items (for [id ids-to-return
-                  :let [doc (couch/get-document-with-attachments id)]]
-              (item doc))}))
+    (s/validate schema/FeverItems
+      {:last_refreshed_on_time 0
+       :total_items (count ids)
+       :items (for [id ids-to-return
+                    :let [doc (couch/get-document-with-attachments id)]]
+                (item doc))})))
 
 ;; Or the first page (page=1) of Hot links for the past week (range=7)
 ;; starting now (offset=0).
@@ -257,12 +255,6 @@
   []
   {:api_version 3
    :auth 1})
-
-;; write support:
-;; {:as "read",
-;;  :id "1275582412",
-;;  :mark "item",
-;;  :response_required "false"}
 
 (defn find-couchid-by-feverid
   [fid]
@@ -332,17 +324,17 @@
       (condp = op
         :groups (groups)
         :feeds (feeds)
-        :items (items {:since
+        :items (items :since
                        (swallow-exceptions (Long/parseLong (get params :since_id)))
                        :max
                        (swallow-exceptions (Long/parseLong (get params :max_id)))
                        :with
-                       (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params "with_ids"))))})
+                       (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params "with_ids")))))
         :links (links)
         :favicons (favicons)
         :unread_item_ids (unread-item-ids)
         :saved_item_ids (saved-item-ids)
-        nil (handle-write-op req)
+        nil (when (contains? (:params req) :id) (handle-write-op req))
         {}))))
 
 

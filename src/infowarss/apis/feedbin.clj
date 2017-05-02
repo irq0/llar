@@ -54,16 +54,16 @@
 
 (defn- all-entries []
   (into (sorted-map) (map (fn [e]
-                            (let [{:keys [source hash meta summary feed feed-entry]} e
+                            (let [{:keys [source hash meta summary feed entry]} e
                                   id (hash-to-id hash)
                                   feed-id (id-of (str (:url source) (:title source)))]
                               [id {"id" id,
                                    "feed_id" feed-id,
                                    "title" (get feed :title),
-                                   "url" (get feed-entry :link),
-                                   "author" (string/join "," (get feed-entry :authors)),
-                                   "content" (empty-if-nil (get-in feed-entry [:contents :html])),
-                                   "summary" (get-in feed-entry [:description :value]),
+                                   "url" (get entry :link),
+                                   "author" (string/join "," (get entry :authors)),
+                                   "content" (empty-if-nil (get-in entry [:contents :html])),
+                                   "summary" (get-in entry [:description :value]),
                                    "published" "2013-02-03T01:00:19.000000Z",
                                    "created_at" (tc/to-string (get meta :fetch-ts))}]))
                        (:feed-items @*db*))))

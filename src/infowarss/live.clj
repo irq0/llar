@@ -11,6 +11,27 @@
    [taoensso.timbre :as log])
   (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))
 
+;;;; Live sources - Sources that, once started, return a stream of items until stopped
+
+;;; Protocol
+
+(defprotocol LiveSource
+  "Protocol to work with live sources"
+  (start-collecting! [src chan])
+  (status? [src])
+  (stop-collecting! [src]))
+
+;;; Utilities
+
+(defn make-meta [src]
+  {:source src
+   :app "infowarss.live"
+   :fetch-ts (time/now)
+   :tags #{}
+   :version 0})
+
+;;; Firebase API wrapper / helper
+
 (defn make-firebase-logger [level]
   (let [firebase-to-taoensso {Logger$Level/DEBUG :debug
                               Logger$Level/INFO :info
@@ -34,8 +55,6 @@
   (Firebase/setDefaultConfig
     (doto (Firebase/getDefaultConfig)
       (.setLogger (make-firebase-logger :debug)))))
-
-(def hacker-news-base-url "https://hacker-news.firebaseio.com/v0/")
 
 (defn make-value-event-listener [on-data-change]
   (reify ValueEventListener
@@ -61,19 +80,16 @@
 (defn make-path [ref & path]
   (reduce #(.child %1 (str %2)) ref path))
 
+;;; Hacker News
+
+(def hacker-news-base-url "https://hacker-news.firebaseio.com/v0/")
 
 (s/defrecord HackerNewsItem
     [meta :- schema/Metadata
      summary :- schema/Summary
      hash :- schema/Hash
+     raw :- s/Any
      entry :- schema/HackerNewsEntry])
-
-(defn make-meta [src]
-  {:source src
-   :app "infowarss.live"
-   :fetch-ts (time/now)
-   :tags #{}
-   :version 0})
 
 (s/defn make-hn-summary :- schema/Summary
   [hn-entry :- schema/HackerNewsEntry]
@@ -83,27 +99,20 @@
 
 (defn make-hn-entry [item]
   {:score (get item "score")
-     :author (get item "by")
-     :id (get item "id")
-     :pub-ts (tc/from-long (get item "time"))
-     :title (get item "title")
-     :type (keyword (get item "type"))
-     :url (io/as-url (get item "url"))
-     :hn-url (io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))
-     :contents {"text/plain" (get item "text")}})
-
+   :author (get item "by")
+   :id (get item "id")
+   :pub-ts (tc/from-long (get item "time"))
+   :title (get item "title")
+   :type (keyword (get item "type"))
+   :url (io/as-url (get item "url"))
+   :hn-url (io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))
+   :contents {"text/plain" (get item "text")}})
 
 (s/defn get-hn-entry :- schema/HackerNewsEntry
   [id :- schema/PosInt]
   (let [ref (make-path (make-ref hacker-news-base-url) "item" id)
         raw (get-value ref)]
     (make-hn-entry raw)))
-
-(defprotocol LiveSource
-  "Protocol to work with live sources"
-  (start-collecting! [src chan])
-  (status? [src])
-  (stop-collecting! [src]))
 
 (defn- hn-item-resolver
   "Deref item to HackerNewsEntry"
@@ -174,7 +183,6 @@
 ;; askstories
 
 (defn start-live [feed]
-
   )
 
 ;; :hn-best {:live (firebase/hn "beststories")

@@ -1,15 +1,15 @@
 (ns infowarss.src
   (:require [schema.core :as s]
-            [clojure.test :refer [function?]]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [infowarss.schema :as schema]
             [twitter.oauth :refer [make-oauth-creds]])
   (:import [twitter.oauth OauthCredentials]))
 
-;; Http source
+;;;; Sources - Containers for information needed by the Fetcher / Live
+;;;; to retrieve Items
 
-(def NotEmptyStr
-  (s/constrained s/Str (complement string/blank?)))
+;;; Http
 
 (s/defrecord Http
     [url :- java.net.URL]
@@ -20,28 +20,31 @@
   [url :- s/Str]
   (Http. (io/as-url url)))
 
-;; Feed source
+;;; Feed
 
 (s/defrecord Feed
-    [url :- java.net.URL]
+    [url :- java.net.URL
+     args :- {:deep s/Bool}]
   Object
   (toString [src] (str "[Feed: " (:url src) "]")))
 
-(s/defn feed :- Feed
-  [url :- s/Str]
-  (->Feed (io/as-url url)))
+(defn feed
+  [url
+   & {:keys [deep?]
+      :or [deep? false]
+      :as args}]
+  (->Feed (io/as-url url) args))
 
-;; Twitter search
-
+;;; Twitter Search
 
 (def TwitterCreds
-  {:app-key NotEmptyStr
-   :app-secret NotEmptyStr
-   :user-token NotEmptyStr
-   :user-token-secret NotEmptyStr})
+  {:app-key schema/NotEmptyStr
+   :app-secret schema/NotEmptyStr
+   :user-token schema/NotEmptyStr
+   :user-token-secret schema/NotEmptyStr})
 
 (s/defrecord TwitterSearch
-    [query :- NotEmptyStr
+    [query :- schema/NotEmptyStr
      url :- java.net.URL
      oauth-creds :- OauthCredentials]
   Object
@@ -49,7 +52,7 @@
 
 (s/defn twitter-search :- TwitterSearch
   "Search twitter https://dev.twitter.com/rest/public/search"
-  [query :- NotEmptyStr
+  [query :- schema/NotEmptyStr
    oauth-creds :- TwitterCreds]
   (->TwitterSearch
     query
@@ -60,10 +63,10 @@
       (:user-token oauth-creds)
       (:user-token-secret oauth-creds))))
 
-;; Live sources
+;;; Live
 
 (s/defrecord HackerNews
-    [story-feed :- NotEmptyStr
+    [story-feed :- schema/NotEmptyStr
      state :- s/Any]
   Object
   (toString [src] (str "[HackerNews: " (:story-feed src) "(" (:state src) ")]")))

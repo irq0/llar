@@ -1,13 +1,14 @@
 (ns infowarss.fetch
   (:require
    [infowarss.converter :as conv]
-   [infowarss.src]
+   [infowarss.src :as src]
    [clj-rome.reader :as rome]
    [infowarss.schema :as schema]
    [digest]
    [clj-http.client :as http]
    [hickory.core :as hick]
    [hickory.select :as hick-s]
+   [hickory.render :as hick-r]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
    [clj-time.format :as tf]
@@ -24,31 +25,35 @@
    [java.util.Base64.Encoder]
    [org.joda.time.DateTime]))
 
-;; Schemas and records
+
+;;;; Fetcher - Fetch a Source (infowars.src) to get *Items
+;;;; Items have types depending on their sources (e.g Http -> HttpItem)
+
+;;; Item data structures
 
 (s/defrecord HttpItem
     [meta :- schema/Metadata
      summary :- schema/Summary
      hash :- schema/Hash
-     http :- schema/HttpResponse
+     raw :- schema/HttpResponse
      hickory :- s/Any])
-
 
 (s/defrecord FeedItem
     [meta :- schema/Metadata
      summary :- schema/Summary
      hash :- schema/Hash
-     feed-entry :- schema/FeedEntry
+     entry :- schema/FeedEntry
+     raw :- s/Any
      feed :- schema/Feed])
-
 
 (s/defrecord TweetItem
     [meta :- schema/Metadata
      summary :- schema/Summary
      hash :- schema/Hash
+     raw :- schema/Tweet
      entry :- schema/TweetEntry])
 
-;; Constructors
+;;; Constructors
 
 (s/defn make-item-hash :- schema/Hash
   "Make hash to use in *Item"
@@ -66,7 +71,7 @@
    :tags #{}
    :version 0})
 
-;; Content extraction helper functions
+;;; Content extraction helper functions
 
 (defn- parse-http-ts [ts]
   (when-not (nil? ts)
@@ -159,7 +164,7 @@
                   ))
       (str sb)))
 
-(defn- tweet-to-entry [tweet]
+(defn tweet-to-entry [tweet]
   (let [user (get-in tweet [:user :screen_name])
         id (get tweet :id)
         text (get tweet :text)
@@ -170,7 +175,7 @@
      :pub-ts (parse-twitter-ts (get tweet :created_at))
      :score {:favs (get tweet :favorite_count)
              :retweets (get tweet :retweet_count)}
-     :language (get tweet :lang)
+     :language (keyword (get tweet :lang))
      :id id
      :type (tweet-type tweet)
      :entities {:hashtags (some->> (get entities :hashtags)
@@ -183,10 +188,9 @@
      :contents {"text/plain" text
                 "text/html" (htmlize-tweet-text tweet)}}))
 
-
 (defn- extract-http-title
   [parsed-html]
-  (-> (hick-s/select (hick-s/child
+  (some-> (hick-s/select (hick-s/child
                       (hick-s/tag :title))
        parsed-html)
     first
@@ -253,18 +257,19 @@
     (catch java.net.MalformedURLException _
       nil)))
 
-;; Fetcher
+;;; Fetcher
 
-(s/defn fetch-http-generic :- HttpItem
+(defn fetch-http-generic
   "Generic HTTP fetcher"
   [src]
   (try+
     (let [url (-> src :url str)
           response (http/get url)
           parsed-html (-> response :body hick/parse hick/as-hickory)]
+      (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
       (map->HttpItem
         {:meta (make-meta src)
-         :http response
+         :raw response
          :hash (make-item-hash (:body response))
          :hickory parsed-html
          :summary {:ts (extract-http-timestamp response)
@@ -290,11 +295,25 @@
       (log/error "Unexpected error: " (:throwable &throw-context))
       (throw+ (assoc &throw-context :type ::unexpected-error)))))
 
-;; Fetch source protocol
+(defn- http-get-feed-content [src]
+  (log/debug "Fetching feed item content of " (str src))
+  (let [http-item (fetch-http-generic src)
+        body (->> http-item
+               :hickory
+               (hick-s/select
+                 (hick-s/child
+                   (hick-s/tag :body)))
+               first
+               hick-r/hickory-to-html)]
+    {"text/html" body
+     "text/plain" (conv/html2text body)}))
+
+;;; Fetch source protocol
 
 (defprotocol FetchSource
   "Protocol to work with data sources"
   (fetch-source [src]))
+
 
 (extend-protocol FetchSource
   infowarss.src.Http
@@ -303,7 +322,7 @@
   infowarss.src.Feed
   (fetch-source [src]
     (let [http-item (fetch-http-generic src)
-          res (-> http-item :http :body rome/build-feed)
+          res (-> http-item :raw :body rome/build-feed)
           feed {:title (-> res :title)
                 :language (-> res :language)
                 :url (-> res :link  maybe-extract-url)
@@ -315,24 +334,30 @@
       (for [re (:entries res)]
         (let [timestamp (extract-feed-timestamp re http-item)
               authors (extract-feed-authors (:authors re))
-              contents (extract-feed-content (:contents re))
+              in-feed-contents (extract-feed-content (:contents re))
+              contents-url (-> re :link maybe-extract-url)
+              contents (if (and (nil? (get in-feed-contents "text/plain"))
+                             (get-in src [:args :deep?])
+                             (not (nil? contents-url)))
+                         (http-get-feed-content
+                           (src/http (str contents-url)))
+                         in-feed-contents)
               descriptions (extract-feed-description (:description re))
-
-              base-feed-entry {:updated-ts (some-> re :updated-date tc/from-date)
+              base-entry {:updated-ts (some-> re :updated-date tc/from-date)
                                :pub-ts (some-> re :published-date tc/from-date)
-                               :url (-> re :link maybe-extract-url)
+                               :url contents-url
                                :title (-> re :title)}]
           (map->FeedItem
             (-> http-item
-              (dissoc :http :hash :hickory :summary)
-              (merge {:feed feed
-                      :feed-entry (merge base-feed-entry
-                                    {:authors authors
-                                     :contents contents
-                                     :description descriptions})
+              (dissoc :hash :hickory :summary)
+              (merge {:raw re
+                      :feed feed
+                      :entry (merge base-entry
+                               {:authors authors
+                                :contents contents
+                                :description descriptions})
                       :hash (make-item-hash
-                              (:title re) (:link re)
-                              (get contents "text/plain"))
+                              (:title re) (:link re))
                       :summary {:ts timestamp
                                 :title (:title re)}})))))))
 
@@ -347,7 +372,8 @@
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]
         (map->TweetItem
-          {:meta (make-meta src)
+          {:raw tweet
+           :meta (make-meta src)
            :summary {:ts (get entry :pub-ts )
                      :title (tweet-title content)}
            :hash (make-item-hash

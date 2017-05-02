@@ -1,16 +1,21 @@
 (ns infowarss.update
   (:require
-   [infowarss.core :refer [*srcs* *state* *update-max-retires*]]
+   [infowarss.core :refer [*srcs* *state* config]]
    [infowarss.fetch :as fetch]
    [infowarss.persistency :refer [store-items! duplicate?]]
    [infowarss.postproc :as proc]
    [clj-time.core :as time]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
+   [hara.io.scheduler :as sched]
+   [hara.time.joda]
    [taoensso.timbre.appenders.core :as appenders]))
 
+;;;; Update - Combines fetch and persistency with additional state management
+;;;; Source state is managed in the core/*state* atom.
 
 (def src-state-template
+  "New sources start with this template"
   {:last-successful-fetch-ts nil
    :last-attempt-ts nil
    :status :new
@@ -20,8 +25,10 @@
 
 (defn- update-feed!
   "Update feed. Return new state"
-  [k & {:keys [skip-proc skip-store]
-           :or {skip-proc false skip-store false}}]
+  [k & {:keys [skip-proc skip-store overwrite?]
+        :or {skip-proc false
+             skip-store false
+             overwrite? false}}]
 
   (let [feed (get @*srcs* k)
         state (get @*state* k)
@@ -33,7 +40,7 @@
                         (proc/process feed fetched)
                         fetched)
             dbks (if-not skip-store
-                   (store-items! processed)
+                   (store-items! processed :overwrite? overwrite?)
                    processed)]
 
         (log/infof "Updating %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
@@ -83,25 +90,27 @@
            :last-exception &throw-context
            :retry-count 0})))))
 
-(defn set-status! [k new-status]
+(defn set-status!
+  "Set feed's status"
+  [k new-status]
   (let [src (get @*state* k)]
     (when (contains? src k)
       (swap! *state* (fn [current]
                       (assoc-in current [k :status] new-status)))
       new-status)))
 
-(defn reset-all-failed! []
+(defn reset-all-failed!
+  "Reset all feed states to :new"
+  []
   (doseq [[k v] @*srcs*]
     (set-status! k :new)))
 
-
-
+;;; Update API
 
 (defn update!
   "Update feed by id (see: *srcs*)"
-  [k & {:keys [force skip-proc skip-store]
+  [k & {:keys [force skip-proc skip-store overwrite?]
         :as args}]
-
 
   (when-not (contains? @*state* k)
     (swap! *state* assoc k src-state-template))
@@ -118,7 +127,7 @@
         (log/info "Updating working feed: " k)
         :temp-fail
         (log/info "Temporary failing feed %d/%d: %s"
-          (:retry-count cur-state) *update-max-retires* k)
+          (:retry-count cur-state) (:update-max-retires config) k)
         :perm-fail
         (log/info "Skipping perm fail feed: " k)
         (log/infof "Unknown status \"%s\": %s" cur-status k))
@@ -131,7 +140,7 @@
               (#{:ok :new} cur-status)
               (and
                 (= cur-status :temp-fail)
-                (< (:retry-count cur-state) *update-max-retires*)))
+                (< (:retry-count cur-state) (:update-max-retires config))))
         (let [kw-args (mapcat identity (dissoc args :force))
               new-state (apply update-feed! k kw-args)
               new-status (:status new-state)]
@@ -145,3 +154,24 @@
   (doall
     (for [[k v] @*srcs*]
       (apply update! k args))))
+
+
+;;; Update Scheduling
+
+(defn make-sched [feeds]
+  (into {}
+    (for [[k feed] feeds
+          :when (and (seq (get feed :cron))
+                  (seq (get feed :src)))]
+      {k {:handler (fn [t] (log/infof "Cron start on %s: Update %s"
+                             t k)
+                     (update! k))
+          :schedule (get feed :cron)}})))
+
+(def feed-sched
+  (sched/scheduler
+    (make-sched @*srcs*)
+    {}
+    {:clock {:type "org.joda.time.DateTime"
+             :timezone "Europe/Berlin"
+             :interval 2}}))

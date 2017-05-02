@@ -56,23 +56,23 @@
         src (g/generate schema/HttpSource schema-test/leaf-generators)]
     (with-redefs [http/get (fn [_] (fake-http-response body))]
       (let [resp (fetch-http-generic src)]
-        (is (= 200 (get-in resp [:http :status])))
-        (is (= body (get-in resp [:http :body])))))))
+        (is (= 200 (get-in resp [:raw :status])))
+        (is (= body (get-in resp [:raw :body])))))))
 
 (deftest test-fetch-feed
   (let [body (slurp (io/resource "fetch_test.atom"))
         src (src/feed "http://example.com")]
     (with-redefs [http/get (fn [_] (fake-http-response body))]
       (doseq [item (fetch-source src)]
-        (let [{:keys [feed feed-entry summary]} item]
+        (let [{:keys [feed entry summary]} item]
           (is (= "Example Feed" (:title feed)))
           (is (= (io/as-url "http://example.org/") (:url feed)))
           (is (= (time/date-time 2003 12 13 18 30 2) (:pub-ts feed)))
           (is (= "atom_1.0" (:feed-type feed)))
 
-          (is (= "Atom-Powered Robots Run Amok" (:title feed-entry)))
-          (is (= (io/as-url "http://example.org/2003/12/13/atom03") (:url feed-entry)))
-          (is (= "Dinge sachen und zeug" (get-in feed-entry [:contents "text/plain"])))
+          (is (= "Atom-Powered Robots Run Amok" (:title entry)))
+          (is (= (io/as-url "http://example.org/2003/12/13/atom03") (:url entry)))
+          (is (= "Dinge sachen und zeug" (get-in entry [:contents "text/plain"])))
 
           (is (= (time/date-time 1993 12 13 18 30 2) (:ts summary)))
           (is (= "Atom-Powered Robots Run Amok" (:title summary))))))))
@@ -93,13 +93,13 @@
 (deftest test-twitter-fetch-fake-data
   (with-redefs [twitter/search-tweets (fn [& args]
                                         {:body {:statuses (fake-twitter-responses 10)}})]
-    (let [resp (fetch-source (src/twitter-search "foo" (:twitter-api infowarss.core/*creds*)))]
+    (let [resp (fetch-source (src/twitter-search "foo" (:twitter-api infowarss.core/creds)))]
       (is (= 10 (count resp))))))
 
 (deftest test-twitter-fetch-fake-data
   (with-redefs [twitter/search-tweets (fn [& args]
                                         {:body {:statuses [demo-tweet]}})]
-    (let [items (fetch-source (src/twitter-search "foo" (:twitter-api infowarss.core/*creds*)))]
+    (let [items (fetch-source (src/twitter-search "foo" (:twitter-api infowarss.core/creds)))]
       (is (= 1 (count items)))
       (doseq [item items]
         (let [{:keys [summary entry]} item]
@@ -110,7 +110,7 @@
           (is (= (time/date-time 2008 8 27 13 8 45) (:pub-ts entry)))
           (is (= 1 (get-in entry [:score :favs])))
           (is (= 100 (get-in entry [:score :retweets])))
-          (is (= "de" (:language entry)))
+          (is (= :de (:language entry)))
           (is (= :tweet (:type entry)))
           (is (= 2 (count (get-in entry [:entities :hashtags]))))
           (is (= 2 (count (get-in entry [:entities :mentions]))))

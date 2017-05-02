@@ -1,8 +1,23 @@
 (ns infowarss.schema
   (:require [schema.core :as s :refer [defschema]]
+            [clojure.test :refer [function?]]
+            [clojure.string :as string]
             [clj-time.format :as tf]
             [clojure.java.io :as io]
    ))
+
+;;;; Schemas - Both for internal and external data
+
+;;; Base "Types"
+
+(defschema Func
+  (s/pred function?))
+
+(defschema FuncList
+  [Func])
+
+(defschema NotEmptyStr
+  (s/constrained s/Str (complement string/blank?)))
 
 (defschema Hash
   "Hash value of the item"
@@ -33,14 +48,22 @@
 (defschema URLStr
   (s/constrained s/Str io/as-url))
 
+(defschema URLStrOrBlank
+  (s/constrained s/Str #(or (string/blank? %) (io/as-url %))))
+
 (defschema KwSet
   (s/pred set?))
 
 (defschema StrStrMap
   {s/Str s/Str})
 
+(defschema StrAnyMap
+  {s/Str s/Any})
+
 (defschema HttpSource
   {:url URLStr})
+
+;;; *Items
 
 (defschema Metadata
   "Metadata about an item"
@@ -57,10 +80,11 @@
   {:ts org.joda.time.DateTime
    :title s/Str})
 
+;;; clj-http responses
 
 (defschema HttpResponse
   "Http Response"
-  {:headers StrStrMap
+  {:headers StrAnyMap
    :status PosInt
    :body s/Str
    :repeatable? s/Bool
@@ -72,9 +96,12 @@
    :reason-phrase s/Str
    :length s/Int
    (s/optional-key :cookies) s/Any
+   (s/optional-key :links) s/Any
    :request-time s/Int
    :trace-redirects (s/maybe [s/Str])
    :orig-content-encoding (s/maybe s/Str)})
+
+;;; Feed Items
 
 (defschema FeedEntry
   {:url (s/maybe java.net.URL)
@@ -94,6 +121,8 @@
    :encoding (s/maybe s/Str)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :feed-type s/Str})
+
+;;; Twitter API (incoming)
 
 (defschema TweetEntityIndices
   [(s/one PosInt "s") (s/one PosInt "e")])
@@ -227,6 +256,7 @@
    (s/optional-key :withheld_in_countries) [s/Str]
    (s/optional-key :withheld_scope) s/Str})
 
+;;; Tweet Items
 
 (defschema TweetEntry
   {:url (s/maybe java.net.URL)
@@ -243,6 +273,8 @@
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
 
+;;; Hacker News Items
+
 (defschema HackerNewsEntry
   {:score PosInt
    :author s/Str
@@ -254,6 +286,8 @@
    :hn-url (s/maybe java.net.URL) ;; https://news.ycombinator.com/item?id=
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
+
+;;; Fever API
 
 (defschema FeverAPIRoot
   {:api_version PosInt
@@ -288,8 +322,8 @@
   {:id PosInt
    :favicon_id PosInt
    :title s/Str
-   :url URLStr
-   :site_url URLStr
+   :url URLStrOrBlank
+   :site_url URLStrOrBlank
    :is_spark BoolInt
    :last_updated_on_time UnixTimestamp})
 
@@ -323,7 +357,7 @@
    :title s/Str
    :author s/Str
    :html s/Str
-   :url URLStr
+   :url URLStrOrBlank
    :is_saved BoolInt
    :is_read BoolInt
    :created_on_time UnixTimestamp})
@@ -332,7 +366,7 @@
   "Fever API: items object"
   {(s/optional-key :last_refreshed_on_time) UnixTimestamp
    :items [FeverItem]
-   :total_items (s/constrained s/Num (partial < 0))})
+   :total_items PosInt})
 
 (defschema FeverAPIItems
   "Fever API: items request"
@@ -348,7 +382,7 @@
    :is_local BoolInt
    :is_saved BoolInt
    :title s/Str
-   :url URLStr
+   :url URLStrOrBlank
    :item_ids FeverIntList})
 
 (defschema FeverLinks

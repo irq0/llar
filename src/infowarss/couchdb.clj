@@ -1,5 +1,6 @@
 (ns infowarss.couchdb
   (:require
+   [infowarss.core :refer [config]]
    [digest]
    [clj-http.client :as http]
    [clj-time.core :as time]
@@ -14,11 +15,11 @@
    [cheshire.core :refer :all])
   (:import [java.util.Base64.Encoder]))
 
-(defonce ^:dynamic *couch-base-url* "http://10.23.1.42:5984/")
-(defonce ^:dynamic *couch-default-db* "db")
-(defonce ^:dynamic *couch-db-auth* "admin:admin")
-(defonce ^:dynamic *db* (atom nil))
-(defonce ^:dynamic *last-document* (atom nil))
+;;;; Couchdb interface
+
+(def ^:dynamic *couch-base-url* (get-in config [:couchdb :base-url]))
+(def ^:dynamic *couch-default-db* (get-in config [:couchdb :default-db]))
+(def ^:dynamic *couch-db-auth* (get-in config [:couchdb :auth]))
 
 (defn- couch-url
   [& ps]
@@ -29,10 +30,14 @@
 (defn get-res-json [res]
   (slurp (io/resource res)))
 
-(defn init-db! []
+(defn init-db!
+  "Initialize database with design documents"
+  []
   (let [views {:hashes {:map (get-res-json "hashes_map.js")}
                :by-tag {:map (get-res-json "by-tag_map.js")}
                :ids {:map (get-res-json "ids_map.js")}
+               :feeds {:map (get-res-json "feeds.js")
+                       :reduce "_stats"}
                :by-src {:map (get-res-json "by-src_map.js")}}]
 
     (http/put (couch-url "_design" "lookup")
@@ -43,10 +48,13 @@
        :accept :json
        :as :json})))
 
-(defn clear-db! []
+(defn clear-db!
+  "Remove up to 1000 infowars docs"
+  []
   (let [resp (http/post (couch-url "_find")
                {:content-type :json
                 :form-params {:selector {:hash {"$exists" true}}
+                              :limit 1000
                               :fields ["_id" "_rev"]}
                 :accept :json
                 :as :json})
@@ -61,8 +69,9 @@
        :accept :json
        :as :json})))
 
-(defn add-document! [params]
-  (reset! *last-document* params)
+(defn add-document!
+  "Add new document. Return document ID"
+  [params]
   (try+
     (let [{:keys [body]} (http/post (couch-url)
                            {:form-params params
@@ -82,30 +91,37 @@
       (log/error "Unexpected error: " (:throwable &throw-context))
       (throw+ (assoc &throw-context :type ::unexpected-error)))))
 
-
-(defn get-document [id]
+(defn get-document
+  "Return document by id"
+  [id]
   (:body
    (http/get (couch-url id)
      {:content-type :json
       :accept :json
       :as :json})))
 
-(defn get-attachment [docid attk]
+(defn get-attachment
+  "Return attachment for docid and attachment key"
+  [docid attk]
   (let [resp (http/get (couch-url docid (name attk)))]
     [(get-in resp [:headers "Content-Type"])
      (get resp :body)]))
 
-(defn get-document-with-attachments [id]
+(defn get-document-with-attachments
+  "Get document by id. Return document with attachments"
+  [id]
   (let [doc (get-document id)
         attks (-> doc :_attachments keys)
         atts (->>
                attks
                (map #(get-attachment id %))
                (into {}))]
-    (assoc-in doc [:feed-entry :contents] atts)))
+    (assoc-in doc [:entry :contents] atts)))
 
 
-(defn change-document! [id rev params]
+(defn change-document!
+  "Set new version of document"
+  [id rev params]
   (when (some empty? [id rev params])
     (throw+ {:type ::params-must-not-be-empty
              :params {:id id :rev rev :params params}}))
@@ -130,28 +146,42 @@
       (throw+ (assoc &throw-context :type ::unexpected-error)))))
 
 
-(defn lookup-hash [hash]
+(defn lookup-hash
+  "Lookup database ID by item hash"
+  [hash]
   (http/get (couch-url "_design" "lookup" "_view" "hashes")
     {:content-type :json
      :query-params {:key (str "\"" hash "\"")}
      :accept :json
      :as :json}))
 
-
-(def attachment-extensions
-  {"text/html" "html"
-   "text/plain" "txt"})
-
-
-(defn swap-document! [id f]
+(defn swap-document!
+  "Swap document: Get current version, apply function on it and save
+  the result as the new version"
+  [id f]
   (let [doc (get-document id)]
     (let [id (get doc :_id)
           rev (get doc :_rev)
           new-doc (f doc)]
       (change-document! id rev new-doc))))
 
-(defn doc-ids-with-tag [tag]
+(defn doc-ids-with-tag
+  "Return all doc ids with tag"
+  [tag]
   (map :id (couch/get-view (couch-url) "lookup" "by-tag" {:key tag})))
 
-(defn all-doc-ids []
+(defn all-doc-ids
+  "Return all doc ids in db"
+  []
   (map :id (couch/get-view (couch-url) "lookup" "ids")))
+
+(defn get-feeds
+  "Get feeds that have items stored in the database"
+  []
+  (map (fn [{:keys [key value]}]
+         {:title (:title key)
+          :url (io/as-url (:url key))
+          :count (:count value)
+          :first-fetch-ts (tc/from-long (:min value))
+          :last-fetch-ts (tc/from-long (:max value))})
+    (couch/get-view (couch-url) "lookup" "feeds" {:group true})))

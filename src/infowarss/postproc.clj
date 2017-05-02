@@ -1,37 +1,35 @@
 (ns infowarss.postproc
   (:require
    [infowarss.fetch]
+   [infowarss.schema :as schema]
    [schema.core :as s]
    [taoensso.timbre :as log]
-   [clojure.test :refer [function?]]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.shell :as shell]
    [postal.core :as postal]
    [clojure.string :as string]
+   [infowarss.analysis :as analysis]
    [taoensso.timbre.appenders.core :as appenders]))
 
+;;;; Postprocessing and Filtering
 
-;; Schemas and data structures
-
-(def Func
-  "Function"
-  (s/pred function?))
-
-(def FuncList
-  "List of functions"
-  [Func])
+;;; Processing data structure
 
 ;; Every source may have a processing record
 (s/defrecord Processing
-    [post :- FuncList
-     filter :- Func])
+    [post :- schema/FuncList
+     filter :- schema/Func])
 
 (defn make
+  "Make new Processing record"
   [& {:keys [post filter] :or {post [] filter (constantly false)}}]
   (Processing. post filter))
 
+;;; Item postprocessing protocol
+
 ;; The ItemProcessor protocol allows processing hooks
 ;; per item type
+
 (defprotocol ItemProcessor
   (post-process-item [item src] "Postprocess item")
   (filter-item [item src] "Filter items"))
@@ -39,7 +37,10 @@
 (extend-protocol ItemProcessor
   infowarss.fetch.FeedItem
   (post-process-item [item src]
-    (update-in item [:meta :tags] conj :unread))
+    (let [nlp (analysis/analyze-entry (:entry item))]
+      (-> item
+        (update-in [:meta :tags] conj :unread)
+        (update :entry merge (:entry item) nlp))))
   (filter-item [item src] false)
 
   infowarss.fetch.HttpItem
@@ -49,10 +50,13 @@
 
   infowarss.fetch.TweetItem
   (post-process-item [item src]
-    (update-in item [:meta :tags] conj :unread))
+    (-> item
+      (update-in [:meta :tags] conj :unread)
+      (update :entry merge (:entry item) (analysis/analyze-entry (:entry item)))
+    ))
   (filter-item [item src] false))
 
-;; postproc utility functions
+;;;; Postprocessing utility functions
 
 (defn add-tag [tag]
   (fn [item]
@@ -78,40 +82,20 @@
         (assoc-in dst src-val)
         (assoc-in src dst-val)))))
 
-(defn dummy-mail [body]
-  (string/join "\n"
-    ["Received: from ks3366964.kimsufi.com (Postfix [37.187.2.217])"
-     "	by ks3366964.kimsufi.com (Postfix) with ESMTPS id 18DCF8013E"
-     "	for <ml@irq0.org>; Mon, 17 Apr 2017 22:12:32 +0200 (CEST)"
-     "Message-Id: <4043aad0-25ae-4ded-a261-eff3e8ed063f@irq0.org>"
-     "From: Marcel Lauhoff <ml@irq0.org>"
-     "Delivered-To: seri@ks3366964.kimsufi.com"
-     "To: test@irq0.org"
-     "Content-Type: text/plain;"
-     "	charset=UTF-8"
-     "Content-Transfer-Encoding: 7bit"
-     "Subject: Please check this tweet"
-     "Date: Mon, 17 Apr 2017 20:12:23 +0000 (UTC)"
-     ""
-     body]))
-
 (def sa-to-bool
   {"Yes" true
    "No" false})
 
 (defn spamassassin
-  [text]
-  (let [msg (dummy-mail text)
-        {:keys [exit out]} (shell/sh "spamassassin" "--local" "--test-mode" :in msg)]
-
+  [msg]
+  (let [{:keys [exit out]} (shell/sh "spamassassin" "--local" "--test-mode" :in msg)]
     (if (zero? exit)
       (let [[_ sa-bool score] (re-find #"X-Spam-Status: (.+), score=(\d+\.\d+)" out)]
         {:status (get sa-to-bool sa-bool)
          :score (Float/parseFloat score)})
       "")))
 
-;; Postprocessing
-
+;;; Postprocessing utilities
 
 (defn- wrap-proc-fn [func]
   (fn [& args]
@@ -136,7 +120,12 @@
       (when-not out? item))
     item))
 
-(defn process-item [feed item]
+
+;;; API
+
+(defn process-item
+  "Postprocess and filter a single item"
+  [feed item]
   (let [{:keys [src]} feed
         per-feed-proc (apply comp
                         (->> feed
@@ -170,5 +159,4 @@
   (let [{:keys [src]} feed]
     (log/infof "Processing feed: %s" (str src))
     (remove nil?
-      (for [item items]
-        (process-item feed item)))))
+      (pmap #(process-item feed %) items))))
