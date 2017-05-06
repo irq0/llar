@@ -16,7 +16,8 @@
 
 (def src-state-template
   "New sources start with this template"
-  {:last-successful-fetch-ts nil
+  {:key nil
+   :last-successful-fetch-ts nil
    :last-attempt-ts nil
    :status :new
    :update-lock (Object.)
@@ -37,7 +38,7 @@
     (try+
       (let [fetched (fetch/fetch feed)
             processed (if-not skip-proc
-                        (proc/process feed fetched)
+                        (proc/process feed state fetched)
                         fetched)
             dbks (if-not skip-store
                    (store-items! processed :overwrite? overwrite?)

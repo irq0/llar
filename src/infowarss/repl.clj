@@ -119,7 +119,7 @@
           processed (cond->> fetched
                       limit (take limit)
                       (not skip-postproc) (proc/process {:src src
-                                                         :proc postproc}))]
+                                                         :proc postproc} {}))]
 
       (log/infof "Preview of %s: fetched: %d, limit: %d, after processing: %d"
         (str src) (count fetched) limit (count processed))
