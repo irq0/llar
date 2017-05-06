@@ -272,7 +272,7 @@
     (log/debugf "[Fever API] modify tag of %s/%s"
       id couchid)
     (couch/swap-document! couchid
-      (fn [doc] (log/spy doc) (update-in doc [:meta :tags] f)))))
+      (fn [doc] (update-in doc [:meta :tags] f)))))
 
 (defn- remove-tag
   [id tag]
@@ -291,7 +291,7 @@
   (try+
     (let [{:keys [mark as id before]} (:params req)
           id (Long/parseLong id)]
-      (log/infof "[Fever API] WRITE OP (%s:%s -> %s)"
+      (log/debugf "[Fever API] WRITE OP (%s:%s -> %s)"
         mark id as)
       (cond
         (and (= mark "item") (= as "read"))
@@ -301,8 +301,8 @@
         :else
         (log/error "Unsupported write op")))
     (catch Object _
-      (log/error "Unexpected error: " (:throwable &throw-context))
-      (log/spy (:params req))))
+      (log/errorf "Unexpected error (query params: %s): %s"
+        (:params req) (:throwable &throw-context))))
   {})
 
 (defn extract-op
@@ -320,7 +320,7 @@
   (let [op (extract-op req)
         params (:params req)]
     (s/with-fn-validation
-      (log/infof "[Fever API] OP: %s params: %s" op params)
+      (log/debugf "[Fever API] OP: %s params: %s" op params)
       (condp = op
         :groups (groups)
         :feeds (feeds)
@@ -342,6 +342,5 @@
   "Fever API ring handler"
   [req]
   (let [resp-body (handle-request req)]
-    (log/debugf "[Fever API RESPONSE] %s" resp-body)
     (response/response
       (merge resp-body (api-root)))))

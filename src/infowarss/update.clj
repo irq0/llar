@@ -75,7 +75,7 @@
            :retry-count 0}))
 
       (catch java.net.ConnectException _
-        (log/error "Connection error: "  &throw-context)
+        (log/warn &throw-context "Connection error (-> temp-fail) for" (str src))
         (merge state
           {:last-attempt-ts now
            :status :temp-fail
@@ -83,7 +83,7 @@
            :retry-count 0}))
 
       (catch Object _
-        (log/error "Unexpected error: "  &throw-context)
+        (log/error &throw-context "Unexpected error (-> perm-fail) for " (str src))
         (merge state
           {:last-attempt-ts now
            :status :perm-fail
@@ -122,18 +122,18 @@
 
       (condp = cur-status
         :new
-        (log/info "Updating new feed: " k)
+        (log/debug "Updating new feed: " k)
         :ok
-        (log/info "Updating working feed: " k)
+        (log/debug "Updating working feed: " k)
         :temp-fail
-        (log/info "Temporary failing feed %d/%d: %s"
+        (log/debug "Temporary failing feed %d/%d: %s"
           (:retry-count cur-state) (:update-max-retires config) k)
         :perm-fail
-        (log/info "Skipping perm fail feed: " k)
-        (log/infof "Unknown status \"%s\": %s" cur-status k))
+        (log/debug "Skipping perm fail feed: " k)
+        (log/debugf "Unknown status \"%s\": %s" cur-status k))
 
       (when force
-        (log/infof "Force updating %s feed %s" cur-status k))
+        (log/debugf "Force updating %s feed %s" cur-status k))
 
       (when (or
               force
@@ -144,7 +144,7 @@
         (let [kw-args (mapcat identity (dissoc args :force))
               new-state (apply update-feed! k kw-args)
               new-status (:status new-state)]
-          (log/infof "[%s] State: %s -> %s " k
+          (log/debugf "[%s] State: %s -> %s " k
             cur-status new-status)
           (swap! *state* (fn [current]
                            (assoc current k new-state)))

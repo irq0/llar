@@ -33,7 +33,7 @@
     (if (#{:de :en} lang)
       (let [tokens ((get tokenizer lang)  text)
             pos ((get pos-tagger lang) tokens)]
-        (log/info "NLP Analysis running")
+        (log/debug "NLP Analysis running" )
         {:language lang
          :nlp {:names (set (find-names lang tokens))
                :nouns (set (map first (nlp-filter/nouns pos)))

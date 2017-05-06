@@ -126,13 +126,13 @@
     (cond
       (and dup? overwrite?)
       (let [{:keys [id]} (overwrite-item! item)]
-        (log/infof "Overwritten item %s/\"%s\": %s" name title id)
+        (log/debugf "Overwritten item %s/\"%s\": %s" name title id)
         id)
       dup?
-      (log/infof "Skipping item %s/\"%s\": duplicate" name title)
+      (log/debugf "Skipping item %s/\"%s\": duplicate" name title)
       :else
       (let [{:keys [id]} (store-item! item)]
-        (log/infof "Stored item %s/\"%s\": %s" name title id)
+        (log/debugf "Stored item %s/\"%s\": %s" name title id)
         id)
     )))
 
@@ -147,10 +147,10 @@
   ;; Each vector may contain multiple item types.
   ;; -> Group them by type and call the store method
   (let [by-type (group-by type mixed-items)]
-    (log/infof "Persisting %d items with types: %s"
+    (log/debugf "Persisting %d items with types: %s"
       (count mixed-items) (keys by-type))
     (doall
       (apply concat
         (for [[type items] by-type]
-          (do (log/infof "Persisting %s items" type)
+          (do (log/debugf "Persisting %s items" type)
               (remove nil? (map #(store-item-skip-duplicate! % :overwrite? overwrite?) items ))))))))

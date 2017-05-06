@@ -386,5 +386,5 @@
   "Fetch feed. Return seq of new items"
   [feed]
   (let [{:keys [src]} feed]
-    (log/info "Fetching: " (str src))
+    (log/debug "Fetching: " (str src))
     (fetch-source src)))

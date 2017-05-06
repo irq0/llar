@@ -101,21 +101,17 @@
   (fn [& args]
     (try+
       (let [new (apply func args)]
-        (log/debugf "proc: (%s %s) -> "
+        (log/tracef "proc: (%s %s) -> "
           func (count args))
-        (log/spy :trace "before:" args)
-        (log/spy :trace "after:" new)
         new)
       (catch Object  _
-        (log/errorf "proc function failed: %s"
-          (:throwable &throw-context))
-        (log/spy :error &throw-context)
+        (log/warn (:throwable &throw-context) "proc function failed: %s")
         args))))
 
 (defn- apply-filter [item f]
   (if-not (nil? f)
     (let [out? (boolean (f item))]
-      (log/debugf "filter: (%s, %s) -> %s"
+      (log/tracef "filter: (%s, %s) -> %s"
         f item out?)
       (when-not out? item))
     item))
@@ -136,12 +132,8 @@
 
         per-feed-filter (-> feed :proc :filter)]
 
-    (comp #(log/info "foo %s" %) (partial + 3))
-
-    (log/infof "Processing %s: %s/\"%s\""
-      (type item)
-      (str src)
-      (-> item :summary :title))
+    (log/debugf "Processing %s"
+      (str item))
 
     (let [processed (some-> item
                       (proto-feed-proc)
@@ -150,13 +142,12 @@
                       (per-feed-proc)
                       (apply-filter per-feed-filter))]
       (when (nil? processed)
-        (log/infof "Filtered out: %s/\"%s\""
-          (str src)
-          (-> item :summary :title)))
+        (log/debugf "Filtered out: %s"
+          (str item)))
       processed)))
 
 (defn process [feed items]
   (let [{:keys [src]} feed]
-    (log/infof "Processing feed: %s" (str src))
+    (log/debugf "Processing feed: %s" (str src))
     (remove nil?
       (pmap #(process-item feed %) items))))

@@ -103,7 +103,7 @@
                      from (- to per-page)
                      from (if (neg? from) 0 from)]
 
-                 (log/infof "list entires %d %d"
+                 (log/debugf "list entires %d %d"
                  from to )
                  (if (or (nil? from) (nil? to))
                    vs
