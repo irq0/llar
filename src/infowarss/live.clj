@@ -1,6 +1,8 @@
 (ns infowarss.live
   (:require
+   [infowarss.core :as core]
    [infowarss.schema :as schema]
+   [infowarss.live.common :refer :all]
    [schema.core :as s]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
@@ -8,173 +10,12 @@
    [clojure.java.io :as io]
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.set :refer [map-invert]]
+   [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log])
   (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))
 
-;;;; Live sources - Sources that, once started, return a stream of items until stopped
+;;;; Live source logic. Similar to update, but running continuously in background
 
-;;; Protocol
-
-(defprotocol LiveSource
-  "Protocol to work with live sources"
-  (start-collecting! [src chan])
-  (status? [src])
-  (stop-collecting! [src]))
-
-;;; Utilities
-
-(defn make-meta [src]
-  {:source src
-   :app "infowarss.live"
-   :fetch-ts (time/now)
-   :tags #{}
-   :version 0})
-
-;;; Firebase API wrapper / helper
-
-(defn make-firebase-logger [level]
-  (let [firebase-to-taoensso {Logger$Level/DEBUG :debug
-                              Logger$Level/INFO :info
-                              Logger$Level/WARN :warn
-                              Logger$Level/ERROR :error
-                              Logger$Level/NONE :info}
-        taoensso-to-firebase (map-invert firebase-to-taoensso)
-        firebase-level (get taoensso-to-firebase level)]
-
-  (reify Logger
-    (^void onLogMessage [_
-                         ^Logger$Level level
-                         ^String tag
-                         ^String message
-                         ^long ts]
-     (log/log (get firebase-to-taoensso level) tag message))
-    (^Logger$Level getLogLevel [_]
-     firebase-level))))
-
-(defn init-firebase []
-  (Firebase/setDefaultConfig
-    (doto (Firebase/getDefaultConfig)
-      (.setLogger (make-firebase-logger :debug)))))
-
-(defn make-value-event-listener [on-data-change]
-  (reify ValueEventListener
-    (^void onDataChange [_ ^DataSnapshot snap]
-     (log/spy snap)
-     (on-data-change (.getValue snap)))
-    (^void onCancelled [_ ^FirebaseError err]
-     (log/error "Firebase error:" err))))
-
-(defn get-value [ref]
-  (let [p (promise)
-        listener (make-value-event-listener (partial deliver p))]
-    (.addListenerForSingleValueEvent ref listener)
-    @p))
-
-(defn listen-value-changes [ref f]
-  (let [listener (make-value-event-listener f)]
-    (.addValueEventListener ref listener)))
-
-(defn make-ref [base]
-  (Firebase. base))
-
-(defn make-path [ref & path]
-  (reduce #(.child %1 (str %2)) ref path))
-
-;;; Hacker News
-
-(def hacker-news-base-url "https://hacker-news.firebaseio.com/v0/")
-
-(s/defrecord HackerNewsItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     raw :- s/Any
-     entry :- schema/HackerNewsEntry])
-
-(s/defn make-hn-summary :- schema/Summary
-  [hn-entry :- schema/HackerNewsEntry]
-  (let [{:keys [title pub-ts]} hn-entry]
-    {:ts pub-ts
-     :title title}))
-
-(defn make-hn-entry [item]
-  {:score (get item "score")
-   :author (get item "by")
-   :id (get item "id")
-   :pub-ts (tc/from-long (get item "time"))
-   :title (get item "title")
-   :type (keyword (get item "type"))
-   :url (io/as-url (get item "url"))
-   :hn-url (io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))
-   :contents {"text/plain" (get item "text")}})
-
-(s/defn get-hn-entry :- schema/HackerNewsEntry
-  [id :- schema/PosInt]
-  (let [ref (make-path (make-ref hacker-news-base-url) "item" id)
-        raw (get-value ref)]
-    (make-hn-entry raw)))
-
-(defn- hn-item-resolver
-  "Deref item to HackerNewsEntry"
-  [hn-ref id]
-  (log/debug "Resolving id:" id)
-  (let [entry (-> (make-path hn-ref "item" id)
-                get-value
-                make-hn-entry)]
-    (log/spy entry)))
-
-(defn- hn-resolver-thread
-  "Resolve ids from in-chan to HackerNewsEntries on out-chan"
-  [hn-ref in-chan out-chan]
-  (async/thread
-    (loop []
-      (let [id (<!! in-chan)]
-        (if-not (= id :stop)
-          (do
-            (async/put! out-chan
-              (hn-item-resolver hn-ref id))
-            (recur))
-          (log/debug "Stopping resolver"))))))
-
-(extend-protocol LiveSource
-  infowarss.src.HackerNews
-  (start-collecting! [src item-chan]
-    (let [story-feed (:story-feed src)
-          state @(get src :state)
-          hn (make-ref hacker-news-base-url)
-          ref (make-path hn story-feed)]
-      (when-not (= (:status state) :running)
-        (let [resolve-chan (async/chan 1000)
-              resolver-thread (hn-resolver-thread hn resolve-chan item-chan)
-
-              listener-f (fn [ids]
-                           (log/infof "HackerNews feed %s update: %s items"
-                             story-feed (count ids))
-                           (swap! (:state src)
-                             (fn [s] (assoc s :last-update-ts (time/now))))
-                           (doseq [id ids]
-                             (async/put! resolve-chan id)))
-              listener (listen-value-changes ref listener-f)]
-
-          (reset! (:state src) {:firebase {:listener listener
-                                           :hn-ref hn
-                                           :resolve-chan resolve-chan
-                                           :story-ref ref}
-                         :start-ts (time/now)
-                         :status :running
-                         :last-update-ts nil})))))
-  (status? [src]
-    (let [state @(get src :state)]
-      (:status state)))
-
-  (stop-collecting! [src]
-    (let [state @(get src :state)
-          listener (get-in state [:firebase :listener])
-          ref (get-in state [:firebase :story-ref])]
-      (when (= (:status state) :running)
-        (.removeEventListener ref listener)
-        (>!! (get-in state [:firebase :resolve-chan]) :stop)
-        (swap! (:state src) (fn [s] (merge s {:status :stopped})))))))
 
 ;; newstories
 ;; topstories
@@ -182,10 +23,79 @@
 ;; showstories
 ;; askstories
 
-(defn start-live [feed]
-  )
+(def live-chans (atom {}))
+(def live-chan (async/chan))
+(def live-mix (async/mix live-chan))
 
-;; :hn-best {:live (firebase/hn "beststories")
+(def processor-thread (atom nil))
+
+(defn start-processor []
+  (when (nil? @processor-thread)
+    (reset! processor-thread
+      (async/thread
+        (loop []
+          (let [item (<!! live-chan)]
+            (if-not (= item :stop)
+              (do
+                (log/trace (str item))
+                (recur))
+              (log/debug "Stopping live processor"))))))))
+
+(defn stop-processor []
+  (>!! live-chan :stop))
+
+
+(defn start
+  "Start live source by id (see: *srcs*)"
+  [k]
+
+  (when (nil? (get core/*srcs* k))
+    (throw+ {:type ::unknown-source-key :key k :known-keys (keys core/*srcs*)}))
+
+  (when-not (satisfies? LiveSource (get-in core/*srcs* [k :src]))
+    (throw+ {:type ::not-a-live-source :key k}))
+
+  (when (nil? (get @core/state k))
+    (swap! core/state assoc k (atom nil)))
+
+  (when (nil? (get live-chans k))
+    (swap! live-chans assoc k (async/chan 1000)))
+
+  (let [feed (get core/*srcs* k)
+        src (get feed :src)
+        state (get @core/state k)
+        chan (get @live-chans k)]
+    (async/admix live-mix chan)
+    (async/toggle live-mix {chan {:mute false
+                                  :pause false
+                                  :solo false}})
+    (start-collecting! src state chan))
+  (:status @(get @core/state k)))
+
+
+(defn stop
+  "Stop live source"
+  [k]
+
+  (when (nil? (get core/*srcs* k))
+    (throw+ {:type ::unknown-source-key :key k :known-keys (keys core/*srcs*)}))
+
+  (when-not (satisfies? LiveSource (get-in core/*srcs* [k :src]))
+    (throw+ {:type ::not-a-live-source :key k}))
+
+  (let [feed (get core/*srcs* k)
+        src (get feed :src)
+        state (get @core/state k)
+        chan (get @live-chans k)
+        new-state (stop-collecting! src state)]
+    (async/toggle live-mix {chan {:mute true
+                                  :pause false
+                                  :solo false}}))
+  (:status @(get @core/state k)))
+
+
+
+;; :hn-best {:src (src/hn "beststories")
 ;;           :proc (proc/make
 ;;                      :filter (fn [item]
 ;;                                (->> item
