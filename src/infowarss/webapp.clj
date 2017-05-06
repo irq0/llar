@@ -1,8 +1,9 @@
 (ns infowarss.webapp
   (:require
    [infowarss.apis.feedbin :as feedbin]
+   [ring.adapter.jetty :refer [run-jetty]]
    [infowarss.apis.fever :as fever]
-   [ring.middleware params keyword-params json stacktrace lint reload basic-authentication]))
+   [ring.middleware params keyword-params json stacktrace lint basic-authentication]))
 
 ;;;; Web APIs
 
