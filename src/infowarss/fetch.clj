@@ -281,7 +281,7 @@
   [src]
   (try+
     (let [url (-> src :url str)
-          response (http/get url)
+          response (http/get url {:headers {:user-agent "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"}})
           parsed-html (-> response :body hick/parse hick/as-hickory)]
       (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
       (map->HttpItem
