@@ -324,6 +324,19 @@
     tag id)
   (modify-tags id (fn [m] (-> m (conj tag) set))))
 
+(defn modify-tags-for-feed [feed-id tag f]
+  (let [couch-ids (couch/doc-ids-with-tag tag)]
+    (doseq [id couch-ids
+            :let [doc (couch/get-document id)
+                  cur-feed-id (fever-feed-id (:meta doc))]]
+      (when (= feed-id cur-feed-id)
+        (couch/swap-document! id
+          (fn [old] (update-in old [:meta :tags] f)))))))
+
+(defn mark-feed-read [feed-id]
+  (log/debugf "[Fever API] marking feed %s as read" feed-id)
+  (modify-tags-for-feed feed-id "unread" (fn [m] (-> m set (disj "unread")))))
+
 (defn handle-write-op
   [req]
   (try+
@@ -336,6 +349,8 @@
         (remove-tag id "unread")
         (and (= mark "item") (= as "unread"))
         (set-tag id "unread")
+        (and (= mark "feed") (= as "read"))
+        (mark-feed-read id)
         :else
         (log/error "Unsupported write op")))
     (catch Object _
