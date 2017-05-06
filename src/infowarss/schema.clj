@@ -68,7 +68,8 @@
 (defschema Metadata
   "Metadata about an item"
   {:source s/Any
-   :source-name s/Str
+   :source-name NotEmptyStr
+   :source-key s/Keyword
    :app s/Str
    :ns s/Str
    :fetch-ts org.joda.time.DateTime
@@ -281,7 +282,7 @@
    :id PosInt
    :pub-ts (s/maybe org.joda.time.DateTime)
    :title s/Str
-   :type s/Str
+   :type s/Keyword
    :url (s/maybe java.net.URL) ;; something
    :hn-url (s/maybe java.net.URL) ;; https://news.ycombinator.com/item?id=
    :contents {(s/required-key "text/plain") (s/maybe s/Str)

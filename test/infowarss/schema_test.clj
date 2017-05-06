@@ -25,6 +25,7 @@
    PosFloat (gen/double* {:min 0})
    KwSet (gen/set gen/keyword)
    BoolInt (gen/elements [0 1])
+   NotEmptyStr (gen/not-empty gen/string-alphanumeric)
    UnixTimestamp (gen/resize Integer/MAX_VALUE gen/pos-int)
    FeverIntList (gen/fmap #(string/join "," %) (gen/vector gen/pos-int))
    FeverImageData (g/always (str "image/gif;base64;foo="))
