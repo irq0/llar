@@ -136,7 +136,7 @@
       (when force
         (log/debugf "Force updating %s feed %s" cur-status k))
 
-      (when (or
+      (if (or
               force
               (#{:ok :new} cur-status)
               (and
@@ -149,7 +149,8 @@
             cur-status new-status)
           (swap! state (fn [current]
                            (assoc current k new-state)))
-          new-status)))))
+          new-status)
+        cur-status))))
 
 (defn update-all! [& args]
   (doall
