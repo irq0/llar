@@ -187,6 +187,14 @@
             items (get data "items")]
         (is (= 0 (count items)))))))
 
+(deftest test-mark-feed-read
+  (let [req (fever-app (mock-req "?api"
+                         {:id (fever-feed-id (:meta (couch/get-document @demo-item-id)))
+                          :mark "feed"
+                          :as "read"}))
+        doc (couch/get-document @demo-item-id)]
+    (is (not (some #(= % "unread") (get-in doc [:meta :tags]))))))
+
   (let [set-read (mock-write-op (fever-item-id @demo-item-id) "item" "read")
         set-unread (mock-write-op (fever-item-id @demo-item-id) "item" "unread")]
 
