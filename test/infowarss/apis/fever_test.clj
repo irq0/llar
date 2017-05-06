@@ -115,6 +115,21 @@
     (is (some (fn [x] (and (= all-group-id (get x "group_id"))
                         (some (partial = (str demo-feed-id)) (string/split (get x "feed_ids") #",") )))
           (get data "feeds_groups")))))
+
+(deftest test-items-request-item-content
+  (let [demo-id (fever-item-id @demo-item-id)
+        resp (fever-app (mock-req "?api&items" {:with_ids demo-id}))
+        data #spy/p (json/parse-string (:body resp))
+        items (get data "items")
+        item (first items)]
+    (is (= 1 (count items)))
+    (is (= (fever-feed-id (get demo-item :meta)) (get item "feed_id")))
+    (is (= (fever-item-id @demo-item-id) (get item "id")))
+    (is (= (str (get-in demo-item [:entry :url])) (get item "url")))
+    (is (= (get-in demo-item [:entry :contents "text/html"]) (get item "html")))
+    (is (= (string/join ", " (get-in demo-item [:entry :authors])) (get item "author")))))
+
+
   (let [set-read (mock-write-op (fever-item-id @demo-item-id) "item" "read")
         set-unread (mock-write-op (fever-item-id @demo-item-id) "item" "unread")]
 
