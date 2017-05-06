@@ -195,15 +195,36 @@
         doc (couch/get-document @demo-item-id)]
     (is (not (some #(= % "unread") (get-in doc [:meta :tags]))))))
 
+(deftest test-mark-item-read-unread
   (let [set-read (mock-write-op (fever-item-id @demo-item-id) "item" "read")
         set-unread (mock-write-op (fever-item-id @demo-item-id) "item" "unread")]
 
-    (fever-app set-read)
+    (testing "Set Read"
+      (fever-app set-read)
 
-    (let [doc (couch/get-document @demo-item-id)]
-      (is (not (contains? (:tags doc) :unread))))
+      (let [doc (couch/get-document @demo-item-id)]
+        (is (not (some #{"unread"} (get-in doc [:meta :tags]))))))
 
-    (fever-app set-unread)
+    (testing "Check item response"
+      (let [resp (fever-app (mock-req "?api&items"
+                              {:with_ids (fever-item-id @demo-item-id)}))
+            data (json/parse-string (:body resp))
+            items (get data "items")
+            item (first items)]
+        (is (= 1 (count items)))
+        (is (= 1 (get item "is_read")))))
 
-    (let [doc (couch/get-document @demo-item-id)]
-      (is (contains? (:tags doc) :unread)))))
+    (testing "Set Unread"
+      (fever-app set-unread)
+
+      (let [doc (couch/get-document @demo-item-id)]
+        (is (some #{"unread"} (get-in doc [:meta :tags])))))
+
+    (testing "Check item response"
+      (let [resp (fever-app (mock-req "?api&items"
+                              {:with_ids (fever-item-id @demo-item-id)}))
+            data (json/parse-string (:body resp))
+            items (get data "items")
+            item (first items)]
+        (is (= 1 (count items)))
+        (is (= 0 (get item "is_read")))))))
