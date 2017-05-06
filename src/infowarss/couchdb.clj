@@ -48,6 +48,29 @@
        :accept :json
        :as :json})))
 
+(defn query
+  ([selector]
+   (query selector ["_id" "_rev"]))
+  ([selector fields]
+   (try+
+     (let [{:keys [body status]} (http/post (couch-url "_find")
+                          {:content-type :json
+                           :form-params {:selector selector
+                                         :limit 1000
+                                         :fields fields}
+                           :accept :json
+                           :as :json})]
+       (if (= status 200)
+         (:docs body)
+         (throw+ {:type ::couch-error :body body})))
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (throw+ {:type ::unexpected-error})))))
+
+(defn query-ids
+  [selector]
+  (mapcat vals (query selector [:_id])))
+
 (defn clear-db!
   "Remove up to 1000 infowars docs"
   []
