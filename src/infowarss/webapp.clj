@@ -28,3 +28,12 @@
     ring.middleware.params/wrap-params
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
+
+(defn start []
+  {:jetty (run-jetty #'fever-app {:port 8765 :join? false})})
+
+(defn stop [app]
+  (let [jetty (:jetty app)]
+    (when-not (nil? jetty)
+      (.stop jetty)))
+  app)
