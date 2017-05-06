@@ -53,21 +53,21 @@
            :status :ok
            :retry-count 0}))
 
-      (catch [:type ::server-error-retry-later] _
+      (catch [:type :infowarss.fetch/server-error-retry-later] _
         (merge state
           {:last-attempt-ts now
            :status :temp-fail
            :last-exception &throw-context
            :retry-count (inc (get-in feed [:state :retry-count]))}))
 
-      (catch [:type ::request-error] _
+      (catch [:type :infowarss.fetch/request-error] _
         (merge state
           {:last-attempt-ts now
            :status :perm-fail
            :last-exception &throw-context
            :retry-count 0}))
 
-      (catch [:type ::unexpected-error] _
+      (catch [:type :infowarss.fetch/unexpected-error] _
         (merge state
           {:last-attempt-ts now
            :status :perm-fail
