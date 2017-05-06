@@ -18,8 +18,14 @@
 
 (log/merge-config!
   {:appenders {:spit (appenders/spit-appender {:fname "/tmp/inforwarss.log"})}
-   :ns-blacklist  [] #_["org.apache.http.*"]
-   :level :debug})
+   :ns-blacklist  ["org.apache.http.*"
+                   "org.eclipse.jetty.io.*"
+                   "org.eclipse.jetty.http.*"
+                   "org.eclipse.jetty.server.*"
+                   "com.ning.http.client.providers.netty.handler.*"
+                   "com.ning.http.client.providers.netty.channel.*"
+                   ]
+   :level :trace})
 
 (log/merge-config!
   {:appenders {:println {:min-level :info
