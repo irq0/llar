@@ -26,8 +26,8 @@
    [twitter.oauth :as twitter-oauth]
    [twitter.api.restful :as twitter]
    [hara.io.scheduler :as sched]
-   [ring.adapter.jetty :refer [run-jetty]]
    [opennlp.nlp :as nlp]
+   [clojure.tools.namespace.repl :refer [refresh]]
    [taoensso.timbre.appenders.core :as appenders]))
 
 ;;;; Namespace to interact with infowarss from the REPL
@@ -98,12 +98,8 @@
 (defn get-src [key]
   (get-in *srcs* [key :src]))
 
-    ;; (try+
-    ;;   (let [fetched (fetch/fetch feed)
-    ;;         processed (if-not skip-proc
-    ;;                     (proc/process feed fetched)
-    ;;                     fetched)
-    ;;         dbks (if-not skip-store
+
+;;; Preview - Try out filters, processing, fetch
 
 (defn preview
   [src & {:keys [limit post filter skip-postproc]
