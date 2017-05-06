@@ -188,10 +188,11 @@
           new-doc (f doc)]
       (change-document! id rev new-doc))))
 
+
 (defn doc-ids-with-tag
   "Return all doc ids with tag"
   [tag]
-  (map :id (couch/get-view (couch-url) "lookup" "by-tag" {:key tag})))
+  (map :id (couch/get-view (couch-url) "lookup" "by-tag" {:key tag :reduce false})))
 
 (defn all-doc-ids
   "Return all doc ids in db"
