@@ -29,8 +29,8 @@
                  [prismatic/schema "1.1.5"]
                  [ring/ring-devel "1.5.1"]
                  [ring/ring-jetty-adapter "1.5.1"]
-                 [ring/ring-json "0.4.0"]cl                 [ring/ring-mock "0.3.0"]
-
+                 [ring/ring-json "0.4.0"]
+                 [ring/ring-mock "0.3.0"]
                  [lambda-ml "0.1.0"]
                  [clojure-opennlp "0.4.0"]
                  [im.chit/hara.io.scheduler "2.5.2"]
