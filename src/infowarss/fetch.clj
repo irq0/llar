@@ -31,12 +31,24 @@
 
 ;;; Item data structures
 
+(defn item-to-string [item]
+  (format "[%s: %s/%s/%s]"
+    (.getSimpleName (class item))
+    (str (get-in item [:meta :src]))
+    (if-not (nil? (get-in item [:summary :ts]))
+      (tc/to-string (get-in item [:summary :ts]))
+      "?")
+    (str (get-in item [:summary :title]))))
+
+
 (s/defrecord HttpItem
     [meta :- schema/Metadata
      summary :- schema/Summary
      hash :- schema/Hash
      raw :- schema/HttpResponse
-     hickory :- s/Any])
+     hickory :- s/Any]
+  Object
+  (toString [item] (item-to-string item)))
 
 (s/defrecord FeedItem
     [meta :- schema/Metadata
@@ -44,14 +56,18 @@
      hash :- schema/Hash
      entry :- schema/FeedEntry
      raw :- s/Any
-     feed :- schema/Feed])
+     feed :- schema/Feed]
+  Object
+  (toString [item] (item-to-string item)))
 
 (s/defrecord TweetItem
     [meta :- schema/Metadata
      summary :- schema/Summary
      hash :- schema/Hash
      raw :- schema/Tweet
-     entry :- schema/TweetEntry])
+     entry :- schema/TweetEntry]
+  Object
+  (toString [item] (item-to-string item)))
 
 ;;; Constructors
 
