@@ -226,7 +226,7 @@
            "")
    :url (-> doc :entry :url str)
    :is_saved 0
-   :is_read (if (-> doc :meta :tags (contains? :unread)) 1 0)
+   :is_read (if (some #{"unread"} (get-in doc [:meta :tags])) 0 1)
    :created_on_time (-> doc :summary :ts fever-timestamp)}))
 
 (defn items
