@@ -295,21 +295,21 @@
         {:keys [headers body status]}
       (log/errorf "Client error probably due to broken request (%s): %s %s"
         status headers body)
-      (throw+ (assoc &throw-context :type ::request-error)))
+      (throw+ {:type ::request-error}))
 
     (catch (contains? #{500 501 502 503 504} (get % :status))
         {:keys [headers body status] :as orig}
       (log/errorf "Server Error (%s): %s %s" status headers body)
-      (throw+ (assoc &throw-context :type ::server-error-retry-later)))
+      (throw+ {:type ::server-error-retry-later}))
 
     (catch [:status 408]
         {:keys [headers body status]}
       (log/errorf "Client Error (%s): %s %s" status headers body)
-      (throw+ (assoc &throw-context :type ::client-error-retry-later)))
+      (throw+ {:type :client-error-retry-later}))
 
     (catch Object _
       (log/error "Unexpected error: " (:throwable &throw-context))
-      (throw+ (assoc &throw-context :type ::unexpected-error)))))
+      (throw+ {:type ::unexpected-error}))))
 
 (defn- http-get-feed-content [src]
   (log/debug "Fetching feed item content of " (str src))
