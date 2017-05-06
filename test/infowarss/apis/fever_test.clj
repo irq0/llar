@@ -11,6 +11,8 @@
             [slingshot.slingshot :refer [throw+ try+]]
             [infowarss.fetch :as fetch]
             [schema.core :as s]
+            [clojure.string :as string]
+            [cheshire.core :as json]
             [infowarss.persistency :as persistency]
             [clojure.java.io :as io]
             [schema.test]
@@ -28,6 +30,7 @@
           :ns (str *ns*)
           :source {:url (io/as-url "http://example.com")}
           :source-name "[Example-Source]"
+          :source-key :example
           :tags #{:test :unread}
           :version 0}
    :feed {:title "Example"
@@ -43,12 +46,13 @@
            :title "Example entry"
            :authors ["Example Author 1" "Example Author 2"]
            :contents {"text/plain" "Example plain text content"
-                      "text/html" "<h1>Example html content"}
+                      "text/html" "<h1>Example html content</h1>"}
            :description {"text/plain" "Example description"}}
    :summary {:ts (time/now)
              :title "example"}}))
 
 (defonce demo-item-id (atom ""))
+(defonce generated-item-ids (atom ""))
 
 (defn setup-database [f]
   (binding [couch/*couch-default-db* "testdb"]
@@ -56,15 +60,18 @@
       (couch/init-db!)
       (catch [:status 409] _ nil))
     ;; Insert some generated entries and the demo above
-    (reset! demo-item-id (:id (persistency/store-items! [demo-item])))
-    (persistency/store-items! (g/sample 42 infowarss.fetch.FeedItem schema-test/leaf-generators))
+    (reset! demo-item-id (first (persistency/store-items! [demo-item])))
+    (reset! generated-item-ids (persistency/store-items! (g/sample 42 infowarss.fetch.FeedItem schema-test/leaf-generators)))
     (f)
     (couch/clear-db!)))
 
 (use-fixtures :once (join-fixtures [setup-database schema.test/validate-schemas]))
 
-(defn mock-req [uri]
-  (mock/request :post uri {:api_key (api-key)}))
+(defn mock-req
+  ([uri]
+   (mock-req uri {}))
+  ([uri params]
+   (mock/request :post uri (merge params {:api_key (api-key)}))))
 
 (defn mock-write-op [id mark as]
   (mock/request :post "?api" {:api_key (api-key)
