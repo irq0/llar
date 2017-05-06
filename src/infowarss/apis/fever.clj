@@ -361,7 +361,7 @@
 (defn extract-op
   "Extract fever api operation from request"
   [req]
-  (->> req
+  (some->> req
     :query-string
     (re-find #"^api&?(\w+)?&?.*$")
     second
@@ -382,7 +382,7 @@
                        :max
                        (swallow-exceptions (Long/parseLong (get params :max_id)))
                        :with
-                       (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params "with_ids")))))
+                       (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params :with_ids)))))
         :links (links)
         :favicons (favicons)
         :unread_item_ids (unread-item-ids)
