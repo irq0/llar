@@ -1,6 +1,6 @@
 (ns infowarss.repl
   (:require
-   [infowarss.core :refer :all]
+   [infowarss.core :as core :refer [*srcs* state config]]
    [infowarss.persistency :as persistency :refer [store-items! duplicate?]]
    [infowarss.couchdb :as couch]
    [infowarss.update :refer :all]
@@ -58,25 +58,25 @@
   [[k v]]
   (let [base {:key k
               :name (str (get v :src))
-              :status (get-in @*state* [k :status])
-              :last-attempt (some-> (get-in @*state* [k :last-attempt-ts])
+              :status (get-in @state [k :status])
+              :last-attempt (some-> (get-in @state [k :last-attempt-ts])
                               period-since-now
                               format-interval
                               (str " ago"))
-              :last-success (some-> (get-in @*state* [k :last-successful-fetch-ts])
+              :last-success (some-> (get-in @state [k :last-successful-fetch-ts])
                               period-since-now
                               format-interval
                               (str " ago"))}]
 
     (if (#{:perm-fail :temp-fail} (:status base))
-      (assoc base :last-exception-msg
-        (get-in @*state* [k :last-exception :message]))
+      (let [exception (get-in @state [k :last-exception])]
+        (assoc base :last-exception-msg (:message exception)))
       base)))
 
 (defn sources
   "Return list of sources for human consumption"
   []
-  (map human-src @*srcs*))
+  (map human-src *srcs*))
 
 (defn- human-feed-item [i]
   {:src-title (get-in i [:source :title])
@@ -93,10 +93,10 @@
       items)))
 
 (defn get-feed [key]
-  (get-in @*srcs* [key]))
+  (get-in *srcs* [key]))
 
 (defn get-src [key]
-  (get-in @*srcs* [key :src]))
+  (get-in *srcs* [key :src]))
 
     ;; (try+
     ;;   (let [fetched (fetch/fetch feed)

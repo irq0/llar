@@ -5,6 +5,7 @@
    [infowarss.src :as src]
    [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
+   [clj-time.coerce :as tc]
    [infowarss.postproc :as proc]
    [hara.io.scheduler :as sched]
    [clojure.edn :as edn]
@@ -28,10 +29,43 @@
 
 (def config (edn/read-string (slurp (io/resource "config.edn"))))
 (def creds (edn/read-string (slurp (io/resource "credentials.edn"))))
+(defonce state (atom {}))
 
 ;;; State
 
-(defonce ^:dynamic *state* (atom {}))
+(defmethod print-method org.joda.time.DateTime
+  [v ^java.io.Writer w]
+  (.write w "#datetime \"")
+  (.write w (tc/to-string v))
+  (.write w "\""))
+
+(defmethod print-method java.net.URL
+  [v ^java.io.Writer w]
+  (.write w (str v)))
+
+(defmethod print-method java.lang.Object
+  [v ^java.io.Writer w]
+  (.write w "#object nil"))
+
+(defn read-edn-string [s]
+  (try
+    (edn/read-string
+      {:readers {'datetime tc/from-string
+                 'error (fn [_] nil)  ; Throw away error details
+                 'object (fn [_] (Object.))}}
+      s)
+    (catch RuntimeException e
+      (log/error "Failed to read EDN" e)
+      {})))
+
+(defn- persist-state! [_ _ _ new]
+  (spit (io/resource "state.edn") (prn-str new))
+  new)
+
+(defn -init []
+  (reset! state (read-edn-string (slurp (io/resource "state.edn"))))
+  (add-watch state :persist persist-state!)
+  (log/info "Loaded state for keys: " (keys @state)))
 
 ;;; Sources
 
@@ -39,78 +73,85 @@
 (def cron-daily "0 42 23 * * * *")
 
 (def ^:dynamic *srcs*
-  (atom
-    {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api creds))
-                 :proc (proc/make
-                         :filter (fn [item]
-                                   (->> item
-                                     :entry
-                                     :type
-                                     #{:retweet})))
-                 :tags #{}
-                 :cron cron-hourly}
-     :twit-augsburg-pics {:src (src/twitter-search "augsburg filter:images"
-                                 (:twitter-api creds))
-                          :proc (proc/make
-                                  :filter (fn [item]
-                                            (let [type (get-in item [:entry :type])
-                                                  text (get-in item [:entry :contents "text/plain"])]
-                                              (or (#{:retweet} type)
-                                                (re-find #"pussy|porn|camsex|webcam" text)))))
-                          :tags #{}
-                          :cron cron-hourly}
+  {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api creds))
+               :proc (proc/make
+                       :filter (fn [item]
+                                 (->> item
+                                   :entry
+                                   :type
+                                   #{:retweet})))
+               :tags #{}
+               :cron cron-hourly}
+   :twit-augsburg-pics {:src (src/twitter-search "augsburg filter:images"
+                               (:twitter-api creds))
+                        :proc (proc/make
+                                :filter (fn [item]
+                                          (let [type (get-in item [:entry :type])
+                                                text (get-in item [:entry :contents "text/plain"])]
+                                            (or (#{:retweet} type)
+                                              (re-find #"pussy|porn|camsex|webcam" text)))))
+                        :tags #{}
+                        :cron cron-hourly}
 
-     :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
-            :proc (proc/make
-                    :post [(proc/exchange
-                             [:entry :description]
-                             [:entry :contents])]
-                    :filter (fn [item]
-                              (->> item
-                                :summary
-                                :title
-                                (re-find #"Zu Sarin"))))
-            :tags #{:tech}
-            :cron cron-hourly}
-     :upwork-personal {:src (src/feed "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
-                       :tags #{:jobs}
-                       :cron []}
+   :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
+          :proc (proc/make
+                  :post [(proc/exchange
+                           [:entry :description]
+                           [:entry :contents])]
+                  :filter (fn [item]
+                            (->> item
+                              :summary
+                              :title
+                              (re-find #"Zu Sarin"))))
+          :tags #{:tech}
+          :cron cron-hourly}
+   :upwork-personal {:src (src/feed "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
+                     :tags #{:jobs}
+                     :cron []}
 
-     :irq0 {:src (src/feed "http://irq0.org/news/index.atom")
-            :proc (proc/make
-                    :post [(proc/add-tag :personal)])
-            :tags #{:personal}
-            :cron cron-hourly}
-     :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
-                     :cron cron-daily}
+   :irq0 {:src (src/feed "http://irq0.org/news/index.atom")
+          :proc (proc/make
+                  :post [(proc/add-tag :personal)])
+          :tags #{:personal}
+          :cron cron-hourly}
+   :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
+                   :cron cron-daily}
 
-     :danluu {:src (src/feed "https://danluu.com/atom.xml" :deep? true)
-              :cron cron-daily}
-     :ridiculousfish {:src (src/feed "http://ridiculousfish.com/blog/atom.xml")
+   :danluu {:src (src/feed "https://danluu.com/atom.xml" :deep? true)
+            :cron cron-daily}
+   :ridiculousfish {:src (src/feed "http://ridiculousfish.com/blog/atom.xml")
+                    :cron cron-daily}
+   :rachelbythebay {:src (src/feed "https://rachelbythebay.com/w/atom.xml")
+                    :cron cron-daily}
+   :chneukirchen {:src (src/feed "http://chneukirchen.org/trivium/index.atom")
+                  :cron cron-daily}
+   :codinghorror {:src (src/feed "http://feeds.feedburner.com/codinghorror")
+                  :cron cron-daily}
+   :joel-on-software {:src (src/feed "https://www.joelonsoftware.com/feed/")
                       :cron cron-daily}
-     :rachelbythebay {:src (src/feed "https://rachelbythebay.com/w/atom.xml")
-                      :cron cron-daily}
-     :chneukirchen {:src (src/feed "http://chneukirchen.org/trivium/index.atom")
-                    :cron cron-daily}
-     :codinghorror {:src (src/feed "http://feeds.feedburner.com/codinghorror")
-                    :cron cron-daily}
-     :joel-on-software {:src (src/feed "https://www.joelonsoftware.com/feed/")
-                        :cron cron-daily}
-     :summit-route {:src (src/feed "http://summitroute.com/blog/feed.xml")
-                    :proc (proc/make
-                            :post [(proc/exchange
-                                     [:entry :description]
-                                     [:entry :contents])])
-                    :cron cron-daily}
-     :joe-duffy {:src (src/feed "http://joeduffyblog.com/feed.xml")
-                 :cron cron-daily}
-     :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
-                                 :proc (proc/make
-                                         :post [(proc/exchange
-                                                  [:entry :description]
-                                                  [:entry :contents])])
-                                 :cron cron-daily}
+   :summit-route {:src (src/feed "http://summitroute.com/blog/feed.xml")
+                  :proc (proc/make
+                          :post [(proc/exchange
+                                   [:entry :description]
+                                   [:entry :contents])])
+                  :cron cron-daily}
+   :joe-duffy {:src (src/feed "http://joeduffyblog.com/feed.xml")
+               :cron cron-daily}
 
-     :fail {:src
-            (src/feed "http://irq0.org/404")}
-     }))
+   :aphyr {:src (src/feed "https://aphyr.com/posts.atom")
+           :cron cron-daily}
+   :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
+                               :proc (proc/make
+                                       :post [(proc/exchange
+                                                [:entry :description]
+                                                [:entry :contents])])
+                               :cron cron-daily}
+
+   :hn-best {:src (src/hn "beststories")
+             :proc (proc/make
+                     :filter (fn [item]
+                               (or (not (= :story (get-in item [:entry :type])))
+                                 (< (get-in item [:entry :score]) 1000))))}
+   :fail {:src
+          (src/feed "http://irq0.org/404")}
+   })

@@ -1,6 +1,6 @@
 (ns infowarss.update
   (:require
-   [infowarss.core :refer [*srcs* *state* config]]
+   [infowarss.core :refer [*srcs* state config]]
    [infowarss.fetch :as fetch]
    [infowarss.persistency :refer [store-items! duplicate?]]
    [infowarss.postproc :as proc]
@@ -12,7 +12,7 @@
    [taoensso.timbre.appenders.core :as appenders]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
-;;;; Source state is managed in the core/*state* atom.
+;;;; Source state is managed in the core/state atom.
 
 (def src-state-template
   "New sources start with this template"
@@ -30,8 +30,8 @@
              skip-store false
              overwrite? false}}]
 
-  (let [feed (get @*srcs* k)
-        state (get @*state* k)
+  (let [feed (get *srcs* k)
+        state (get @state k)
         now (time/now)
         {:keys [src]} feed]
     (try+
@@ -93,16 +93,16 @@
 (defn set-status!
   "Set feed's status"
   [k new-status]
-  (let [src (get @*state* k)]
+  (let [src (get @state k)]
     (when (contains? src k)
-      (swap! *state* (fn [current]
+      (swap! state (fn [current]
                       (assoc-in current [k :status] new-status)))
       new-status)))
 
 (defn reset-all-failed!
   "Reset all feed states to :new"
   []
-  (doseq [[k v] @*srcs*]
+  (doseq [[k v] *srcs*]
     (set-status! k :new)))
 
 ;;; Update API
@@ -112,12 +112,12 @@
   [k & {:keys [force skip-proc skip-store overwrite?]
         :as args}]
 
-  (when-not (contains? @*state* k)
-    (swap! *state* assoc k src-state-template))
+  (when-not (contains? @state k)
+    (swap! state assoc k (assoc src-state-template :key k)))
 
     ;; don't update the same feed in parallel
-  (locking (get-in @*state* [k :update-lock])
-    (let [cur-state (get @*state* k)
+  (locking (get-in @state [k :update-lock])
+    (let [cur-state (get @state k)
           cur-status (:status cur-state)]
 
       (condp = cur-status
@@ -146,13 +146,13 @@
               new-status (:status new-state)]
           (log/debugf "[%s] State: %s -> %s " k
             cur-status new-status)
-          (swap! *state* (fn [current]
+          (swap! state (fn [current]
                            (assoc current k new-state)))
           new-status)))))
 
 (defn update-all! [& args]
   (doall
-    (for [[k v] @*srcs*]
+    (for [[k v] *srcs*]
       (apply update! k args))))
 
 
