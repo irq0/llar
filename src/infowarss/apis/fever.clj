@@ -28,21 +28,27 @@
   (let [parts [(subs id 0 4)  (subs id 28 32)]]
     (Long/parseLong (string/join parts) 16)))
 
-(defn- fever-feed-id
+(defn fever-feed-id
   "Calculate pseudo id from database feed entry"
   [db-feed]
-  (let [{:keys [title url]} db-feed
-        hash (digest/sha-256 (str title url))]
-    (Long/parseUnsignedLong (subs hash 0 8) 16)))
+  (let [{:keys [source-name source-key]} db-feed
+        source-key (if (keyword? source-key) (name source-key) source-key)]
+    (when (or (string/blank? source-name)
+            (string/blank? source-key))
+      (throw+ {:type ::invalid-input :db-feed db-feed}))
 
-(defn- fever-group-id-for-tag
+    (let [data (string/join source-name source-key)
+          hash (digest/sha-256 data)]
+      (Long/parseUnsignedLong (subs hash 0 8) 16))))
+
+(defn fever-group-id-for-tag
   "Convert infowarss feed id to fever compatible id"
   [tag]
   (let [hash (digest/sha-256 (name tag))]
     (Long/parseUnsignedLong (subs hash 0 8) 16)))
 
 
-(defn- fever-timestamp
+(defn fever-timestamp
   "Convert clj-time time object to fever unix timestamp"
   [time]
   (try+
@@ -108,28 +114,53 @@
     {:group_id (fever-group-id-for-tag :all)
      :feed_ids (string/join "," feedids)}))
 
+(defn db-feeds-with-config
+  []
+  (let [dbfs (couch/get-feeds)
+        confs *srcs*]
+    (into {}
+      (for [dbf dbfs]
+        [(get dbf :source-key)
+         (merge dbf (get confs (get dbf :source-key)))]))))
+
 (defn- feedids-for-tag
   [tag]
   (try+
-    (->> @*srcs*
+    (->> (db-feeds-with-config)
       vals
-      (filter (fn [src] (-> src :tags (contains? tag))))
-      (map :src)
+      (filter (fn [src] (->> src :tags (some #(= tag %)))))
+      (map fever-feed-id))
+    (catch Object _
+      [])))
+
+(defn- feedids-for-type
+  [type]
+  (try+
+    (->> (db-feeds-with-config)
+      vals
+      (filter (fn [feed] (= (get feed :type) type)))
       (map fever-feed-id))
     (catch Object _
       [])))
 
 (s/defn tag-feeds-group :- schema/FeverFeedsGroup
-  "Return group containing all feed items with tag
-   Kind of broken since we take the feed info from db not *srcs*"
+  "Return group containing all feed items with tag"
   [tag]
     {:group_id (fever-group-id-for-tag tag)
      :feed_ids (string/join "," (feedids-for-tag tag))})
 
+(s/defn type-feeds-group :- schema/FeverFeedsGroup
+  "Return group containing all feed items with tag"
+  [type]
+    {:group_id (fever-group-id-for-tag (keyword (str "type-" (name type))))
+     :feed_ids (string/join "," (feedids-for-type type))})
+
+
 (s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
   []
-  [(all-feeds-group)])
+  [(all-feeds-group) (tag-feeds-group :jobs) (tag-feeds-group :personal)
+   (type-feeds-group :tweet) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
   "Return feed groups"
@@ -140,7 +171,11 @@
             {:id (fever-group-id-for-tag :jobs)
              :title "Jobs"}
             {:id (fever-group-id-for-tag :personal)
-             :title "Personal"}]
+             :title "Personal"}
+            {:id (fever-group-id-for-tag :type-tweet)
+             :title "Twitter"}
+            {:id (fever-group-id-for-tag :type-feed)
+             :title "Feeds"}]
    :feeds_groups (feeds-groups)})
 
 (s/defn feed :- schema/FeverFeed
@@ -176,9 +211,12 @@
   "Convert infowarss document to fever feed item"
   [doc]
   (let [contents (get-in doc [:entry :contents])
-        description (get-in doc [:entry :description])]
+        description (get-in doc [:entry :description])
+        meta (get doc :meta)
+        feed-info {:source-name (get meta :source-name)
+                   :source-key (keyword (get meta :source-key))}]
   {:id (fever-item-id (:_id doc))
-   :feed_id (-> doc :meta :source-name fever-feed-id)
+   :feed_id (fever-feed-id feed-info)
    :title (-> doc :summary :title)
    :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
    :html (or (get contents "text/html")
