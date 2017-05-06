@@ -105,7 +105,16 @@
     (testing "Saved item ids req"
       (do-req "?api&saved_item_ids" schema/FeverAPISavedItemIds))))
 
-(deftest write-op
+(deftest test-feeds-request
+  (let [resp (fever-app (mock-req "?api&feeds"))
+        demo-feed-id (fever-feed-id (get demo-item :meta))
+        all-group-id (fever-group-id-for-tag :all)
+        data (json/parse-string (:body resp))]
+    (is (some (fn [x] (= "Example" (get x "title"))) (get data "feeds")))
+    (is (some (fn [x] (= demo-feed-id (get x "id"))) (get data "feeds")))
+    (is (some (fn [x] (and (= all-group-id (get x "group_id"))
+                        (some (partial = (str demo-feed-id)) (string/split (get x "feed_ids") #",") )))
+          (get data "feeds_groups")))))
   (let [set-read (mock-write-op (fever-item-id @demo-item-id) "item" "read")
         set-unread (mock-write-op (fever-item-id @demo-item-id) "item" "unread")]
 
