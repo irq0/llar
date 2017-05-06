@@ -137,6 +137,56 @@
     (is (some (partial = (str demo-id))
           (string/split (get data "unread_item_ids") #",")))))
 
+(deftest test-items-request-range-options
+  (let [demo-id (fever-item-id @demo-item-id)]
+    (testing "with - single item"
+      (let [resp (fever-app (mock-req "?api&items" {:with_ids demo-id}))
+            data (json/parse-string (:body resp))
+            items (get data "items")]
+        (is (= 1 (count items)))))
+
+    (testing "with - multiple items"
+      (let [ids-to-fetch (set (map fever-item-id (random-sample 0.5 @generated-item-ids)))
+            resp (fever-app (mock-req "?api&items"
+                              {:with_ids (string/join "," ids-to-fetch)}))
+            data (json/parse-string (:body resp))
+            items (get data "items")]
+        (is (= (count ids-to-fetch) (count items)))
+        (every? (fn [item] (contains? ids-to-fetch (:id item))) items)))
+
+    (testing "since empty"
+      (let [ids (map fever-item-id @generated-item-ids)
+            resp (fever-app (mock-req "?api&items"
+                              {:since_id (+ 1 (apply max ids))}))
+            data (json/parse-string (:body resp))
+            items (get data "items")]
+        (is (= 0 (count items)))))
+
+    (comment (testing "max - from 0 reply all"
+      (let [ids (conj (map fever-item-id @generated-item-ids)
+                  (fever-item-id @demo-item-id))
+            resp (fever-app (mock-req "?api&items"
+                              {:max_id 0}))
+            data (json/parse-string (:body resp))
+            items (get data "items")]
+        (is (= (count ids) (count items))))))
+
+    (testing "since range"
+      (let [ids (sort (conj (map fever-item-id @generated-item-ids)
+                        (fever-item-id @demo-item-id)))
+            half-index (int (/ (count ids) 2))
+            resp (fever-app (mock-req "?api&items"
+                              {:since_id (nth ids half-index)}))
+            data (json/parse-string (:body resp))
+            items (get data "items")]
+        (is (= (count (nthrest ids (+ 1 half-index))) (count items)))))
+
+    (testing "since max"
+      (let [resp (fever-app (mock-req "?api&items" {:since_id demo-id :max_id demo-id}))
+            data (json/parse-string (:body resp))
+            items (get data "items")]
+        (is (= 0 (count items)))))))
+
   (let [set-read (mock-write-op (fever-item-id @demo-item-id) "item" "read")
         set-unread (mock-write-op (fever-item-id @demo-item-id) "item" "unread")]
 
