@@ -8,6 +8,7 @@
    [clojure.java.shell :as shell]
    [postal.core :as postal]
    [clojure.string :as string]
+   [clj-time.core :as time]
    [infowarss.analysis :as analysis]
    [taoensso.timbre.appenders.core :as appenders]))
 
@@ -43,6 +44,14 @@
         (assoc-in [:meta :source-key] (:key state))
         (update :entry merge (:entry item) nlp))))
   (filter-item [item src state]
+    (let [last-fetch (get state :last-successful-fetch-ts)
+          feed-pub (get-in item [:feed :pub-ts])]
+      (if-not (or (nil? last-fetch) (nil? feed-pub))
+        (do
+          (log/tracef "Filtering out item %s: older than last fetch"
+            (str item))
+          (time/before? feed-pub last-fetch))
+        false)))
 
   infowarss.fetch.HttpItem
   (post-process-item [item src state]
