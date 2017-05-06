@@ -79,7 +79,7 @@
                               :mark mark
                               :as as}))
 
-(deftest requests
+(deftest validate-response-schemas
   (let [do-req (fn [uri sch]
                  (let [{:keys [body status] :as resp} (fever-app (mock-req uri))
                          data (deserialize body :json)]
