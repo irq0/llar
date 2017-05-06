@@ -155,24 +155,3 @@
   (doall
     (for [[k v] *srcs*]
       (apply update! k args))))
-
-
-;;; Update Scheduling
-
-(defn make-sched [feeds]
-  (into {}
-    (for [[k feed] feeds
-          :when (and (seq (get feed :cron))
-                  (seq (get feed :src)))]
-      {k {:handler (fn [t] (log/infof "Cron start on %s: Update %s"
-                             t k)
-                     (update! k))
-          :schedule (get feed :cron)}})))
-
-(def feed-sched
-  (sched/scheduler
-    (make-sched @*srcs*)
-    {}
-    {:clock {:type "org.joda.time.DateTime"
-             :timezone "Europe/Berlin"
-             :interval 2}}))

@@ -129,6 +129,42 @@
       (log/errorf "Error fetching %s: %s" (str src)  (:message &throw-context))
       (:message &throw-context))))
 
+;;; Update Scheduling
+
+(defn make-sched-from-feeds [feeds]
+  (into {}
+    (for [[k feed] feeds
+          :when (and (seq (get feed :cron))
+                  (seq (get feed :src)))]
+      {k {:handler (fn [t] (log/debugf "Cron start on %s: Update %s"
+                             t k)
+                     (update! k))
+          :schedule (get feed :cron)}})))
+
+(defn make-feed-sched
+  []
+  (sched/scheduler
+    (make-sched-from-feeds *srcs*)
+    {}
+    {:clock {:type "org.joda.time.DateTime"
+             :timezone "Europe/Berlin"
+             :interval 2}}))
+
+(defn start []
+  (let [scheduler (sched/start! (make-feed-sched))]
+    (merge
+      (webapp/start)
+      {:scheduler {:feed scheduler}})))
+
+
+(defn stop [app]
+  (let [scheduler (get-in app [:scheduler :feeds])]
+    (when-not (nil? scheduler)
+      (sched/stop! scheduler))
+    (webapp/stop app)))
+
+;;; Toy around area
+
 (comment
   (defonce jetty (run-jetty #'webapp/fever-app {:port 8765 :join? false}))
   (defonce jetty (run-jetty #'feedbin-app {:port 8765 :join? false}))
