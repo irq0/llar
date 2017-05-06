@@ -31,30 +31,34 @@
 ;; per item type
 
 (defprotocol ItemProcessor
-  (post-process-item [item src] "Postprocess item")
-  (filter-item [item src] "Filter items"))
+  (post-process-item [item src state] "Postprocess item")
+  (filter-item [item src state] "Filter items"))
 
 (extend-protocol ItemProcessor
   infowarss.fetch.FeedItem
-  (post-process-item [item src]
+  (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))]
       (-> item
         (update-in [:meta :tags] conj :unread)
+        (assoc-in [:meta :source-key] (:key state))
         (update :entry merge (:entry item) nlp))))
-  (filter-item [item src] false)
+  (filter-item [item src state]
 
   infowarss.fetch.HttpItem
-  (post-process-item [item src]
-    (update-in item [:meta :tags] conj :unread))
+  (post-process-item [item src state]
+    (-> item
+      (assoc-in [:meta :source-key] (:key state))
+      (update-in [:meta :tags] conj :unread)))
   (filter-item [item src] false)
 
   infowarss.fetch.TweetItem
-  (post-process-item [item src]
+  (post-process-item [item src state]
     (-> item
+      (assoc-in [:meta :source-key] (:key state))
       (update-in [:meta :tags] conj :unread)
       (update :entry merge (:entry item) (analysis/analyze-entry (:entry item)))
     ))
-  (filter-item [item src] false))
+  (filter-item [item src state] false))
 
 ;;;; Postprocessing utility functions
 
@@ -121,14 +125,14 @@
 
 (defn process-item
   "Postprocess and filter a single item"
-  [feed item]
+  [feed state item]
   (let [{:keys [src]} feed
         per-feed-proc (apply comp
                         (->> feed
                           :proc :post
                           (map wrap-proc-fn)))
         proto-feed-proc (wrap-proc-fn
-                          #(post-process-item % src))
+                          #(post-process-item % src state))
 
         per-feed-filter (-> feed :proc :filter)]
 
@@ -136,9 +140,9 @@
       (str item))
 
     (let [processed (some-> item
-                      (proto-feed-proc)
                       (apply-filter
-                        #(filter-item % src))
+                        #(filter-item % src state))
+                      (proto-feed-proc)
                       (per-feed-proc)
                       (apply-filter per-feed-filter))]
       (when (nil? processed)
@@ -146,8 +150,8 @@
           (str item)))
       processed)))
 
-(defn process [feed items]
+(defn process [feed state items]
   (let [{:keys [src]} feed]
     (log/debugf "Processing feed: %s" (str src))
     (remove nil?
-      (pmap #(process-item feed %) items))))
+      (pmap #(process-item feed state %) items))))
