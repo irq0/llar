@@ -130,6 +130,13 @@
     (is (= (string/join ", " (get-in demo-item [:entry :authors])) (get item "author")))))
 
 
+(deftest test-unread-item-ids-request
+  (let [resp (fever-app (mock-req "?api&unread_item_ids"))
+        demo-id (fever-item-id @demo-item-id)
+        data (json/parse-string (:body resp))]
+    (is (some (partial = (str demo-id))
+          (string/split (get data "unread_item_ids") #",")))))
+
   (let [set-read (mock-write-op (fever-item-id @demo-item-id) "item" "read")
         set-unread (mock-write-op (fever-item-id @demo-item-id) "item" "unread")]
 
