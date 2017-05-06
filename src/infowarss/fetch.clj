@@ -81,11 +81,12 @@
   [src :- s/Any]
   {:source src
    :source-name (str src)
+   :source-key :unkown  ; get added later by postprocessing
    :app "infowarss"
    :ns (str *ns*)
    :fetch-ts (time/now)
    :tags #{}
-   :version 0})
+   :version 1})
 
 ;;; Content extraction helper functions
 
