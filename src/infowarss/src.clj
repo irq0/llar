@@ -67,11 +67,11 @@
 
 (s/defrecord HackerNews
     [story-feed :- schema/NotEmptyStr
-     state :- s/Any]
+     args :- {:throttle-secs schema/PosInt}]
   Object
   (toString [src] (str "[HackerNews: " (:story-feed src) "(" (:state src) ")]")))
 
-
-(s/defn hn :- HackerNews
-  [story-feed]
-  (->HackerNews story-feed (atom {})))
+(defn hn
+  [story-feed
+   & {:keys [throttle-secs]}]
+  (->HackerNews story-feed {:throttle-secs (or throttle-secs 120)}))
