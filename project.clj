@@ -36,6 +36,7 @@
                  [im.chit/hara.io.scheduler "2.5.2"]
                  [ring/ring-mock "0.3.0"]
                  [ring-basic-authentication "1.0.5"]
+                 [com.novemberain/pantomime "2.9.0"]
                  [com.ashafa/clutch "0.4.0"]
                  [com.firebase/firebase-client-jvm "2.5.2"]
                  [clj-time "0.13.0"]])
