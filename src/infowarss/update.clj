@@ -113,6 +113,12 @@
   [k & {:keys [force skip-proc skip-store overwrite?]
         :as args}]
 
+  (when (nil? (get *srcs* k))
+    (throw+ {:type ::unknown-source-key :key k :known-keys (keys *srcs*)}))
+
+  (when-not (satisfies? fetch/FetchSource (get-in *srcs* [k :src]))
+    (throw+ {:type ::source-not-fetchable :key k}))
+
   (when-not (contains? @state k)
     (swap! state assoc k (assoc src-state-template :key k)))
 
