@@ -2,6 +2,8 @@
   (:require
    [infowarss.core :as core]
    [infowarss.schema :as schema]
+   [infowarss.postproc :as proc]
+   [infowarss.persistency :as persistency]
    [infowarss.live.common :refer :all]
    [schema.core :as s]
    [clj-time.core :as time]
@@ -23,26 +25,53 @@
 ;; showstories
 ;; askstories
 
-(def live-chans (atom {}))
-(def live-chan (async/chan))
-(def live-mix (async/mix live-chan))
+(defonce live-chans (atom {}))
+(defonce live-chan (async/chan))
+(defonce live-mix (async/mix live-chan))
 
-(def processor-thread (atom nil))
+(defonce processor-terminate (async/chan))
+(defonce processor-thread (atom nil))
+
+(defn process [item]
+  (let [{:keys [src]} item
+        k (get-in item [:meta :source-key])
+        feed (get core/*srcs* k)
+        state @(get @core/state k)]
+
+    (when (or (= k :unknown) (nil? k))
+      (log/error "Implementation error: item -> :meta"
+        "-> :source-key must be set during collection"))
+    (try+
+      (let [processed (proc/process feed state [item])
+            dbks (when-not (nil? processed) (persistency/store-items! processed))]
+        (log/debugf "Live processing for %s/%s: processed: %s, db: %s"
+          (str feed) (str item) (count processed) (count dbks)))
+
+      (catch Object e
+        (log/error e "Live: Exception in process - persist run")
+        (log/spy (:entry item))))))
+
+(defn processor [input-ch term-ch]
+  (async/thread
+    (log/debug "Starting live processor")
+    (loop []
+      (let [[v ch] (async/alts!! [input-ch term-ch])]
+        (if (identical? ch input-ch)
+          (when (map? v)
+            (process v)
+            (recur)))))))
 
 (defn start-processor []
-  (when (nil? @processor-thread)
-    (reset! processor-thread
-      (async/thread
-        (loop []
-          (let [item (<!! live-chan)]
-            (if-not (= item :stop)
-              (do
-                (log/trace (str item))
-                (recur))
-              (log/debug "Stopping live processor"))))))))
+  (when (some? @processor-thread)
+    (throw+ {:type ::processor-running}))
+  (reset! processor-thread (processor live-chan processor-terminate)))
+
 
 (defn stop-processor []
-  (>!! live-chan :stop))
+  (log/debug "Sending terminate msg")
+  (>!! processor-terminate :terminate)
+  (<!! @processor-thread)
+  (reset! processor-thread nil))
 
 
 (defn start
@@ -65,6 +94,11 @@
         src (get feed :src)
         state (get @core/state k)
         chan (get @live-chans k)]
+    (when (= :running (:status @state))
+      (throw+ {:type ::already-running :state @state}))
+
+    (when (nil? (:key @state))
+      (swap! state assoc :key k))
     (async/admix live-mix chan)
     (async/toggle live-mix {chan {:mute false
                                   :pause false
@@ -74,7 +108,7 @@
 
 
 (defn stop
-  "Stop live source"
+ "Stop live source"
   [k]
 
   (when (nil? (get core/*srcs* k))
@@ -85,12 +119,16 @@
 
   (let [feed (get core/*srcs* k)
         src (get feed :src)
-        state (get @core/state k)
-        chan (get @live-chans k)
-        new-state (stop-collecting! src state)]
-    (async/toggle live-mix {chan {:mute true
-                                  :pause false
-                                  :solo false}}))
+        state (get @core/state k)]
+
+    (when-not (= :running (:status @state))
+      (throw+ {:type ::not-running :status (:status @state) :state @state}))
+
+    (let [chan (get @live-chans k)
+          new-state (stop-collecting! src state)]
+      (async/toggle live-mix {chan {:mute true
+                                    :pause false
+                                    :solo false}})))
   (:status @(get @core/state k)))
 
 

@@ -18,7 +18,7 @@
 (defn item-to-string [item]
   (format "[%s: %s/%s/%s]"
     (.getSimpleName (class item))
-    (str (get-in item [:meta :src]))
+    (str (get-in item [:meta :source]))
     (if-not (nil? (get-in item [:summary :ts]))
       (tc/to-string (get-in item [:summary :ts]))
       "?")
@@ -34,12 +34,15 @@
 
 (s/defn make-meta :- schema/Metadata
   "Make meta entry from source and optional initial tags"
-  [src :- s/Any]
-  {:source src
-   :source-name (str src)
-   :source-key :unkown  ; get added later by postprocessing
-   :app "infowarss"
-   :ns (str *ns*)
-   :fetch-ts (time/now)
-   :tags #{}
-   :version 1})
+  ([src :- s/Any]
+   (make-meta src {:key :unknown}))
+  ([src :- s/Any
+    state :- s/Any]
+   {:source src
+    :source-name (str src)
+    :source-key (:key state)
+    :app "infowarss"
+    :ns (str *ns*)
+    :fetch-ts (time/now)
+    :tags #{}
+    :version 1}))
