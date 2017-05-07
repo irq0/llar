@@ -160,5 +160,6 @@
 
 (defn update-all! [& args]
   (doall
-    (for [[k v] *srcs*]
+    (for [[k v] *srcs*
+          :when (satisfies? fetch/FetchSource (:src v))]
       (apply update! k args))))
