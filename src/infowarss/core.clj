@@ -165,11 +165,22 @@
                                                 [:entry :contents])])
                                :cron cron-daily}
 
-   :hn-best {:src (src/hn "beststories")
+   :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
              :proc (proc/make
                      :filter (fn [item]
-                               (or (not (= :story (get-in item [:entry :type])))
-                                 (< (get-in item [:entry :score]) 1000))))}
+                               (let [site (some-> item :entry :url .getHost)
+                                     score (get-in item [:entry :score])
+                                     type (get-in item [:entry :type])]
+                                 (not
+                                   (or
+                                     (and (= :story type)
+                                       (>= score 800))
+                                     (and
+                                       (some? site)
+                                       (re-find #"theatlantic|medium|youtube|nytimes|theguardian|washingtonpost|99percentinvisible|theverge|phys.org|bbc.com"
+                                            site)
+                                       (>= score 250)))))))}
+
    :fail {:src
           (src/feed "http://irq0.org/404")}
    })
