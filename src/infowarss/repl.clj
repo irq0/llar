@@ -27,6 +27,7 @@
    [twitter.api.restful :as twitter]
    [hara.io.scheduler :as sched]
    [opennlp.nlp :as nlp]
+   [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.namespace.repl :refer [refresh]]
    [taoensso.timbre.appenders.core :as appenders]))
 
@@ -52,24 +53,31 @@
 (defn period-since-now [ts]
   (.toPeriod (time/interval ts (time/now))))
 
+(defn since-now-str [ts]
+  (some-> ts
+    period-since-now
+    format-interval
+    (str " ago")))
 
 (defn- human-src
   "Extract interesting informations from source data structure"
   [[k v]]
-  (let [base {:key k
-              :name (str (get v :src))
-              :status (get-in @state [k :status])
-              :last-attempt (some-> (get-in @state [k :last-attempt-ts])
-                              period-since-now
-                              format-interval
-                              (str " ago"))
-              :last-success (some-> (get-in @state [k :last-successful-fetch-ts])
-                              period-since-now
-                              format-interval
-                              (str " ago"))}]
+  (let [state (if (instance? clojure.lang.Atom (get @state k))
+                @(get @state k) (get @state k))
+
+        base (cond->
+                 {:key k
+                  :name (str (get v :src))
+                  :status (:status state)}
+               (instance? org.joda.time.DateTime (:last-update-ts state)) ; live feeds have a last update
+               (assoc :last-update (since-now-str (:last-update-ts state)))
+               (instance? org.joda.time.DateTime (:last-attempt-ts state)) ; others have last success / attempt
+               (assoc :last-attempt (since-now-str (:last-attempt-ts state)))
+               (instance? org.joda.time.DateTime (:last-successful-fetch-ts state))
+               (assoc :last-success (since-now-str (:last-successful-fetch-ts state))))]
 
     (if (#{:perm-fail :temp-fail} (:status base))
-      (let [exception (get-in @state [k :last-exception])]
+      (let [exception (:last-exception state)]
         (assoc base :last-exception-msg (:message exception)))
       base)))
 
