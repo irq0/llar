@@ -50,7 +50,7 @@
       ".bin"
       by-mime)))
 
-(defn- to-couch-atts
+(defn to-couch-atts
   "Convert feed entry contents to couch attachments. Name will be prefix +
   extension based on content type"
   [prefix contents]
