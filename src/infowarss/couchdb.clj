@@ -142,6 +142,15 @@
     (assoc-in doc [:entry :contents] atts)))
 
 
+(defn delete-document!
+  [id rev]
+  (:body
+   (http/delete (couch-url id)
+     {:content-type :json
+      :headers {"If-Match" rev}
+      :accept :json
+      :as :json})))
+
 (defn change-document!
   "Set new version of document"
   [id rev params]
