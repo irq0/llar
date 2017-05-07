@@ -9,6 +9,7 @@
                  [org.clojure/core.async "0.3.442"]
                  [slingshot "0.12.2"]
                  [hickory "0.7.1"]
+                 [hiccup "1.0.5"]
                  [clojurewerkz/serialism "1.3.0"]
                  [clj-rome "0.4.0"]
                  [digest "1.4.5"]
