@@ -31,6 +31,12 @@
 ;; The ItemProcessor protocol allows processing hooks
 ;; per item type
 
+(defn all-items-process [item src state]
+  (log/trace "All items processor" (str item))
+  (-> item
+    (update-in [:meta :tags] conj :unread)
+    (assoc-in [:meta :source-key] (:key state))))
+
 (defprotocol ItemProcessor
   (post-process-item [item src state] "Postprocess item")
   (filter-item [item src state] "Filter items"))
@@ -40,8 +46,6 @@
   (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))]
       (-> item
-        (update-in [:meta :tags] conj :unread)
-        (assoc-in [:meta :source-key] (:key state))
         (update :entry merge (:entry item) nlp))))
   (filter-item [item src state]
     (let [last-fetch (get state :last-successful-fetch-ts)
@@ -54,20 +58,16 @@
         false)))
 
   infowarss.fetch.HttpItem
-  (post-process-item [item src state]
-    (-> item
-      (assoc-in [:meta :source-key] (:key state))
-      (update-in [:meta :tags] conj :unread)))
+  (post-process-item [item src state] item)
   (filter-item [item src] false)
 
   infowarss.fetch.TweetItem
   (post-process-item [item src state]
     (-> item
-      (assoc-in [:meta :source-key] (:key state))
-      (update-in [:meta :tags] conj :unread)
       (update :entry merge (:entry item) (analysis/analyze-entry (:entry item)))
     ))
   (filter-item [item src state] false))
+
 
 ;;;; Postprocessing utility functions
 
@@ -136,6 +136,7 @@
   "Postprocess and filter a single item"
   [feed state item]
   (let [{:keys [src]} feed
+        all-proc #(all-items-process % src state)
         per-feed-proc (apply comp
                         (->> feed
                           :proc :post
@@ -149,6 +150,7 @@
       (str item))
 
     (let [processed (some-> item
+                      (all-proc)
                       (apply-filter
                         #(filter-item % src state))
                       (proto-feed-proc)
