@@ -158,6 +158,9 @@
 
    :aphyr {:src (src/feed "https://aphyr.com/posts.atom")
            :cron cron-daily}
+
+   :99pi {:src (src/feed "https://feeds.feedburner.com/99pi")
+          :cron cron-daily}
    :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
                                :proc (proc/make
                                        :post [(proc/exchange
