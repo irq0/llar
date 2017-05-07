@@ -160,7 +160,7 @@
   "Return feeds_groups array"
   []
   [(all-feeds-group) (tag-feeds-group :jobs) (tag-feeds-group :personal)
-   (type-feeds-group :tweet) (type-feeds-group :feed)])
+   (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
   "Return feed groups"
@@ -174,6 +174,8 @@
              :title "Personal"}
             {:id (fever-group-id-for-tag :type-tweet)
              :title "Twitter"}
+            {:id (fever-group-id-for-tag :type-link)
+             :title "Links"}
             {:id (fever-group-id-for-tag :type-feed)
              :title "Feeds"}]
    :feeds_groups (feeds-groups)})
