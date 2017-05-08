@@ -1,0 +1,7 @@
+#!/bin/sh
+files="en-token.bin de-token.bin en-ner-location.bin en-ner-organization.bin en-ner-person.bin en-pos-maxent.bin de-pos-perceptron.bin"
+
+
+for f in $files; do
+    wget -c "http://opennlp.sourceforge.net/models-1.5/$f"
+done
