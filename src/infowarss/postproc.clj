@@ -197,8 +197,8 @@
                       (apply-filter
                         #(filter-item % src state))
                       (proto-feed-proc)
-                      (per-feed-proc)
-                      (apply-filter per-feed-filter))]
+                      (apply-filter per-feed-filter)
+                      (per-feed-proc))]
       (when (nil? processed)
         (log/debugf "Filtered out: %s"
           (str item)))
