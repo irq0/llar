@@ -135,6 +135,21 @@
               (s/optional-key "text/html") s/Str}
    :description {(s/required-key "text/plain") (s/maybe s/Str)}})
 
+;;; Reddit
+
+(defschema RedditEntry
+  {:url (s/maybe java.net.URL)
+   :thumbnail (s/maybe java.net.URL)
+   :pub-ts (s/maybe org.joda.time.DateTime)
+   :title s/Str
+   :authors [s/Str]
+   :id NotEmptyStr
+   :score s/Int
+   :contents {(s/required-key "text/plain") (s/maybe s/Str)
+              (s/optional-key "text/html") s/Str}
+   :description {(s/required-key "text/plain") (s/maybe s/Str)}})
+
+
 ;;; Twitter API (incoming)
 
 (defschema TweetEntityIndices

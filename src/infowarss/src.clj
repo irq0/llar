@@ -78,6 +78,23 @@
     (io/as-url url)
     api-key))
 
+(s/defrecord Reddit
+    [subreddit :- schema/NotEmptyStr
+     feed :- schema/NotEmptyStr]
+  Object
+  (toString [src] (format "[Reddit: r/%s/%s]" (:subreddit src) (:feed src))))
+
+(s/defn reddit :- Reddit
+  "Fetch URL using Mercury Web Parser API"
+  [subreddit :- schema/NotEmptyStr
+   feed :- s/Keyword]
+  (let [supported #{:hot :top :rising :new}]
+    (when-not (contains? supported feed)
+      (throw+ {:type ::invalid-feed :supported supported}))
+    (->Reddit
+      subreddit
+      (name feed))))
+
 ;;; Live
 
 (s/defrecord HackerNews
