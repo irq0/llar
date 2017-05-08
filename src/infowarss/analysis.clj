@@ -36,8 +36,8 @@
         (log/debug "NLP Analysis running" )
         {:language lang
          :nlp {:names (set (find-names lang tokens))
-               :nouns (set (map first (nlp-filter/nouns pos)))
-               :verbs (set (map first (verbs-de-en pos)))}})
+               :nouns (set (map string/lower-case (map first (nlp-filter/nouns pos))))
+               :verbs (set (map string/lower-case (map first (verbs-de-en pos))))}})
       {})))
 
 (defn analyze-entry [entry]
