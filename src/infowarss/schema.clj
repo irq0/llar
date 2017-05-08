@@ -123,6 +123,18 @@
    :pub-ts (s/maybe org.joda.time.DateTime)
    :feed-type s/Str})
 
+;;; Mercury Parser
+(defschema MercuryEntry
+  {:url (s/maybe java.net.URL)
+   :lead-image-url (s/maybe java.net.URL)
+   :mext-page-url (s/maybe java.net.URL)
+   :pub-ts (s/maybe org.joda.time.DateTime)
+   :title s/Str
+   :authors [s/Str]
+   :contents {(s/required-key "text/plain") (s/maybe s/Str)
+              (s/optional-key "text/html") s/Str}
+   :description {(s/required-key "text/plain") (s/maybe s/Str)}})
+
 ;;; Twitter API (incoming)
 
 (defschema TweetEntityIndices

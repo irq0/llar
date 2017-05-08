@@ -1,6 +1,7 @@
 (ns infowarss.postproc
   (:require
-   [infowarss.fetch]
+   [infowarss.fetch :as fetch]
+   [infowarss.src :as src]
    [infowarss.schema :as schema]
    [schema.core :as s]
    [taoensso.timbre :as log]
@@ -94,6 +95,28 @@
       (-> item
         (assoc-in dst src-val)
         (assoc-in src dst-val)))))
+
+(defn mercury-contents
+  [creds & {:keys [keep-orig]
+                :or [keep-orig false]}]
+  (fn [item]
+    (let [url (get-in item [:entry :url])
+          src (src/mercury (str url) (get-in creds [:api-key]))
+          mercu (process-feedless-item src (fetch/fetch-source src))
+          html (if keep-orig
+                 (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
+                   "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
+                 (get-in mercu [:entry :contents "text/html"]))
+          text (if keep-orig
+                 (str (get-in item [:entry :contents "text/plain"])
+                   "\n"
+                   (get-in mercu [:entry :contents "text/plain"]))
+                 (get-in mercu [:entry :contents "text/plain"]))]
+
+      (-> item
+        (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
+        (assoc-in [:entry :contents "text/plain"] text)
+        (assoc-in [:entry :contents "text/html"] html)))))
 
 (def sa-to-bool
   {"Yes" true

@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [infowarss.schema :as schema]
+            [slingshot.slingshot :refer [throw+ try+]]
             [twitter.oauth :refer [make-oauth-creds]])
   (:import [twitter.oauth OauthCredentials]))
 
@@ -62,6 +63,20 @@
       (:app-secret oauth-creds)
       (:user-token oauth-creds)
       (:user-token-secret oauth-creds))))
+
+(s/defrecord MercuryWebParser
+    [url :- java.net.URL
+     api-key :- schema/NotEmptyStr]
+  Object
+  (toString [src] (str "[MercuryWebParser: " (:url src) "]")))
+
+(s/defn mercury :- MercuryWebParser
+  "Fetch URL using Mercury Web Parser API"
+  [url :- schema/NotEmptyStr
+   api-key :- schema/NotEmptyStr]
+  (->MercuryWebParser
+    (io/as-url url)
+    api-key))
 
 ;;; Live
 
