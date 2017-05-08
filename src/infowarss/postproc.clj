@@ -155,6 +155,26 @@
 
 ;;; API
 
+(defn process-feedless-item
+  "Postprocess and filter item produced without a feed"
+  [src item]
+  (let [state {}
+        all-proc #(all-items-process % src state)
+        proto-feed-proc (wrap-proc-fn
+                          #(post-process-item % src state))]
+    (log/debugf "Processing feedless %s"
+      (str item))
+
+    (let [processed (some-> item
+                      (all-proc)
+                      (apply-filter
+                        #(filter-item % src state))
+                      (proto-feed-proc))]
+      (when (nil? processed)
+        (log/debugf "Filtered out: %s"
+          (str item)))
+      processed)))
+
 (defn process-item
   "Postprocess and filter a single item"
   [feed state item]
