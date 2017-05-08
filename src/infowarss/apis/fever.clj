@@ -159,7 +159,8 @@
 (s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
   []
-  [(all-feeds-group) (tag-feeds-group :jobs) (tag-feeds-group :personal)
+  [(all-feeds-group)
+   (tag-feeds-group :jobs) (tag-feeds-group :personal) (tag-feeds-group :events) (tag-feeds-group :reddit) (tag-feeds-group :comics)
    (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
@@ -172,6 +173,12 @@
              :title "Jobs"}
             {:id (fever-group-id-for-tag :personal)
              :title "Personal"}
+            {:id (fever-group-id-for-tag :events)
+             :title "Events"}
+            {:id (fever-group-id-for-tag :reddit)
+             :title "Reddit"}
+            {:id (fever-group-id-for-tag :comics)
+             :title "Comics"}
             {:id (fever-group-id-for-tag :type-tweet)
              :title "Twitter"}
             {:id (fever-group-id-for-tag :type-link)
