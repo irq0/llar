@@ -153,9 +153,19 @@
                               (re-find #"Zu Sarin"))))
           :tags #{:tech}
           :cron cron-hourly}
-   :upwork-personal {:src (src/feed "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
+
+   :upwork-personal {:src (src/feed
+"https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
                      :tags #{:jobs}
-                     :cron []}
+                     :cron cron-hourly
+                     :proc (proc/make
+                             :filter (fn [item]
+                                       (let [wants (get-in item [:entry :nlp :nouns])
+                                             haves #{"python" "clojure" "ceph" "c++" "c" "logstash" "kibana" "java" "linux"}
+                                             dontwants #{"php" "node.js" "javascript" "ecmascript" "wordpress" "scrapy" "django"}]
+                                         (not
+                                           (and (< (count (clojure.set/intersection wants dontwants)) 2)
+                                             (>= (count (clojure.set/intersection wants haves)) 1))))))}
 
    :irq0 {:src (src/feed "http://irq0.org/news/index.atom")
           :proc (proc/make
@@ -191,6 +201,16 @@
 
    :99pi {:src (src/feed "https://feeds.feedburner.com/99pi")
           :cron cron-daily}
+
+   :kottke {:src (src/feed "http://feeds.kottke.org/main")
+            :cron cron-daily}
+
+   :stackoverflow-engineering {:src (src/feed "https://stackoverflow.blog/engineering/feed/")
+                               :cron cron-daily}
+
+   :spotify-insights {:src (src/feed "https://insights.spotify.com/us/feed/")
+                      :cron cron-daily}
+
    :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
                                :proc (proc/make
                                        :post [(proc/exchange
@@ -198,21 +218,99 @@
                                                 [:entry :contents])])
                                :cron cron-daily}
 
+   :usenix-conferences {:src (src/feed "https://www.usenix.org/upcoming-conferences-feed")
+                        :tags #{:events}
+                        :cron cron-daily}
+
+   :acm-queue {:src (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml" :deep? true)
+               :cron cron-daily}
+
+   :reddit-diy {:src (src/reddit "DIY" :hot)
+                :cron cron-daily
+                :tags #{:reddit}
+                :proc (make-reddit-proc 500)}
+
+   :reddit-techsupportgore {:src (src/reddit "techsupportgore" :hot)
+                            :cron cron-daily
+                            :tags #{:reddit}
+                            :proc (make-reddit-proc 500)}
+
+   :reddit-techsupportmacgyver {:src (src/reddit "techsupportmacgyver" :hot)
+                                :cron cron-daily
+                                :tags #{:reddit}
+                                :proc (make-reddit-proc 300)}
+
+   :reddit-somethingimade {:src (src/reddit "somethingimade" :hot)
+                           :cron cron-daily
+                           :tags #{:reddit}
+                           :proc (make-reddit-proc 300)}
+
+   :reddit-Justrolledintotheshop {:src (src/reddit "Justrolledintotheshop" :hot)
+                                  :cron cron-daily
+                                  :tags #{:reddit}
+                                  :proc (make-reddit-proc 400)}
+
+   :reddit-fixit {:src (src/reddit "fixit" :hot)
+                  :cron cron-daily
+                  :tags #{:reddit}
+                  :proc (make-reddit-proc 300)}
+
+   :reddit-lifeprotips {:src (src/reddit "LifeProTips" :hot)
+                        :cron cron-daily
+                        :tags #{:reddit}
+                        :proc (make-reddit-proc 300)}
+
+
+   :reddit-depthhub {:src (src/reddit "DepthHub" :hot)
+                     :cron cron-daily
+                     :tags #{:reddit}
+                     :proc (make-reddit-proc 500)}
+
+   :reddit-fascinating {:src (src/reddit "fascinating" :hot)
+                        :cron cron-daily
+                        :tags #{:reddit}
+                        :proc (make-reddit-proc 100)}
+
+   :reddit-learnuselesstalents {:src (src/reddit "LearnUselessTalents" :hot)
+                                :cron cron-daily
+                                :tags #{:reddit}
+                                :proc (make-reddit-proc 1000)}
+
+   :reddit-todayilearned {:src (src/reddit "todayilearned" :hot)
+                          :cron cron-daily
+                          :tags #{:reddit}
+                          :proc (make-reddit-proc 2000)}
+
+   :reddit-clojure {:src (src/reddit "Clojure" :hot)
+                    :cron cron-daily
+                    :tags #{:reddit}
+                    :proc (make-reddit-proc 80)}
+
+   :reddit-listentothis {:src (src/reddit "listentothis" :hot)
+                         :cron cron-daily
+                         :tags #{:reddit}
+                         :proc (make-reddit-proc 150)}
+
+   :reddit-popular {:src (src/reddit "popular" :hot)
+                    :cron cron-daily
+                    :tags #{:reddit}
+                    :proc (make-reddit-proc 30000)}
+
+   :hn-top {:src (src/hn "topstories" :throttle-secs (* 23 60))
+            :proc (proc/make
+                    :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]
+                    :filter (make-hacker-news-filter 600 200))}
+
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
              :proc (proc/make
-                     :filter (fn [item]
-                               (let [site (some-> item :entry :url .getHost)
-                                     score (get-in item [:entry :score])
-                                     type (get-in item [:entry :type])]
-                                 (not
-                                   (or
-                                     (and (= :story type)
-                                       (>= score 800))
-                                     (and
-                                       (some? site)
-                                       (re-find #"theatlantic|medium|youtube|nytimes|theguardian|washingtonpost|99percentinvisible|theverge|phys.org|bbc.com"
-                                            site)
-                                       (>= score 250)))))))}
+                     :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]
+                     :filter (make-hacker-news-filter 800 300))}
+
+   :xkcd {:src (src/feed "https://xkcd.com/rss.xml")
+          :proc (proc/make
+                  :post [(proc/exchange [:entry :description] [:entry :contents])])
+          :cron cron-daily
+          :tags #{:comics}}
 
    :fail {:src
           (src/feed "http://irq0.org/404")}
