@@ -110,6 +110,16 @@
               site)
             (>= score min-score-match)))))))
 
+(defn make-reddit-proc [min-score]
+  (proc/make
+    :filter (fn [item]
+              (let [site (some-> item :entry :url .getHost)
+                    score (get-in item [:entry :score])
+                    title (get-in item [:summary :title])]
+                (< score min-score)))
+    :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]))
+
+
 (def ^:dynamic *srcs*
   {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api creds))
                :proc (proc/make
