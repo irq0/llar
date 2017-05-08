@@ -163,3 +163,10 @@
     (for [[k v] *srcs*
           :when (satisfies? fetch/FetchSource (:src v))]
       (apply update! k args))))
+
+(defn update-matching! [re & args]
+  (doall
+    (for [[k v] *srcs*
+          :when (and (satisfies? fetch/FetchSource (:src v))
+                  (re-find re (name k)))]
+      (apply update! k args))))
