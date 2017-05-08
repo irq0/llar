@@ -9,3 +9,5 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+/resources/nlp/models/*.bin
+/resources/state.edn
