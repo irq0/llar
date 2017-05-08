@@ -34,7 +34,7 @@
 (defn item-to-string [item]
   (format "[%s: %s/%s/%s]"
     (.getSimpleName (class item))
-    (str (get-in item [:meta :src]))
+    (str (get-in item [:meta :source]))
     (if-not (nil? (get-in item [:summary :ts]))
       (tc/to-string (get-in item [:summary :ts]))
       "?")
