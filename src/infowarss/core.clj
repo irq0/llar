@@ -54,7 +54,7 @@
 (defmethod print-method clojure.lang.Atom
   [v ^java.io.Writer w]
   (.write w "#atom ")
-  (.write w (str @v)))
+  (.write w (prn-str @v)))
 
 
 (defmethod print-method java.lang.Object
