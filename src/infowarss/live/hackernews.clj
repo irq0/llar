@@ -50,24 +50,6 @@
             (assoc-in [:entry :contents] nil))
         (seq atts) (assoc "_attachments" atts)))))
 
-(extend-protocol persistency/StorableItem
-  HackerNewsItem
-  (duplicate? [item]
-    (let [resp (couch/lookup-hash (:hash item))]
-      (seq (get-in resp [:body :rows]))))
-
-  (overwrite-item! [item]
-    (let [doc (persistency/to-couch item)
-          resp (couch/lookup-hash (:hash item))
-          id (-> (get-in resp [:body :rows]) first :id)]
-      (when (string? id)
-        (couch/swap-document! id (fn [_] doc)))))
-
-  (store-item! [item]
-
-    (let [doc (persistency/to-couch item)]
-      (couch/add-document! doc))))
-
 (s/defn make-hn-summary :- schema/Summary
   [hn-entry :- schema/HackerNewsEntry]
   (let [{:keys [title pub-ts]} hn-entry]

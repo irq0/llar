@@ -30,12 +30,6 @@
 ;;; CouchItem proto: Convert item to couchdb document
 ;;; StorableItem: store / overwrite / check if duplicate
 
-(defprotocol StorableItem
-  "Protocol to work with items (fetched by a source)"
-  (store-item! [item] "Process new item" )
-  (overwrite-item! [item] "Overwrite existing item")
-  (duplicate? [item] "Already processed?"))
-
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))
 
@@ -82,41 +76,32 @@
             (assoc-in [:entry :contents] nil))
         (seq atts) (assoc "_attachments" atts)))))
 
-(extend-protocol StorableItem
-  FeedItem
-  (duplicate? [item]
-    (let [resp (couch/lookup-hash (:hash item))]
-      (seq (get-in resp [:body :rows]))))
 
-  (overwrite-item! [item]
+(defn duplicate? [item]
+  (let [resp (couch/lookup-hash (:hash item))]
+    (seq (get-in resp [:body :rows]))))
+
+(defn overwrite-item! [item]
+  (try+
     (let [doc (to-couch item)
           resp (couch/lookup-hash (:hash item))
           id (-> (get-in resp [:body :rows]) first :id)]
       (when (string? id)
-        (couch/swap-document! id (fn [_] doc)))))
+        (couch/swap-document! id (fn [_] doc))))
+    (catch java.lang.IllegalAccessException e
+      (log/error e "Failed to store item. Probably called with an unsupported record "
+        (type item) ":" item)
+      (throw+))))
 
 
-  (store-item! [item]
+(defn store-item! [item]
+  (try+
     (let [doc (to-couch item)]
-      (couch/add-document! doc)))
-
-  TweetItem
-  (duplicate? [item]
-    (let [resp (couch/lookup-hash (:hash item))]
-      (seq (get-in resp [:body :rows]))))
-
-  (overwrite-item! [item]
-    (let [doc (to-couch item)
-          resp (couch/lookup-hash (:hash item))
-          id (-> (get-in resp [:body :rows]) first :id)]
-      (when (string? id)
-        (couch/swap-document! id (fn [_] doc)))))
-
-  (store-item! [item]
-    (let [doc (to-couch item)]
-
-      (couch/add-document! doc))))
-
+      (couch/add-document! doc))
+    (catch java.lang.IllegalAccessException e
+      (log/error e "Failed to store item. Probably called with an unsupported record "
+        (type item) ":" item)
+      (throw+))))
 
 (defn- store-item-skip-duplicate!
   [item & {:keys [overwrite?] :or [overwrite? false]}]
