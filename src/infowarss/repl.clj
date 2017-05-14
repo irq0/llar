@@ -11,6 +11,7 @@
    [infowarss.live :as live]
    [infowarss.schema :as schema]
    [infowarss.analysis :as analysis]
+   [infowarss.converter :as converter]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.core :as time]
@@ -26,6 +27,7 @@
    [twitter.oauth :as twitter-oauth]
    [twitter.api.restful :as twitter]
    [hara.io.scheduler :as sched]
+   [clojure.java.shell :as shell]
    [opennlp.nlp :as nlp]
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.namespace.repl :refer [refresh]]
@@ -236,6 +238,17 @@
       data)))
 
 (defonce training-data (atom []))
+
+
+(defn browse-url [url]
+  (shell/sh "chromium-browser" url))
+
+(defn browse-with-tag [tag]
+  (->> (couch/doc-ids-with-tag :saved)
+    (map couch/get-document)
+    (map #(get-in % [:entry :url]))
+    (map browse-url)))
+
 
 
 
