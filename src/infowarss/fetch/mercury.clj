@@ -44,7 +44,7 @@
           (-> item
             (dissoc :raw)
             (assoc-in [:meta :source :args] nil)
-            (assoc :type :mercury)
+            (assoc :type :bookmark)
             (assoc-in [:entry :contents] nil))
         (seq atts) (assoc "_attachments" atts)))))
 
@@ -72,7 +72,7 @@
   (fetch-source [src]
     (let [mercu (mercury-get (:url src) (:api-key src))
           pub-ts (tc/from-string (:date_published mercu))]
-      (->MercuryItem
+      [(->MercuryItem
         (fetch/make-meta src)
         {:ts pub-ts :title (:title mercu)}
         (fetch/make-item-hash (:content mercu))
@@ -84,4 +84,4 @@
          :authors [(or (:author mercu) (:domain mercu))]
          :descriptions {"text/plain" (:excerpt mercu)}
          :contents {"text/html" (:content mercu)
-                    "text/plain" (conv/html2text (:content mercu))}}))))
+                    "text/plain" (conv/html2text (:content mercu))}})])))
