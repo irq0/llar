@@ -20,6 +20,7 @@
         (nlp/make-name-finder (io/resource "nlp/models/en-ner-person.bin"))]})
 
 (nlp-filter/pos-filter verbs-de-en #"^(VB|VV|VA|VM)")
+(nlp-filter/pos-filter not-punctuation #"^[^[A-Z]]")
 
 (def pos-tagger
   {:en (nlp/make-pos-tagger (io/resource "nlp/models/en-pos-maxent.bin"))
@@ -32,10 +33,24 @@
   (let [lang (or language (keyword (pl/detect-language text)))]
     (if (#{:de :en} lang)
       (let [tokens ((get tokenizer lang)  text)
-            pos ((get pos-tagger lang) tokens)]
+            pos ((get pos-tagger lang) tokens)
+            words (not-punctuation pos)]
         (log/debug "NLP Analysis running" )
         {:language lang
-         :nlp {:names (set (find-names lang tokens))
+         :nlp {:nwords (count words)
+               :top {:words (->> (not-punctuation words)
+                              (map #(-> % first string/lower-case))
+                              frequencies
+                              (sort-by val)
+                              reverse
+                              (take 100))
+                     :nouns (->> (nlp-filter/nouns words)
+                              (map #(-> % first string/lower-case))
+                              frequencies
+                              (sort-by val)
+                              reverse
+                              (take 23))}
+               :names (set (find-names lang tokens))
                :nouns (set (map string/lower-case (map first (nlp-filter/nouns pos))))
                :verbs (set (map string/lower-case (map first (verbs-de-en pos))))}})
       {})))
