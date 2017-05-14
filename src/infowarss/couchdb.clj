@@ -1,6 +1,7 @@
 (ns infowarss.couchdb
   (:require
    [infowarss.core :refer [config]]
+   [infowarss.converter :as converter]
    [digest]
    [clj-http.client :as http]
    [clj-time.core :as time]
@@ -21,7 +22,7 @@
 (def ^:dynamic *couch-default-db* (get-in config [:couchdb :default-db]))
 (def ^:dynamic *couch-db-auth* (get-in config [:couchdb :auth]))
 
-(defn- couch-url
+(defn couch-url
   [& ps]
   (let [base (str *couch-base-url* *couch-default-db*)
         path (string/join "/" (map str ps))]
@@ -116,12 +117,72 @@
 
 (defn get-document
   "Return document by id"
-  [id]
-  (:body
-   (http/get (couch-url id)
-     {:content-type :json
-      :accept :json
-      :as :json})))
+  ([id]
+   (:body
+    (http/get (couch-url id)
+      {:content-type :json
+       :accept :json
+       :as :json})))
+  ([id rev]
+   (:body
+    (http/get (couch-url id)
+      {:content-type :json
+       :query-params {:rev rev}
+       :accept :json
+       :as :json}))))
+
+;; (defn get-document-with-couch-attachments [id]
+;;   (->> (http/get (couch-url id)
+;;        {:content-type :json
+;;         :query-params {:latest true
+;;                        :attachments true}
+;;         :accept :json
+;;         :as :json})
+;;     :body :_attachments :content.txt :data
+;;     converter/base64-decode byte-streams/to-string))
+
+(defn set-attachment! [id rev attname content-type data]
+  (try+
+    (let [rev (if (= rev :latest)
+                (:_rev (get-document id))
+                rev)
+          {:keys [body]} (http/put (couch-url id attname)
+                           {:body data
+                            :headers {"If-Match" rev}
+                            :content-type content-type
+                            :accept :json
+                            :as :json})]
+      (if (:ok body)
+        body
+        (throw+ {:type ::couch-error :body body})))
+
+    (catch (contains? #{400 401 404 409} (get % :status))
+        {:keys [headers body status]}
+      (log/errorf "Client Error (%s): %s %s" status headers body)
+      (throw+ (assoc &throw-context :type ::request-error)))
+
+    (catch Object _
+      (log/error "Unexpected error: " (:throwable &throw-context))
+      (throw+ (assoc &throw-context :type ::unexpected-error)))))
+
+(defn get-revs [id]
+  (get-in
+    (http/get (couch-url id)
+      {:content-type :json
+       :query-params {:revs_info true}
+       :accept :json
+       :as :json})
+  [:body :_revs_info]))
+
+(defn get-latest-rev [id]
+  (get-in
+    (http/get (couch-url id)
+      {:content-type :json
+       :accept :json
+       :as :json})
+  [:body :_rev]))
+
+
 
 (defn get-attachment
   "Return attachment for docid and attachment key"
@@ -134,13 +195,14 @@
   "Get document by id. Return document with attachments"
   [id]
   (let [doc (get-document id)
-        attks (-> doc :_attachments keys)
-        atts (->>
-               attks
-               (map #(get-attachment id %))
-               (into {}))]
-    (assoc-in doc [:entry :contents] atts)))
+        types (group-by #(second (re-find #"^(\w+)\..+$" (name %)))
+                (-> doc :_attachments keys))
 
+        att-content (into {}
+                      (for [[type atts] types
+                            :let [type-group (keyword (str (name type) "s"))]]
+                        [type-group (into {} (map #(get-attachment id %) atts))]))]
+        (update-in doc [:entry] merge att-content)))
 
 (defn delete-document!
   [id rev]
@@ -191,12 +253,29 @@
   "Swap document: Get current version, apply function on it and save
   the result as the new version"
   [id f]
-  (let [doc (get-document id)]
+  (let [doc (:body (http/get (couch-url id)
+                     {:content-type :json
+                      :query-params {:latest true
+                                     :attachments true}
+                      :accept :json
+                      :as :json}))]
     (let [id (get doc :_id)
           rev (get doc :_rev)
           new-doc (f doc)]
       (change-document! id rev new-doc))))
 
+(defn revert-document! [id to-rev]
+  (let [to-doc (-> (http/get (couch-url id)
+                     {:content-type :json
+                      :query-params {:rev to-rev
+                                     :attachments true}
+                      :accept :json
+                      :as :json})
+                 :body
+                 (dissoc :_id)
+                 (dissoc :_rev))
+        latest-rev (get-latest-rev id)]
+    (change-document! id latest-rev to-doc)))
 
 (defn doc-ids-with-tag
   "Return all doc ids with tag"
