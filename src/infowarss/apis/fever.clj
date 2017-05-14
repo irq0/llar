@@ -375,6 +375,10 @@
         (remove-tag id "unread")
         (and (= mark "item") (= as "unread"))
         (set-tag id "unread")
+        (and (= mark "item") (= as "saved"))
+        (set-tag id "saved")
+        (and (= mark "item") (= as "unsaved"))
+        (remove-tag id "saved")
         (and (= mark "feed") (= as "read"))
         (mark-feed-read id)
         :else
