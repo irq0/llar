@@ -233,23 +233,31 @@
   []
   {:favicons [(dummy-favicon)]})
 
-(s/defn item :- schema/FeverItem
-  "Convert infowarss document to fever feed item"
-  [doc]
-  (let [contents (get-in doc [:entry :contents])
-        description (get-in doc [:entry :description])
-        meta (get doc :meta)
-        feed-info {:source-name (get meta :source-name)
-                   :source-key (keyword (get meta :source-key))}]
-  {:id (fever-item-id (:_id doc))
-   :feed_id (fever-feed-id feed-info)
-   :title (-> doc :summary :title)
-   :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
-   :html (or (get contents "text/html")
+(defn get-html-content [doc]
+  (let [hint (get-in doc [:meta :view-hints :html])
+        description (get-in doc [:entry :descriptions])
+        contents (get-in doc [:entry :contents])]
+    (if-not (nil? hint)
+      (let [path (concat (map keyword (butlast hint)) [(last hint)])]
+        (get-in doc path))
+      (or (get contents "text/html")
            (get contents "text/plain")
            (get description "text/html")
            (get description "text/plain")
-           "")
+           ""))))
+
+(s/defn item :- schema/FeverItem
+  "Convert infowarss document to fever feed item"
+  [doc]
+  (let [meta (get doc :meta)
+        feed-info {:source-name (get meta :source-name)
+                   :source-key (keyword (get meta :source-key))}]
+
+  {:id (fever-item-id (:_id doc))
+   :feed_id (fever-feed-id feed-info)
+   :title (or (-> doc :summary :title) "")
+   :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
+   :html (get-html-content doc)
    :url (-> doc :entry :url str)
    :is_saved 0
    :is_read (if (some #{"unread"} (get-in doc [:meta :tags])) 0 1)
