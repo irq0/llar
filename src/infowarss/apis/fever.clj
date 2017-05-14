@@ -163,12 +163,21 @@
     {:group_id (fever-group-id-for-tag (keyword (str "type-" (name type))))
      :feed_ids (string/join "," (feedids-for-type type))})
 
+(s/defn special-feeds-group :- schema/FeverFeedsGroup
+  "Return group containing all speicla feeds (e.g bookmarks)"
+  []
+  (let [feeds (db-feeds-with-config)]
+    {:group_id (fever-group-id-for-tag :special)
+     :feed_ids (string/join ","
+                 [(fever-feed-id (:bookmark feeds)) (fever-feed-id (:document feeds))])}))
+
 
 (s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
   []
   [(all-feeds-group)
    (tag-feeds-group :jobs) (tag-feeds-group :personal) (tag-feeds-group :events) (tag-feeds-group :reddit) (tag-feeds-group :comics)
+   (special-feeds-group)
    (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
@@ -190,6 +199,8 @@
              :title "Twitter"}
             {:id (fever-group-id-for-tag :type-link)
              :title "Links"}
+            {:id (fever-group-id-for-tag :special)
+             :title "[Special]"}
             {:id (fever-group-id-for-tag :type-feed)
              :title "Feeds"}]
    :feeds_groups (feeds-groups)})
