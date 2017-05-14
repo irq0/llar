@@ -139,11 +139,10 @@
   (fn [& args]
     (try+
       (let [new (apply func args)]
-        (log/tracef "proc: (%s %s) -> "
-          func (count args))
+        (log/tracef "proc: (%s %s)" func (count args))
         new)
-      (catch Object  _
-        (log/warn (:throwable &throw-context) "proc function failed: %s")
+      (catch Object  e
+        (log/warn e "proc function failed")
         args))))
 
 (defn- apply-filter [item f]
