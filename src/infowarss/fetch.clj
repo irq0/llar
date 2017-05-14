@@ -361,9 +361,9 @@
                          in-feed-contents)
               descriptions (extract-feed-description (:description re))
               base-entry {:updated-ts (some-> re :updated-date tc/from-date)
-                               :pub-ts (some-> re :published-date tc/from-date)
-                               :url contents-url
-                               :title (-> re :title)}]
+                          :pub-ts (some-> re :published-date tc/from-date)
+                          :url contents-url
+                          :title (-> re :title)}]
           (map->FeedItem
             (-> http-item
               (dissoc :hash :hickory :summary)
