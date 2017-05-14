@@ -77,6 +77,7 @@
     (edn/read-string
       {:readers {'datetime tc/from-string
                  'url io/as-url
+                 'atom (fn [x] (atom x))
                  'error (fn [_] nil)  ; Throw away error details
                  'object (fn [_] (Object.))}
        :default ->TaggedValue}
