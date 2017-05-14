@@ -57,7 +57,7 @@
     (loop []
       (let [[v ch] (async/alts!! [input-ch term-ch])]
         (if (identical? ch input-ch)
-          (when (map? v)
+          (when (some? v)
             (process v)
             (recur)))))))
 
@@ -69,9 +69,10 @@
 
 (defn stop-processor []
   (log/debug "Sending terminate msg")
-  (>!! processor-terminate :terminate)
-  (<!! @processor-thread)
-  (reset! processor-thread nil))
+  (async/put! processor-terminate :terminate)
+  (let [result (<!! @processor-thread)]
+    (reset! processor-thread nil)
+    result))
 
 
 (defn start
