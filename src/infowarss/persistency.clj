@@ -55,26 +55,31 @@
                 {:content_type content-type
                  :data (base64-enc data)}]))))
 
+(defn convert-to-attachments [item]
+  (let [contents (to-couch-atts "content" (get-in item [:entry :contents]))
+        descriptions (to-couch-atts "description" (get-in item [:entry :descriptions]))
+        thumbs (to-couch-atts "thumb" (get-in item [:entry :thumbs]))]
+      (-> item
+        (assoc-in [:entry :contents] nil)
+        (assoc-in [:entry :descriptions] nil)
+        (assoc-in [:entry :thumbs] nil)
+        (assoc "_attachments" (merge contents descriptions thumbs)))))
+
 (extend-protocol CouchItem
   FeedItem
   (to-couch [item]
-    (let [atts (to-couch-atts "content" (get-in item [:entry :contents]))]
-      (cond->
-          (-> item
-            (dissoc :raw)
-            (assoc :type :feed)
-            (assoc-in [:entry :contents] nil))
-        (seq atts) (assoc "_attachments" atts))))
+    (-> item
+      convert-to-attachments
+      (assoc :type :feed)
+      (dissoc :raw)))
+
   TweetItem
   (to-couch [item]
-    (let [atts (to-couch-atts "content" (get-in item [:entry :contents]))]
-      (cond->
-          (-> item
-            (dissoc :raw)
-            (assoc :type :tweet)
-            (assoc-in [:meta :source :oauth-creds] nil)
-            (assoc-in [:entry :contents] nil))
-        (seq atts) (assoc "_attachments" atts)))))
+    (-> item
+      convert-to-attachments
+      (assoc :type :tweet)
+      (dissoc :raw)
+      (assoc-in [:meta :source :oauth-creds] nil))))
 
 
 (defn duplicate? [item]
