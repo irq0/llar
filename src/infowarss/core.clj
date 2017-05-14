@@ -17,18 +17,27 @@
 ;;; Logger
 
 (log/merge-config!
-  {:appenders {:spit (appenders/spit-appender {:fname "/tmp/inforwarss.log"})}
-   :ns-blacklist  ["org.apache.http.*"
+  {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
+                           {:path "/tmp/inforwarss_all.log"})}})
+
+(log/merge-config!
+  {:ns-blacklist  ["org.apache.http.*"
                    "org.eclipse.jetty.io.*"
                    "org.eclipse.jetty.http.*"
                    "org.eclipse.jetty.server.*"
+                   "org.apache.pdfbox.io.*"
                    "com.ning.http.client.providers.netty.handler.*"
                    "com.ning.http.client.providers.netty.channel.*"
                    ]
    :level :trace})
 
 (log/merge-config!
-  {:appenders {:println {:min-level :info
+  {:appenders {:spit (assoc (appenders/spit-appender
+                              {:fname "/tmp/inforwarss_info.log"})
+                       :min-level :info)}})
+
+(log/merge-config!
+  {:appenders {:println {:min-level :error
                          :stream :std-err}}})
 
 ;;; Config
