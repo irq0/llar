@@ -2,6 +2,7 @@
   (:require
    [infowarss.couchdb :as couch]
    [infowarss.fetch]
+   [infowarss.converter :as conv]
    [digest]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
@@ -33,11 +34,6 @@
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))
 
-(defn- base64-enc [s]
-  (.encodeToString
-    (java.util.Base64/getMimeEncoder)
-    (.getBytes s)))
-
 (defn extension-for-mimetype [m]
   (let [by-mime (pm/extension-for-name m)]
     (if (string/blank? by-mime)
@@ -53,7 +49,7 @@
              (when-not (nil? data)
                [(str prefix extension)
                 {:content_type content-type
-                 :data (base64-enc data)}]))))
+                 :data (conv/base64-encode data)}]))))
 
 (defn convert-to-attachments [item]
   (let [contents (to-couch-atts "content" (get-in item [:entry :contents]))
