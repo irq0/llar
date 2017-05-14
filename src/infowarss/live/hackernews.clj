@@ -97,24 +97,31 @@
   (let [path (make-path hn-ref "item" id)
         raw (get-value path)
         entry (make-hn-entry raw)]
-    (->HackerNewsItem
-      (make-meta src state)
-      (make-hn-summary entry)
-      (str "SHA-256:" (digest/sha-256 (str id)))
-      raw
-      entry)))
+    (try+
+      (->HackerNewsItem
+        (make-meta src @state)
+        (make-hn-summary entry)
+        (str "SHA-256:" (digest/sha-256 (str id)))
+        raw
+        entry)
+      (catch Object e
+        (log/error e "HackerNews resolver failed -> terminating source")
+        (async/put! (get-in @state [:firebase :resolve-term-chan]) :terminate)
+        (swap! state assoc :status :failed)
+        (swap! state assoc-in [:firebase :last-exception] e)))))
 
 (defn- hn-resolver-thread
   "Resolve ids from in-chan to HackerNewsEntries on out-chan"
-  [resolver in-chan out-chan]
+  [resolver in-chan term-chan out-chan]
   (async/thread
+    (log/debug "HackerNews: Starting resolver thread")
     (loop []
-      (let [id (<!! in-chan)]
-        (if-not (= id :stop)
-          (do
-            (async/put! out-chan (resolver id))
-            (recur))
-          (log/debug "HackerNews: Stopping resolver" resolver))))))
+      (let [[v ch] (async/alts!! [in-chan term-chan])]
+        (if (identical? ch in-chan)
+          (when (number? v)
+            (async/put! out-chan (resolver v))
+            (recur)))))
+    (log/debug "HackerNews: Stopping resolver" resolver)))
 
 (extend-protocol LiveSource
   infowarss.src.HackerNews
@@ -123,12 +130,11 @@
           status (:status @state)
           hn (make-ref hacker-news-base-url)
           ref (make-path hn story-feed)]
-      (when (nil? status)
-        (reset! state state-template))
 
       (if-not (= status :running)
-        (let [resolve-chan (async/chan 1000)
-              resolver-thread (hn-resolver-thread (partial hn-item-resolver hn src @state) resolve-chan item-chan)
+        (let [resolve-chan (async/chan (async/sliding-buffer 1000))
+              resolve-term-chan (async/chan)
+              resolver-thread (hn-resolver-thread (partial hn-item-resolver hn src state) resolve-chan resolve-term-chan item-chan)
 
               listener-f (fn [ids]
                            (try+
@@ -152,6 +158,7 @@
               listener (listen-value-changes ref listener-f)]
 
           (swap! state merge {:firebase {:listener listener
+                                         :resolve-term-chan resolve-term-chan
                                          :resolve-chan resolve-chan
                                          :story-ref ref}
                               :start-ts (time/now)
@@ -165,6 +172,6 @@
       (if (= status :running)
         (do
           (.removeEventListener ref listener)
-          (>!! (get-in @state [:firebase :resolve-chan]) :stop)
+          (>!! (get-in @state [:firebase :resolve-term-chan]) :stop)
           (swap! state merge {:status :stopped}))
         @state))))
