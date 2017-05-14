@@ -300,3 +300,15 @@
           :first-fetch-ts (tc/from-long (:min value))
           :last-fetch-ts (tc/from-long (:max value))})
     (couch/get-view (couch-url) "lookup" "feeds" {:group true})))
+
+
+(defn get-word-count-groups
+  []
+  (map vals
+    (couch/get-view (couch-url) "lookup" "word_count" {:group true})))
+
+
+(defn ids-for-word-count-group
+  [group]
+  (map :id
+    (couch/get-view (couch-url) "lookup" "word_count" {:reduce false :key group})))
