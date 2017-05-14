@@ -152,6 +152,21 @@
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
 
+(defschema DocumentEntry
+  {:url (s/maybe java.net.URL)
+   :title s/Str
+   :authors [s/Str]
+   :pub-ts (s/maybe org.joda.time.DateTime)
+   :npages s/Int
+   :orig-mime-type NotEmptyStr
+   :orig-size s/Int
+   :thumbs {(s/optional-key "image/png") s/Str}
+   :contents {(s/required-key "text/plain") (s/maybe s/Str)
+              (s/optional-key "application/pdf") s/Str
+              (s/optional-key "text/html") s/Str}
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
+
+
 ;;; Twitter API (incoming)
 
 (defschema TweetEntityIndices

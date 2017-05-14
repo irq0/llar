@@ -78,6 +78,16 @@
     (io/as-url url)
     api-key))
 
+(s/defrecord Document
+    [url :- java.net.URL]
+  Object
+  (toString [src] (str "[Document: " (:url src) "]")))
+
+(s/defn doc :- Document
+  "Fetch URL and process as document"
+  [url :- schema/NotEmptyStr]
+  (->Document (io/as-url url)))
+
 (s/defrecord Reddit
     [subreddit :- schema/NotEmptyStr
      feed :- schema/NotEmptyStr]
