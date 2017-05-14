@@ -26,7 +26,6 @@
    [cheshire.core :as json]
    [twitter.oauth :as twitter-oauth]
    [twitter.api.restful :as twitter]
-   [hara.io.scheduler :as sched]
    [clojure.java.shell :as shell]
    [opennlp.nlp :as nlp]
    [clojure.core.async :refer [>!! <!!] :as async]
@@ -137,37 +136,6 @@
 
 ;;; Update Scheduling
 
-(defn make-sched-from-feeds [feeds]
-  (into {}
-    (for [[k feed] feeds
-          :when (and (seq (get feed :cron))
-                  (seq (get feed :src)))]
-      {k {:handler (fn [t] (log/debugf "Cron start on %s: Update %s"
-                             t k)
-                     (update! k))
-          :schedule (get feed :cron)}})))
-
-(defn make-feed-sched
-  []
-  (sched/scheduler
-    (make-sched-from-feeds *srcs*)
-    {}
-    {:clock {:type "org.joda.time.DateTime"
-             :timezone "Europe/Berlin"
-             :interval 2}}))
-
-(defn start []
-  (let [scheduler (sched/start! (make-feed-sched))]
-    (merge
-      (webapp/start)
-      {:scheduler {:feed scheduler}})))
-
-
-(defn stop [app]
-  (let [scheduler (get-in app [:scheduler :feeds])]
-    (when-not (nil? scheduler)
-      (sched/stop! scheduler))
-    (webapp/stop app)))
 
 ;;; Toy around area
 

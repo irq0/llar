@@ -3,6 +3,7 @@
    [infowarss.apis.feedbin :as feedbin]
    [infowarss.apis.infowarss :as infowarss]
    [ring.adapter.jetty :refer [run-jetty]]
+   [mount.core :refer [defstate]]
    [infowarss.apis.fever :as fever]
    [ring.middleware params keyword-params json stacktrace lint basic-authentication]))
 
@@ -17,8 +18,6 @@
     ring.middleware.keyword-params/wrap-keyword-params
     ring.middleware.params/wrap-params
     ring.middleware.lint/wrap-lint))
-
-
 
 ;;; Fever API - https://feedafever.com/api
 (def fever-app
@@ -41,12 +40,11 @@
     ring.middleware.lint/wrap-lint))
 
 
-(defn start []
-  {:fever (run-jetty #'fever-app {:port 8765 :join? false})
-   :infowarss (run-jetty #'infowarss-app {:port 7654 :join? false})})
+(defstate fever
+  :start (run-jetty #'fever-app {:port 8765 :join? false})
+  :stop (.stop fever))
 
-(defn stop [app]
-  (let [{:keys [fever infowarss]} app]
-    (when (some? fever) (.stop fever))
-    (when (some? infowarss) (.stop infowarss)))
-  app)
+
+(defstate infowarss
+  :start (run-jetty #'infowarss-app {:port 7654 :join? false})
+  :stop infowarss)

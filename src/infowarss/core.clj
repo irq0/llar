@@ -4,6 +4,7 @@
    [taoensso.timbre.appenders.core :as appenders]
    [taoensso.timbre.appenders.3rd-party.rotor]
    [infowarss.src :as src]
+   [infowarss.converter :as converter]
    [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
    [hiccup.core :refer [html]]
@@ -12,6 +13,7 @@
    [hara.io.scheduler :as sched]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
+   [mount.core :refer [defstate]]
    [hara.time.joda]))
 
 ;;;; Core configuration and data structures
@@ -43,59 +45,12 @@
                          :stream :std-err}}})
 
 ;;; Config
+(defstate config :start (edn/read-string (slurp (io/resource "config.edn"))))
+(defstate creds :start (edn/read-string (slurp (io/resource "credentials.edn"))))
+(defstate state
+  :start (converter/read-edn-string (slurp (io/resource "state.edn")))
+  :stop (spit (io/resource "state.edn") (prn-str state)))
 
-(def config (edn/read-string (slurp (io/resource "config.edn"))))
-(def creds (edn/read-string (slurp (io/resource "credentials.edn"))))
-(defonce state (atom {}))
-
-;;; State
-
-(defmethod print-method org.joda.time.DateTime
-  [v ^java.io.Writer w]
-  (.write w "#datetime \"")
-  (.write w (tc/to-string v))
-  (.write w "\""))
-
-(defmethod print-method java.net.URL
-  [v ^java.io.Writer w]
-  (.write w "#url \"")
-  (.write w (str v))
-  (.write w "\""))
-
-(defmethod print-method clojure.lang.Atom
-  [v ^java.io.Writer w]
-  (.write w "#atom ")
-  (.write w (prn-str @v)))
-
-
-(defmethod print-method java.lang.Object
-  [v ^java.io.Writer w]
-  (.write w "#object nil"))
-
-(defrecord TaggedValue [tag value])
-
-(defn read-edn-string [s]
-  (try
-    (edn/read-string
-      {:readers {'datetime tc/from-string
-                 'url io/as-url
-                 'atom (fn [x] (atom x))
-                 'error (fn [_] nil)  ; Throw away error details
-                 'object (fn [_] (Object.))}
-       :default ->TaggedValue}
-      s)
-    (catch RuntimeException e
-      (log/error e "Failed to read EDN")
-      {})))
-
-(defn- persist-state! [_ _ _ new]
-  (spit (io/resource "state.edn") (prn-str new)))
-
-
-(defn -init []
-  (reset! state (read-edn-string (slurp (io/resource "state.edn"))))
-  (add-watch state :persist persist-state!)
-  (log/info "Loaded state for keys: " (keys @state)))
 
 ;;; Sources
 

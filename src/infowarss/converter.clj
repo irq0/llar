@@ -4,6 +4,9 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [pantomime.mime :as pm]
+   [clj-time.coerce :as tc]
+   [taoensso.timbre :as log]
+   [clojure.edn :as edn]
    [clojure.java.shell :as shell]))
 
 
@@ -85,3 +88,42 @@
     (when-not (zero? exit)
       (throw+ {:type ::thumbnail-creation-failed :exit exit :out out :err err}))
     {"image/png" out}))
+
+
+(defmethod print-method org.joda.time.DateTime
+  [v ^java.io.Writer w]
+  (.write w "#datetime \"")
+  (.write w (tc/to-string v))
+  (.write w "\""))
+
+(defmethod print-method java.net.URL
+  [v ^java.io.Writer w]
+  (.write w "#url \"")
+  (.write w (str v))
+  (.write w "\""))
+
+(defmethod print-method clojure.lang.Atom
+  [v ^java.io.Writer w]
+  (.write w "#atom ")
+  (.write w (prn-str @v)))
+
+
+(defmethod print-method java.lang.Object
+  [v ^java.io.Writer w]
+  (.write w "#object nil"))
+
+(defrecord TaggedValue [tag value])
+
+(defn read-edn-string [s]
+  (try
+    (edn/read-string
+      {:readers {'datetime tc/from-string
+                 'url io/as-url
+                 'atom (fn [x] (atom x))
+                 'error (fn [_] nil)  ; Throw away error details
+                 'object (fn [_] (Object.))}
+       :default ->TaggedValue}
+      s)
+    (catch RuntimeException e
+      (log/error e "Failed to read EDN")
+      {})))
