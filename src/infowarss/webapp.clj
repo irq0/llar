@@ -1,6 +1,7 @@
 (ns infowarss.webapp
   (:require
    [infowarss.apis.feedbin :as feedbin]
+   [infowarss.apis.infowarss :as infowarss]
    [ring.adapter.jetty :refer [run-jetty]]
    [infowarss.apis.fever :as fever]
    [ring.middleware params keyword-params json stacktrace lint basic-authentication]))
@@ -18,6 +19,7 @@
     ring.middleware.lint/wrap-lint))
 
 
+
 ;;; Fever API - https://feedafever.com/api
 (def fever-app
   (->
@@ -29,11 +31,22 @@
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
+(def infowarss-app
+  (->
+    infowarss/app
+    (ring.middleware.basic-authentication/wrap-basic-authentication infowarss/api-authenticated? "Infowarss API")
+    ring.middleware.keyword-params/wrap-keyword-params
+    ring.middleware.params/wrap-params
+    ring.middleware.stacktrace/wrap-stacktrace-log
+    ring.middleware.lint/wrap-lint))
+
+
 (defn start []
-  {:jetty (run-jetty #'fever-app {:port 8765 :join? false})})
+  {:fever (run-jetty #'fever-app {:port 8765 :join? false})
+   :infowarss (run-jetty #'infowarss-app {:port 7654 :join? false})})
 
 (defn stop [app]
-  (let [jetty (:jetty app)]
-    (when-not (nil? jetty)
-      (.stop jetty)))
+  (let [{:keys [fever infowarss]} app]
+    (when (some? fever) (.stop fever))
+    (when (some? infowarss) (.stop infowarss)))
   app)
