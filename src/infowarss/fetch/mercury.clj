@@ -82,6 +82,6 @@
          :pub-ts pub-ts
          :title (:title mercu)
          :authors [(or (:author mercu) (:domain mercu))]
-         :description {"text/plain" (:excerpt mercu)}
+         :descriptions {"text/plain" (:excerpt mercu)}
          :contents {"text/html" (:content mercu)
                     "text/plain" (conv/html2text (:content mercu))}}))))

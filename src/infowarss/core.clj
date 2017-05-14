@@ -144,7 +144,7 @@
    :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
           :proc (proc/make
                   :post [(proc/exchange
-                           [:entry :description]
+                           [:entry :descriptions]
                            [:entry :contents])]
                   :filter (fn [item]
                             (->> item
@@ -190,7 +190,7 @@
    :summit-route {:src (src/feed "http://summitroute.com/blog/feed.xml")
                   :proc (proc/make
                           :post [(proc/exchange
-                                   [:entry :description]
+                                   [:entry :descriptions]
                                    [:entry :contents])])
                   :cron cron-daily}
    :joe-duffy {:src (src/feed "http://joeduffyblog.com/feed.xml")
@@ -214,7 +214,7 @@
    :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
                                :proc (proc/make
                                        :post [(proc/exchange
-                                                [:entry :description]
+                                                [:entry :descriptions]
                                                 [:entry :contents])])
                                :cron cron-daily}
 
@@ -308,7 +308,7 @@
 
    :xkcd {:src (src/feed "https://xkcd.com/rss.xml")
           :proc (proc/make
-                  :post [(proc/exchange [:entry :description] [:entry :contents])])
+                  :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
           :cron cron-daily
           :tags #{:comics}}
 

@@ -86,7 +86,7 @@
    :ns (str *ns*)
    :fetch-ts (time/now)
    :tags #{}
-   :version 1})
+   :version 2})
 
 ;;; Content extraction helper functions
 
@@ -343,9 +343,9 @@
           feed {:title (-> res :title)
                 :language (-> res :language)
                 :url (-> res :link  maybe-extract-url)
-                :description {"text/plain" (-> res :description)}
+                :descriptions {"text/plain" (-> res :description)}
                 :encoding (-> res :encoding)
-                :pub-ts (some-> res :published-date tc/from-date)
+                :pub-ts (some->> res :published-date tc/from-date)
                 :feed-type (-> res :feed-type)}]
 
       (for [re (:entries res)]
@@ -372,7 +372,7 @@
                       :entry (merge base-entry
                                {:authors authors
                                 :contents contents
-                                :description descriptions})
+                                :descriptions descriptions})
                       :hash (make-item-hash
                               (:title re) (:link re))
                       :summary {:ts timestamp

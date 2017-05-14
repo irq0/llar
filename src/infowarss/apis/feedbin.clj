@@ -63,7 +63,7 @@
                                    "url" (get entry :link),
                                    "author" (string/join "," (get entry :authors)),
                                    "content" (empty-if-nil (get-in entry [:contents :html])),
-                                   "summary" (get-in entry [:description :value]),
+                                   "summary" (get-in entry [:descriptions :value]),
                                    "published" "2013-02-03T01:00:19.000000Z",
                                    "created_at" (tc/to-string (get meta :fetch-ts))}]))
                        (:feed-items @*db*))))

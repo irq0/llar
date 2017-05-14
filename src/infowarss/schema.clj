@@ -112,13 +112,13 @@
    :authors [s/Str]
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}
-   :description {(s/required-key "text/plain") (s/maybe s/Str)}})
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
 (defschema Feed
   {:title s/Str
    :language (s/maybe s/Str)
    :url (s/maybe java.net.URL)
-   :description {(s/required-key "text/plain") (s/maybe s/Str)}
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
    :encoding (s/maybe s/Str)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :feed-type s/Str})
@@ -133,7 +133,7 @@
    :authors [s/Str]
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}
-   :description {(s/required-key "text/plain") (s/maybe s/Str)}})
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
 ;;; Reddit
 
@@ -147,7 +147,7 @@
    :score s/Int
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}
-   :description {(s/required-key "text/plain") (s/maybe s/Str)}})
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
 
 ;;; Twitter API (incoming)

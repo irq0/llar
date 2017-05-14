@@ -45,4 +45,4 @@
     :ns (str *ns*)
     :fetch-ts (time/now)
     :tags #{}
-    :version 1}))
+    :version 2}))

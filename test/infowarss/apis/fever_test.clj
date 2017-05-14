@@ -36,7 +36,7 @@
    :feed {:title "Example"
           :url (io/as-url "http://example.com")
           :language "en"
-          :description {"text/plain" "Example feed"}
+          :descriptions {"text/plain" "Example feed"}
           :encoding "utf-8"
           :feed-type "something-23"
           :pub-ts (time/now)}
@@ -47,7 +47,7 @@
            :authors ["Example Author 1" "Example Author 2"]
            :contents {"text/plain" "Example plain text content"
                       "text/html" "<h1>Example html content</h1>"}
-           :description {"text/plain" "Example description"}}
+           :descriptions {"text/plain" "Example description"}}
    :summary {:ts (time/now)
              :title "example"}}))
 

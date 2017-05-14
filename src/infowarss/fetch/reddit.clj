@@ -100,7 +100,7 @@
    :score (:score c)
    :contents {"text/plain" (:title c)
               "text/html" (reddit-html-summary c)}
-   :description {"text/plain" ""}})
+   :descriptions {"text/plain" ""}})
 
 
 (extend-protocol fetch/FetchSource
