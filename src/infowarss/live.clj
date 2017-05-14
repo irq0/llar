@@ -85,7 +85,7 @@
     (throw+ {:type ::not-a-live-source :key k}))
 
   (when (nil? (get @core/state k))
-    (swap! core/state assoc k (atom nil)))
+    (swap! core/state assoc k (atom state-template)))
 
   (when (nil? (get live-chans k))
     (swap! live-chans assoc k (async/chan 1000)))
