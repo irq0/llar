@@ -74,6 +74,7 @@
    :ns s/Str
    :fetch-ts org.joda.time.DateTime
    :tags KwSet
+   (s/optional-key :view-hints) {:html s/Keyword}
    :version PosInt})
 
 (defschema Summary
