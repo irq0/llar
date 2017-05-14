@@ -96,13 +96,15 @@
         (assoc-in dst src-val)
         (assoc-in src dst-val)))))
 
+(declare process-feedless-item)
+
 (defn mercury-contents
   [creds & {:keys [keep-orig]
                 :or [keep-orig false]}]
   (fn [item]
     (let [url (get-in item [:entry :url])
           src (src/mercury (str url) (get-in creds [:api-key]))
-          mercu (process-feedless-item src (fetch/fetch-source src))
+          mercu (process-feedless-item src (first (fetch/fetch-source src)))
           html (if keep-orig
                  (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
                    "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
