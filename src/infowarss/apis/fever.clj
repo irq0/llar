@@ -171,6 +171,14 @@
      :feed_ids (string/join ","
                  [(fever-feed-id (:bookmark feeds)) (fever-feed-id (:document feeds))])}))
 
+(s/defn time-feeds-group :- schema/FeverFeedsGroup
+  "Return group containing all speicla feeds (e.g bookmarks)"
+  []
+  {:group_id (fever-group-id-for-tag :nwords)
+   :feed_ids (string/join ","
+               (for [nwords (couch/get-word-count-groups)]
+                 (fever-feed-id {:source-name (str "TIME FEED:" nwords)
+                                 :source-key (keyword (str nwords))})))})
 
 (s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
@@ -178,6 +186,7 @@
   [(all-feeds-group)
    (tag-feeds-group :jobs) (tag-feeds-group :personal) (tag-feeds-group :events) (tag-feeds-group :reddit) (tag-feeds-group :comics)
    (special-feeds-group)
+;;   (time-feeds-group)
    (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
@@ -201,6 +210,8 @@
              :title "Links"}
             {:id (fever-group-id-for-tag :special)
              :title "[Special]"}
+            ;; {:id (fever-group-id-for-tag :nwords)
+            ;;  :title "[Time / Word Count]"}
             {:id (fever-group-id-for-tag :type-feed)
              :title "Feeds"}]
    :feeds_groups (feeds-groups)})
@@ -216,6 +227,35 @@
      :site_url (str url)
      :is_spark 0
      :last_updated_on_time (fever-timestamp last-fetch-ts)}))
+
+(defn word-group-to-title [nwords]
+  (case nwords
+    0 "Long Read"
+    200 "< 200 Words ~ 1 min"
+    400 "< 400 Words ~ 2 min"
+    800 "< 800 Words ~ 5 min"
+    1600 "< 1600 Words ~ 10 min"
+    3200 "< 3200 Words ~ 30 min"
+    (str "< " nwords)))
+
+
+(s/defn time-feed :- schema/FeverFeed
+  "Convert infowarss src to fever feed"
+  [nwords]
+  (let [title  (word-group-to-title nwords)]
+  {:id (fever-feed-id {:source-name (str "TIME FEED:" nwords)
+                       :source-key (keyword (str nwords))})
+   :favicon_id 1337
+   :title title
+   :url ""
+   :site_url ""
+   :is_spark 0
+   :last_updated_on_time 0}))
+
+
+(defn time-feeds []
+  (for [[nwords _] (couch/get-word-count-groups)]
+    (time-feed nwords)))
 
 (s/defn feeds :- schema/FeverFeeds
   "Return fever feeds"
