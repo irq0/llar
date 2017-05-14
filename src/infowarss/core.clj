@@ -91,6 +91,50 @@
 (def cron-daily "0 42 23 * * * *")
 
 
+;;; Bookmarks
+
+(defn bookmark-html [i]
+  (html
+    [:h1 (get-in i [:summary :title])]
+    [:div {:class "summary"}
+     [:ul
+      [:li [:span {:class "key"} "URL: "]
+       [:a {:href (get-in i [:entry :url])} (get-in i [:entry :url])]]
+      [:li [:span {:class "key"} "Added: "] (tc/to-string (time/now))]
+      [:li [:span {:class "key"} "Published: "] (tc/to-string (get-in i [:summary :ts]))]
+      [:li [:span {:class "key"} "Next Page URL: "]
+       [:a {:href (get-in i [:entry :next-page-url])} (get-in i [:entry :next-pageurl])]]]]
+    [:div {:class "description"}
+     [:h2 "Summary"]
+     [:p (get-in i [:entry :descriptions "text/plain"])]]
+    [:div {:class "nlp"}
+     [:h2 "Names / Places"]
+     [:p (map (fn [name] [:span [:a {:href (str "https://www.startpage.com/do/search?query=" name)} (str " " name " ")] "&nbsp;" ]) (get-in i [:entry :nlp :names]))]]
+    [:h1 "Content"]))
+
+
+(defn make-bookmark-feed [url]
+  (let [src (src/mercury url (get-in creds [:mercury :api-key]))]
+    {:src src
+     :tags #{:bookmark}
+     :proc (proc/make
+             :post [(fn [item]
+                     (let [summary (bookmark-html item)
+                           html (get-in item [:entry :contents "text/html"])]
+                       (-> item
+                         (assoc-in [:entry :contents "text/html"]
+                           (str summary "\n\n\n" html))
+                         (assoc-in [:meta :source-name]
+                           "[Bookmark]"))))])}))
+
+(defn make-doc-feed [url]
+  (let [src (src/doc url)]
+    {:src src
+     :tags #{:document}
+     :proc (proc/make
+             :post [(fn [item] (assoc-in item [:meta :source-name] "[Document]"))])}))
+
+
 (defn make-hacker-news-filter [min-score min-score-match]
   (fn [item]
     (let [site (some-> item :entry :url .getHost)
