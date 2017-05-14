@@ -121,6 +121,7 @@
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
    :encoding (s/maybe s/Str)
    :pub-ts (s/maybe org.joda.time.DateTime)
+   :updated-ts (s/maybe org.joda.time.DateTime)
    :feed-type s/Str})
 
 ;;; Mercury Parser
@@ -319,6 +320,7 @@
 
 (defschema FeverAPIRoot
   {:api_version PosInt
+   :last_refreshed_on_time UnixTimestamp
    :auth BoolInt})
 
 (defschema FeverGroup
@@ -337,8 +339,7 @@
 
 (defschema FeverGroups
   "Fever API: groups object"
-  {(s/optional-key :last_refreshed_on_time) UnixTimestamp
-   :groups [FeverGroup]
+  {:groups [FeverGroup]
    :feeds_groups [FeverFeedsGroup]})
 
 (defschema FeverAPIGroups
@@ -357,8 +358,7 @@
 
 (defschema FeverFeeds
   "Fever API: feeds object"
-  {(s/optional-key :last_refreshed_on_time) UnixTimestamp
-   :feeds [FeverFeed]
+  {:feeds [FeverFeed]
    :feeds_groups [FeverFeedsGroup]})
 
 (defschema FeverAPIFeeds
@@ -392,8 +392,7 @@
 
 (defschema FeverItems
   "Fever API: items object"
-  {(s/optional-key :last_refreshed_on_time) UnixTimestamp
-   :items [FeverItem]
+  {:items [FeverItem]
    :total_items PosInt})
 
 (defschema FeverAPIItems

@@ -143,6 +143,14 @@
     (catch Object _
       [])))
 
+(defn last-refresh []
+  0)
+(comment
+  (let [feeds (couch/get-feeds)
+        ts (map #(-> % :last-fetch-ts fever-timestamp) feeds)]
+    (apply max ts)))
+
+
 (s/defn tag-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feed items with tag"
   [tag]
@@ -166,8 +174,7 @@
 (s/defn groups  :- schema/FeverGroups
   "Return feed groups"
   []
-  {:last_refreshed_on_time 0
-   :groups [{:id (fever-group-id-for-tag :all),
+  {:groups [{:id (fever-group-id-for-tag :all),
              :title "All"}
             {:id (fever-group-id-for-tag :jobs)
              :title "Jobs"}
@@ -202,8 +209,7 @@
 (s/defn feeds :- schema/FeverFeeds
   "Return fever feeds"
   []
-  {:last_refreshed_on_time 0,
-   :feeds (for [f (couch/get-feeds)] (feed f))
+  {:feeds (for [f (couch/get-feeds)] (feed f))
    :feeds_groups (feeds-groups)})
 
 (s/defn dummy-favicon :- schema/FeverFavicon
@@ -256,8 +262,7 @@
                         (vals)
                         (take 50))]
     (s/validate schema/FeverItems
-      {:last_refreshed_on_time 0
-       :total_items (count ids)
+      {:total_items (count ids)
        :items (for [id ids-to-return
                     :let [doc (couch/get-document-with-attachments id)]]
                 (item doc))})))
@@ -301,6 +306,7 @@
   "Return map with data to merge with specific requests on every reply"
   []
   {:api_version 3
+   :last_refreshed_on_time (last-refresh)
    :auth 1})
 
 (defn find-couchid-by-feverid
