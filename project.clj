@@ -34,6 +34,7 @@
                  [ring/ring-devel "1.5.1"]
                  [ring/ring-jetty-adapter "1.5.1"]
                  [ring/ring-json "0.4.0"]
+                 [mount "0.1.11"]
                  [ring/ring-mock "0.3.0"]
                  [lambda-ml "0.1.0"]
                  [clojure-opennlp "0.4.0"]
