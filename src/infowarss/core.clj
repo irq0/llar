@@ -2,9 +2,11 @@
   (:require
    [taoensso.timbre :as log]
    [taoensso.timbre.appenders.core :as appenders]
+   [taoensso.timbre.appenders.3rd-party.rotor]
    [infowarss.src :as src]
    [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
+   [hiccup.core :refer [html]]
    [clj-time.coerce :as tc]
    [infowarss.postproc :as proc]
    [hara.io.scheduler :as sched]
@@ -225,7 +227,7 @@
           :proc (proc/make
                   :post [(proc/add-tag :personal)])
           :tags #{:personal}
-          :cron cron-hourly}
+          :cron cron-daily}
    :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
                    :cron cron-daily}
 
@@ -350,6 +352,11 @@
                     :tags #{:reddit}
                     :proc (make-reddit-proc 30000)}
 
+   :reddit-europe {:src (src/reddit "europe" :top)
+                    :cron cron-daily
+                    :tags #{:reddit}
+                    :proc (make-reddit-proc 300)}
+
    :hn-top {:src (src/hn "topstories" :throttle-secs (* 23 60))
             :proc (proc/make
                     :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]
@@ -358,7 +365,7 @@
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
              :proc (proc/make
                      :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]
-                     :filter (make-hacker-news-filter 800 300))}
+                     :filter (make-hacker-news-filter 500 200))}
 
    :xkcd {:src (src/feed "https://xkcd.com/rss.xml")
           :proc (proc/make
@@ -366,6 +373,37 @@
           :cron cron-daily
           :tags #{:comics}}
 
+   :daily-wtf {:src (src/feed "http://syndication.thedailywtf.com/TheDailyWtf")
+               :proc (proc/make
+                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+               :cron cron-daily}
+
+   :pixelenvy {:src (src/feed "https://feedpress.me/pxlnv")
+               :cron cron-daily
+               :proc (proc/make
+                       :filter (fn [item]
+                                 (let [names (get-in item [:entry :nlp :names])
+                                       dontwant #{"App Store" "Apple" "Apple Music" "Apple Store" "MacOS" "OSX"}]
+                                   (log/spy (clojure.set/intersection names dontwant))
+                                   (>= (count (clojure.set/intersection names dontwant)) 2))))}
+   :rumpus {:src (src/feed "http://therumpus.net/feed/")
+            :cron cron-daily}
+
+   :atlantic-best-of {:src (src/feed "https://www.theatlantic.com/feed/best-of/")
+                      :cron cron-daily}
+
    :fail {:src
           (src/feed "http://irq0.org/404")}
+
+   :bookmark {:src nil
+              :tags #{:bookmark}}
+   :document {:src nil
+              :tags #{:document}}
    })
+
+
+;;;; todo
+(comment
+  "https://www.questionablecontent.net/QCRSS.xml"
+  "http://www.radiolab.org/"
+  "http://ask.metafilter.com/")
