@@ -1,5 +1,9 @@
 (ns infowarss.converter
   (:require
+   [slingshot.slingshot :refer [throw+ try+]]
+   [clojure.java.io :as io]
+   [clojure.string :as string]
+   [pantomime.mime :as pm]
    [clojure.java.shell :as shell]))
 
 
@@ -11,3 +15,73 @@
     (if (zero? exit)
       out
       "")))
+
+(defmulti base64-encode class)
+
+(defmethod base64-encode String [data]
+  (.encodeToString
+    (java.util.Base64/getMimeEncoder)
+    (.getBytes data)))
+
+(defmethod base64-encode (Class/forName "[B") [data]
+  (.encodeToString
+    (java.util.Base64/getMimeEncoder)
+    data))
+
+(defmulti base64-decode class)
+
+(defmethod base64-decode nil [data]
+  nil)
+
+(defmethod base64-decode String [data]
+  (.decode
+    (java.util.Base64/getMimeDecoder)
+    data))
+
+(defn data-uri [data & {:keys [mime-type]
+                        :or [mime-type (pm/mime-type-of data)]}]
+  (if (and (instance? String data) (nil? mime-type))
+    (format "data:text/plain;%s" (java.net.URLEncoder/encode data "UTF-8"))
+    (format "data:%s;base64,%s"
+      mime-type (java.net.URLEncoder/encode (base64-encode data) "ASCII"))))
+
+
+
+
+(defn get-mimetype
+  [data & {:keys [mime-type]}]
+  (if-not (string/blank? mime-type)
+    mime-type
+    (pm/mime-type-of data)))
+
+
+(defmulti convert-to-html get-mimetype)
+
+(defmethod convert-to-html "application/pdf" [data & _]
+  (let [file (java.io.File/createTempFile "content" ".pdf")
+        out-file (io/as-file (string/replace (.getAbsolutePath file) #"\.pdf$" ".html"))]
+    (io/copy data file)
+    (let [{:keys [exit out err]} (shell/sh "pdf2htmlEX"
+                                   "--no-drm" "1"
+                                   "--printing" "1"
+                                   "--zoom" "1.3"
+                                   (.getName file)
+                                   :dir (.getParent file)
+                                   :out-enc :bytes)]
+      (when-not (zero? exit)
+        (throw+ {:type ::conversion-failed :exit exit :out out :file file :err err}))
+
+      (.delete file)
+      (with-open [out (java.io.ByteArrayOutputStream.)]
+        (clojure.java.io/copy (clojure.java.io/input-stream out-file) out)
+        (.delete out-file)
+        (.toByteArray out)))))
+
+(defmulti thumbnail get-mimetype)
+
+(defmethod thumbnail "application/pdf" [data & _]
+  (let [{:keys [exit out err]} (shell/sh "pdftocairo" "-png" "-singlefile"
+                             "-scale-to" "800" "-" "-" :in data :out-enc :bytes)]
+    (when-not (zero? exit)
+      (throw+ {:type ::thumbnail-creation-failed :exit exit :out out :err err}))
+    {"image/png" out}))
