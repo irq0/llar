@@ -47,4 +47,4 @@
 
 (defstate infowarss
   :start (run-jetty #'infowarss-app {:port 7654 :join? false})
-  :stop infowarss)
+  :stop (.stop infowarss))

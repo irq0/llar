@@ -4,9 +4,8 @@
    [infowarss.postproc :as postproc]
    [infowarss.persistency :as persistency]
    [infowarss.couchdb :as couch]
-   [infowarss.core :refer [state]]
-   [infowarss.live.firebase :refer :all]
    [infowarss.live.common :refer :all]
+   [infowarss.live.firebase :refer :all]
    [hiccup.core :refer [html]]
    [schema.core :as s]
    [clj-time.core :as time]
@@ -21,6 +20,17 @@
 ;;;; Hacker News Firebase API live source
 
 (def hacker-news-base-url "https://hacker-news.firebaseio.com/v0/")
+
+(defn hn-item-to-string [item]
+  (format "[%s: %s/%s/%s/%s]"
+    (.getSimpleName (class item))
+    (str (get-in item [:meta :source]))
+    (if-not (nil? (get-in item [:summary :ts]))
+      (tc/to-string (get-in item [:summary :ts]))
+      "?")
+    (str (get-in item [:summary :title]))
+    (str (get-in item [:summary :url]))))
+
 
 (s/defrecord HackerNewsItem
     [meta :- schema/Metadata
@@ -73,16 +83,19 @@
         (str "https://news.ycombinator.com/item?id=" (get item "id"))]]]]))
 
 (defn make-hn-entry [item]
-  {:score (get item "score")
-   :author (get item "by")
-   :id (get item "id")
-   :pub-ts (tc/from-long (* 1000 (get item "time")))
-   :title (get item "title")
-   :type (keyword (get item "type"))
-   :url (io/as-url (get item "url"))
-   :hn-url (io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))
-   :contents {"text/plain" (str (get item "title") "\n"  (get item "text"))
-              "text/html" (hn-html-summary item)}})
+  (let [hn-url(io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))]
+    {:score (get item "score")
+     :author (get item "by")
+     :id (get item "id")
+     :pub-ts (tc/from-long (* 1000 (get item "time")))
+     :title (get item "title")
+     :type (keyword (get item "type"))
+     :url (if (some? (get item "url"))
+            (io/as-url (get item "url"))
+            hn-url)
+     :hn-url hn-url
+     :contents {"text/plain" (str (get item "title") "\n"  (get item "text"))
+                "text/html" (hn-html-summary item)}}))
 
 (s/defn get-hn-entry :- schema/HackerNewsEntry
   [id :- schema/PosInt]

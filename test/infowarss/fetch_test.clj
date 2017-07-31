@@ -3,6 +3,8 @@
    [infowarss.schema-test :as schema-test]
    [infowarss.src :as src]
    [infowarss.schema :as schema]
+   [infowarss.fetch.twitter :refer [htmlize-tweet-text]]
+   [infowarss.fetch.http :refer [fetch-http-generic]]
    [schema-generators.complete :as c]
    [schema-generators.generators :as g]
    [clojure.test.check.generators :as gen]

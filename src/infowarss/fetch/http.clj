@@ -1,5 +1,6 @@
 (ns infowarss.fetch.http
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
+            [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.schema :as schema]
             [twitter.api.restful :as twitter]
             [slingshot.slingshot :refer [throw+ try+]]
@@ -91,3 +92,8 @@
   infowarss.src.Http
   (fetch-source [src]
     [(fetch-http-generic src)]))
+
+(extend-protocol ItemProcessor
+  HttpItem
+  (post-process-item [item src state] item)
+  (filter-item [item src] false))

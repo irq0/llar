@@ -53,14 +53,86 @@ https://feedbin.com/apps
 ** Reeder
 
 * TASKS and IDEAS
-
-** Replace logging framework
+** diff
+https://github.com/scusack/diff-match-patch-clj
+** DONE add hacker news input
+https://firebase.google.com/docs/admin/setup
+https://github.com/HackerNews/API
+** DONE Replace logging framework
 - please no xml configuration
 
-** System (Component) design pattern?
+** DONE Add persistence layer
+** TODO System (Component) design pattern?
+[2017-04-11 Di] not yet, namespace.reload enaugh?
 
-** Add scheduler
+** DONE Add scheduler
+** DONE fever api
+** STRT Feedbin API
+** TODO email support
+- "wait for email from" -> sms notification
+- "drop duplicate emails"
+  - case: update notifications
+  - drop all but the first
+  - create org mode task
+** org mode
+- create org mode todos from incomming items
+- package upgrade mail -> org mode task with deadline
+** DONE streaming api: firebase
+- like hn or twitter
+** TODO world events gathering
+google news?
 
-** Feedbin API
-
-** Add persistence layer
+- find in all input steams (aggregators, newspapers, twitter)
+- what is reported on all channels
+- relate to another
+- report a event digest with multiple sources
+** TODO add email newsletters
+** TODO digest tool
+- combine items from single/multiple souces
+- by
+  - time (day, week, )
+  - topic
+** notifications
+-
+** naive bayes spam classifier for twitter
+- training
+  - long feeds of people i know
+  - obvious
+- features
+  - count of hashtags
+  - count of images
+  - size of attached image
+  -
+** database upgrade path
+- use version number in datastructure and provide upgrade function
+** TODO instagram
+https://www.instagram.com/developer/endpoints/tags/#get_tags_media_recent
+- qute dogs
+** classifieres: picutures
+daily dog pictures digest for nubinubs
+** DONE run software on janelane
+** aktienkuse
+** lwn last week parser
+** DONE reddit best
+** my own web api
+https://github.com/metosin/compojure-api
+** TODO fetch imap folders
+** TODO fetch notes
+** TODO fetch and self serve images
+- hash image url. keep files database local. seve with lightty?
+** TODO instapaper clone
+- submit something
+- put items into special category
+** TODO youtube feeds
+- add youtube links
+- download
+- make podcast feed out of??
+** TODO podcasts?
+** TODO document souce (for pdfs)
+- extract abstract
+- screenshot first page
+- download pdf, attach in couch
+** TODO change detection
+- website changed?
+- in a meaningful way?
+-  diff webpage

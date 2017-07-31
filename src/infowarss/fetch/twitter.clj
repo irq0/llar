@@ -1,12 +1,13 @@
 (ns infowarss.fetch.twitter
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
+            [infowarss.postproc :refer [ItemProcessor]]
+            [infowarss.persistency :refer [CouchItem convert-to-attachments]]
             [infowarss.schema :as schema]
+            [infowarss.analysis :as analysis]
             [twitter.api.restful :as twitter]
             [schema.core :as s]
             [clojure.java.io :as io]
             [clj-time.format :as tf]))
-
-
 
 (s/defrecord TweetItem
     [meta :- schema/Metadata
@@ -151,6 +152,24 @@
            :summary {:ts (get entry :pub-ts )
                      :title (tweet-title content)}
            :hash (make-item-hash
-                   (get entry :id)
+                   (first (get entry :authors))
                    content)
            :entry entry})))))
+
+(extend-protocol ItemProcessor
+  TweetItem
+  (post-process-item [item src state]
+    (-> item
+      (update :entry merge (:entry item) (analysis/analyze-entry (:entry item)))
+    ))
+  (filter-item [item src state] false))
+
+
+(extend-protocol CouchItem
+  TweetItem
+  (to-couch [item]
+    (-> item
+      convert-to-attachments
+      (assoc :type :tweet)
+      (dissoc :raw)
+      (assoc-in [:meta :source :oauth-creds] nil))))

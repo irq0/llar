@@ -27,48 +27,6 @@
   [& {:keys [post filter] :or {post [] filter (constantly false)}}]
   (Processing. post filter))
 
-;;; Item postprocessing protocol
-
-;; The ItemProcessor protocol allows processing hooks
-;; per item type
-
-(defn all-items-process [item src state]
-  (log/trace "All items processor" (str item))
-  (-> item
-    (update-in [:meta :tags] conj :unread)
-    (assoc-in [:meta :source-key] (:key state))))
-
-(defprotocol ItemProcessor
-  (post-process-item [item src state] "Postprocess item")
-  (filter-item [item src state] "Filter items"))
-
-(extend-protocol ItemProcessor
-  infowarss.fetch.FeedItem
-  (post-process-item [item src state]
-    (let [nlp (analysis/analyze-entry (:entry item))]
-      (-> item
-        (update :entry merge (:entry item) nlp))))
-  (filter-item [item src state]
-    (let [last-fetch (get state :last-successful-fetch-ts)
-          feed-pub (get-in item [:feed :pub-ts])]
-      (if-not (or (nil? last-fetch) (nil? feed-pub))
-        (do
-          (log/tracef "Filtering out item %s: older than last fetch"
-            (str item))
-          (time/before? feed-pub last-fetch))
-        false)))
-
-  infowarss.fetch.HttpItem
-  (post-process-item [item src state] item)
-  (filter-item [item src] false)
-
-  infowarss.fetch.TweetItem
-  (post-process-item [item src state]
-    (-> item
-      (update :entry merge (:entry item) (analysis/analyze-entry (:entry item)))
-    ))
-  (filter-item [item src state] false))
-
 
 ;;;; Postprocessing utility functions
 
@@ -133,6 +91,22 @@
          :score (Float/parseFloat score)})
       "")))
 
+;;; Item postprocessing protocol
+
+;; The ItemProcessor protocol allows processing hooks
+;; per item type
+
+(defn all-items-process [item src state]
+  (log/trace "All items processor" (str item))
+  (-> item
+    (update-in [:meta :tags] conj :unread)
+    (assoc-in [:meta :source-key] (:key state))))
+
+(defprotocol ItemProcessor
+  (post-process-item [item src state] "Postprocess item")
+  (filter-item [item src state] "Filter items"))
+
+
 ;;; Postprocessing utilities
 
 (defn- wrap-proc-fn [func]
@@ -143,7 +117,7 @@
         new)
       (catch Object  e
         (log/warn e "proc function failed")
-        args))))
+        nil))))
 
 (defn- apply-filter [item f]
   (if-not (nil? f)
@@ -176,6 +150,13 @@
           (str item)))
       processed)))
 
+(defn check-intermediate [item where]
+  (if (satisfies? ItemProcessor item)
+    item
+    (log/errorf "Processing pipeline failure after %s. Intermediate result garbage: %s %s"
+      where (type item) item)))
+
+
 (defn process-item
   "Postprocess and filter a single item"
   [feed state item]
@@ -195,11 +176,16 @@
 
     (let [processed (some-> item
                       (all-proc)
+                      (check-intermediate :all-proc)
                       (apply-filter
                         #(filter-item % src state))
+                      (check-intermediate :protocol-filter)
                       (proto-feed-proc)
+                      (check-intermediate :protocol-processor)
                       (apply-filter per-feed-filter)
-                      (per-feed-proc))]
+                      (check-intermediate :per-feed-filter)
+                      (per-feed-proc)
+                      (check-intermediate :per-feed-processor))]
       (when (nil? processed)
         (log/debugf "Filtered out: %s"
           (str item)))

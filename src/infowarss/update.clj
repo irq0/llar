@@ -1,18 +1,25 @@
 (ns infowarss.update
   (:require
-   [infowarss.core :refer [*srcs* state config]]
+   [infowarss.core :refer [*srcs* config]]
    [infowarss.fetch :as fetch]
    [infowarss.persistency :refer [store-items! duplicate?]]
    [infowarss.postproc :as proc]
+   [infowarss.converter :as converter]
    [clj-time.core :as time]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
    [hara.io.scheduler :as sched]
+   [mount.core :refer [defstate]]
+   [clojure.java.io :as io]
    [hara.time.joda]
    [taoensso.timbre.appenders.core :as appenders]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
+
+(defstate state
+  :start (atom (converter/read-edn-string (slurp (io/resource "state.edn"))))
+  :stop (spit (io/resource "state.edn") (prn-str @state)))
 
 (def src-state-template
   "New sources start with this template"

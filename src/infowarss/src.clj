@@ -78,6 +78,17 @@
     (io/as-url url)
     api-key))
 
+(s/defrecord GooseArticleExtractor
+    [url :- java.net.URL]
+  Object
+  (toString [src] (str "[GooseArticleExtractor: " (:url src) "]")))
+
+(s/defn goose :- GooseArticleExtractor
+  "Fetch URL using goose article extractor"
+  [url :- schema/NotEmptyStr]
+  (->GooseArticleExtractor
+    (io/as-url url)))
+
 (s/defrecord Document
     [url :- java.net.URL]
   Object
@@ -104,6 +115,28 @@
     (->Reddit
       subreddit
       (name feed))))
+
+(s/defrecord ImapMailbox
+    [uri :- java.net.URI
+     creds :- {:username schema/NotEmptyStr
+               :password schema/NotEmptyStr}]
+  Object
+  (toString [src] (format "[IMAP: %s]" (:uri src))))
+
+(s/defn imap :- ImapMailbox
+  "Fetch from IMAP Mailbox"
+  [uri-str :- schema/NotEmptyStr
+   creds :- {:username schema/NotEmptyStr
+             :password schema/NotEmptyStr}]
+
+  (let [uri (java.net.URI/create uri-str)]
+    (when-not (#{"imap" "imaps"} (.getScheme uri))
+      (throw+ {:type ::invalid-protocol :uri uri}))
+    (when (some? (.getQuery uri))
+      (throw+ {:type ::query-string-unsupported :uri uri}))
+    (->ImapMailbox
+      uri
+      creds)))
 
 ;;; Live
 

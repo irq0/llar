@@ -10,6 +10,7 @@
             [infowarss.schema-test :as schema-test]
             [slingshot.slingshot :refer [throw+ try+]]
             [infowarss.fetch :as fetch]
+            [infowarss.fetch.feed :as feed]
             [schema.core :as s]
             [clojure.string :as string]
             [cheshire.core :as json]
@@ -23,7 +24,7 @@
 
 
 (def demo-item
-  (fetch/map->FeedItem
+  (feed/map->FeedItem
   {:hash (str "SHA-256:" (digest/sha-256 "Example"))
    :meta {:app "infowarss.test"
           :fetch-ts (time/now)
@@ -61,7 +62,7 @@
       (catch [:status 409] _ nil))
     ;; Insert some generated entries and the demo above
     (reset! demo-item-id (first (persistency/store-items! [demo-item])))
-    (reset! generated-item-ids (persistency/store-items! (g/sample 42 infowarss.fetch.FeedItem schema-test/leaf-generators)))
+    (reset! generated-item-ids (persistency/store-items! (g/sample 42 infowarss.fetch.feed.FeedItem schema-test/leaf-generators)))
     (f)
     (couch/clear-db!)))
 

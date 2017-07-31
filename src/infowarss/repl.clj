@@ -1,9 +1,9 @@
 (ns infowarss.repl
   (:require
-   [infowarss.core :as core :refer [*srcs* state config]]
+   [infowarss.core :as core :refer [*srcs* config]]
    [infowarss.persistency :as persistency :refer [store-items! duplicate?]]
    [infowarss.couchdb :as couch]
-   [infowarss.update :refer :all]
+   [infowarss.update :refer :all :as update]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
    [infowarss.fetch :as fetch]
@@ -21,11 +21,13 @@
    [table.core :refer [table]]
    [clojure.java.io :as io]
    [clojure.string :as string]
+   [infowarss.fetch.twitter]
    [postal.core :as postal]
    [schema.core :as s]
    [cheshire.core :as json]
    [twitter.oauth :as twitter-oauth]
    [twitter.api.restful :as twitter]
+   [clojure.xml :as xml]
    [clojure.java.shell :as shell]
    [opennlp.nlp :as nlp]
    [clojure.core.async :refer [>!! <!!] :as async]
@@ -60,12 +62,14 @@
     format-interval
     (str " ago")))
 
+(defn- get-state [k]
+  (if (instance? clojure.lang.Atom (get @update/state k))
+    @(get @update/state k) (get @update/state k)))
+
 (defn- human-src
   "Extract interesting informations from source data structure"
   [[k v]]
-  (let [state (if (instance? clojure.lang.Atom (get @state k))
-                @(get @state k) (get @state k))
-
+  (let [state (get-state k)
         base (cond->
                  {:key k
                   :name (str (get v :src))
@@ -84,8 +88,18 @@
 
 (defn sources
   "Return list of sources for human consumption"
+  [& {:keys [by-state]}]
+  (let [srcs (cond->> *srcs*
+               (keyword? by-state) (filter (fn [[k v]] (= (:status (get-state k)) by-state))))]
+    (map human-src srcs)))
+
+(defn failed-sources
+  "Return list of sources for human consumption"
   []
-  (map human-src *srcs*))
+  (concat
+    (sources :by-state :temp-fail)
+    (sources :by-state :perm-fail)
+    (sources :by-state :failed)))
 
 (defn- human-feed-item [i]
   {:src-title (get-in i [:source :title])
@@ -108,6 +122,18 @@
   (get-in *srcs* [key :src]))
 
 
+(defn get-feeds
+  []
+  (let [dbfs (couch/get-feeds)
+        confs *srcs*]
+    (into {}
+      (for [dbf dbfs]
+        [(get dbf :source-key)
+         (merge dbf (get confs (get dbf :source-key)))]))))
+
+
+
+
 ;;; Preview - Try out filters, processing, fetch
 
 (defn preview
@@ -126,18 +152,181 @@
                       (not skip-postproc) (proc/process {:src src
                                                          :proc postproc} {}))]
 
-      (log/infof "Preview of %s: fetched: %d, limit: %d, after processing: %d"
+      (log/infof "Preview of %s: fetched: %s, limit: %s, after processing: %s"
         (str src) (count fetched) limit (count processed))
       processed)
 
-    (catch Object _
-      (log/errorf "Error fetching %s: %s" (str src)  (:message &throw-context))
+    (catch Object e
+      (log/error e "Error fetching " (str src))
       (:message &throw-context))))
+
+
+(comment
+  (->> yt first :raw :foreign-markup (some #(when (= (.getName %) "group") %))))
+
+(defn youtube-media [dom]
+  (->> dom
+    .getChildren
+    (map (fn [x] [(keyword (.getName x))
+                  (or (.getAttributeValue x "url") (.getText x))]))))
+
+;;.getChildren (map (fn [x] [(keyword (.getName x)) (or (.getAttributeValue x "url") (.getText x))]))))
+
 
 ;;; Update Scheduling
 
 
 ;;; Toy around area
+
+
+;; TODO mydealz
+
+
+(defn mydealz-extract-extra [item]
+  (let [raw (:raw item)
+        merchant (->> raw
+                   :foreign-markup
+                   (some #(when (= (.getName %) "merchant") %)))]
+  (-> item
+    (assoc-in [:entry :merchant] (some-> merchant (.getAttribute "name") .getValue))
+    (assoc-in [:entry :price] (some-> merchant (.getAttribute "price") .getValue)))))
+
+
+
+
+(comment
+  (def foo (preview (src/feed "https://www.mydealz.de/rss/alle") :limit 1))
+;;  (-> foo first :raw :foreign-markup first .getName) = merchant:
+
+  (-> foo first :raw :foreign-markup first (.getAttribute "name") .getValue)
+  (-> foo first :raw :foreign-markup first (.getAttribute "price") .getValue)
+
+  )
+;;  filter by categories, price, merchant
+;; amazon
+
+
+
+;; WIP: youtube dl music as mp3
+
+
+;;; move to couch someday
+
+(defn update-tags
+  [id f]
+  (couch/swap-document! id
+    (fn [doc] (update-in doc [:meta :tags] f))))
+
+(defn remove-tag
+  [id tag]
+  (update-tags id (fn [m] (-> m set (disj tag)))))
+
+(defn set-tag
+  [id tag]
+  (update-tags id (fn [m] (-> m (conj tag) set))))
+
+
+(defn youtube-dl-music [url]
+  (let [{:keys [exit out err]} (shell/sh
+                                 "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
+                                 "youtube-dl"
+                                 "--no-progress"
+                                 "-f" "bestaudio"
+                                 "--extract-audio"
+                                 "--ignore-errors"
+                                 "--audio-format" "mp3"
+                                 "--audio-quality" "320"
+                                 url
+                                 :dir "/tank/media/Music/Miner")
+        youtube-err (second (re-find #"ERROR: (.+)" err))]
+    (log/trace "Youtube-dl OUT: " out)
+    (log/trace "Youtube-dl ERR: " err)
+    (cond (zero? exit)
+          (let [[_ out-filename] (re-find #"Destination:\s(.+\.mp3)" out)]
+            out-filename)
+          (some? youtube-err)
+          (throw+ {:type :youtube-error :msg youtube-err})
+          :else
+          (throw+ {:type :error :stderr err :stdout out :exit exit}))))
+
+(defn youtube-dl-video [url]
+  (let [{:keys [exit out err]} (shell/sh
+                                 "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
+                             "youtube-dl"
+                             "--format" "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                             "--recode-video" "mp4"
+                             "--embed-subs"
+                             "--embed-thumbnail"
+                             url
+                             :dir "/tank/scratch/youtube-dl")
+        youtube-err (second (re-find #"YouTube said: (.+)$ err"))]
+    (log/trace "Youtube-dl OUT: " out)
+    (log/trace "Youtube-dl ERR: " err)
+    (if (zero? exit)
+      (let [[_ out-filename] (re-find #"Destination:\s(.+\.mp4)" out)]
+        out-filename)
+      (log/error "Youtube-dl error: " youtube-err))))
+
+
+
+(defn music-links []
+  (let [music-feeds (filter #(contains? (:tags (val %)) :music) (get-feeds))]
+    (apply concat
+      (for [[k feed] music-feeds]
+        (let [ids (couch/query-ids {:meta {:source-key (:source-key feed)
+                                           :tags {"$not" {"$elemMatch" {"$eq" "music-mined"}}}}
+                                    :entry {:url {"$regex" (str #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$")}}})]
+          (for [id ids]
+            [id (get-in (couch/get-document id) [:entry :url])]))))))
+
+(defn music-miner []
+  (doseq [[id url] (music-links)]
+    (try+
+      (let [filename (youtube-dl-music url)]
+        (log/info "Music Miner downloaded: " filename)
+        (log/debug "Music mined" id)
+        (set-tag id "music-mined")
+        (remove-tag id "unread"))
+      (catch [:type :youtube-error] {:keys [msg]}
+        (set-tag id "music-mined")
+        (set-tag id "music-miner-failed")
+        (remove-tag id "unread")
+        (log/errorf "Music miner failed for \"%s\": %s" url msg))
+      (catch Object e
+        (log/error e "Unexpected error")))))
+
+
+
+(defn podcast-item [filename]
+  (let [file (io/as-file filename)
+        size (.length file)
+        meta (pantomime.extract/parse file)
+        mime-type (pantomime.mime/mime-type-of file)]
+    (string/join "\n"
+      ["<item>"
+       (format "<title><![CDATA[%s]]</title>" (first (:title meta)))
+       "<link></link"
+       (format "<description><![CDATA[%s]]</description>" (:text meta))
+       (format "<enclosure url=\"http://10.23.1.23:7654%s\" length=\"%s\" type=\"%s\" />"
+         (str "/files/videos/" (.getName file)) size mime-type)
+       "</item>"])))
+
+(defn podcast-feed [directory]
+  (let [path (io/as-file directory)
+        files (seq (.list path (reify java.io.FilenameFilter
+                                 (^boolean accept [_ ^java.io.File dir ^String name]
+                                  (some? (re-find #".+\.mp4" name))))))]
+    (string/join "\n"
+      (concat
+        ["<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss version=\"2.0\""
+         "xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\""
+         "<channel>"
+         "<title>infowarss podcast feed</title>"
+         "<description>All the extracted videos!!1111!1!elf</description>"
+         "<generator>infowarss</generator>"]
+        (map #(podcast-item (str directory "/" %)) files)))))
+
+
 
 (comment
   (defonce jetty (run-jetty #'webapp/fever-app {:port 8765 :join? false}))
@@ -165,7 +354,7 @@
     (twitter/statuses-home-timeline
       :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics)))
     :body
-    (map fetch/tweet-to-entry)
+    (map infowarss.fetch.twitter/tweet-to-entry)
     (map #(merge % (analysis/analyze-entry %)))))
 
 (defn my-following-list []
@@ -182,7 +371,7 @@
       :params {:count 200
                :screen_name user})
     :body
-    (map fetch/tweet-to-entry)
+    (map infowarss.fetch.twitter/tweet-to-entry)
     (map #(merge % (analysis/analyze-entry %)))))
 
 (def lang-to-n

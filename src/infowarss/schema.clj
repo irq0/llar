@@ -39,8 +39,8 @@
   (s/constrained s/Str
     (partial tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy"))))
 
-(defschema FeverIntList
-  (s/constrained s/Str (partial re-matches #"(\d+(,\d+)*)?")))
+(def FeverIntList s/Str)
+;; Failes on big strings  (s/constrained s/Str (partial re-matches #"(\d+(,\d+)*)?")))
 
 (defschema FeverImageData
   (s/constrained s/Str #(.startsWith % "image/gif;base64;")))
@@ -129,7 +129,7 @@
 (defschema MercuryEntry
   {:url (s/maybe java.net.URL)
    :lead-image-url (s/maybe java.net.URL)
-   :mext-page-url (s/maybe java.net.URL)
+   :next-page-url (s/maybe java.net.URL)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :title s/Str
    :authors [s/Str]
@@ -166,6 +166,27 @@
               (s/optional-key "text/html") s/Str}
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
+(defschema MailEntry
+  {:title s/Str
+   :id s/Str
+   :authors [s/Str]
+   :received-ts (s/maybe org.joda.time.DateTime)
+   :sent-ts (s/maybe org.joda.time.DateTime)
+   :contents {(s/required-key "text/plain") (s/maybe s/Str)
+              (s/optional-key "text/html") s/Str}
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
+
+
+(defschema GooseEntry
+  {:url (s/maybe java.net.URL)
+   :title s/Str
+   :authors [s/Str]
+   :put-ts (s/maybe org.joda.time.DateTime)
+   :lead-image-url (s/maybe java.net.URL)
+   :contents {(s/required-key "text/plain") (s/maybe s/Str)
+              (s/optional-key "text/html") s/Str}
+   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
+   :entities {:movies (s/maybe [java.net.URL])}})
 
 ;;; Twitter API (incoming)
 

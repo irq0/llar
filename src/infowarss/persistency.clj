@@ -9,10 +9,7 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.generate :refer [add-encoder encode-map]]
    [pantomime.mime :as pm]
-   [clojure.string :as string])
-  (:import [java.util.Base64.Encoder]
-           [infowarss.fetch FeedItem TweetItem]
-           ))
+   [clojure.string :as string]))
 
 ;;;; Persist *Items to couchdb
 
@@ -26,6 +23,10 @@
   (fn [dt jg]
     (.writeString jg (str dt))))
 
+(add-encoder java.net.URI
+  (fn [dt jg]
+    (.writeString jg (str dt))))
+
 ;;; Item -> Persistency abstraction
 ;;; Split into two parts:
 ;;; CouchItem proto: Convert item to couchdb document
@@ -33,6 +34,8 @@
 
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))
+
+;;; Attachment Converter
 
 (defn extension-for-mimetype [m]
   (let [by-mime (pm/extension-for-name m)]
@@ -61,22 +64,7 @@
         (assoc-in [:entry :thumbs] nil)
         (assoc "_attachments" (merge contents descriptions thumbs)))))
 
-(extend-protocol CouchItem
-  FeedItem
-  (to-couch [item]
-    (-> item
-      convert-to-attachments
-      (assoc :type :feed)
-      (dissoc :raw)))
-
-  TweetItem
-  (to-couch [item]
-    (-> item
-      convert-to-attachments
-      (assoc :type :tweet)
-      (dissoc :raw)
-      (assoc-in [:meta :source :oauth-creds] nil))))
-
+;;; Write functions
 
 (defn duplicate? [item]
   (let [resp (couch/lookup-hash (:hash item))]

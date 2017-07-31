@@ -58,29 +58,30 @@
                    :headers {:x-api-key api-key}
                    :query-params {:url url}})]
       (:body resp))
-    (catch (not= 200 (get % :status))
-        {:keys [headers body status]}
-      (log/errorf "Client error probably due to broken request (%s): %s %s"
-        status headers body)
-      (throw+ {:type ::request-error}))
     (catch Object _
-      (log/error "Unexpected error: " (:throwable &throw-context))
-      (throw+ {:type ::unexpected-error}))))
+      (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
+      (throw+))))
 
 (extend-protocol fetch/FetchSource
   infowarss.src.MercuryWebParser
   (fetch-source [src]
     (let [mercu (mercury-get (:url src) (:api-key src))
-          pub-ts (tc/from-string (:date_published mercu))]
+          pub-ts (tc/from-string (:date_published mercu))
+          title (cond
+                  (string? (:title mercu)) (:title mercu)
+                  (vector? (:title mercu)) (first :title mercu)
+                  :else "")]
+
+
       [(->MercuryItem
         (fetch/make-meta src)
-        {:ts pub-ts :title (:title mercu)}
+        {:ts pub-ts :title title}
         (fetch/make-item-hash (:content mercu))
         {:url (io/as-url (:url mercu))
          :lead-image-url (io/as-url (:lead_image_url mercu))
          :next-page-url (io/as-url (:next_page_url mercu))
          :pub-ts pub-ts
-         :title (:title mercu)
+         :title title
          :authors [(or (:author mercu) (:domain mercu))]
          :descriptions {"text/plain" (:excerpt mercu)}
          :contents {"text/html" (:content mercu)

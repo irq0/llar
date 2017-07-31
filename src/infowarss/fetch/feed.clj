@@ -1,6 +1,9 @@
 (ns infowarss.fetch.feed
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
+            [infowarss.postproc :refer [ItemProcessor]]
+            [infowarss.persistency :refer [CouchItem convert-to-attachments]]
             [infowarss.fetch.http :refer [fetch-http-generic]]
+            [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
             [infowarss.src :as src]
@@ -12,6 +15,7 @@
             [clj-rome.reader :as rome]
             [hickory.render :as hick-r]
             [clojure.java.io :as io]
+            [clj-time.core :as time]
             [clj-time.format :as tf]
             [clj-time.coerce :as tc]))
 
@@ -27,7 +31,7 @@
   (toString [item] (item-to-string item)))
 
 
-(defn- extract-feed-authors
+(defn extract-feed-authors
   "Extract feed author from rome feed item"
   [authors]
   (for [{:keys [name email]} authors]
@@ -38,7 +42,7 @@
         (str " <" email ">")))))
 
 
-(defn- extract-feed-description
+(defn extract-feed-description
   "Extract feed description from rome reed item"
   [description]
   (if (= (:type description) "text/html")
@@ -117,6 +121,8 @@
               base-entry {:updated-ts (some-> re :updated-date tc/from-date)
                           :pub-ts (some-> re :published-date tc/from-date)
                           :url contents-url
+                          :categories (some->> re :categories
+                                        (map :name) (remove nil?))
                           :title (-> re :title)}]
           (map->FeedItem
             (-> http-item
@@ -131,3 +137,28 @@
                               (:title re) (:link re))
                       :summary {:ts timestamp
                                 :title (:title re)}}))))))))
+
+
+(extend-protocol ItemProcessor
+  FeedItem
+  (post-process-item [item src state]
+    (let [nlp (analysis/analyze-entry (:entry item))]
+      (-> item
+        (update :entry merge (:entry item) nlp))))
+  (filter-item [item src state]
+    (let [last-fetch (get state :last-successful-fetch-ts)
+          feed-pub (get-in item [:feed :pub-ts])]
+      (if-not (or (nil? last-fetch) (nil? feed-pub))
+        (do
+          (log/tracef "Filtering out item %s: older than last fetch"
+            (str item))
+          (time/before? feed-pub last-fetch))
+        false))))
+
+(extend-protocol CouchItem
+  FeedItem
+  (to-couch [item]
+    (-> item
+      convert-to-attachments
+      (assoc :type :feed)
+      (dissoc :raw))))

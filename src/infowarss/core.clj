@@ -8,6 +8,7 @@
    [hiccup.core :refer [html]]
    [clj-time.coerce :as tc]
    [infowarss.postproc :as proc]
+   [clojure.string :as string]
    [hara.io.scheduler :as sched]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -74,20 +75,26 @@
   (fn [item]
     (let [site (some-> item :entry :url .getHost)
           score (get-in item [:entry :score])
-          title (get-in item [:summary :title])
+          title (some-> (get-in item [:summary :title]) string/lower-case)
           type (get-in item [:entry :type])]
       (not
         (or
           (and (= :story type)
             (>= score min-score))
           (and (= :story type)
-            (re-find #"clojure" title)
+            (re-find #"clojure|lisp|book|alan kay" title)
             (>= score min-score-match))
           (and
             (some? site)
             (re-find #"theatlantic|medium|youtube|nytimes|theguardian|washingtonpost|99percentinvisible|theverge|phys.org|bbc.com"
               site)
             (>= score min-score-match)))))))
+
+(defn make-category-filter [blacklist]
+  (fn [item]
+    (let [has (some-> item :entry :categories set)]
+      (>= (count (clojure.set/intersection has (set blacklist))) 1))))
+
 
 (defn make-reddit-proc [min-score]
   (proc/make
@@ -172,7 +179,7 @@
                                    [:entry :descriptions]
                                    [:entry :contents])])
                   :cron cron-daily}
-   :joe-duffy {:src (src/feed "http://joeduffyblog.com/feed.xml")
+   :joe-duffy {:src (src/feed "http://joeduffyblog.com/feed.xml" :deep? true)
                :cron cron-daily}
 
    :aphyr {:src (src/feed "https://aphyr.com/posts.atom")
@@ -234,10 +241,10 @@
                   :tags #{:reddit}
                   :proc (make-reddit-proc 300)}
 
-   :reddit-lifeprotips {:src (src/reddit "LifeProTips" :hot)
+   :reddit-lifeprotips {:src (src/reddit "LifeProTips" :top)
                         :cron cron-daily
                         :tags #{:reddit}
-                        :proc (make-reddit-proc 300)}
+                        :proc (make-reddit-proc 100)}
 
 
    :reddit-depthhub {:src (src/reddit "DepthHub" :hot)
@@ -255,15 +262,10 @@
                                 :tags #{:reddit}
                                 :proc (make-reddit-proc 1000)}
 
-   :reddit-todayilearned {:src (src/reddit "todayilearned" :hot)
-                          :cron cron-daily
-                          :tags #{:reddit}
-                          :proc (make-reddit-proc 2000)}
-
    :reddit-clojure {:src (src/reddit "Clojure" :hot)
                     :cron cron-daily
                     :tags #{:reddit}
-                    :proc (make-reddit-proc 80)}
+                    :proc (make-reddit-proc 40)}
 
    :reddit-listentothis {:src (src/reddit "listentothis" :hot)
                          :cron cron-daily
@@ -278,17 +280,109 @@
    :reddit-europe {:src (src/reddit "europe" :top)
                     :cron cron-daily
                     :tags #{:reddit}
-                    :proc (make-reddit-proc 300)}
+                   :proc (make-reddit-proc 300)}
+
+   :reddit-photoshopbattles {:src (src/reddit "photoshopbattles" :hot)
+                             :cron cron-daily
+                             :tags #{:reddit}
+                             :proc (make-reddit-proc 100)}
+
+   :reddit-educationalgifs {:src (src/reddit "educationalgifs" :hot)
+                            :cron cron-daily
+                            :tags #{:reddit}
+                            :proc (make-reddit-proc 1000)}
+
+   :reddit-iwanttolearn {:src (src/reddit "IWantToLearn" :hot)
+                         :cron cron-daily
+                         :tags #{:reddit}
+                         :proc (make-reddit-proc 100)}
+
+   :reddit-getdisciplined {:src (src/reddit "getdisciplined" :hot)
+                           :cron cron-daily
+                           :tags #{:reddit}
+                           :proc (make-reddit-proc 100)}
+   :reddit-Foodforthought {:src (src/reddit "Foodforthought" :hot)
+                           :cron cron-daily
+                           :tags #{:reddit}
+                           :proc (make-reddit-proc 200)}
+
+   :reddit-ifyoulikeblank {:src (src/reddit "ifyoulikeblank" :top)
+                           :cron cron-daily
+                           :tags #{:reddit}
+                           :proc (make-reddit-proc 5)}
+
+   :reddit-dataisbeautiful {:src (src/reddit "dataisbeautiful" :top)
+                            :cron cron-daily
+                            :tags #{:reddit}
+                            :proc (make-reddit-proc 20)}
+
+   :reddit-postrock {:src (src/reddit "postrock" :hot)
+                     :cron cron-daily
+                     :tags #{:reddit :music}
+                     :proc (make-reddit-proc 6)}
+
+   :reddit-albumaday {:src (src/reddit "albumaday" :hot)
+                      :cron cron-daily
+                      :tags #{:reddit :music}
+                      :proc (make-reddit-proc 10)}
+
+   :reddit-albumoftheday {:src (src/reddit "Albumoftheday" :top)
+                          :cron cron-daily
+                          :tags #{:reddit :music}
+                          :proc (make-reddit-proc 5)}
+
+   :reddit-listentoconcerts {:src (src/reddit "listentoconcerts" :top)
+                             :cron cron-daily
+                             :tags #{:reddit :music}
+                             :proc (make-reddit-proc 5)}
+   :reddit-indie {:src (src/reddit "indie" :hot)
+                  :cron cron-daily
+                  :tags #{:reddit :music}
+                  :proc (make-reddit-proc 5)}
+
+   :reddit-rock {:src (src/reddit "rock" :hot)
+                 :cron cron-daily
+                 :tags #{:reddit :music}
+                 :proc (make-reddit-proc 5)}
+
+   :muspy {:src (src/feed "https://muspy.com/feed?id=1ub5u1nk72w26hnpeiyfuvto9owxfd")
+           :cron cron-daily
+           :tags #{:music}}
+
+   :mydealz-hot {:src (src/feed "https://www.mydealz.de/rss")
+                 :cron cron-daily
+                 :tags #{:shopping}
+                 :proc (proc/make
+                         :filter (make-category-filter ["Handys &amp; Tablets" "Home &amp; Living" "Fashion &amp; Accessoires"])
+                         :post [(fn [item]
+                                  (let [raw (:raw item)
+                                        merchant (->> raw
+                                                   :foreign-markup
+                                                   (some #(when (= (.getName %) "merchant") %)))]
+                                    (-> item
+                                      (assoc-in [:entry :merchant] (some-> merchant (.getAttribute "name") .getValue))
+                                      (assoc-in [:entry :price] (some-> merchant (.getAttribute "price") .getValue)))))])}
+
+   :humblebundle {:src (src/feed "http://blog.humblebundle.com/rss")
+                  :proc (proc/make
+                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                  :cron cron-daily
+                  :tags #{:shopping}}
+
+;; TODO   :metacritic {:src (src/feed "http://www.metacritic.com/rss/music"
+
+   :vice {:src (src/feed "https://www.vice.com/en_us/rss")
+          :cron cron-daily}
 
    :hn-top {:src (src/hn "topstories" :throttle-secs (* 23 60))
             :proc (proc/make
                     :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]
-                    :filter (make-hacker-news-filter 600 200))}
+                    :filter (make-hacker-news-filter 300 150))}
 
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
              :proc (proc/make
                      :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]
-                     :filter (make-hacker-news-filter 500 200))}
+                     :filter (make-hacker-news-filter 300 150))}
 
    :xkcd {:src (src/feed "https://xkcd.com/rss.xml")
           :proc (proc/make
@@ -317,6 +411,17 @@
 
    :fail {:src
           (src/feed "http://irq0.org/404")}
+
+   :newsletter-mailbox {:src (src/imap "imap://mail.cpu0.net/NEWSLETTER" (:imap creds))
+                        :cron cron-daily}
+
+   :pocoo-lucumr {:src (src/feed "http://lucumr.pocoo.org/feed.atom")
+                  :cron cron-daily}
+
+
+   :yt-kirstenlepore {:src (src/feed "https://www.youtube.com/user/kirstenlepore")
+                      :cron cron-daily}
+
 
    :bookmark {:src nil
               :tags #{:bookmark}}
