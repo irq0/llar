@@ -174,7 +174,8 @@
   (let [feeds (db-feeds-with-config)]
     {:group_id (fever-group-id-for-tag :special)
      :feed_ids (string/join ","
-                 [(fever-feed-id (:bookmark feeds)) (fever-feed-id (:document feeds))])}))
+                 [(fever-feed-id (:bookmark feeds))
+                  (fever-feed-id (:document feeds))])}))
 
 (s/defn time-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all speicla feeds (e.g bookmarks)"
@@ -189,10 +190,11 @@
   "Return feeds_groups array"
   []
   [(all-feeds-group)
-   (tag-feeds-group :jobs) (tag-feeds-group :personal) (tag-feeds-group :events) (tag-feeds-group :reddit) (tag-feeds-group :comics)
+   (tag-feeds-group :jobs) (tag-feeds-group :personal) (tag-feeds-group :events)
+   (tag-feeds-group :reddit) (tag-feeds-group :comics) (tag-feeds-group :music)
    (special-feeds-group)
-;;   (time-feeds-group)
-   (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
+   ;;   (time-feeds-group)
+   (type-feeds-group :mail) (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
   "Return feed groups"
@@ -209,10 +211,14 @@
              :title "Reddit"}
             {:id (fever-group-id-for-tag :comics)
              :title "Comics"}
+            {:id (fever-group-id-for-tag :music)
+             :title "Music"}
             {:id (fever-group-id-for-tag :type-tweet)
              :title "Twitter"}
             {:id (fever-group-id-for-tag :type-link)
              :title "Links"}
+            {:id (fever-group-id-for-tag :type-mail)
+             :title "Mails"}
             {:id (fever-group-id-for-tag :special)
              :title "[Special]"}
             ;; {:id (fever-group-id-for-tag :nwords)
