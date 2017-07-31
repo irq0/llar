@@ -306,7 +306,7 @@
 
   {:id (fever-item-id (:_id doc))
    :feed_id (fever-feed-id feed-info)
-   :title (or (-> doc :summary :title) "")
+   :title (str (or (-> doc :summary :title) ""))
    :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
    :html (get-html-content doc)
    :url (-> doc :entry :url str)
