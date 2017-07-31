@@ -459,28 +459,33 @@
   [req]
   (let [op (extract-op req)
         params (:params req)]
-    (s/with-fn-validation
-      (log/debugf "[Fever API] OP: %s params: %s query-string: %s"
-        op params (:query-string req))
+    (log/debugf "[Fever API] OP: %s params: %s query-string: %s"
+      op params (:query-string req))
+    (try+
       (let [response (condp = op
-                       :groups (groups)
-                       :feeds (feeds)
-                       :items (items :since
-                                (swallow-exceptions (Long/parseLong (get params :since_id)))
-                                :max
-                                (swallow-exceptions (Long/parseLong (get params :max_id)))
-                                :with
-                                (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params :with_ids)))))
-                       :links (links)
-                       :favicons (favicons)
-                       :unread_item_ids (unread-item-ids)
-                       :saved_item_ids (saved-item-ids)
-                       nil (when (contains? (:params req) :id) (handle-write-op req))
-                       {})]
-        (log/tracef "[Fever API] OP: %s response: %s"
-          op (into {} (map (fn [[k v]] [k (if (number? v) v
-                                              (format "%s: n=%s" (type v) (count v)))]) response)))
-        response))))
+                         :groups (groups)
+                         :feeds (feeds)
+                         :items (items :since
+                                  (swallow-exceptions (Long/parseLong (get params :since_id)))
+                                  :max
+                                  (swallow-exceptions (Long/parseLong (get params :max_id)))
+                                  :with
+                                  (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params :with_ids)))))
+                         :links (links)
+                         :favicons (favicons)
+                         :unread_item_ids (unread-item-ids)
+                         :saved_item_ids (saved-item-ids)
+                         nil (when (contains? (:params req) :id) (handle-write-op req))
+                         {})]
+          (log/tracef "[Fever API] OP: %s response: %s"
+            op (into {} (map (fn [[k v]] [k (if (number? v) v
+                                                (format "%s: n=%s" (type v) (count v)))]) response)))
+          response)
+      (catch [:type :schema.core/error] {:keys [schema value]}
+        (log/error (:throwable &throw-context) "Broken response, schema:" schema)
+        (log/trace "Value of broken response" value))
+      (catch Object e
+        (log/error e "Broken response for OP" op)))))
 
 
 (defn fever-api
