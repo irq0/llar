@@ -41,6 +41,11 @@
           hash (digest/sha-256 data)]
       (Long/parseUnsignedLong (subs hash 0 8) 16))))
 
+(defn get-feed-by-fever-feed-id
+  "Get feed by fever feed id"
+  [id]
+  (some #(when (= (fever-feed-id %) id) %) (couch/get-feeds)))
+
 (defn fever-group-id-for-tag
   "Convert infowarss feed id to fever compatible id"
   [tag]
@@ -399,13 +404,11 @@
   (modify-tags id (fn [m] (-> m (conj tag) set))))
 
 (defn modify-tags-for-feed [feed-id tag f]
-  (let [couch-ids (couch/doc-ids-with-tag tag)]
-    (doseq [id couch-ids
-            :let [doc (couch/get-document id)
-                  cur-feed-id (fever-feed-id (:meta doc))]]
-      (when (= feed-id cur-feed-id)
-        (couch/swap-document! id
-          (fn [old] (update-in old [:meta :tags] f)))))))
+  (let [feed (get-feed-by-fever-feed-id feed-id)
+        couch-ids (couch/unread-docs-by-src-ids (:source-name feed))]
+    (doseq [id couch-ids]
+      (couch/swap-document! id
+        (fn [old] (update-in old [:meta :tags] f))))))
 
 (defn mark-feed-read [feed-id]
   (log/debugf "[Fever API] marking feed %s as read" feed-id)

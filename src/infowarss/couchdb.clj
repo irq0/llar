@@ -312,3 +312,7 @@
   [group]
   (map :id
     (couch/get-view (couch-url) "lookup" "word_count" {:reduce false :key group})))
+
+(defn unread-docs-by-src-ids
+  [src]
+  (map :id (couch/get-view (couch-url) "lookup" "by-src-unread" {:key src :reduce false})))
