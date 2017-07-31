@@ -110,7 +110,9 @@
 
 (defmethod print-method java.lang.Object
   [v ^java.io.Writer w]
-  (.write w "#object nil"))
+  (.write w "#object \"")
+  (.write w (str v))
+  (.write w "\""))
 
 (defrecord TaggedValue [tag value])
 

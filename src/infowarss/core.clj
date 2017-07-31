@@ -1,8 +1,6 @@
 (ns infowarss.core
   (:require
    [taoensso.timbre :as log]
-   [taoensso.timbre.appenders.core :as appenders]
-   [taoensso.timbre.appenders.3rd-party.rotor]
    [infowarss.src :as src]
    [infowarss.converter :as converter]
    [clj-time.periodic :refer [periodic-seq]]
@@ -18,45 +16,15 @@
 
 ;;;; Core configuration and data structures
 
-;;; Logger
-
-(log/merge-config!
-  {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
-                           {:path "/tmp/inforwarss_all.log"})}})
-
-(log/merge-config!
-  {:ns-blacklist  ["org.apache.http.*"
-                   "org.eclipse.jetty.io.*"
-                   "org.eclipse.jetty.http.*"
-                   "org.eclipse.jetty.server.*"
-                   "org.apache.pdfbox.io.*"
-                   "com.ning.http.client.providers.netty.handler.*"
-                   "com.ning.http.client.providers.netty.channel.*"
-                   ]
-   :level :trace})
-
-(log/merge-config!
-  {:appenders {:spit (assoc (appenders/spit-appender
-                              {:fname "/tmp/inforwarss_info.log"})
-                       :min-level :info)}})
-
-(log/merge-config!
-  {:appenders {:println {:min-level :error
-                         :stream :std-err}}})
-
-;;; Config
-(defstate config :start (edn/read-string (slurp (io/resource "config.edn"))))
-(defstate creds :start (edn/read-string (slurp (io/resource "credentials.edn"))))
-(defstate state
-  :start (converter/read-edn-string (slurp (io/resource "state.edn")))
-  :stop (spit (io/resource "state.edn") (prn-str state)))
+;;; config
+(def config (edn/read-string (slurp (io/resource "config.edn"))))
+(def creds (edn/read-string (slurp (io/resource "credentials.edn"))))
 
 
 ;;; Sources
 
 (def cron-hourly "23 42 * * * * *")
 (def cron-daily "0 42 23 * * * *")
-
 
 ;;; Bookmarks
 
