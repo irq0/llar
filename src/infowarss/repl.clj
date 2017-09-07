@@ -21,6 +21,7 @@
    [table.core :refer [table]]
    [clojure.java.io :as io]
    [clojure.string :as string]
+   [clojure.zip :as zip]
    [infowarss.fetch.twitter]
    [postal.core :as postal]
    [schema.core :as s]
@@ -30,6 +31,10 @@
    [clojure.xml :as xml]
    [clojure.java.shell :as shell]
    [opennlp.nlp :as nlp]
+   [hickory.core :as hick]
+   [hickory.select :as hick-s]
+   [hickory.render :as hick-r]
+   [hickory.zip :as hick-z]
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.namespace.repl :refer [refresh]]
    [taoensso.timbre.appenders.core :as appenders]))
