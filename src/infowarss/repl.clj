@@ -406,8 +406,17 @@
     (map #(get-in % [:entry :url]))
     (map browse-url)))
 
+(defn browse-data [data]
+  (let [tmp (java.io.File/createTempFile "data" ".html")]
+    (spit tmp data)
+    (browse-url (str "file://" (.getAbsolutePath tmp)))
+    (.delete tmp)))
 
+(defn browse-couch-doc [id]
+  (browse-url (str "http://10.23.1.23:5984/_utils/#/database/db/" id)))
 
+(defn browse-couch-doc-content [id]
+  (browse-url (str "http://10.23.1.23:5984/db/" id "/content.html")))
 
 ;; populate lists
 (comment
