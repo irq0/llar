@@ -429,6 +429,47 @@
    :yt-kirstenlepore {:src (src/feed "https://www.youtube.com/user/kirstenlepore")
                       :cron cron-daily}
 
+   :programmingisterrible {:src (src/feed "http://programmingisterrible.com/rss")
+                           :proc (proc/make
+                                   :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                           :cron cron-daily}
+
+   :preshing {:src (src/feed "http://preshing.com/feed")
+              :cron cron-daily}
+
+   :elibendersky {:src (src/feed "http://eli.thegreenplace.net/feeds/all.atom.xml")
+                         :proc (proc/make
+                                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                  :cron cron-daily}
+
+   :abstrusegoose {:src (src/feed "http://abstrusegoose.com/atomfeed.xml")
+                   :proc (proc/make
+                           :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                   :tags #{:comics}
+                   :cron cron-daily}
+
+   :cyanidehappiness {:src (src/feed "https://feeds.feedburner.com/Explosm")
+                      :proc (proc/make
+                              :post [(fn [item]
+                                       (let [html (infowarss.fetch.http/fetch-http-generic
+                                                    (src/http (str (get-in item [:entry :url]))))
+                                             comic-link (-> (hickory.select/select
+                                                             (hickory.select/descendant
+                                                               (hickory.select/id "comic-container")
+                                                               (hickory.select/tag :img)) (:hickory html))
+                                                          first :attrs :src)]
+                                         (-> item
+                                           (assoc-in [:entry :contents "text/html"] (format "<img src=\"http:%s\"/>" comic-link)))))])
+                      :tags #{:comics}
+                      :cron cron-daily}
+
+   :joyoftech {:src (src/feed "http://www.joyoftech.com/joyoftech/jotblog/atom.xml")
+               :tags #{:comics}
+               :cron cron-daily}
+
+   :theoatmeal {:src (src/feed "https://feeds.feedburner.com/oatmealfeed")
+               :tags #{:comics}
+               :cron cron-daily}
 
    :bookmark {:src nil
               :tags #{:bookmark}}
