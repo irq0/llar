@@ -3,6 +3,7 @@
    [taoensso.timbre :as log]
    [infowarss.src :as src]
    [infowarss.converter :as converter]
+   [infowarss.fetch.http]
    [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
    [hiccup.core :refer [html]]
@@ -103,7 +104,13 @@
                     score (get-in item [:entry :score])
                     title (get-in item [:summary :title])]
                 (< score min-score)))
-    :post [(proc/mercury-contents (:mercury creds) :keep-orig true)]))
+    :post [(fn [item]
+             (let [site (some-> item :entry :url .getHost)]
+               (cond
+                 (re-find #"youtube|reddit" site) item
+                 (re-find #"imgur|i\.redd\.it" site) (update-in item [:entry :contents "text/html"]
+                                           str "<img src=\"" (get-in item [:entry :url]) "\"/>")
+                 :else ((proc/mercury-contents (:mercury creds) :keep-orig true) item))))]))
 
 
 (def ^:dynamic *srcs*

@@ -2,7 +2,7 @@
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
             [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.persistency :refer [CouchItem convert-to-attachments]]
-            [infowarss.fetch.http :refer [fetch-http-generic]]
+            [infowarss.fetch.http :refer [fetch-http-generic absolutify-links-in-hick get-base-url]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
@@ -11,9 +11,10 @@
             [schema.core :as s]
             [slingshot.slingshot :refer [throw+ try+]]
             [taoensso.timbre :as log]
+            [hickory.core :as hick]
             [hickory.select :as hick-s]
-            [clj-rome.reader :as rome]
             [hickory.render :as hick-r]
+            [clj-rome.reader :as rome]
             [clojure.java.io :as io]
             [clj-time.core :as time]
             [clj-time.format :as tf]
@@ -92,6 +93,12 @@
     {"text/html" body
      "text/plain" (conv/html2text body)}))
 
+(defn- process-feed-html-contents [base-url contents]
+  (if-let [html (get-in contents ["text/html"])]
+    (-> html
+      hick/parse hick/as-hickory
+      (absolutify-links-in-hick base-url)
+      (hick-r/hickory-to-html))))
 
 (extend-protocol FetchSource
   infowarss.src.Feed
@@ -100,11 +107,13 @@
           res (-> http-item :raw :body rome/build-feed)
           feed {:title (-> res :title)
                 :language (-> res :language)
-                :url (-> res :link  maybe-extract-url)
+                :url (-> res :link maybe-extract-url)
                 :descriptions {"text/plain" (-> res :description)}
                 :encoding (-> res :encoding)
                 :pub-ts (some->> res :published-date tc/from-date)
-                :feed-type (-> res :feed-type)}]
+                :feed-type (-> res :feed-type)}
+          base-url (get-base-url (:url feed))]
+
 
       (for [re (:entries res)]
         (let [timestamp (extract-feed-timestamp re http-item)
@@ -116,7 +125,7 @@
                              (not (nil? contents-url)))
                          (http-get-feed-content
                            (src/http (str contents-url)))
-                         in-feed-contents)
+                         (process-feed-html-contents base-url in-feed-contents))
               descriptions (extract-feed-description (:description re))
               base-entry {:updated-ts (some-> re :updated-date tc/from-date)
                           :pub-ts (some-> re :published-date tc/from-date)

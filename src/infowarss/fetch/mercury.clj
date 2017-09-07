@@ -7,6 +7,9 @@
    [infowarss.persistency :as persistency]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
+   [infowarss.fetch.http :refer [absolutify-links-in-hick get-base-url]]
+   [hickory.core :as hick]
+   [hickory.render :as hick-r]
    [digest]
    [clj-http.client :as http]
    [hickory.core :as hick]
@@ -51,13 +54,25 @@
 
 (defn mercury-get [url api-key]
   (try+
-    (let [resp  (http/get "https://mercury.postlight.com/parser"
+    (let [resp (http/get "https://mercury.postlight.com/parser"
                   {:accept :json
                    :as :json
                    :content-type :json
                    :headers {:x-api-key api-key}
-                   :query-params {:url url}})]
-      (:body resp))
+                   :query-params {:url url}})
+          base-url (get-base-url url)
+          body (try+
+                 (assoc (:body resp) :content
+                   (-> resp
+                     :body
+                     :content
+                     hick/parse hick/as-hickory
+                     (absolutify-links-in-hick base-url)
+                     hick-r/hickory-to-html))
+                 (catch Object _
+                   (log/warn &throw-context "Mercury post processing failed. Using vanilla")
+                   (:body resp)))]
+      body)
     (catch Object _
       (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
       (throw+))))

@@ -8,10 +8,12 @@
             [hickory.core :as hick]
             [hickory.select :as hick-s]
             [hickory.render :as hick-r]
+            [hickory.zip :as hick-z]
             [schema.core :as s]
             [taoensso.timbre :as log]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.zip :as zip]
             [clj-time.format :as tf]
             [clj-time.core :as time]))
 
@@ -20,6 +22,7 @@
      summary :- schema/Summary
      hash :- schema/Hash
      raw :- schema/HttpResponse
+     body :- s/Str
      hickory :- s/Any]
   Object
   (toString [item] (item-to-string item)))
@@ -51,17 +54,67 @@
       (catch Object _
         (time/now)))))
 
+
+(defn absolutify-url [url base-url]
+  (if (string/starts-with? url "/")
+    (str base-url url)
+    url))
+
+(defn parse-img-srcset [str]
+  (map #(string/split % #"\s") (string/split str #"\s?,\s?")))
+
+(defn unparse-img-srcset [parsed]
+  (string/join ", " (map #(string/join " " %) parsed)))
+
+(defn edit-img-tag [base-url loc]
+  (zip/edit loc update-in [:attrs]
+    (fn [attrs]
+      (let [{:keys [src srcset]} attrs]
+        (-> attrs
+          (assoc :src (absolutify-url src base-url))
+          (assoc :foo "dinge")
+          (assoc :srcset (->> (parse-img-srcset srcset)
+                           (map (fn [[url descr]] [(absolutify-url url base-url) descr]))
+                           unparse-img-srcset)))))))
+
+
+(defn absolutify-links-in-hick [root base-url]
+  (let [zipper (hick-z/hickory-zip root)
+        edit-tag (fn [tag loc]
+                   (case tag
+                     :a (zip/edit loc update-in [:attrs :href] absolutify-url base-url)
+                     :img (edit-img-tag base-url loc)
+                     loc))]
+    (loop [loc zipper]
+      (if (zip/end? loc)
+        (zip/root loc)
+        (let [{:keys [tag type content attrs]} (zip/node loc)]
+          (if (= type :element)
+            (recur
+              (zip/next
+                (edit-tag tag loc)))
+            (recur (zip/next loc))))))))
+
+(defn get-base-url [url]
+  (java.net.URL. (.getProtocol url) (.getHost url) (.getPort url) "/"))
+
+
 (defn fetch-http-generic
   "Generic HTTP fetcher"
   [src]
   (try+
     (let [url (-> src :url str)
           response (http/get url {:headers {:user-agent "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"}})
-          parsed-html (-> response :body hick/parse hick/as-hickory)]
+          base-url (get-base-url (:url src))
+          parsed-html (-> response
+                        :body
+                        hick/parse hick/as-hickory
+                        (absolutify-links-in-hick base-url))]
       (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
       (map->HttpItem
         {:meta (make-meta src)
          :raw response
+         :body (hick-r/hickory-to-html parsed-html)
          :hash (make-item-hash (:body response))
          :hickory parsed-html
          :summary {:ts (extract-http-timestamp response)
