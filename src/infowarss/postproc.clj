@@ -109,14 +109,14 @@
 
 ;;; Postprocessing utilities
 
-(defn- wrap-proc-fn [func]
+(defn- wrap-proc-fn [item func]
   (fn [& args]
     (try+
       (let [new (apply func args)]
-        (log/tracef "proc: (%s %s)" func (count args))
+        (log/tracef "proc %s: (%s %s)" (str item) func (count args))
         new)
-      (catch Object  e
-        (log/warn e "proc function failed")
+      (catch Object e
+        (log/warnf e "proc %s: (%s %s) FAILED" (str item) func (count args))
         nil))))
 
 (defn- apply-filter [item f]
@@ -135,7 +135,7 @@
   [src item]
   (let [state {}
         all-proc #(all-items-process % src state)
-        proto-feed-proc (wrap-proc-fn
+        proto-feed-proc (wrap-proc-fn item
                           #(post-process-item % src state))]
     (log/debugf "Processing feedless %s"
       (str item))
@@ -165,8 +165,8 @@
         per-feed-proc (apply comp
                         (->> feed
                           :proc :post
-                          (map wrap-proc-fn)))
-        proto-feed-proc (wrap-proc-fn
+                          (map #(wrap-proc-fn item %))))
+        proto-feed-proc (wrap-proc-fn item
                           #(post-process-item % src state))
 
         per-feed-filter (-> feed :proc :filter)]
