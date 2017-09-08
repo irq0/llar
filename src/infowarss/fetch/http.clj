@@ -56,15 +56,18 @@
 
 
 (defn absolutify-url [url base-url]
-  (if (string/starts-with? url "/")
+  (if (and (string? url) (string/starts-with? url "/"))
     (str base-url url)
     url))
 
 (defn parse-img-srcset [str]
-  (map #(string/split % #"\s") (string/split str #"\s?,\s?")))
+  (when (string? str)
+    (map #(string/split % #"\s") (string/split str #"\s?,\s?"))))
+
 
 (defn unparse-img-srcset [parsed]
-  (string/join ", " (map #(string/join " " %) parsed)))
+  (when (coll? parsed)
+    (string/join ", " (map #(string/join " " %) parsed))))
 
 (defn edit-img-tag [base-url loc]
   (zip/edit loc update-in [:attrs]
@@ -72,8 +75,7 @@
       (let [{:keys [src srcset]} attrs]
         (-> attrs
           (assoc :src (absolutify-url src base-url))
-          (assoc :foo "dinge")
-          (assoc :srcset (->> (parse-img-srcset srcset)
+          (assoc :srcset (some->> (parse-img-srcset srcset)
                            (map (fn [[url descr]] [(absolutify-url url base-url) descr]))
                            unparse-img-srcset)))))))
 
@@ -95,9 +97,10 @@
                 (edit-tag tag loc)))
             (recur (zip/next loc))))))))
 
-(defn get-base-url [url]
-  (java.net.URL. (.getProtocol url) (.getHost url) (.getPort url) "/"))
-
+(defn get-base-url [u]
+  (let [url (io/as-url u)]
+    (log/spy url)
+    (java.net.URL. (.getProtocol url) (.getHost url) (.getPort url) "/")))
 
 (defn fetch-http-generic
   "Generic HTTP fetcher"

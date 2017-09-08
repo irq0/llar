@@ -95,10 +95,12 @@
 
 (defn- process-feed-html-contents [base-url contents]
   (if-let [html (get-in contents ["text/html"])]
-    (-> html
-      hick/parse hick/as-hickory
-      (absolutify-links-in-hick base-url)
-      (hick-r/hickory-to-html))))
+    (assoc contents "text/html"
+      (-> html
+        hick/parse hick/as-hickory
+        (absolutify-links-in-hick base-url)
+        (hick-r/hickory-to-html)))
+    contents))
 
 (extend-protocol FetchSource
   infowarss.src.Feed
@@ -111,21 +113,19 @@
                 :descriptions {"text/plain" (-> res :description)}
                 :encoding (-> res :encoding)
                 :pub-ts (some->> res :published-date tc/from-date)
-                :feed-type (-> res :feed-type)}
-          base-url (get-base-url (:url feed))]
-
-
+                :feed-type (-> res :feed-type)}]
       (for [re (:entries res)]
         (let [timestamp (extract-feed-timestamp re http-item)
               authors (extract-feed-authors (:authors re))
               in-feed-contents (extract-feed-content (:contents re))
               contents-url (-> re :link maybe-extract-url)
+              contents-base-url (get-base-url contents-url)
               contents (if (and (nil? (get in-feed-contents "text/plain"))
                              (get-in src [:args :deep?])
                              (not (nil? contents-url)))
                          (http-get-feed-content
                            (src/http (str contents-url)))
-                         (process-feed-html-contents base-url in-feed-contents))
+                         (process-feed-html-contents contents-base-url in-feed-contents))
               descriptions (extract-feed-description (:description re))
               base-entry {:updated-ts (some-> re :updated-date tc/from-date)
                           :pub-ts (some-> re :published-date tc/from-date)
