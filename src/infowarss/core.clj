@@ -107,8 +107,8 @@
     :post [(fn [item]
              (let [site (some-> item :entry :url .getHost)]
                (cond
-                 (re-find #"youtube|reddit" site) item
-                 (re-find #"imgur|i\.redd\.it" site) (update-in item [:entry :contents "text/html"]
+                 (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
+                 (re-find #"i\.imgur\.com|i\.redd\.it" site) (update-in item [:entry :contents "text/html"]
                                            str "<img src=\"" (get-in item [:entry :url]) "\"/>")
                  :else ((proc/mercury-contents (:mercury creds) :keep-orig true) item))))]))
 
