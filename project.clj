@@ -1,9 +1,20 @@
 (defproject infowarss "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
-  :jvm-opts ["-Xmx4g" "-server"]
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :description "infowarss - information processor"
+  :url ""
+  :jvm-opts ["-Xmx4g"
+             "-server"
+             "-XX:-OmitStackTraceInFastThrow"
+             "-XX:+TieredCompilation"
+             "-XX:TieredStopAtLevel=1"
+             "-XX:+CMSClassUnloadingEnabled"
+             "-XX:+UseConcMarkSweepGC"
+             "-XX:+UseParNewGC"
+             "-XX:+CMSParallelRemarkEnabled"
+             "-XX:+AggressiveOpts"
+             "-XX:+UseFastAccessorMethods"]
+
+  :license {:name "None"
+            :url ""}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/tools.nrepl "0.2.13"]
                  [clj-http "3.5.0"]
