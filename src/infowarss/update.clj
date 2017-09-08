@@ -83,7 +83,7 @@
            :retry-count 0}))
 
       (catch java.net.ConnectException _
-        (log/warn &throw-context "Connection error (-> temp-fail) for" (str src))
+        (log/warn (:throwable &throw-context) "Connection error (-> temp-fail) for" (str src))
         (merge state
           {:last-attempt-ts now
            :status :temp-fail
@@ -91,7 +91,7 @@
            :retry-count 0}))
 
       (catch Object _
-        (log/error &throw-context "Unexpected error (-> perm-fail) for " (str src))
+        (log/error (:throwable &throw-context) "Unexpected error (-> perm-fail) for " (str src))
         (merge state
           {:last-attempt-ts now
            :status :perm-fail
