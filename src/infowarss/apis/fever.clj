@@ -20,6 +20,23 @@
 (defmacro swallow-exceptions [& body]
   `(try ~@body (catch Exception e#)))
 
+(defn idmap-collisions
+  "Get a list of collisions and stats by applying idmap-f to all couchdb keys"
+  [idmap-f]
+  (let [couch-ids (couch/all-doc-ids)
+        ids (->> couch-ids
+              (map (fn [x] [x (idmap-f x)])))
+        unique-ids (->> ids (map second) set)
+        colls (->> (for [[fever-id vs] (->> ids (group-by second))
+                       :when (> (count vs) 1)]
+                   [fever-id (mapv first vs)])
+                (into (hash-map)))]
+    {:collisions colls
+     :n-couch-ids (count couch-ids)
+     :n-unique-mapped-ids (count unique-ids)
+     :p-collisions (float (/ (- (count couch-ids) (count unique-ids)) (count couch-ids)))}))
+
+
 (defn fever-item-id
   "Convert infowarss feed item id to fever compatible id"
   [id]
