@@ -40,9 +40,14 @@
 (defn fever-item-id
   "Convert infowarss feed item id to fever compatible id"
   [id]
-  ;; our database keys are to long for the fever api
+  ;; Our database keys are to long for the fever api
   ;; shorten to positive java long
-  (let [parts [(subs id 0 4)  (subs id 28 32)]]
+  ;; couchdb sequential keys:
+  ;; "Monotonically increasing ids with random increments. The first 26
+  ;; hex characters are random, the last 6 increment in random amounts
+  ;; until an overflow occurs. On overflow, the random prefix is
+  ;; regenerated and the process starts over."
+  (let [parts [(subs id 0 2)  (subs id 24 32)]]
     (Long/parseLong (string/join parts) 16)))
 
 (defn fever-feed-id
