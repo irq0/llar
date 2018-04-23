@@ -477,7 +477,7 @@
      [:a {:class (str
                    (if grey-out? "nav-link nav-link-secondary" "nav-link" )
                    (when (= key active-key) " active "))
-          :href (make-site-href [prefix (name key) "items"] x)}
+          :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
       [:span {:class "sidebar-heading-2"} key]
 
       [:span {:class "badge badge-pill badge-seconday float-right"}
