@@ -14,7 +14,8 @@
   "Convert html to text"
   [html]
   (let [{:keys [exit out]}
-        (shell/sh "w3m" "-T" "text/html" "-dump" :in html)]
+        (shell/sh "pandoc" "-f" "html" "-t" "plain" "--reference-links" :in html)]
+        ;; (shell/sh "w3m" "-T" "text/html" "-dump" :in html)]
     (if (zero? exit)
       out
       "")))
@@ -48,7 +49,10 @@
     (format "data:%s;base64,%s"
       mime-type (java.net.URLEncoder/encode (base64-encode data) "ASCII"))))
 
-
+(defn bytea-hex-to-byte-array [bytea]
+  (byte-array
+    (map (fn [[a b]] (Integer/parseInt (str a b) 16))
+      (drop 1 (partition 2 bytea)))))
 
 
 (defn get-mimetype
@@ -78,7 +82,7 @@
       (with-open [out (java.io.ByteArrayOutputStream.)]
         (clojure.java.io/copy (clojure.java.io/input-stream out-file) out)
         (.delete out-file)
-        (.toByteArray out)))))
+        (.toString out)))))
 
 (defmulti thumbnail get-mimetype)
 
@@ -129,3 +133,15 @@
     (catch RuntimeException e
       (log/error e "Failed to read EDN")
       {})))
+
+(defn to-fever-timestamp
+  "Convert clj-time time object to fever unix timestamp"
+  [time]
+  (try+
+    (-> time
+      tc/to-long
+      (/ 1000)
+      (.longValue)
+      (max 0))
+    (catch Object _
+      0)))

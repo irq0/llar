@@ -1,7 +1,7 @@
 (ns infowarss.fetch.feed
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
             [infowarss.postproc :refer [ItemProcessor]]
-            [infowarss.persistency :refer [CouchItem convert-to-attachments]]
+            [infowarss.persistency :refer [CouchItem]]
             [infowarss.fetch.http :refer [fetch-http-generic absolutify-links-in-hick get-base-url]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
@@ -16,6 +16,7 @@
             [hickory.render :as hick-r]
             [clj-rome.reader :as rome]
             [clojure.java.io :as io]
+            [clj-http.client :as http]
             [clj-time.core :as time]
             [clj-time.format :as tf]
             [clj-time.coerce :as tc]))
@@ -83,12 +84,14 @@
 (defn- http-get-feed-content [src]
   (log/debug "Fetching feed item content of " (str src))
   (let [http-item (fetch-http-generic src)
-        body (->> http-item
+        hick (->> http-item
                :hickory
                (hick-s/select
                  (hick-s/child
                    (hick-s/tag :body)))
-               first
+               first)
+        body (-> hick
+               (absolutify-links-in-hick (str src))
                hick-r/hickory-to-html)]
     {"text/html" body
      "text/plain" (conv/html2text body)}))
@@ -106,7 +109,12 @@
   infowarss.src.Feed
   (fetch-source [src]
     (let [http-item (fetch-http-generic src)
-          res (-> http-item :raw :body rome/build-feed)
+          res (try+
+                (-> http-item :raw :body rome/build-feed)
+                (catch Object _
+                  (log/error (:throwable &throw-context) "rome parse failed" http-item)
+                  (throw+ {:type ::rome-failure :http-item http-item})))
+
           feed {:title (-> res :title)
                 :language (-> res :language)
                 :url (-> res :link maybe-extract-url)
@@ -120,13 +128,13 @@
               in-feed-contents (extract-feed-content (:contents re))
               contents-url (-> re :link maybe-extract-url)
               contents-base-url (get-base-url contents-url)
-              contents (if (and (nil? (get in-feed-contents "text/plain"))
-                             (get-in src [:args :deep?])
-                             (not (nil? contents-url)))
+              contents (if (and (get-in src [:args :deep?])
+                             (string? contents-url))
                          (http-get-feed-content
                            (src/http (str contents-url)))
                          (process-feed-html-contents contents-base-url in-feed-contents))
-              descriptions (extract-feed-description (:description re))
+              descriptions (process-feed-html-contents contents-base-url
+                             (extract-feed-description (:description re)))
               base-entry {:updated-ts (some-> re :updated-date tc/from-date)
                           :pub-ts (some-> re :published-date tc/from-date)
                           :url contents-url
@@ -135,7 +143,7 @@
                           :title (-> re :title)}]
           (map->FeedItem
             (-> http-item
-              (dissoc :hash :hickory :summary)
+              (dissoc :hash :hickory :summary :body)
               (merge {:raw re
                       :feed feed
                       :entry (merge base-entry
@@ -148,26 +156,150 @@
                                 :title (:title re)}}))))))))
 
 
+(defn default-selector-feed-extractor [hick]
+  (-> hick first :content first))
+
+
+(defn hick-select-extract [selector extractor hickory]
+  (let [extractor (or extractor default-selector-feed-extractor)]
+    (if (some? selector)
+      (let [tree (hick-s/select selector hickory)]
+        (extractor tree)))))
+
+(defn hick-select-extract-with-source [src k hickory fallback]
+  (let [{:keys [selectors extractors]} src
+        sel (get selectors k)
+        ext (get extractors k)]
+    (try+
+      (let [selected (hick-select-extract sel ext hickory)]
+        (when-not (and (some? sel) (some? selected))
+          (log/warnf "Hickory selector %s for %s turned up nothing"
+            (str src) k))
+        (or selected fallback))
+      (catch Object _
+        (log/warn (:throwable &throw-context) "Hick Extract failed :("
+          src k)
+        (throw+ {:type ::hickory-select-failed :src src :key k
+                 :selector sel :extractor ext})))))
+
+
+(extend-protocol FetchSource
+  infowarss.src.SelectorFeed
+  (fetch-source [src]
+    (let [{:keys [url selectors extractors]} src
+          {:keys [summary hickory meta]} (fetch-http-generic src)
+
+          feed {:title (:title summary)
+                :url url
+                :feed-type "selector-feed"}
+          item-extractor (or (:urls extractors)
+                           (fn [l] (map (fn [x] (-> x :attrs :href)) l)))
+          item-urls (-> (hick-s/select (:urls selectors) hickory)
+                      item-extractor)]
+
+      (log/debug (str src) " Parsed URLs: " (prn-str item-urls))
+      (when-not (coll? item-urls)
+        (throw+ {:type ::selector-found-shit :extractor item-extractor :urls item-urls :selector (:urls selectors)}))
+      (doall
+      (for [item-url item-urls
+            :let [item (fetch-http-generic (src/http item-url))
+                  {:keys [hickory summary]} item]]
+        (let [author (hick-select-extract-with-source src :author hickory nil)
+              title (hick-select-extract-with-source src :title hickory (:title summary))
+              pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
+              description (hick-select-extract-with-source src :description hickory nil)
+              content (or
+                        (and (some? (:content selectors))
+                          (-> (hick-s/select (:content selectors) hickory)
+                            first))
+                        (-> (hick-s/select (hick-s/child (hick-s/tag :body)) hickory)
+                          first))
+              content-html (hick-r/hickory-to-html content)]
+          (map->FeedItem
+            (-> item
+              (dissoc :meta :hash :hickory :summary :body)
+              (merge {:meta meta
+                      :feed feed
+                      :hash (make-item-hash title pub-ts item-url)
+                      :entry {:pub-ts pub-ts
+                              :url item-url
+                              :title title
+                              :authors author
+                              :descriptions {"text/plain" description}
+                              :contents {"text/html" content-html
+                                         "text/plain" (conv/html2text content-html)}}
+                      :summary {:title title
+                                :ts pub-ts}})))))))))
+
+
+(extend-protocol FetchSource
+  infowarss.src.WordpressJsonFeed
+  (fetch-source [src]
+    (let [wp-json-url (str (:url src))
+          site (http/get wp-json-url {:as :json})
+          posts-url (get-in site [:body :routes :/wp/v2/posts :_links :self])
+          posts (http/get posts-url {:as :json})]
+      (doall
+        (for [post (:body posts)]
+          (let [
+                authors (for [url (map :href (get-in post [:_links :author]))]
+                          (-> (http/get url {:as :json})
+                            (get-in [:body :name])))
+
+                url (get post :link)
+                title (get-in post [:title :rendered])
+                pub-ts (some-> post :date_gmt tc/from-string)
+                description (get-in post [:excerpt :rendered])
+                content-html (get-in post [:content :rendered])]
+            (map->FeedItem
+              {:meta (make-meta src)
+               :raw {:site (:body site)
+                     :post post}
+               :feed {:title (get-in site [:body :name])
+                      :url (get-in site [:body :home])
+                      :feed-type "wp-json"}
+               :hash (make-item-hash title pub-ts url)
+                        :entry {:pub-ts pub-ts
+                                :url url
+                                :title title
+                                :authors authors
+                                :descriptions {"text/plain" description}
+                                :contents {"text/html" content-html
+                                           "text/plain" (conv/html2text content-html)}}
+                        :summary {:title title
+                                  :ts pub-ts}})))))))
+
+
+
 (extend-protocol ItemProcessor
   FeedItem
   (post-process-item [item src state]
-    (let [nlp (analysis/analyze-entry (:entry item))]
+    (let [nlp (analysis/analyze-entry (:entry item))
+          tags (into #{}
+                 (remove nil?
+                 [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
+                    :has-video)
+                  (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
+                    :has-video)
+
+                  ]))]
       (-> item
+        (update-in [:meta :tags] into tags)
         (update :entry merge (:entry item) nlp))))
   (filter-item [item src state]
-    (let [last-fetch (get state :last-successful-fetch-ts)
+    (let [force-update? (get-in src [:args :force-update?])
+          last-fetch (get state :last-successful-fetch-ts)
           feed-pub (get-in item [:feed :pub-ts])]
-      (if-not (or (nil? last-fetch) (nil? feed-pub))
+      (if (or force-update? (nil? last-fetch) (nil? feed-pub))
+        false
         (do
-          (log/tracef "Filtering out item %s: older than last fetch"
-            (str item))
-          (time/before? feed-pub last-fetch))
-        false))))
+          (log/debugf "Filtering out item %s: older than last fetch %s" (str item) (:force-update? src))
+          (time/before? feed-pub last-fetch))))))
 
 (extend-protocol CouchItem
   FeedItem
   (to-couch [item]
     (-> item
-      convert-to-attachments
       (assoc :type :feed)
-      (dissoc :raw))))
+      (dissoc :raw)
+      (dissoc :body))))

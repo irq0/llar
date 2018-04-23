@@ -56,27 +56,50 @@
 
 (declare process-feedless-item)
 
-(defn mercury-contents
-  [creds & {:keys [keep-orig]
-                :or [keep-orig false]}]
-  (fn [item]
-    (let [url (get-in item [:entry :url])
-          src (src/mercury (str url) (get-in creds [:api-key]))
-          mercu (process-feedless-item src (first (fetch/fetch-source src)))
-          html (if keep-orig
-                 (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
-                   "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
-                 (get-in mercu [:entry :contents "text/html"]))
-          text (if keep-orig
-                 (str (get-in item [:entry :contents "text/plain"])
-                   "\n"
-                   (get-in mercu [:entry :contents "text/plain"]))
-                 (get-in mercu [:entry :contents "text/plain"]))]
 
-      (-> item
-        (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
-        (assoc-in [:entry :contents "text/plain"] text)
-        (assoc-in [:entry :contents "text/html"] html)))))
+(def +mercury-site-blacklist+
+  #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
+
+(defn replace-contents-with-mercury [creds item keep-orig?]
+  (let [url (get-in item [:entry :url])
+        src (src/mercury (str url) (get-in creds [:api-key]))
+        mercu (process-feedless-item src (first (fetch/fetch-source src)))
+        html (if keep-orig?
+               (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
+                   "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
+               (get-in mercu [:entry :contents "text/html"]))
+        text (if keep-orig?
+               (str (get-in item [:entry :contents "text/plain"])
+                 "\n"
+                 (get-in mercu [:entry :contents "text/plain"]))
+               (get-in mercu [:entry :contents "text/plain"]))]
+    (-> item
+      (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
+      (assoc-in [:entry :contents "text/plain"] text)
+      (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
+      (assoc-in [:entry :contents "text/html"] html))))
+
+
+(defn mercury-contents
+  [creds & {:keys [keep-orig?]
+            :or [keep-orig? false]}]
+  (fn [item]
+    (let [site (some-> item :entry :url .getHost)
+          path (some-> item :entry :url .getPath)]
+      (cond
+        ;; images
+        (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
+          (re-find #"\.(jpg|jpeg|gif|png)$" path))
+        (update-in item [:entry :contents "text/html"]
+          str "<img src=\"" (get-in item [:entry :url]) "\"/>")
+
+        ;; blacklisted sites
+        (re-find +mercury-site-blacklist+ site)
+        item
+
+        ;; rest: replace with mercury
+        :else
+        (replace-contents-with-mercury creds item keep-orig?)))))
 
 (def sa-to-bool
   {"Yes" true
@@ -116,7 +139,7 @@
         (log/tracef "proc %s: (%s %s)" (str item) func (count args))
         new)
       (catch Object e
-        (log/warnf e "proc %s: (%s %s) FAILED" (str item) func (count args))
+        (log/warnf "proc %s: (%s %s) FAILED: %s" (str item) func (count args) e)
         nil))))
 
 (defn- apply-filter [item f]
@@ -156,6 +179,16 @@
     (log/errorf "Processing pipeline failure after %s. Intermediate result garbage: %s %s"
       where (type item) item)))
 
+(defn check-intermediate-maybe-coll [items where]
+  (if (or
+        (and
+          (coll? items)
+          (every? (partial satisfies? ItemProcessor) items))
+        (satisfies? ItemProcessor items))
+    items
+    (log/errorf "Processing pipeline failure after %s. Intermediate result garbage: %s %s"
+      where (type items) items)))
+
 
 (defn process-item
   "Postprocess and filter a single item"
@@ -185,7 +218,7 @@
                       (apply-filter per-feed-filter)
                       (check-intermediate :per-feed-filter)
                       (per-feed-proc)
-                      (check-intermediate :per-feed-processor))]
+                      (check-intermediate-maybe-coll :per-feed-processor))]
       (when (nil? processed)
         (log/debugf "Filtered out: %s"
           (str item)))
@@ -193,6 +226,18 @@
 
 (defn process [feed state items]
   (let [{:keys [src]} feed]
-    (log/debugf "Processing feed: %s" (str src))
-    (remove nil?
-      (pmap #(process-item feed state %) items))))
+    (log/debugf "Processing feed: %s (%s items)" (str src) (count items))
+    (try+
+      (if (not-empty items)
+        (->>
+          items
+          (pmap  #(process-item feed state %))
+          (remove nil?)
+          (flatten))
+        (do
+          (log/warn "Postprocess with empty items called" (str src))
+          items))
+      (catch Object _
+        (log/warn (:throwable &throw-context) "Postprocessing failed during parallel item proc: " (str src)
+          feed state items)
+        (throw+ {:type ::postproc-failed :itemsc (count items) :feed feed })))))

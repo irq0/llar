@@ -1,7 +1,7 @@
 (ns infowarss.fetch.youtube
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
             [infowarss.postproc :refer [ItemProcessor]]
-            [infowarss.persistency :refer [CouchItem convert-to-attachments]]
+            [infowarss.persistency :refer [CouchItem]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]

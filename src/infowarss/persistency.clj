@@ -1,6 +1,7 @@
 (ns infowarss.persistency
   (:require
    [infowarss.couchdb :as couch]
+   [infowarss.db :as db]
    [infowarss.fetch]
    [infowarss.converter :as conv]
    [digest]
@@ -54,62 +55,43 @@
                 {:content_type content-type
                  :data (conv/base64-encode data)}]))))
 
-(defn convert-to-attachments [item]
-  (let [contents (to-couch-atts "content" (get-in item [:entry :contents]))
-        descriptions (to-couch-atts "description" (get-in item [:entry :descriptions]))
-        thumbs (to-couch-atts "thumb" (get-in item [:entry :thumbs]))]
-      (-> item
-        (assoc-in [:entry :contents] nil)
-        (assoc-in [:entry :descriptions] nil)
-        (assoc-in [:entry :thumbs] nil)
-        (assoc "_attachments" (merge contents descriptions thumbs)))))
-
 ;;; Write functions
-
-(defn duplicate? [item]
-  (let [resp (couch/lookup-hash (:hash item))]
-    (seq (get-in resp [:body :rows]))))
 
 (defn overwrite-item! [item]
   (try+
-    (let [doc (to-couch item)
-          resp (couch/lookup-hash (:hash item))
-          id (-> (get-in resp [:body :rows]) first :id)]
-      (when (string? id)
-        (couch/swap-document! id (fn [_] doc))))
+    (let [doc (to-couch item)]
+      (db/inplace-update-document doc))
     (catch java.lang.IllegalAccessException e
       (log/error e "Failed to store item. Probably called with an unsupported record "
         (type item) ":" item)
       (throw+))))
 
+
+(def last-items (atom []))
 
 (defn store-item! [item]
-  (try+
-    (let [doc (to-couch item)]
-      (couch/add-document! doc))
-    (catch java.lang.IllegalAccessException e
-      (log/error e "Failed to store item. Probably called with an unsupported record "
-        (type item) ":" item)
-      (throw+))))
+  (let [doc (to-couch item)]
+    (db/add-document doc)))
 
 (defn- store-item-skip-duplicate!
   [item & {:keys [overwrite?] :or [overwrite? false]}]
   (let [name (get-in item [:meta :source-name])
-        title (get-in item [:summary :title])
-        dup? (duplicate? item)]
-    (cond
-      (and dup? overwrite?)
-      (let [{:keys [id]} (overwrite-item! item)]
-        (log/debugf "Overwritten item %s/\"%s\": %s" name title id)
-        id)
-      dup?
-      (log/debugf "Skipping item %s/\"%s\": duplicate" name title)
-      :else
+        title (get-in item [:summary :title])]
+    (try+
+      (swap! last-items conj item)
+
       (let [{:keys [id]} (store-item! item)]
         (log/debugf "Stored item %s/\"%s\": %s" name title id)
         id)
-    )))
-
+      (catch [:type :infowarss.db/duplicate] _
+        (if overwrite?
+          (do
+            (let [ret (overwrite-item! item)]
+              (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)
+              ret))
+          (log/debugf "Skipping item %s/\"%s\": duplicate" name title)))
+      (catch Object _
+        (log/errorf (:throwable &throw-context) "Unexpected exception while storing item %s/\"%s\"" name title)))))
 ;;; API
 
 (defn store-items!
@@ -121,10 +103,11 @@
   ;; Each vector may contain multiple item types.
   ;; -> Group them by type and call the store method
   (let [by-type (group-by type mixed-items)]
-    (log/debugf "Persisting %d items with types: %s"
-      (count mixed-items) (keys by-type))
-    (doall
-      (apply concat
-        (for [[type items] by-type]
-          (do (log/debugf "Persisting %s items" type)
-              (remove nil? (map #(store-item-skip-duplicate! % :overwrite? overwrite?) items ))))))))
+    (when (>= (count mixed-items) 1)
+      (log/debugf "Persisting %d items with types: %s"
+        (count mixed-items) (keys by-type))
+      (doall
+        (apply concat
+          (for [[type items] by-type]
+            (do (log/debugf "Persisting %s items" type)
+                (remove nil? (map #(store-item-skip-duplicate! % :overwrite? overwrite?) items )))))))))

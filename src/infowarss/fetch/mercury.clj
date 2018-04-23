@@ -33,8 +33,18 @@
 (extend-protocol postproc/ItemProcessor
   MercuryItem
   (post-process-item [item src state]
-    (let [nlp (analysis/analyze-entry (:entry item))]
+    (let [nlp (analysis/analyze-entry (:entry item))
+          tags (into #{}
+                 (remove nil?
+                 [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
+                    :has-video)
+                  (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
+                    :has-video)
+
+                  ]))]
+      (log/spy tags)
       (-> item
+        (update-in [:meta :tags] into tags)
         (update :entry merge (:entry item) nlp))))
 
   (filter-item [item src state] false))
@@ -42,15 +52,11 @@
 (extend-protocol persistency/CouchItem
   MercuryItem
   (to-couch [item]
-    (let [atts (persistency/to-couch-atts "content" (get-in item [:entry :contents]))]
-      (cond->
-          (-> item
-            (dissoc :raw)
-            (assoc-in [:meta :source :args] nil)
-            (assoc :type :bookmark)
-            (assoc-in [:entry :contents] nil))
-        (seq atts) (assoc "_attachments" atts)))))
-
+    (-> item
+      (dissoc :raw)
+      (dissoc :body)
+      (assoc-in [:meta :source :args] nil)
+      (assoc :type :bookmark))))
 
 (defn mercury-get [url api-key]
   (try+
@@ -73,6 +79,7 @@
                    (log/warn &throw-context "Mercury post processing failed. Using vanilla")
                    (:body resp)))]
       body)
+
     (catch Object _
       (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
       (throw+))))

@@ -2,6 +2,7 @@
   (:require
    [infowarss.apis.feedbin :as feedbin]
    [infowarss.apis.infowarss :as infowarss]
+   [infowarss.apis.status :as status]
    [ring.adapter.jetty :refer [run-jetty]]
    [mount.core :refer [defstate]]
    [infowarss.apis.fever :as fever]
@@ -39,6 +40,14 @@
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
+(def status-app
+  (->
+    status/app
+    ring.middleware.keyword-params/wrap-keyword-params
+    ring.middleware.params/wrap-params
+    ring.middleware.stacktrace/wrap-stacktrace-log
+    ring.middleware.lint/wrap-lint))
+
 
 (defstate fever
   :start (run-jetty #'fever-app {:port 8765 :join? false})
@@ -48,3 +57,7 @@
 (defstate infowarss
   :start (run-jetty #'infowarss-app {:port 7654 :join? false})
   :stop (.stop infowarss))
+
+(defstate status
+  :start (run-jetty #'status-app {:port 8023 :join? false})
+  :stop (.stop status))

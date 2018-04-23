@@ -77,8 +77,8 @@
   DocumentItem
   (to-couch [item]
     (-> item
-      persistency/convert-to-attachments
       (dissoc :raw)
+      (dissoc :body)
       (assoc :type :document))))
 
 
@@ -98,7 +98,7 @@
             meta (extract/parse data)
             ts (or (some-> (:creation-date meta) tc/from-string)
                  (time/now))
-            title (or (:title meta) (some-> (:url src) .getPath io/as-file .getName))]
+            title (or (first (:title meta)) (some-> (:url src) .getPath io/as-file .getName))]
 
         [(->DocumentItem
          (fetch/make-meta src)
@@ -115,4 +115,4 @@
           :descriptions nil
           :contents {"text/html" html
                      "text/plain" (:text meta)
-                     mime-type data}})]))))
+                     mime-type (bytes data)}})]))))

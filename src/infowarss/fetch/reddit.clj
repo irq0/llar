@@ -40,14 +40,12 @@
 (extend-protocol persistency/CouchItem
   RedditItem
   (to-couch [item]
-    (let [atts (persistency/to-couch-atts "content" (get-in item [:entry :contents]))]
-      (cond->
-          (-> item
-            (dissoc :raw)
-            (assoc-in [:meta :source :args] nil)
-            (assoc :type :link)
-            (assoc-in [:entry :contents] nil))
-        (seq atts) (assoc "_attachments" atts)))))
+    (-> item
+      (dissoc :raw)
+      (dissoc :body)
+      (assoc-in [:meta :source :args] nil)
+      (assoc :type :link)
+      (assoc-in [:entry :contents] nil))))
 
 
 (defn reddit-get [url]

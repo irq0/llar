@@ -27,7 +27,9 @@
              :timezone "Europe/Berlin"
              :interval 2}}))
 
-
 (defstate feed-sched
   :start (sched/start! (make-feed-sched))
   :stop (sched/stop! feed-sched))
+
+(defn get-sched-info [k]
+  (some #(if (= (:name %) k) %) (sched/list-tasks feed-sched)))

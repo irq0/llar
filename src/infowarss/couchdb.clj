@@ -316,3 +316,9 @@
 (defn unread-docs-by-src-ids
   [src]
   (map :id (couch/get-view (couch-url) "lookup" "by-src-unread" {:key src :reduce false})))
+
+(defn get-tags []
+  (map vals (couch/get-view (couch-url) "lookup" "tags" {:group true :reduce true} )))
+
+(defn get-types []
+  (map vals (couch/get-view (couch-url) "lookup" "by-type" {:group true :reduce true} )))

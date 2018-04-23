@@ -1,8 +1,9 @@
 (ns infowarss.apis.fever
   (:require
    [infowarss.core :refer [*srcs*]]
-   [infowarss.couchdb :as couch]
+   [infowarss.db :as db]
    [infowarss.schema :as schema]
+   [infowarss.update :refer [sources-merge-in-state]]
    [ring.util.response :as response]
    [digest]
    [clj-time.coerce :as tc]
@@ -15,58 +16,12 @@
 
 ;;;; Fever compatible API
 
+(defn fever-feed-id [x])
+
 ;; Utility functions
 
 (defmacro swallow-exceptions [& body]
   `(try ~@body (catch Exception e#)))
-
-(defn idmap-collisions
-  "Get a list of collisions and stats by applying idmap-f to all couchdb keys"
-  [idmap-f]
-  (let [couch-ids (couch/all-doc-ids)
-        ids (->> couch-ids
-              (map (fn [x] [x (idmap-f x)])))
-        unique-ids (->> ids (map second) set)
-        colls (->> (for [[fever-id vs] (->> ids (group-by second))
-                       :when (> (count vs) 1)]
-                   [fever-id (mapv first vs)])
-                (into (hash-map)))]
-    {:collisions colls
-     :n-couch-ids (count couch-ids)
-     :n-unique-mapped-ids (count unique-ids)
-     :p-collisions (float (/ (- (count couch-ids) (count unique-ids)) (count couch-ids)))}))
-
-
-(defn fever-item-id
-  "Convert infowarss feed item id to fever compatible id"
-  [id]
-  ;; Our database keys are to long for the fever api
-  ;; shorten to positive java long
-  ;; couchdb sequential keys:
-  ;; "Monotonically increasing ids with random increments. The first 26
-  ;; hex characters are random, the last 6 increment in random amounts
-  ;; until an overflow occurs. On overflow, the random prefix is
-  ;; regenerated and the process starts over."
-  (let [parts [(subs id 0 2)  (subs id 24 32)]]
-    (Long/parseLong (string/join parts) 16)))
-
-(defn fever-feed-id
-  "Calculate pseudo id from database feed entry"
-  [db-feed]
-  (let [{:keys [source-name source-key]} db-feed
-        source-key (if (keyword? source-key) (name source-key) source-key)]
-    (when (or (string/blank? source-name)
-            (string/blank? source-key))
-      (throw+ {:type ::invalid-input :db-feed db-feed}))
-
-    (let [data (string/join source-name source-key)
-          hash (digest/sha-256 data)]
-      (Long/parseUnsignedLong (subs hash 0 8) 16))))
-
-(defn get-feed-by-fever-feed-id
-  "Get feed by fever feed id"
-  [id]
-  (some #(when (= (fever-feed-id %) id) %) (couch/get-feeds)))
 
 (defn fever-group-id-for-tag
   "Convert infowarss feed id to fever compatible id"
@@ -99,7 +54,17 @@
       (java.util.Base64/getMimeEncoder)
       (.getBytes (slurp filename)))))
 
+
+(defn last-refresh []
+  (->> (db/get-sources)
+    db/sources-merge-in-config
+    sources-merge-in-state
+    vals
+    (map :last-successful-fetch-ts)
+    sort last))
+
 ;; Fever Authentication
+
 
 (defonce ^:dynamic *api-config*
   {:email "infowarss@irq0.org"
@@ -136,47 +101,34 @@
 (s/defn all-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feeds"
   []
-  (let [feeds (couch/get-feeds)
-        feedids (map fever-feed-id feeds)]
+  (let [sources (-> (db/get-sources) vals)
+        feedids (map :id sources)]
     {:group_id (fever-group-id-for-tag :all)
      :feed_ids (string/join "," feedids)}))
-
-(defn db-feeds-with-config
-  []
-  (let [dbfs (couch/get-feeds)
-        confs *srcs*]
-    (into {}
-      (for [dbf dbfs]
-        [(get dbf :source-key)
-         (merge dbf (get confs (get dbf :source-key)))]))))
 
 (defn- feedids-for-tag
   [tag]
   (try+
-    (->> (db-feeds-with-config)
+    (->> (db/get-sources)
+      db/sources-merge-in-config
       vals
       (filter (fn [src] (->> src :tags (some #(= tag %)))))
-      (map fever-feed-id))
+      (map :id))
     (catch Object _
+      (log/error (:throwable &throw-context) tag)
       [])))
 
 (defn- feedids-for-type
   [type]
   (try+
-    (->> (db-feeds-with-config)
+    (->>
+      (db/get-sources)
+      db/sources-merge-in-config
       vals
-      (filter (fn [feed] (= (get feed :type) type)))
-      (map fever-feed-id))
+      (filter (fn [feed] (= (get feed :type) (keyword "item-type" (name type)))))
+      (map :id))
     (catch Object _
       [])))
-
-(defn last-refresh []
-  0)
-(comment
-  (let [feeds (couch/get-feeds)
-        ts (map #(-> % :last-fetch-ts fever-timestamp) feeds)]
-    (apply max ts)))
-
 
 (s/defn tag-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feed items with tag"
@@ -193,20 +145,12 @@
 (s/defn special-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all speicla feeds (e.g bookmarks)"
   []
-  (let [feeds (db-feeds-with-config)]
+  (let [sources (db/get-sources)]
     {:group_id (fever-group-id-for-tag :special)
      :feed_ids (string/join ","
-                 [(fever-feed-id (:bookmark feeds))
-                  (fever-feed-id (:document feeds))])}))
+                 [(get-in sources [:bookmark :id])
+                  (get-in sources [:document :id])])}))
 
-(s/defn time-feeds-group :- schema/FeverFeedsGroup
-  "Return group containing all speicla feeds (e.g bookmarks)"
-  []
-  {:group_id (fever-group-id-for-tag :nwords)
-   :feed_ids (string/join ","
-               (for [nwords (couch/get-word-count-groups)]
-                 (fever-feed-id {:source-name (str "TIME FEED:" nwords)
-                                 :source-key (keyword (str nwords))})))})
 
 (s/defn feeds-groups :- schema/FeverFeedsGroups
   "Return feeds_groups array"
@@ -215,7 +159,6 @@
    (tag-feeds-group :jobs) (tag-feeds-group :personal) (tag-feeds-group :events)
    (tag-feeds-group :reddit) (tag-feeds-group :comics) (tag-feeds-group :music)
    (special-feeds-group)
-   ;;   (time-feeds-group)
    (type-feeds-group :mail) (type-feeds-group :tweet) (type-feeds-group :link) (type-feeds-group :feed)])
 
 (s/defn groups  :- schema/FeverGroups
@@ -251,49 +194,23 @@
 
 (s/defn feed :- schema/FeverFeed
   "Convert infowarss src to fever feed"
-  [feed]
-  (let [{:keys [last-fetch-ts title url]} feed]
-    {:id (fever-feed-id feed)
+  [source]
+  (let [{:keys [last-successful-fetch-ts name title url id]} source]
+    {:id id
      :favicon_id 1337
-     :title title
+     :title (or title name)
      :url (str url)
      :site_url (str url)
      :is_spark 0
-     :last_updated_on_time (fever-timestamp last-fetch-ts)}))
-
-(defn word-group-to-title [nwords]
-  (case nwords
-    0 "Long Read"
-    200 "< 200 Words ~ 1 min"
-    400 "< 400 Words ~ 2 min"
-    800 "< 800 Words ~ 5 min"
-    1600 "< 1600 Words ~ 10 min"
-    3200 "< 3200 Words ~ 30 min"
-    (str "< " nwords)))
-
-
-(s/defn time-feed :- schema/FeverFeed
-  "Convert infowarss src to fever feed"
-  [nwords]
-  (let [title  (word-group-to-title nwords)]
-  {:id (fever-feed-id {:source-name (str "TIME FEED:" nwords)
-                       :source-key (keyword (str nwords))})
-   :favicon_id 1337
-   :title title
-   :url ""
-   :site_url ""
-   :is_spark 0
-   :last_updated_on_time 0}))
-
-
-(defn time-feeds []
-  (for [[nwords _] (couch/get-word-count-groups)]
-    (time-feed nwords)))
+     :last_updated_on_time (fever-timestamp last-successful-fetch-ts)}))
 
 (s/defn feeds :- schema/FeverFeeds
   "Return fever feeds"
   []
-  {:feeds (for [f (couch/get-feeds)] (feed f))
+  {:feeds (map feed (->> (db/get-sources)
+                      (sources-merge-in-state)
+                      vals
+                      (remove #(nil? (:id %)))))
    :feeds_groups (feeds-groups)})
 
 (s/defn dummy-favicon :- schema/FeverFavicon
@@ -307,9 +224,10 @@
   {:favicons [(dummy-favicon)]})
 
 (defn get-html-content [doc]
+  ;; XXX add vew-hints support
   (let [hint (get-in doc [:meta :view-hints :html])
-        description (get-in doc [:entry :descriptions])
-        contents (get-in doc [:entry :contents])]
+        description (get-in doc [:data :description])
+        contents (get-in doc [:data :content])]
     (if-not (nil? hint)
       (let [path (concat (map keyword (butlast hint)) [(last hint)])]
         (get-in doc path))
@@ -319,22 +237,22 @@
            (get description "text/plain")
            ""))))
 
-(s/defn item :- schema/FeverItem
-  "Convert infowarss document to fever feed item"
-  [doc]
-  (let [meta (get doc :meta)
-        feed-info {:source-name (get meta :source-name)
-                   :source-key (keyword (get meta :source-key))}]
+;; (s/defn item :- schema/FeverItem
+;;   "Convert infowarss document to fever feed item"
+;;   [doc]
+;;   (let [meta (get doc :meta)
+;;         feed-info {:source-name (get meta :source-name)
+;;                    :source-key (keyword (get meta :source-key))}]
 
-  {:id (fever-item-id (:_id doc))
-   :feed_id (fever-feed-id feed-info)
-   :title (str (or (-> doc :summary :title) ""))
-   :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
-   :html (get-html-content doc)
-   :url (-> doc :entry :url str)
-   :is_saved 0
-   :is_read (if (some #{"unread"} (get-in doc [:meta :tags])) 0 1)
-   :created_on_time (-> doc :summary :ts fever-timestamp)}))
+;;   {:id (fever-item-id (:_id doc))
+;;    :feed_id (fever-feed-id feed-info)
+;;    :title (str (or (-> doc :summary :title) ""))
+;;    :author (as-> doc d (get-in d [:entry :authors]) (string/join ", " d))
+;;    :html (get-html-content doc)
+;;    :url (-> doc :entry :url str)
+;;    :is_saved 0
+;;    :is_read (if (some #{"unread"} (get-in doc [:meta :tags])) 0 1)
+;;    :created_on_time (-> doc :summary :ts fever-timestamp)}))
 
 (defn items
   "
@@ -342,22 +260,23 @@
   Limit return values with since, max, with
   "
   [& {:keys [since max with]}]
-  (let [ids (->> (couch/all-doc-ids)
-              (map (fn [couchid] [(fever-item-id couchid) couchid]))
-              (into (sorted-map)))
+  (let [items (cond
+                (number? since)
+                (db/get-items-by-id-range-fever since max :limit 100)
 
-        filtered-ids (cond->> ids
-                       (number? since) (filter (fn [[fid _]] (< since fid )))
-                       (number? max) (filter (fn [[fid _]] (>= max fid)))
-                       (seq with) (filter (fn [[fid _]] ((set with) fid))))
-        ids-to-return (->> filtered-ids
-                        (vals)
-                        (take 50))]
+                (seq with)
+                (db/get-items-by-id-fever with :limit 50)
+
+                :default
+                [])
+        items-with-html (map (fn [item]
+                               (-> item
+                                 (assoc :html (get-html-content item))
+                                 (dissoc :data)))
+                          items)]
     (s/validate schema/FeverItems
-      {:total_items (count ids)
-       :items (for [id ids-to-return
-                    :let [doc (couch/get-document-with-attachments id)]]
-                (item doc))})))
+      {:total_items (count items)
+       :items items-with-html})))
 
 ;; Or the first page (page=1) of Hot links for the past week (range=7)
 ;; starting now (offset=0).
@@ -384,88 +303,47 @@
   "Return ids of unread items"
   []
   {:unread_item_ids
-   (string/join ","
-     (map fever-item-id (couch/doc-ids-with-tag :unread)))})
+   (string/join "," (db/get-item-ids-by-tag :unread))})
 
 (s/defn saved-item-ids :- schema/FeverSavedItemIds
   "Return ids of saved items"
   []
   {:saved_item_ids
-   (string/join ","
-     (map fever-item-id (couch/doc-ids-with-tag :saved)))})
+   (string/join "," (db/get-item-ids-by-tag :saved))})
 
 (defn api-root
   "Return map with data to merge with specific requests on every reply"
   []
   {:api_version 3
-   :last_refreshed_on_time (last-refresh)
+   :last_refreshed_on_time (fever-timestamp (last-refresh))
    :auth 1})
-
-(defn find-couchid-by-feverid
-  [fid]
-  (let [ids (->> (couch/all-doc-ids)
-             (map (fn [couchid] [(fever-item-id couchid) couchid]))
-             (into (hash-map)))
-        couchid (get ids fid)]
-    (when (nil? couchid)
-      (throw+ {:type ::couchid-not-found}))
-    couchid))
-
-(defn- modify-tags
-  [id f]
-  (let [couchid (find-couchid-by-feverid id)]
-    (log/debugf "[Fever API] modify tag of %s/%s"
-      id couchid)
-    (couch/swap-document! couchid
-      (fn [doc] (update-in doc [:meta :tags] f)))))
-
-(defn- remove-tag
-  [id tag]
-  (log/debugf "[Fever API] remove tag %s from %s"
-    tag id)
-  (modify-tags id (fn [m] (-> m set (disj tag)))))
-
-(defn- set-tag
-  [id tag]
-  (log/debugf "[Fever API] set tag %s on %s"
-    tag id)
-  (modify-tags id (fn [m] (-> m (conj tag) set))))
-
-(defn modify-tags-for-feed [feed-id tag f]
-  (let [feed (get-feed-by-fever-feed-id feed-id)
-        couch-ids (couch/unread-docs-by-src-ids (:source-name feed))]
-    (doseq [id couch-ids]
-      (couch/swap-document! id
-        (fn [old] (update-in old [:meta :tags] f))))))
-
-(defn mark-feed-read [feed-id]
-  (log/debugf "[Fever API] marking feed %s as read" feed-id)
-  (modify-tags-for-feed feed-id "unread" (fn [m] (-> m set (disj "unread")))))
 
 (defn handle-write-op
   [req]
-  (try+
-    (let [{:keys [mark as id before]} (:params req)
-          id (Long/parseLong id)]
-      (log/debugf "[Fever API] WRITE OP (%s:%s -> %s)"
-        mark id as)
-      (cond
-        (and (= mark "item") (= as "read"))
-        (remove-tag id "unread")
-        (and (= mark "item") (= as "unread"))
-        (set-tag id "unread")
-        (and (= mark "item") (= as "saved"))
-        (set-tag id "saved")
-        (and (= mark "item") (= as "unsaved"))
-        (remove-tag id "saved")
-        (and (= mark "feed") (= as "read"))
-        (mark-feed-read id)
-        :else
-        (log/error "Unsupported write op")))
-    (catch Object _
-      (log/errorf "Unexpected error (query params: %s): %s"
-        (:params req) (:throwable &throw-context))))
-  {})
+  (let [req-uuid (:req-uuid req)
+        {:keys [mark as id before]} (:params req)]
+    (try+
+      (let [id (Long/parseLong id)]
+        (log/debugf "[FEVER/%s] WRITE OP (%s:%s -> %s)"
+          req-uuid mark id as)
+        (cond
+          (and (= mark "item") (= as "read"))
+          (db/item-remove-tags id :unread)
+          (and (= mark "item") (= as "unread"))
+          (db/item-set-tags id :unread)
+          (and (= mark "item") (= as "saved"))
+          (db/item-set-tags id :saved)
+          (and (= mark "item") (= as "unsaved"))
+          (db/item-remove-tags :saved)
+          (and (= mark "feed") (= as "read"))
+          (db/item-set-all-tags-for-source id)
+          :else
+          (log/errorf "[FEVER/%s] Unsupported write op: " req-uuid (:params req))))
+      (catch Object _
+        (log/error (:throwable &throw-context)
+          (str "[FEVER/" req-uuid "] Unexpected exception, params:")
+          (:params req))))
+    {}))
 
 (defn extract-op
   "Extract fever api operation from request"
@@ -479,10 +357,11 @@
 (defn handle-request
   "Dispatch fever api operation to handler function"
   [req]
-  (let [op (extract-op req)
+  (let [req-uuid (java.util.UUID/randomUUID)
+        op (extract-op req)
         params (:params req)]
-    (log/debugf "[Fever API] OP: %s params: %s query-string: %s"
-      op params (:query-string req))
+    (log/debugf "[FEVER/%s] OP: %s params: %s query-string: %s"
+      req-uuid op params (:query-string req))
     (try+
       (let [response (condp = op
                          :groups (groups)
@@ -497,17 +376,42 @@
                          :favicons (favicons)
                          :unread_item_ids (unread-item-ids)
                          :saved_item_ids (saved-item-ids)
-                         nil (when (contains? (:params req) :id) (handle-write-op req))
+                         nil (when (get-in req [:params :id])
+                               (handle-write-op (assoc req :req-uuid req-uuid)))
                          {})]
-          (log/tracef "[Fever API] OP: %s response: %s"
-            op (into {} (map (fn [[k v]] [k (if (number? v) v
-                                                (format "%s: n=%s" (type v) (count v)))]) response)))
-          response)
+        (if (empty? response)
+          (log/tracef "[FEVER/%s] OP: %s empty response" req-uuid op)
+          (log/tracef "[FEVER/%s] OP: %s response: %s" req-uuid
+          op (into {} (map (fn [[k v]]
+                             [k (cond
+                                  (number? v)
+                                  v
+                                  (string? v)
+                                  (format "type=%s n=%s first_20=%s.."
+                                    (type v) (count v) (subs v 0 (min (count v) 20)))
+                                  (sequential? v)
+
+                                  (let [cnt (count v)
+                                        ids (remove nil? (map :id v))
+                                        type (type v)]
+                                    (if (some? ids)
+                                      (format "type=%s n=%s id_max=%s id_min=%s ids=%s"
+                                        type cnt
+                                        (when (> (count ids) 0) (apply max ids))
+                                        (when (> (count ids) 0) (apply min ids))
+                                        (pr-str ids))
+                                      (format "type=%s n=%s"
+                                        type cnt)))
+                                  :default
+                                  (format "type=%s" (type v)))])
+                        response))))
+        response)
       (catch [:type :schema.core/error] {:keys [schema value]}
-        (log/error (:throwable &throw-context) "Broken response, schema:" schema)
-        (log/trace "Value of broken response" value))
-      (catch Object e
-        (log/error e "Broken response for OP" op)))))
+        (log/error (:throwable &throw-context) (str "[FEVER/" req-uuid "] Broken response, schema:" schema))
+        (log/trace (str "[FEVER/" req-uuid "] Value of broken response" value)))
+      (catch Object _
+        (log/error (:throwable &throw-context) (str "[FEVER/" req-uuid "] Broken response for OP: ")
+          op params)))))
 
 
 (defn fever-api

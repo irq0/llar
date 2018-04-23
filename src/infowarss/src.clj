@@ -4,7 +4,8 @@
             [clojure.string :as string]
             [infowarss.schema :as schema]
             [slingshot.slingshot :refer [throw+ try+]]
-            [twitter.oauth :refer [make-oauth-creds]])
+            [twitter.oauth :refer [make-oauth-creds]]
+            [twitter.api.restful :as twitter-rest])
   (:import [twitter.oauth OauthCredentials]))
 
 ;;;; Sources - Containers for information needed by the Fetcher / Live
@@ -25,18 +26,46 @@
 
 (s/defrecord Feed
     [url :- java.net.URL
-     args :- {:deep s/Bool}]
+     args :- {:deep? s/Bool :force-update? s/Bool}]
   Object
   (toString [src] (str "[Feed: " (:url src) "]")))
 
 (defn feed
   [url
-   & {:keys [deep?]
-      :or [deep? false]
+   & {:keys [deep? force-update?]
+      :or {deep? false force-update? true}
       :as args}]
   (->Feed (io/as-url url) args))
 
-;;; Twitter Search
+(s/defrecord SelectorFeed
+    [url :- java.net.URL
+     selectors :- {:urls s/Any
+                   :ts s/Any
+                   :author s/Any
+                   :content s/Any
+                   :description s/Any}
+     extractors :- {:urls s/Any
+                    :ts s/Any
+                    :author s/Any
+                    :content s/Any
+                    :description s/Any}]
+  Object
+  (toString [src] (str "[SelectorFeed: " (:url src) "]")))
+
+(defn selector-feed
+  [url
+   selectors
+   extractors]
+  (->SelectorFeed (io/as-url url) selectors extractors))
+
+(s/defrecord WordpressJsonFeed
+    [url :- java.net.URL]
+  Object
+  (toString [src] (str "[WpJsonFeed: " (:url src) "]")))
+
+(defn wp-json
+  [url]
+  (->WordpressJsonFeed (io/as-url url)))
 
 (def TwitterCreds
   {:app-key schema/NotEmptyStr
@@ -63,6 +92,27 @@
       (:app-secret oauth-creds)
       (:user-token oauth-creds)
       (:user-token-secret oauth-creds))))
+
+(s/defrecord TwitterApi
+    [api-fn :- schema/Func
+     params :- s/Any
+     url :- java.net.URL
+     oauth-creds :- OauthCredentials]
+  Object
+  (toString [src] (format "[TwitterApi/%s: %s]" api-fn params)))
+
+(s/defn twitter-timeline :- TwitterApi
+  [oauth-creds]
+  (->TwitterApi
+    twitter-rest/statuses-home-timeline
+    {:count 200}
+    (io/as-url (str "https://twitter.com/irq0"))
+    (make-oauth-creds
+      (:app-key oauth-creds)
+      (:app-secret oauth-creds)
+      (:user-token oauth-creds)
+      (:user-token-secret oauth-creds))))
+
 
 (s/defrecord MercuryWebParser
     [url :- java.net.URL

@@ -32,11 +32,16 @@
   Object
   (toString [item] (fetch/item-to-string item)))
 
-
+(defn try-get-base-type [content-type]
+  (try+
+    (str (mt/base-type content-type))
+    (catch Object _
+      content-type)))
 
 (defn mail-body-to-contents [m]
-  (into {} (map (fn [b] [(str (mt/base-type (:content-type b))) (:body b)]) (:body m))))
+  (into {} (map (fn [b] [(try-get-base-type (:content-type b)) (:body b)]) (:body m))))
 
+(def last-mail (atom []))
 
 (defn get-new-messages [uri {:keys [username password]}]
   (let [p (as-properties {"mail.imap.starttls.enable" "true"
@@ -44,18 +49,22 @@
         session (Session/getDefaultInstance p)
         store (store (.getScheme uri) session (.getHost uri)
                 username password)
-        msgs (doall (map (fn [id] (let [msg (read-message id)]
-                                    {:to (:id msg)
-                                     :cc (:cc msg)
-                                     :bcc (:bcc msg)
-                                     :from (:from msg)
-                                     :subject (:subject msg)
-                                     :date-sent (:date-sent msg)
-                                     :date-received (:date-received msg)
-                                     :content-type (:content-type msg)
-                                     :body (mail-body-to-contents msg)
-                                     :headers (:headers msg)}))
+        msgs (doall (map (fn [id]
+                           (let [msg (read-message id)]
+                             (if (nil? (:body msg))
+                               (log/warn "Failed to parse mail body:" msg)
+                               {:to (:id msg)
+                                :cc (:cc msg)
+                                :bcc (:bcc msg)
+                                :from (:from msg)
+                                :subject (:subject msg)
+                                :date-sent (:date-sent msg)
+                                :date-received (:date-received msg)
+                                :content-type (:content-type msg)
+                                :body (mail-body-to-contents msg)
+                                :headers (:headers msg)})))
                            (unread-messages store (subs (.getPath uri) 1))))]
+    (reset! last-mail msgs)
     (close-store store)
     msgs))
 
@@ -72,7 +81,6 @@
   ImapItem
   (to-couch [item]
     (-> item
-      persistency/convert-to-attachments
       (assoc-in [:meta :source :creds] nil)
       (assoc :type :mail))))
 

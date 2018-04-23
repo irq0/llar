@@ -13,7 +13,7 @@
 
 (log/merge-config!
   {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
-                           {:path "/tmp/inforwarss_all.log"
+                           {:path "/tmp/infowarss_all.log"
                             :max-size (* 42 1024 1024) })}})
 
 (log/merge-config!
@@ -30,7 +30,7 @@
 
 (log/merge-config!
   {:appenders {:spit (assoc (appenders/spit-appender
-                              {:fname "/tmp/inforwarss_info.log"})
+                              {:fname "/tmp/infowarss_info.log"})
                        :min-level :info)}})
 
 (log/merge-config!

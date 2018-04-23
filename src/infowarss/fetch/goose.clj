@@ -82,7 +82,6 @@
   GooseItem
   (to-couch [item]
     (-> item
-      persistency/convert-to-attachments
       (dissoc :raw)
       (assoc :type :bookmark))))
 

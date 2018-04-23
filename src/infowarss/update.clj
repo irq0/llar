@@ -2,7 +2,7 @@
   (:require
    [infowarss.core :refer [*srcs* config]]
    [infowarss.fetch :as fetch]
-   [infowarss.persistency :refer [store-items! duplicate?]]
+   [infowarss.persistency :refer [store-items!]]
    [infowarss.postproc :as proc]
    [infowarss.converter :as converter]
    [clj-time.core :as time]
@@ -20,6 +20,17 @@
 (defstate state
   :start (atom (converter/read-edn-string (slurp (io/resource "state.edn"))))
   :stop (spit (io/resource "state.edn") (prn-str @state)))
+
+(defn get-current-state []
+  (into {}
+    (map (fn [[k v]]
+           (if (instance? clojure.lang.Atom v)
+             [k @v]
+             [k v]))
+      @state)))
+
+(defn sources-merge-in-state [sources]
+  (merge-with merge sources (get-current-state)))
 
 (def src-state-template
   "New sources start with this template"
@@ -43,15 +54,34 @@
         now (time/now)
         {:keys [src]} feed]
     (try+
-      (let [fetched (fetch/fetch feed)
-            processed (if-not skip-proc
-                        (proc/process feed state fetched)
-                        fetched)
-            dbks (if-not skip-store
-                   (store-items! processed :overwrite? overwrite?)
-                   processed)]
+      (let [fetched (try+
+                      (fetch/fetch feed)
+                      (catch Object _
+                        (throw+ {:type ::fetch-error
+                                 :feed feed})))
 
-        (log/infof "Updating %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
+            processed (try+
+                        (if-not skip-proc
+                          (proc/process feed state fetched)
+                          fetched)
+                        (catch Object _
+                          (throw+ {:type ::proc-error
+                                   :fetched fetched
+                                   :feed feed
+                                   :skip skip-proc})))
+
+            dbks (try+
+                   (if-not skip-store
+                     (store-items! processed :overwrite? overwrite?)
+                     processed)
+                   (catch Object _
+                     (throw+ {:type ::store-error
+                              :feed feed
+                              :fetched fetched
+                              :processed processed
+                              :skip skip-store})))]
+
+        (log/infof "Updated %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
           (str src) (count fetched) (count processed) (count dbks)
           skip-proc skip-store)
 
@@ -91,7 +121,7 @@
            :retry-count 0}))
 
       (catch Object _
-        (log/error (:throwable &throw-context) "Unexpected error (-> perm-fail) for " (str src))
+        (log/error (:throwable &throw-context) "Unexpected error (-> perm-fail) for " (str src) src)
         (merge state
           {:last-attempt-ts now
            :status :perm-fail
@@ -102,9 +132,8 @@
   "Set feed's status"
   [k new-status]
   (let [src (get @state k)]
-    (when (contains? src k)
-      (swap! state (fn [current]
-                      (assoc-in current [k :status] new-status)))
+    (when (not (instance? clojure.lang.Atom src))
+      (swap! state assoc-in [k :status] new-status)
       new-status)))
 
 (defn reset-all-failed!
@@ -167,7 +196,7 @@
 
 (defn update-all! [& args]
   (doall
-    (for [[k v] *srcs*
+    (for [[k v] (shuffle (into [] *srcs*))
           :when (satisfies? fetch/FetchSource (:src v))]
       (apply update! k args))))
 

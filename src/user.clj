@@ -3,8 +3,9 @@
    [mount.core :as mount]
    [clojure.tools.namespace.repl :as tn]
    [infowarss.core :as core :refer [*srcs* config]]
-   [infowarss.persistency :as persistency :refer [store-items! duplicate?]]
+   [infowarss.persistency :as persistency :refer [store-items!]]
    [infowarss.couchdb :as couch]
+   [infowarss.db :as db]
    [infowarss.update :refer :all]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
@@ -15,6 +16,7 @@
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
    [infowarss.logging :refer [with-logging-status]]
+   [infowarss.apis.fever-test]
    [infowarss.repl :refer :all]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -62,3 +64,9 @@
 (defn reset []
   (stop)
   (tn/refresh :after 'user/go))
+
+
+
+(defn -main [& args]
+  (refresh)
+  (start))

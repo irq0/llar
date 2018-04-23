@@ -1,17 +1,19 @@
 (ns infowarss.repl
   (:require
    [infowarss.core :as core :refer [*srcs* config]]
-   [infowarss.persistency :as persistency :refer [store-items! duplicate?]]
+   [infowarss.persistency :as persistency :refer [store-items!]]
    [infowarss.couchdb :as couch]
    [infowarss.update :refer :all :as update]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
+   [infowarss.db :as db]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.live :as live]
    [infowarss.schema :as schema]
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
+   [clojure.java.jdbc :as j]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.core :as time]
@@ -32,9 +34,13 @@
    [clojure.java.shell :as shell]
    [opennlp.nlp :as nlp]
    [hickory.core :as hick]
-   [hickory.select :as hick-s]
+   [hickory.select :as S]
    [hickory.render :as hick-r]
    [hickory.zip :as hick-z]
+   [me.raynes.clhue.lights :as lights]
+   [mount.core :refer [defstate]]
+   [clojure.tools.nrepl.server :refer [start-server stop-server]]
+   [cider.nrepl :refer (cider-nrepl-handler)]
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.namespace.repl :refer [refresh]]
    [taoensso.timbre.appenders.core :as appenders]))
@@ -42,6 +48,10 @@
 ;;;; Namespace to interact with infowarss from the REPL
 
 (s/set-fn-validation! true)
+
+(defstate nrepl-server
+  :start (start-server :port 42000 :handler cider-nrepl-handler)
+  :stop (stop-server nrepl-server))
 
 (defn format-interval [period]
   (let [formatter (some-> (org.joda.time.format.PeriodFormatterBuilder.)
@@ -137,6 +147,8 @@
          (merge dbf (get confs (get dbf :source-key)))]))))
 
 
+(def hue-config (:hue core/creds ))
+
 
 
 ;;; Preview - Try out filters, processing, fetch
@@ -184,8 +196,37 @@
 ;;; Toy around area
 
 
+(comment
+(defn readability-scores [s]
+  (let [{:keys [exit out err]}
+        (shell/sh "style" :in s :env {"LANG" "c"})]
+    {:flesch-index (when-let [[_ x] (re-find #"Flesch Index: ([\d\.-]+)/" out)]
+                     (Float/parseFloat x))
+     :smog-grade (when-let [[_ x] (re-find #"SMOG-Grading: ([\d\.-]+)" out)]
+                   (Float/parseFloat x))}))
+
+
+(j/with-db-transaction [t db/*db*]
+  (let [xs (pmap (fn [x]
+                (assoc x :readability
+                  (readability-scores (:text x))))
+           (j/query t "select items.id, item_data.text from items inner join item_data on items.id = item_data.item_id where item_data.type = 'content' and item_data.mime_type = 'text/plain'"))]
+  (doseq [{:keys [id readability]} (take 1 xs)]
+    (log/info id)
+    (j/execute! t ["update items set entry = entry || ? where id = ?" {:readability readability} id]))))
+)
+
+
+
 ;; TODO mydealz
 
+(defn call-method
+  [obj method & args]
+  (-> (.getClass obj)
+    (.getDeclaredMethod (str (:name method))
+      (into-array Class (map resolve (:parameter-types method))))
+    (doto (.setAccessible true))
+    (.invoke obj (into-array Object args))))
 
 (defn mydealz-extract-extra [item]
   (let [raw (:raw item)
@@ -213,23 +254,6 @@
 
 
 ;; WIP: youtube dl music as mp3
-
-
-;;; move to couch someday
-
-(defn update-tags
-  [id f]
-  (couch/swap-document! id
-    (fn [doc] (update-in doc [:meta :tags] f))))
-
-(defn remove-tag
-  [id tag]
-  (update-tags id (fn [m] (-> m set (disj tag)))))
-
-(defn set-tag
-  [id tag]
-  (update-tags id (fn [m] (-> m (conj tag) set))))
-
 
 (defn youtube-dl-music [url]
   (let [{:keys [exit out err]} (shell/sh
@@ -273,30 +297,35 @@
       (log/error "Youtube-dl error: " youtube-err))))
 
 
-
 (defn music-links []
-  (let [music-feeds (filter #(contains? (:tags (val %)) :music) (get-feeds))]
-    (apply concat
-      (for [[k feed] music-feeds]
-        (let [ids (couch/query-ids {:meta {:source-key (:source-key feed)
-                                           :tags {"$not" {"$elemMatch" {"$eq" "music-mined"}}}}
-                                    :entry {:url {"$regex" (str #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$")}}})]
-          (for [id ids]
-            [id (get-in (couch/get-document id) [:entry :url])]))))))
+  (let [sources (-> (db/get-sources)
+                  (db/sources-merge-in-config)
+                  vals)
+        music-srcs (->> sources
+                     (filter #(contains? (:tags %) :music))
+                     (map :key))]
+    (let [items (db/get-items-recent
+                  {:with-source-keys music-srcs
+                   :limit 512
+                   :with-tag :unread})]
+      (->> items
+        (map (juxt :id :title :url))
+        (filter (fn [[_ _ url]]
+                  (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)))))))
 
 (defn music-miner []
-  (doseq [[id url] (music-links)]
+  (doseq [[id title url] (music-links)]
     (try+
+      (log/info "Music Mining: " title url)
       (let [filename (youtube-dl-music url)]
-        (log/info "Music Miner downloaded: " filename)
-        (log/debug "Music mined" id)
-        (set-tag id "music-mined")
-        (remove-tag id "unread"))
+        (log/infof "Music Miner downloaded %s/%s to %s"
+          title url filename)
+        (db/item-set-tags id :music-mined)
+        (db/item-remove-tags id :unread))
       (catch [:type :youtube-error] {:keys [msg]}
-        (set-tag id "music-mined")
-        (set-tag id "music-miner-failed")
-        (remove-tag id "unread")
-        (log/errorf "Music miner failed for \"%s\": %s" url msg))
+        (db/item-set-tags id :music-mined :music-miner-failed)
+        (db/item-remove-tags id :unread)
+        (log/errorf "Music miner failed for %s/%s: %s" title url msg))
       (catch Object e
         (log/error e "Unexpected error")))))
 

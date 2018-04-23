@@ -1,7 +1,7 @@
 (ns infowarss.fetch.twitter
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
             [infowarss.postproc :refer [ItemProcessor]]
-            [infowarss.persistency :refer [CouchItem convert-to-attachments]]
+            [infowarss.persistency :refer [CouchItem]]
             [infowarss.schema :as schema]
             [infowarss.analysis :as analysis]
             [twitter.api.restful :as twitter]
@@ -130,11 +130,6 @@
                 "text/html" (htmlize-tweet-text tweet)}}))
 
 
-
-
-
-
-
 (extend-protocol FetchSource
   infowarss.src.TwitterSearch
   (fetch-source [src]
@@ -156,6 +151,29 @@
                    content)
            :entry entry})))))
 
+
+(extend-protocol FetchSource
+  infowarss.src.TwitterApi
+  (fetch-source [src]
+    (let [{:keys [api-fn params oauth-creds]} src
+          resp (api-fn
+                 :oauth-creds oauth-creds
+                 :params params)
+          tweets (get-in resp [:body :statuses])]
+      (for [tweet tweets
+            :let [entry (tweet-to-entry tweet)
+                  content (get-in entry [:contents "text/plain"])]]
+        (map->TweetItem
+          {:raw tweet
+           :meta (make-meta src)
+           :summary {:ts (get entry :pub-ts )
+                     :title (tweet-title content)}
+           :hash (make-item-hash
+                   (first (get entry :authors))
+                   content)
+           :entry entry})))))
+
+
 (extend-protocol ItemProcessor
   TweetItem
   (post-process-item [item src state]
@@ -169,7 +187,7 @@
   TweetItem
   (to-couch [item]
     (-> item
-      convert-to-attachments
       (assoc :type :tweet)
       (dissoc :raw)
+      (dissoc :body)
       (assoc-in [:meta :source :oauth-creds] nil))))

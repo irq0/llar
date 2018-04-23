@@ -29,7 +29,7 @@
       (tc/to-string (get-in item [:summary :ts]))
       "?")
     (str (get-in item [:summary :title]))
-    (str (get-in item [:summary :url]))))
+    (str (get-in item [:entry :id]))))
 
 
 (s/defrecord HackerNewsItem
@@ -39,7 +39,7 @@
      raw :- s/Any
      entry :- schema/HackerNewsEntry]
   Object
-  (toString [item] (item-to-string item)))
+  (toString [item] (hn-item-to-string item)))
 
 
 (extend-protocol postproc/ItemProcessor
@@ -51,14 +51,10 @@
 (extend-protocol persistency/CouchItem
   HackerNewsItem
   (to-couch [item]
-    (let [atts (persistency/to-couch-atts "content" (get-in item [:entry :contents]))]
-      (cond->
-          (-> item
-            (dissoc :raw)
-            (assoc-in [:meta :source :args] nil)
-            (assoc :type :link)
-            (assoc-in [:entry :contents] nil))
-        (seq atts) (assoc "_attachments" atts)))))
+    (-> item
+      (dissoc :raw)
+      (assoc-in [:meta :source :args] nil)
+      (assoc :type :link))))
 
 (s/defn make-hn-summary :- schema/Summary
   [hn-entry :- schema/HackerNewsEntry]

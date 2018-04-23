@@ -13,10 +13,13 @@
              "-XX:+AggressiveOpts"
              "-XX:+UseFastAccessorMethods"]
 
+  :main user
+
   :license {:name "None"
             :url ""}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [org.clojure/tools.nrepl "0.2.13"]
+                 [cider/cider-nrepl "0.15.1"]
                  [clj-http "3.5.0"]
                  [org.clojure/core.async "0.3.442"]
                  [slingshot "0.12.2"]
@@ -33,6 +36,7 @@
                  [org.slf4j/jul-to-slf4j "1.7.25"]
                  [org.slf4j/jcl-over-slf4j "1.7.25"]
                  [com.fzakaria/slf4j-timbre "0.3.5"]
+                 [byte-streams "0.2.3"]
                  [clojurewerkz/quartzite "2.0.0"]
                  [twitter-api "1.8.0"]
                  [com.draines/postal "2.0.2"]
@@ -60,4 +64,10 @@
                  [com.firebase/firebase-client-jvm "2.5.2"]
                  [com.google.api-client/google-api-client "1.22.0"]
                  [com.google.apis/google-api-services-youtube "v3-rev183-1.22.0"]
+                 [org.clojure/java.jdbc "0.7.5"]
+                 [org.postgresql/postgresql "42.2.1"]
+                 [mpg "1.3.0"]
+                 [me.raynes/clhue "0.1.2"]
+                 [com.google.guava/guava "14.0"]
+                 [clojure-humanize "0.2.2"]
                  [clj-time "0.13.0"]])

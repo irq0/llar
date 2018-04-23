@@ -56,8 +56,12 @@
 
 
 (defn absolutify-url [url base-url]
-  (if (and (string? url) (string/starts-with? url "/"))
+  (cond
+    (and (string? url) (string/starts-with? url "/") (string/ends-with? base-url "/"))
+    (str base-url (subs url 1))
+    (and (string? url) (string/starts-with? url "/"))
     (str base-url url)
+    :default
     url))
 
 (defn parse-img-srcset [str]
@@ -97,10 +101,20 @@
                 (edit-tag tag loc)))
             (recur (zip/next loc))))))))
 
+(defn- maybe-extract-url
+  [s]
+  (try+
+    (io/as-url s)
+    (catch java.net.MalformedURLException _
+      nil)))
+
 (defn get-base-url [u]
-  (let [url (io/as-url u)]
-    (log/spy url)
-    (java.net.URL. (.getProtocol url) (.getHost url) (.getPort url) "/")))
+  (let [url (maybe-extract-url u)]
+    (try+
+      (java.net.URL. (.getProtocol url) (.getHost url) (.getPort url) "/")
+      (catch Object _
+        (log/warn "http fetcher: failed to get base url for:" u)
+        url))))
 
 (defn fetch-http-generic
   "Generic HTTP fetcher"
@@ -108,7 +122,7 @@
   (try+
     (let [url (-> src :url str)
           response (http/get url {:headers {:user-agent "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"}})
-          base-url (get-base-url (:url src))
+          base-url (get-base-url url)
           parsed-html (-> response
                         :body
                         hick/parse hick/as-hickory
@@ -140,8 +154,8 @@
       (throw+ {:type :client-error-retry-later}))
 
     (catch Object _
-      (log/error "Unexpected error: " (:throwable &throw-context))
-      (throw+ {:type ::unexpected-error}))))
+      (log/error "Unexpected error: " (:throwable &throw-context) (-> src :url str))
+      (throw+ {:type ::unexpected-error :url (-> src :url str)}))))
 
 
 (extend-protocol FetchSource
@@ -152,4 +166,41 @@
 (extend-protocol ItemProcessor
   HttpItem
   (post-process-item [item src state] item)
-  (filter-item [item src] false))
+  (filter-item [item src state] false))
+
+
+
+;; (preview (src/http "https://www.scality.com/blog") :post [(fn [site] (let [hick (:hickory site)
+;;                                                                                  article-urls (->>
+;;                                                                                (hickory.select/select
+;;                                                                                  (hickory.select/descendant
+;;                                                                                    (hickory.select/class "read--more--button")
+;;                                                                                    (hickory.select/tag :a))
+;;                                                                                  hick)
+;;                                                                                (map #(get-in % [:attrs :href])))
+;;                                                                                  feed {:title (get-in site [:summary :title])
+;;                                                                                        :url (get-in site [:meta :src :url])
+;;                                                                                        :encoding (-> res :encoding)
+;;                                                                                        :pub-ts (get-in site [:summary :ts])
+;;                                                                                        :feed-type "http-postproc"}
+;;                                                                                  entries-http
+;;                                                                                  (map #(infowarss.fetch.http/fetch-http-generic {:url %})
+;;                                                                                    article-urls)]
+;;                                                                              (for [entry-http entires-http
+;;                                                                                    :let [{:keys [summary meta]} entry-http
+;;                                                                                          url (get-in meta [:src :url])]
+;;                                                                                    ]
+;;                                                                                (map->FeedItem
+;;                                                                                  (-> site
+;;                                                                                  (dissoc :hash :hickory :summary)
+;;                                                                                  (merge {:raw nil
+;;                                                                                          :feed feed
+;;                                                                                          :entry (merge base-entry
+;;                                                                                                   {:authors authors
+;;                                                                                                    :contents contents
+;;                                                                                                    :descriptions descriptions})
+;;                                                                                          :hash (infowarss.fetch/make-item-hash
+;;                                                                                                  (:title summary) url)
+;;                                                                                          :summary summary
+;;                                                                                          })))
+;;                                                                   (assoc site :body nil) )])

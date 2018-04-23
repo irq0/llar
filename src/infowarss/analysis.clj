@@ -2,6 +2,7 @@
   (:require
    [clojure.java.io :as io]
    [opennlp.nlp :as nlp]
+   [clojure.java.shell :as shell]
    [taoensso.timbre :as log]
    [clojure.string :as string]
    [opennlp.tools.filters :as nlp-filter]
@@ -29,14 +30,45 @@
 (defn find-names [lang tokens]
   (mapcat (fn [finder] (finder tokens)) (get name-find lang)))
 
+(def url-regex #"https?://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?")
+
+(defn extract-urls [s]
+  (re-seq url-regex s))
+
+(defn remove-urls [s]
+  (string/replace s url-regex ""))
+
+(defn remove-html2text-artifacts [s]
+  (-> s
+    (string/replace #"\[[0-9]+\]:?" "")
+    (string/replace #"\[+(.+)\]+" "$1")
+    (string/replace #"\[|\]" "")))
+
+(defn readability-scores [s]
+  (let [{:keys [exit out err]}
+        (shell/sh "style" :in s :env {"LANG" "c"})]
+    {:flesch-index (when-let [[_ x] (re-find #"Flesch Index: ([\d\.-]+)/" out)]
+                     (Float/parseFloat x))
+     :smog-grade (when-let [[_ x] (re-find #"SMOG-Grading: ([\d\.-]+)" out)]
+                   (Float/parseFloat x))}))
+
+(defn sanitize-text [s]
+  (-> s
+    remove-urls
+    remove-html2text-artifacts
+    ))
+
 (defn analyze-text [text & {:keys [language]}]
   (let [lang (or language (keyword (pl/detect-language text)))]
     (if (#{:de :en} lang)
-      (let [tokens ((get tokenizer lang)  text)
+      (let [urls (extract-urls text)
+            text-sanitized (sanitize-text text)
+            tokens ((get tokenizer lang)  text-sanitized)
             pos ((get pos-tagger lang) tokens)
             words (not-punctuation pos)]
         (log/debug "NLP Analysis running" )
         {:language lang
+         :readability (readability-scores text-sanitized)
          :nlp {:nwords (count words)
                :top {:words (->> (not-punctuation words)
                               (map #(-> % first string/lower-case))
@@ -50,13 +82,15 @@
                               (sort-by val)
                               reverse
                               (take 23))}
+               :urls urls
                :names (set (find-names lang tokens))
                :nouns (set (map string/lower-case (map first (nlp-filter/nouns pos))))
                :verbs (set (map string/lower-case (map first (verbs-de-en pos))))}})
       {})))
 
 (defn analyze-entry [entry]
-  (let [text (get-in entry [:contents "text/plain"])]
+  (let [text (or (get-in entry [:contents "text/plain"])
+               (get-in entry [:descriptions "text/plain"]))]
     (when-not (string/blank? text)
       (analyze-text text :language (get entry :language)))))
 
