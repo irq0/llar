@@ -9,6 +9,7 @@
    [clj-time.format :as tf]
    [hiccup.core :refer [html]]
    [hickory.select :as S]
+   [slingshot.slingshot :refer [throw+ try+]]
    [hickory.core :as hick]
    [hickory.render :refer [hickory-to-html]]
    [clj-time.coerce :as tc]
@@ -56,6 +57,17 @@
     [:h1 "Content"]))
 
 
+(defn human-host-identifier [str-url]
+  (let [url (io/as-url str-url)
+        host (.getHost url)]
+    (try+
+      (let [domain (com.google.common.net.InternetDomainName/from host)
+            site (.topPrivateDomain host)]
+        (.name site))
+      (catch Object _
+        (str host)))))
+
+
 (defn make-bookmark-feed [url]
   (let [src (src/mercury url (get-in creds [:mercury :api-key]))]
     {:src src
@@ -65,8 +77,7 @@
                      (let [summary (bookmark-html item)
                            html (get-in item [:entry :contents "text/html"])
                            url (some-> item :entry :url)
-                           host (com.google.common.net.InternetDomainName/from (.getHost url))
-                           site (.name (.topPrivateDomain host))]
+                           site (human-host-identifier url)]
                        (-> item
                          (assoc-in [:entry :contents "text/html"]
                            (str summary "\n\n\n" html))
