@@ -622,10 +622,10 @@
   (let [url (io/as-url str-url)
         proto (some-> url .getProtocol)
         site (some-> url .getHost)
-        path (some-> url .getPath)
-        path-seq (some-> path (string/split #"/") next vec)
+        path (or (some-> url .getPath) "")
+        path-seq (-> path (string/split #"/") next vec)
         path-len (count path-seq)
-        path-last (last path-seq)]
+        path-last (or (last path-seq) "")]
     (cond
       (string/includes? site "wikipedia")
       [:span (icon "book-open") "&nbsp;" (string/replace path-last #"_" " ")]
