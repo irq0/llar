@@ -218,6 +218,10 @@
                    :cron cron-daily
                    :tags #{:tech :magazine}}
 
+   :oreilly-fourshortlinks {:src (src/feed "http://feeds.feedburner.com/FourShortLinks")
+                            :cron cron-daily
+                            :tags #{:tech :magazine}}
+
    :danluu {:src (src/feed "https://danluu.com/atom.xml")
             :tags #{:tech :blog}
             :cron cron-daily}
