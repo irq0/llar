@@ -13,6 +13,7 @@
    [digest]
    [clj-http.client :as http]
    [hickory.core :as hick]
+   [clj-time.core :as time]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -88,7 +89,7 @@
   infowarss.src.MercuryWebParser
   (fetch-source [src]
     (let [mercu (mercury-get (:url src) (:api-key src))
-          pub-ts (tc/from-string (:date_published mercu))
+          pub-ts (or (tc/from-string (:date_published mercu)) (time/now))
           title (cond
                   (string? (:title mercu)) (:title mercu)
                   (vector? (:title mercu)) (first :title mercu)
