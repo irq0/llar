@@ -364,7 +364,6 @@
 
 (comment
   (defonce jetty (run-jetty #'webapp/fever-app {:port 8765 :join? false}))
-  (defonce jetty (run-jetty #'feedbin-app {:port 8765 :join? false}))
   (.start jetty)
   (.stop jetty))
 

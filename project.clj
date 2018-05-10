@@ -43,7 +43,6 @@
                  [compojure "1.6.1"]
                  [metosin/compojure-api "1.1.12"]
                  [prismatic/schema-generators "0.1.2"]
-                 [liberator "0.15.1"]
                  [prismatic/schema "1.1.9"]
                  [org.clojure/test.check "0.9.0"]
                  [ring/ring-devel "1.6.3"]
