@@ -34,6 +34,12 @@
   (fn [item]
     (update-in item [:meta :tags] conj tag)))
 
+(defn add-tag-filter [tag fltr]
+  (fn [item]
+    (if (fltr item)
+      (update-in item [:meta :tags] conj tag)
+      item)))
+
 (defn copy [src dst]
   (fn [item]
     (let [src-val (get-in item src)]
