@@ -80,6 +80,10 @@
                    (log/warn &throw-context "Mercury post processing failed. Using vanilla")
                    (:body resp)))]
       body)
+    ;; Mercury sends 502 when it's unable to parse the url
+    (catch [:status 502] {:keys [headers body status]}
+      (log/errorf "Mercury Error (%s): %s %s" status headers body)
+      (throw+ {:type ::not-parsable}))
 
     (catch Object _
       (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
