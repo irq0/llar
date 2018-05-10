@@ -105,7 +105,11 @@
 
         ;; rest: replace with mercury
         :else
-        (replace-contents-with-mercury creds item keep-orig?)))))
+        (try+
+          (replace-contents-with-mercury creds item keep-orig?)
+          (catch [:type :infowarss.fetch.mercury/not-parsable] _
+            (log/errorf "Mercury Error. Not replacing content with mercury")
+            item))))))
 
 (def sa-to-bool
   {"Yes" true
