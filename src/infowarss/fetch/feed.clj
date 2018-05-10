@@ -269,23 +269,33 @@
                         :summary {:title title
                                   :ts pub-ts}})))))))
 
-
+(defn tag-items [item src]
+  (let [title (get-in item [:summary :title])
+        src-key (name (get-in item [:meta :source-key]))
+        title-re #"Four short links:|Weekly Programming Digest|Emacs news"]
+    (if (or (re-find title-re title)
+          (re-find #"99pi|clojure" src-key))
+      (update-in item [:meta :tags] conj :daily)
+      item)))
 
 (extend-protocol ItemProcessor
   FeedItem
   (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))
+
+          urls (get-in nlp [:nlp :urls])
           tags (into #{}
                  (remove nil?
-                 [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
+                 [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) urls)
                     :has-video)
-                  (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
+                  (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" urls))
                     :has-video)
 
                   ]))]
       (-> item
         (update-in [:meta :tags] into tags)
-        (update :entry merge (:entry item) nlp))))
+        (update :entry merge (:entry item) nlp)
+        (tag-items src))))
   (filter-item [item src state]
     (let [force-update? (get-in src [:args :force-update?])
           last-fetch (get state :last-successful-fetch-ts)
@@ -293,7 +303,7 @@
       (if (or force-update? (nil? last-fetch) (nil? feed-pub))
         false
         (do
-          (log/debugf "Filtering out item %s: older than last fetch %s" (str item) (:force-update? src))
+          (log/debugf "Filtering out item %s: older than last fetch at %s" (str item) last-fetch)
           (time/before? feed-pub last-fetch))))))
 
 (extend-protocol CouchItem
