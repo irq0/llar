@@ -665,7 +665,7 @@
       :default
       url))
   (catch Object _
-    (log/warn "Encountered broken url: " str-url)
+    (log/warn (:throwable &throw-context) "Encountered broken url: " str-url)
     str-url)))
 
 
@@ -754,10 +754,9 @@
           :let [url (-> all-text-urls
                       first second)]
           :when (not (re-find +boring-url-regex+ url))]
-      (do (log/spy text)
       [:span {:class "url border"}
        [:a {:href url :class "text-white sz-b"}
-        text]])))
+        text]]))
     ]
 
    [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
