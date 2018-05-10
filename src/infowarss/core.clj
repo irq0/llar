@@ -109,11 +109,11 @@
           (and (= :story type)
             (>= score min-score))
           (and (= :story type)
-            (re-find #"clojure|lisp|book|alan kay" title)
+            (re-find #"clojure|lisp|book|alan kay|futurism" title)
             (>= score min-score-match))
           (and
             (some? site)
-            (re-find #"theatlantic|medium|youtube|nytimes|theguardian|washingtonpost|99percentinvisible|theverge|phys.org|bbc.com"
+            (re-find #"nautil\.us|theatlantic|medium|youtube|nytimes|theguardian|washingtonpost|99percentinvisible|theverge|phys\.org|bbc\.com"
               site)
             (>= score min-score-match)))))))
 
@@ -442,13 +442,13 @@
           :tags #{:tech}
             :proc (proc/make
                     :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
-                    :filter (make-hacker-news-filter 400 150))}
+                    :filter (make-hacker-news-filter 350 150))}
 
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
           :tags #{:tech}
              :proc (proc/make
                      :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
-                     :filter (make-hacker-news-filter 400 150))}
+                     :filter (make-hacker-news-filter 350 150))}
 
    :xkcd {:src (src/feed "https://xkcd.com/rss.xml")
           :proc (proc/make
