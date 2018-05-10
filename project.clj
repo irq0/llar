@@ -7,11 +7,8 @@
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
              "-XX:+CMSClassUnloadingEnabled"
-             "-XX:+UseConcMarkSweepGC"
-             "-XX:+UseParNewGC"
              "-XX:+CMSParallelRemarkEnabled"
-             "-XX:+AggressiveOpts"
-             "-XX:+UseFastAccessorMethods"]
+             "-XX:+AggressiveOpts"]
 
   :main user
 
