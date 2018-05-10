@@ -145,7 +145,7 @@
         (log/tracef "proc %s: (%s %s)" (str item) func (count args))
         new)
       (catch Object e
-        (log/warnf "proc %s: (%s %s) FAILED: %s" (str item) func (count args) e)
+        (log/warnf (:throwable &throw-context) "proc %s: (%s %s) FAILED: %s" (str item) func (count args) e)
         nil))))
 
 (defn- apply-filter [item f]
