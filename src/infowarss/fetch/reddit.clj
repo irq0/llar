@@ -41,12 +41,10 @@
   RedditItem
   (to-couch [item]
     (-> item
+      (assoc :type :link)
       (dissoc :raw)
       (dissoc :body)
-      (assoc-in [:meta :source :args] nil)
-      (assoc :type :link)
-      (assoc-in [:entry :contents] nil))))
-
+      (assoc-in [:meta :source :args] nil))))
 
 (defn reddit-get [url]
   (try+
@@ -104,13 +102,13 @@
 (extend-protocol fetch/FetchSource
   infowarss.src.Reddit
   (fetch-source [src]
-    (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?count=20"
+    (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=42"
                                (:subreddit src) (:feed src)))]
       (for [child (get-in reddit [:data :children])
             :let [item (:data child)]]
-
-      (->RedditItem
-        (fetch/make-meta src)
-        {:ts (reddit-ts-to-joda (:created_utc item)) :title (:title item)}
-        (fetch/make-item-hash (:id item))
-        (make-reddit-entry item))))))
+        (->RedditItem
+          (fetch/make-meta src)
+          {:ts (reddit-ts-to-joda (:created_utc item)) :title (:title item)}
+;          (fetch/make-item-hash (:title item) (:selftext item))
+          (fetch/make-item-hash (:id item))
+          (make-reddit-entry item))))))
