@@ -386,7 +386,7 @@
     "nlp_nwords as nwords, "
     "max(sources.key) as \"source-key\", "))
 
-(def +get-items-by-id-sql-join-where+
+(def +get-items-by-id-sql-join-with-data-where+
   (str
     "FROM items "
     "INNER JOIN sources ON items.source_id = sources.id "
@@ -394,6 +394,12 @@
     "WHERE "
     "(item_data.type = 'content' "
     "  OR item_data.type = 'description') "))
+
+(def +get-items-by-id-sql-join-without-data-where+
+  (str
+    "FROM items "
+    "INNER JOIN sources ON items.source_id = sources.id "
+    "WHERE 1=1"))
 
 (def +get-items-by-id-sql-select-data+
   (str
@@ -403,17 +409,21 @@
     "json_agg(item_data.data) as \"bin-data\", "))
 
 (defn get-items-by-id-sql
-  ([] (get-items-by-id-sql "" ""))
-  ([extra-select extra-where]
-   (str
+  [& {:keys [extra-select extra-where with-data?]
+      :or {extra-select "" extra-where "" with-data? false}}]
+  (str
     +get-items-by-id-sql-select+
+    (if with-data?
+      +get-items-by-id-sql-select-data+
+      "")
     extra-select
     "items.id "
     " "
-    +get-items-by-id-sql-join-where+
+    (if with-data?
+      +get-items-by-id-sql-join-with-data-where+
+      +get-items-by-id-sql-join-without-data-where+)
     " "
-    extra-where)))
-
+    extra-where))
 
 (defn get-items-by-id-range-fever
   [since max & {:keys [limit] :or {limit "ALL"}}]
@@ -456,33 +466,31 @@
 
 (defn get-items-by-id
   [ids & {:keys [limit with-data?] :or {limit "ALL" with-data? true}}]
-  (let [sql-arr (str "ARRAY[" (string/join "," ids) "]")]
+  (let [sql-arr (str "ARRAY[" (string/join "," ids) "]")
+        where-cond (str
+                     " AND items.id = ANY(" sql-arr ") "
+                     " GROUP BY items.id "
+                     " LIMIT " limit)]
     (j/query *db* [(get-items-by-id-sql
-                   (if with-data?
-                     +get-items-by-id-sql-select-data+
-                     "")
-                     (str
-                       " AND items.id = ANY(" sql-arr ") "
-                       " GROUP BY items.id "
-                       " LIMIT " limit))]
+                     :with-data? with-data?
+                     :extra-where where-cond)]
       {:row-fn process-items-row})))
 
 (defn get-items-by-source-key
   [source-key & {:keys [limit with-tag with-type with-data?]
                  :or {limit "ALL"}}]
-  (j/query *db* [(get-items-by-id-sql
-                   (if with-data?
-                     +get-items-by-id-sql-select-data+
-                     "")
-                   (str
+  (let [where-cond (str
                      " AND sources.key = ? "
                      (when (keyword? with-tag)
                        (str " AND exist_inline(items.tags,'" (name with-tag) "') "))
                      (when (keyword? with-type)
                        (str " AND items.type = '" (name with-type) "'"))
                      " GROUP BY items.id "
-                     " LIMIT ?")) (name source-key) limit]
-    {:row-fn process-items-row}))
+                     " LIMIT ?")]
+    (j/query *db* [(get-items-by-id-sql
+                     :with-data? with-data?
+                     :extra-where where-cond) (name source-key) limit]
+    {:row-fn process-items-row})))
 
 (defn simple-filter-to-sql [kw]
   (case kw
@@ -496,29 +504,28 @@
   [{:keys [limit before with-tag with-type with-source-keys with-data? simple-filter]
     :or {limit "ALL" with-data? false}
     :as args}]
-  (let [sql (get-items-by-id-sql
-              (if with-data?
-                +get-items-by-id-sql-select-data+
-                "")
-              (str
-                (when (map? before)
-                  " AND (items.ts, items.id) < (?, ?) ")
-                (when (coll? with-source-keys)
-                  (str " AND sources.key = ANY(ARRAY["
-                    (->> with-source-keys
-                      (map #(str "'" ((fnil name :unknown) %) "'"))
-                      (string/join ","))
-                    "]) "))
-                (when (keyword? simple-filter)
-                  (str " AND " (simple-filter-to-sql simple-filter) " "))
-                (when (keyword? with-tag)
-                  (str " AND exist_inline(items.tags,'" (name with-tag) "') "))
-                (when (keyword? with-type)
-                  (str " AND items.type = '" (name with-type) "'"))
-                " AND items.ts < now() "
-                " GROUP BY items.id "
-                " ORDER BY ts DESC, id DESC "
-                " LIMIT ?"))]
+  (let [where-cond (str
+                     (when (map? before)
+                       " AND (items.ts, items.id) < (?, ?) ")
+                     (when (coll? with-source-keys)
+                       (str " AND sources.key = ANY(ARRAY["
+                         (->> with-source-keys
+                           (map #(str "'" ((fnil name :unknown) %) "'"))
+                           (string/join ","))
+                         "]) "))
+                     (when (keyword? simple-filter)
+                       (str " AND " (simple-filter-to-sql simple-filter) " "))
+                     (when (keyword? with-tag)
+                       (str " AND exist_inline(items.tags,'" (name with-tag) "') "))
+                     (when (keyword? with-type)
+                       (str " AND items.type = '" (name with-type) "'"))
+                     " AND items.ts < now() "
+                     " GROUP BY items.id "
+                     " ORDER BY ts DESC, id DESC "
+                     " LIMIT ?")
+        sql (get-items-by-id-sql
+              :with-data? with-data?
+              :extra-where where-cond)]
     (try+
       (j/query *db*
         (remove nil? [sql
