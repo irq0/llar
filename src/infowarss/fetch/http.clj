@@ -68,7 +68,7 @@
 
 (defn absolutify-url [url base-url]
   (cond
-    (and (string? url) (string/starts-with? url "/") (string/ends-with? base-url "/"))
+    (and (string? url) (string? base-url) (string/starts-with? url "/") (string/ends-with? base-url "/"))
     (str base-url (subs url 1))
     (and (string? url) (string/starts-with? url "/"))
     (str base-url url)
