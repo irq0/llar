@@ -132,7 +132,9 @@
   [src]
   (try+
     (let [url (-> src :url str)
-          response (http/get url {:headers {:user-agent "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"}})
+          response (http/get url {:headers {:user-agent "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"}
+                                  :decode-cookies false
+                                  :cookie-policy :none})
           base-url (get-base-url url)
           parsed-html (-> response
                         :body
