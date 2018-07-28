@@ -1,6 +1,5 @@
 (ns infowarss.persistency
   (:require
-   [infowarss.couchdb :as couch]
    [infowarss.db :as db]
    [infowarss.fetch]
    [infowarss.converter :as conv]
@@ -12,7 +11,8 @@
    [pantomime.mime :as pm]
    [clojure.string :as string]))
 
-;;;; Persist *Items to couchdb
+
+;;; Couch is a historical artifact. Before postgresql there was couch :)
 
 ;;; Extra cheshire encoders
 
@@ -30,7 +30,7 @@
 
 ;;; Item -> Persistency abstraction
 ;;; Split into two parts:
-;;; CouchItem proto: Convert item to couchdb document
+;;; CouchItem proto: Convert item to database document
 ;;; StorableItem: store / overwrite / check if duplicate
 
 (defprotocol CouchItem

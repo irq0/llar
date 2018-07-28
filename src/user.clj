@@ -4,7 +4,6 @@
    [clojure.tools.namespace.repl :as tn]
    [infowarss.core :as core :refer [*srcs* config]]
    [infowarss.persistency :as persistency :refer [store-items!]]
-   [infowarss.couchdb :as couch]
    [infowarss.db :as db]
    [infowarss.update :refer :all]
    [infowarss.webapp :as webapp]

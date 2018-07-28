@@ -2,7 +2,6 @@
   (:require
    [infowarss.core :as core :refer [*srcs* config]]
    [infowarss.persistency :as persistency :refer [store-items!]]
-   [infowarss.couchdb :as couch]
    [infowarss.update :refer :all :as update]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
@@ -116,40 +115,7 @@
     (sources :by-state :perm-fail)
     (sources :by-state :failed)))
 
-(defn- human-feed-item [i]
-  {:src-title (get-in i [:source :title])
-   :title (get-in i [:entry :title])
-   :link (get-in i [:entry :link])
-   :content (get-in i [:entry :contents "text/plain"])})
-
-(defn items-with-tag [tag & {:keys [group]}]
-  (let [items (for [id (couch/doc-ids-with-tag tag)]
-                (let [doc (couch/get-document-with-attachments id)]
-                  (human-feed-item doc)))]
-    (if group
-      (group-by :src-title items)
-      items)))
-
-(defn get-feed [key]
-  (get-in *srcs* [key]))
-
-(defn get-src [key]
-  (get-in *srcs* [key :src]))
-
-
-(defn get-feeds
-  []
-  (let [dbfs (couch/get-feeds)
-        confs *srcs*]
-    (into {}
-      (for [dbf dbfs]
-        [(get dbf :source-key)
-         (merge dbf (get confs (get dbf :source-key)))]))))
-
-
-(def hue-config (:hue core/creds ))
-
-
+(def hue-config (:hue core/creds))
 
 ;;; Preview - Try out filters, processing, fetch
 
@@ -432,24 +398,6 @@
 
 (defn browse-url [url]
   (shell/sh "chromium-browser" url))
-
-(defn browse-with-tag [tag]
-  (->> (couch/doc-ids-with-tag :saved)
-    (map couch/get-document)
-    (map #(get-in % [:entry :url]))
-    (map browse-url)))
-
-(defn browse-data [data]
-  (let [tmp (java.io.File/createTempFile "data" ".html")]
-    (spit tmp data)
-    (browse-url (str "file://" (.getAbsolutePath tmp)))
-    (.delete tmp)))
-
-(defn browse-couch-doc [id]
-  (browse-url (str "http://10.23.1.23:5984/_utils/#/database/db/" id)))
-
-(defn browse-couch-doc-content [id]
-  (browse-url (str "http://10.23.1.23:5984/db/" id "/content.html")))
 
 ;; populate lists
 (comment

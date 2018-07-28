@@ -4,7 +4,6 @@
             [digest]
             [clojurewerkz.serialism.core :refer [deserialize]]
             [ring.mock.request :as mock]
-            [infowarss.couchdb :as couch]
             [infowarss.webapp :refer [fever-app]]
             [infowarss.schema :as schema]
             [infowarss.schema-test :as schema-test]

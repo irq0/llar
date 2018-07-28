@@ -3,7 +3,6 @@
    [infowarss.schema :as schema]
    [infowarss.postproc :as postproc]
    [infowarss.persistency :as persistency]
-   [infowarss.couchdb :as couch]
    [infowarss.live.common :refer :all]
    [infowarss.live.firebase :refer :all]
    [hiccup.core :refer [html]]
