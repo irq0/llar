@@ -708,3 +708,11 @@
                  :msg (.getMessage (:throwable &throw-context))
                  :sql-state (.getSQLState (:throwable &throw-context))
                  :sql sql :args args})))))
+
+(defn search
+  "Search for query. postgres query format"
+  [query]
+  (j/query *db* ["select id, title, key, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query ]))
+
+(defn refresh-search-index []
+  (j/execute! *db* ["refresh materialized view search_index"]))
