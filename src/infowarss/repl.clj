@@ -335,65 +335,67 @@
 
 ;; twitter spam filter training data
 
-(def twitter-spam-accounts
-  ["butler746_grace"
-   "freecams_live"
-   "FrontPageCelebs"
-   "dfayvazovskaya"])
+;; Twitter timeline - spam filter toying around
+(comment
+  (def twitter-spam-accounts
+    ["butler746_grace"
+     "freecams_live"
+     "FrontPageCelebs"
+     "dfayvazovskaya"])
 
-(def twitter-ham-accounts
-  ["c3roc_" "ChaosLady90" "PicardEbooks" "c3soc" "grauhut" "paulg"
-   "chaosupdates" "sama" "Ceph" "usenix"])
+  (def twitter-ham-accounts
+    ["c3roc_" "ChaosLady90" "PicardEbooks" "c3soc" "grauhut" "paulg"
+     "chaosupdates" "sama" "Ceph" "usenix"])
 
-(defonce twitter-spam (atom #{}))
-(defonce twitter-ham (atom #{}))
+  (defonce twitter-spam (atom #{}))
+  (defonce twitter-ham (atom #{}))
 
-(defn my-timeline []
-  (->>
-    (twitter/statuses-home-timeline
-      :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics)))
-    :body
-    (map infowarss.fetch.twitter/tweet-to-entry)
-    (map #(merge % (analysis/analyze-entry %)))))
+  (defn my-timeline []
+    (->>
+      (twitter/statuses-home-timeline
+        :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics)))
+      :body
+      (map infowarss.fetch.twitter/tweet-to-entry)
+      (map #(merge % (analysis/analyze-entry %)))))
 
-(defn my-following-list []
-  (->>
-    (twitter/friends-list
-      :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics))
-      :params {:count 200})
-    :body :users (map :screen_name)))
+  (defn my-following-list []
+    (->>
+      (twitter/friends-list
+        :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics))
+        :params {:count 200})
+      :body :users (map :screen_name)))
 
-(defn timeline-of [user]
-  (->>
-    (twitter/statuses-user-timeline
-      :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics))
-      :params {:count 200
-               :screen_name user})
-    :body
-    (map infowarss.fetch.twitter/tweet-to-entry)
-    (map #(merge % (analysis/analyze-entry %)))))
+  (defn timeline-of [user]
+    (->>
+      (twitter/statuses-user-timeline
+        :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics))
+        :params {:count 200
+                 :screen_name user})
+      :body
+      (map infowarss.fetch.twitter/tweet-to-entry)
+      (map #(merge % (analysis/analyze-entry %)))))
 
-(def lang-to-n
-  {:en 0
-   :de 1})
+  (def lang-to-n
+    {:en 0
+     :de 1})
 
 
-(defn to-training-list [x & flag]
-  (let [data [(count (get-in x [:contents "text/plain"]))
-              (count (get-in x [:entities :hashtags]))
-              (count (get-in x [:entities :mentions]))
-              (count (get-in x [:entities :photos]))
-              (get-in x [:score :retweets])
-              (get-in x [:score :favs])
-              (or (get lang-to-n (get-in x [:language])) -1)
-              (count (get-in x [:nlp :names]))
-              (count (get-in x [:nlp :nouns]))
-              (count (get-in x [:nlp :verbs]))]]
-    (if-not (nil? flag)
-      (conj data flag)
-      data)))
+  (defn to-training-list [x & flag]
+    (let [data [(count (get-in x [:contents "text/plain"]))
+                (count (get-in x [:entities :hashtags]))
+                (count (get-in x [:entities :mentions]))
+                (count (get-in x [:entities :photos]))
+                (get-in x [:score :retweets])
+                (get-in x [:score :favs])
+                (or (get lang-to-n (get-in x [:language])) -1)
+                (count (get-in x [:nlp :names]))
+                (count (get-in x [:nlp :nouns]))
+                (count (get-in x [:nlp :verbs]))]]
+      (if-not (nil? flag)
+        (conj data flag)
+        data)))
 
-(defonce training-data (atom []))
+  (defonce training-data (atom [])))
 
 
 (defn browse-url [url]
