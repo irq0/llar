@@ -11,6 +11,7 @@
             [schema.core :as s]
             [slingshot.slingshot :refer [throw+ try+]]
             [taoensso.timbre :as log]
+            [hiccup.core :refer [html]]
             [hickory.core :as hick]
             [hickory.select :as hick-s]
             [hickory.render :as hick-r]
@@ -19,8 +20,11 @@
             [clj-http.client :as http]
             [clj-time.core :as time]
             [clj-time.format :as tf]
+            [clojure.string :as string]
             [clj-time.coerce :as tc]))
 
+(def +g+-base-url+
+  "https://www.googleapis.com/plus/v1/")
 
 (s/defrecord FeedItem
     [meta :- schema/Metadata
@@ -268,6 +272,97 @@
                                            "text/plain" (conv/html2text content-html)}}
                         :summary {:title title
                                   :ts pub-ts}})))))))
+
+
+(defn g+-html-att [att]
+  (html
+    [:div {:class "attachment-item"}
+     [:h4 (string/capitalize (:objectType att)) ": " (or (:displayName att) "Unknown")]
+     [:div {:class "content"}
+      (when-let [img (:fullImage att)]
+        [:img {:src (:url img)}])
+      (when-let [cont (:content att)]
+        [:p (:content att)])
+      [:a {:href (:url att)} "Link"]]]))
+
+
+(defn g+-html-summary [item score]
+  (html
+    [:h1 (:title item)]
+    [:div {:class "summary"}
+     [:ul
+      [:li [:span {:class "key"} "Score: "]
+       (string/join ", "
+         (map (fn [[k v]] (str (name k) "=" v)) score))]
+      [:li [:span {:class "key"} "Published: "] (:published item)]
+      [:li [:span {:class "key"} "Updated: "] (:updated item)]
+      [:div {:class "links"}
+       [:ul
+        [:li [:span {:class "key"} "URL: "]
+         [:a {:href (:url item)} (:url item)]]]]]]
+    [:div {:class "content"}
+     [:p (get-in item [:object :content])]]
+    (when-let [atts (get-in item [:object :attachments])]
+      [:div {:class "attachments"}
+       (map g+-html-att atts)])))
+
+(extend-protocol FetchSource
+  infowarss.src.GooglePlusActivityFeed
+  (fetch-source [src]
+    (let [{:keys [user-id api-key]} src
+          profile-url (format "%speople/%s?key=%s"
+                        +g+-base-url+ user-id api-key)
+          activity-feed-url (format "%speople/%s/activities/public?key=%s"
+                              +g+-base-url+ user-id api-key)
+          profile (:body (http/get profile-url {:as :json}))
+          activity-feed (:body (http/get activity-feed-url {:as :json}))
+
+          feed {:title (:displayName profile)
+                :url (:url profile)
+                :feed-type "g+feed"}]
+      (doall
+        (for [item (:items activity-feed)]
+          (let [authors [(get-in item [:actor :displayName])]
+                url (:url item)
+                id (:id item)
+                title (first
+                        (string/split
+                          (if (string/blank? (:title item))
+                            (or (-> item :object :attachments first :displayName) id)
+                            (:title item))
+                        #"(\n|\r\n)"))
+                pub-ts (tc/from-string (:published item))
+                updated-ts (tc/from-string (:updated item))
+                comments-feed (:body (http/get (format "%sactivities/%s/comments?key=%s"
+                                                 +g+-base-url+ id api-key)
+                                       {:as :json}))
+
+                score {:replies (get-in item [:object :replies :totalItems])
+                       :plus1 (get-in item [:object :plusoners :totalItems])
+                       :reshares (get-in item [:object :resharers :totalItems])
+                       :comments (count (:items comments-feed))}
+
+                description (or (get-in item [:object :content])
+                              (-> item :object :attachments first :content))
+                content-html (g+-html-summary item score)]
+            (map->FeedItem
+              {:meta (make-meta src)
+               :feed feed
+               :hash (make-item-hash title pub-ts description)
+               :raw {:profile profile
+                     :activity item
+                     :comments comments-feed}
+               :entry {:pub-ts pub-ts
+                       :url url
+                       :title title
+                       :score score
+                       :authors authors
+                       :descriptions {"text/plain" description}
+                       :contents {"text/html" content-html
+                                  "text/plain" (conv/html2text content-html)}}
+               :summary {:title title
+                         :ts pub-ts}})))))))
+
 
 
 (extend-protocol ItemProcessor
