@@ -180,7 +180,7 @@
                                            (format "<img src=\"%s\"/>"
                                              (first (get-in item [:entry :entities :photos])))))])
                         :tags #{:pics}
-                        :cron cron-twitter}
+                        :cron cron-hourly}
 
    :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
           :proc (proc/make
@@ -520,9 +520,9 @@
               :tags #{:tech :blog}
               :cron cron-daily}
 
-   :isoblog {:src (src/feed "http://blog.koehntopp.info/index.php/feed/")
-             :tags #{:blog :tech}
-             :cron cron-daily}
+   ;; :isoblog {:src (src/feed "http://blog.koehntopp.info/index.php/feed/")
+   ;;           :tags #{:blog :tech}
+   ;;           :cron cron-daily}
 
    :elibendersky {:src (src/feed "http://eli.thegreenplace.net/feeds/all.atom.xml")
                   :tags #{:tech :blog}
@@ -695,10 +695,17 @@
            :cron cron-daily}
 
    :inside-hpc {:src (src/feed "http://feeds.feedburner.com/insidehpc")
-                :tags #{:tech}
+                :tags #{:hpc}
                   :proc (proc/make
                           :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                 :cron cron-daily}
+
+   :github-trends {:src (src/feed "http://github-trends.ryotarai.info/rss/github_trends_all_weekly.rss")
+                   :tags #{:trends}
+                  :proc (proc/make
+                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                   :cron cron-daily}
+
 
    :snia-storage {:src (src/feed "http://sniablog.org/feed/atom/")
                   :tags #{:storage}
@@ -774,7 +781,7 @@
               :tags #{:startups}
               :cron cron-daily}
 
-   :hedviginc {:src (src/feed "https://www.hedviginc.com/blog/rss.xml")
+   :hedviginc {:src (src/feed "https://www.hedviginc.com/blog/rss.xml" :deep? true :force-update true)
                :tags #{:startups}
                :cron cron-daily}
 
@@ -912,6 +919,40 @@
    :manu-el {:src (src/feed "https://manuel-uberti.github.io/feed" :deep? true)
              :tags #{:tech :blog}
              :cron cron-daily}
+
+
+   :send-more-paramedics {:src (src/feed "http://blog.fogus.me/feed/")
+                  :tags #{:tech :blog}
+                  :proc (proc/make
+                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                  :cron cron-daily}
+
+   :uswitch-labs {:src (src/feed "https://labs.uswitch.com/rss/")
+             :tags #{:tech}
+                  :cron cron-daily}
+
+
+   :wirres {:src (src/feed "http://wirres.net/article/rss/full/6/15/")
+            :tags #{:blog}
+            :cron cron-daily}
+
+   :nerdcore {:src (src/wp-json "https://nerdcore.de/wp-json/")
+              :tags #{:magazine :fun}
+              :cron cron-daily}
+
+   :meetups-my {:src (src/feed "https://www.meetup.com/events/rss/139002912/50f0499c4b59a743ecbf7d1e950eb8078ca2cf5b/going")
+                :tags #{:berlin}
+                  :proc (proc/make
+                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                :cron cron-daily}
+
+   :krisk {:src (src/g+activity "+KristianKohntopp" (:google creds))
+           :tags #{:blog}
+           :cron cron-daily}
+
+   :berlin-backyard-fleamarkets {:src (src/website "http://polly.sternenlaub.de/fleamarkets/list")
+                                 :tags #{:berlin}
+                                 :cron cron-daily}
 
    ;; hubspot
    ;; :elastifile {:src (src/selector-feed "https://www.datera.io/blog/"
