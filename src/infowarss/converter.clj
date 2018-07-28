@@ -43,7 +43,7 @@
     data))
 
 (defn data-uri [data & {:keys [mime-type]
-                        :or [mime-type (pm/mime-type-of data)]}]
+                        :or {mime-type (pm/mime-type-of data)}}]
   (if (and (instance? String data) (nil? mime-type))
     (format "data:text/plain;%s" (java.net.URLEncoder/encode data "UTF-8"))
     (format "data:%s;base64,%s"

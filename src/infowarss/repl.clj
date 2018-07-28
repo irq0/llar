@@ -155,10 +155,10 @@
 
 (defn preview
   [src & {:keys [limit post filter skip-postproc]
-          :or [limit nil
+          :or {limit nil
                post []
                filter (constantly false)
-               skip-postproc false]}]
+               skip-postproc false}}]
   (try+
     (let [fetched (fetch/fetch-source src)
           postproc (proc/make

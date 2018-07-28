@@ -88,7 +88,7 @@
 
 (defn mercury-contents
   [creds & {:keys [keep-orig?]
-            :or [keep-orig? false]}]
+            :or {keep-orig? false}}]
   (fn [item]
     (let [site (some-> item :entry :url .getHost)
           path (some-> item :entry :url .getPath)]

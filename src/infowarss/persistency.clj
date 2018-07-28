@@ -74,7 +74,7 @@
     (db/add-document doc)))
 
 (defn- store-item-skip-duplicate!
-  [item & {:keys [overwrite?] :or [overwrite? false]}]
+  [item & {:keys [overwrite?] :or {overwrite? false}}]
   (let [name (get-in item [:meta :source-name])
         title (get-in item [:summary :title])]
     (try+
@@ -98,7 +98,7 @@
   "Store items (may be a mixture of different types). Pass overwrite? true to
   overwrite existing items"
   [mixed-items & {:keys [overwrite?]
-                  :or [overwrite? false]
+                  :or {overwrite? false}
                   :as args}]
   ;; Each vector may contain multiple item types.
   ;; -> Group them by type and call the store method
