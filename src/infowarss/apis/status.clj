@@ -587,7 +587,7 @@
      [:span (format "n=%s [%s]" (count v)
               (string/join ", " v))]
      [:span
-      (str v)])])
+      (str v) " (" (type v) ")"])])
 
 
 (defn map-to-tree
