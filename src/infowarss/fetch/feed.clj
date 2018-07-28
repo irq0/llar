@@ -2,7 +2,7 @@
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash tag-items]]
             [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.persistency :refer [CouchItem]]
-            [infowarss.fetch.http :refer [fetch-http-generic absolutify-links-in-hick get-base-url]]
+            [infowarss.http :refer [fetch absolutify-links-in-hick get-base-url]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
@@ -85,9 +85,9 @@
     (catch java.net.MalformedURLException _
       nil)))
 
-(defn- http-get-feed-content [src]
-  (log/debug "Fetching feed item content of " (str src))
-  (let [http-item (fetch-http-generic src)
+(defn- http-get-feed-content [url]
+  (log/debug "Fetching feed item content of " url)
+  (let [http-item (fetch url)
         hick (->> http-item
                :hickory
                (hick-s/select
@@ -95,7 +95,7 @@
                    (hick-s/tag :body)))
                first)
         body (-> hick
-               (absolutify-links-in-hick (str src))
+               (absolutify-links-in-hick url)
                hick-r/hickory-to-html)]
     {"text/html" body
      "text/plain" (conv/html2text body)}))
@@ -112,7 +112,7 @@
 (extend-protocol FetchSource
   infowarss.src.Feed
   (fetch-source [src]
-    (let [http-item (fetch-http-generic src)
+    (let [http-item (fetch (:url src))
           res (try+
                 (-> http-item :raw :body rome/build-feed)
                 (catch Object _
@@ -134,8 +134,7 @@
               contents-base-url (get-base-url contents-url)
               contents (if (and (get-in src [:args :deep?])
                              (string? contents-url))
-                         (http-get-feed-content
-                           (src/http (str contents-url)))
+                         (http-get-feed-content contents-url)
                          (process-feed-html-contents contents-base-url in-feed-contents))
               descriptions (process-feed-html-contents contents-base-url
                              (extract-feed-description (:description re)))
@@ -191,7 +190,7 @@
   infowarss.src.SelectorFeed
   (fetch-source [src]
     (let [{:keys [url selectors extractors]} src
-          {:keys [summary hickory meta]} (fetch-http-generic src)
+          {:keys [summary hickory meta]} (fetch url)
 
           feed {:title (:title summary)
                 :url url
@@ -206,7 +205,7 @@
         (throw+ {:type ::selector-found-shit :extractor item-extractor :urls item-urls :selector (:urls selectors)}))
       (doall
       (for [item-url item-urls
-            :let [item (fetch-http-generic (src/http item-url))
+            :let [item (fetch item-url)
                   {:keys [hickory summary]} item]]
         (let [author (hick-select-extract-with-source src :author hickory nil)
               title (hick-select-extract-with-source src :title hickory (:title summary))

@@ -7,7 +7,7 @@
    [infowarss.persistency :as persistency]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
-   [infowarss.fetch.http :refer [absolutify-links-in-hick get-base-url]]
+   [infowarss.http :refer [fetch absolutify-links-in-hick get-base-url]]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]

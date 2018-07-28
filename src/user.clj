@@ -2,6 +2,7 @@
   (:require
    [mount.core :as mount]
    [clojure.tools.namespace.repl :as tn]
+   [infowarss.http :refer [fetch]]
    [infowarss.core :as core :refer [*srcs* config]]
    [infowarss.persistency :as persistency :refer [store-items!]]
    [infowarss.db :as db]

@@ -13,14 +13,14 @@
 
 ;;; Http
 
-(s/defrecord Http
+(s/defrecord GenericWebsite
     [url :- java.net.URL]
   Object
-  (toString [src] (str "[Http: " (:url src) "]")))
+  (toString [src] (str "[GenericWebsite: " (:url src) "]")))
 
-(s/defn http :- Http
+(s/defn website :- GenericWebsite
   [url :- s/Str]
-  (Http. (io/as-url url)))
+  (GenericWebsite. (io/as-url url)))
 
 ;;; Feed
 

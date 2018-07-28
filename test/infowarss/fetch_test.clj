@@ -4,7 +4,7 @@
    [infowarss.src :as src]
    [infowarss.schema :as schema]
    [infowarss.fetch.twitter :refer [htmlize-tweet-text]]
-   [infowarss.fetch.http :refer [fetch-http-generic]]
+   [infowarss.http :as infowarss-http]
    [schema-generators.complete :as c]
    [schema-generators.generators :as g]
    [clojure.test.check.generators :as gen]
@@ -57,7 +57,7 @@
   (let [body (slurp (io/resource "fetch_test.html"))
         src (g/generate schema/HttpSource schema-test/leaf-generators)]
     (with-redefs [http/get (fn [_] (fake-http-response body))]
-      (let [resp (fetch-http-generic src)]
+      (let [resp (infowarss-http/fetch (:url src))]
         (is (= 200 (get-in resp [:raw :status])))
         (is (= body (get-in resp [:raw :body])))))))
 
@@ -81,7 +81,7 @@
 
 (deftest test-fetch-html
   (let [body (slurp (io/resource "fetch_test.html"))
-        src (src/http "http://example.com")]
+        src (src/website "http://example.com")]
     (with-redefs [http/get (fn [_] (fake-http-response body))]
       (doseq [item (fetch-source src)]
         (let [{:keys [summary]} item]

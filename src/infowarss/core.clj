@@ -2,8 +2,8 @@
   (:require
    [taoensso.timbre :as log]
    [infowarss.src :as src]
+   [infowarss.http :as http]
    [infowarss.converter :as converter]
-   [infowarss.fetch.http]
    [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
    [clj-time.format :as tf]
@@ -539,8 +539,7 @@
    :cyanidehappiness {:src (src/feed "https://feeds.feedburner.com/Explosm")
                       :proc (proc/make
                               :post [(fn [item]
-                                       (let [html (infowarss.fetch.http/fetch-http-generic
-                                                    (src/http (str (get-in item [:entry :url]))))
+                                       (let [html (http/fetch (get-in item [:entry :url]))
                                              comic-link (-> (S/select
                                                              (S/descendant
                                                                (S/id "comic-container")
@@ -555,8 +554,7 @@
    :joyoftech {:src (src/feed "http://www.joyoftech.com/joyoftech/jotblog/atom.xml" :force-update? false)
                :proc (proc/make
                        :post [(fn [item]
-                                (let [html (infowarss.fetch.http/fetch-http-generic
-                                             (src/http (str (get-in item [:entry :url]))))
+                                (let [html (http/fetch (get-in item [:entry :url]))
                                       comic-img (-> (S/select
                                                       (S/descendant
                                                         (S/tag :div)
@@ -580,8 +578,7 @@
                 :tags #{:comics}
                 :proc (proc/make
                         :post [(fn [item]
-                                 (let [html (infowarss.fetch.http/fetch-http-generic
-                                              (src/http (str (get-in item [:entry :url]))))
+                                 (let [html (http/fetch (get-in item [:entry :url]))
                                        content (-> (S/select
                                                 (S/descendant
                                                   (S/id :comic))
