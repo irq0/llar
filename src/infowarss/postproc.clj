@@ -108,7 +108,7 @@
         (try+
           (replace-contents-with-mercury creds item keep-orig?)
           (catch [:type :infowarss.fetch.mercury/not-parsable] _
-            (log/errorf "Mercury Error. Not replacing content with mercury")
+            (log/errorf (str item) "Mercury Error. Not replacing content with mercury")
             item))))))
 
 (def sa-to-bool

@@ -681,7 +681,7 @@
                 (when (coll? with-source-keys)
                   (str " AND sources.key = ANY(ARRAY["
                     (->> with-source-keys
-                      (map #(str "'" (name %) "'"))
+                      (map #(str "'" ((fnil name :unknown) %) "'"))
                       (string/join ","))
                     "]) "))
                 (when (keyword? simple-filter)
