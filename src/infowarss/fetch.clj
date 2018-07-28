@@ -43,6 +43,16 @@
    :tags #{}
    :version 2})
 
+
+(defn tag-items [item src]
+  (let [title (get-in item [:summary :title])
+        src-key (name (or (get-in item [:meta :source-key]) :unknown))
+        title-re #"Four short links:|Weekly Programming Digest|Emacs news"]
+    (if (or (re-find title-re title)
+          (re-find #"99pi|clojure" src-key))
+      (update-in item [:meta :tags] conj :daily)
+      item)))
+
 ;;; Fetch source protocol
 
 (defprotocol FetchSource

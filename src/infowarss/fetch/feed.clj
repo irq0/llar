@@ -1,5 +1,5 @@
 (ns infowarss.fetch.feed
-  (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
+  (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash tag-items]]
             [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.persistency :refer [CouchItem]]
             [infowarss.fetch.http :refer [fetch-http-generic absolutify-links-in-hick get-base-url]]
@@ -269,14 +269,6 @@
                         :summary {:title title
                                   :ts pub-ts}})))))))
 
-(defn tag-items [item src]
-  (let [title (get-in item [:summary :title])
-        src-key (name (get-in item [:meta :source-key]))
-        title-re #"Four short links:|Weekly Programming Digest|Emacs news"]
-    (if (or (re-find title-re title)
-          (re-find #"99pi|clojure" src-key))
-      (update-in item [:meta :tags] conj :daily)
-      item)))
 
 (extend-protocol ItemProcessor
   FeedItem
