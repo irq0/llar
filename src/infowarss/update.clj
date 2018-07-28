@@ -6,6 +6,7 @@
    [infowarss.postproc :as proc]
    [infowarss.converter :as converter]
    [clj-time.core :as time]
+   [clj-time.coerce :as tc]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
    [hara.io.scheduler :as sched]
@@ -17,8 +18,20 @@
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
 
+(defn startup-read-state []
+  (let [res (io/resource "state.edn")
+        backup (io/file (str "/tmp/infowarss_state.edn." (tc/to-string (time/now))))]
+    (log/info "Reading state file. Backup in " backup)
+    (io/copy (io/file (.getFile res)) backup)
+    (try+
+      (converter/read-edn-string (slurp res))
+      (catch java.lang.RuntimeException _
+        (log/warn "Failed to read state file. Starting with clean state")
+        {}))))
+
+
 (defstate state
-  :start (atom (converter/read-edn-string (slurp (io/resource "state.edn"))))
+  :start (atom (startup-read-state))
   :stop (spit (io/resource "state.edn") (prn-str @state)))
 
 (defn get-current-state []

@@ -121,18 +121,14 @@
 (defrecord TaggedValue [tag value])
 
 (defn read-edn-string [s]
-  (try
-    (edn/read-string
-      {:readers {'datetime tc/from-string
-                 'url io/as-url
-                 'atom (fn [x] (atom x))
-                 'error (fn [_] nil)  ; Throw away error details
-                 'object (fn [_] (Object.))}
-       :default ->TaggedValue}
-      s)
-    (catch RuntimeException e
-      (log/error e "Failed to read EDN")
-      {})))
+  (edn/read-string
+    {:readers {'datetime tc/from-string
+               'url io/as-url
+               'atom (fn [x] (atom x))
+               'error (fn [_] nil)  ; Throw away error details
+               'object (fn [_] (Object.))}
+     :default ->TaggedValue}
+    s))
 
 (defn to-fever-timestamp
   "Convert clj-time time object to fever unix timestamp"
