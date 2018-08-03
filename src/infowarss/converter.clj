@@ -10,11 +10,21 @@
    [clojure.java.shell :as shell]))
 
 
+(def +html-to-text-tools+
+  {:pandoc ["pandoc" "-f" "html" "-t" "plain" "--reference-links"]
+   :w3m ["w3m" "-T" "text/html" "-dump"]
+   :lynx ["lynx" "-dump" "-list_inline" "-width 1024" "-stdin"]
+   :html2text ["html2text" "-style" "pretty" "-utf8"]})
+
+
+
 (defn html2text
   "Convert html to text"
-  [html]
-  (let [{:keys [exit out]}
-        (shell/sh "pandoc" "-f" "html" "-t" "plain" "--reference-links" :in html)]
+  [html & {:keys [tool] :or {tool :lynx}}]
+  (let [cmdline (concat (get +html-to-text-tools+ tool) [:in html])
+        {:keys [exit out]}
+        (apply shell/sh cmdline)]
+;;        (shell/sh "pandoc" "-f" "html" "-t" "plain" "--reference-links" :in html)]
         ;; (shell/sh "w3m" "-T" "text/html" "-dump" :in html)]
     (if (zero? exit)
       out
