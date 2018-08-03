@@ -383,7 +383,8 @@
         (update :entry merge (:entry item) nlp)
         (tag-items src))))
   (filter-item [item src state]
-    (let [force-update? (get-in src [:args :force-update?])
+    (let [force-update? (or (get-in src [:args :force-update?])
+                          (get state :forced-update?))
           last-fetch (get state :last-successful-fetch-ts)
           feed-pub (get-in item [:feed :pub-ts])]
       (if (or force-update? (nil? last-fetch) (nil? feed-pub))

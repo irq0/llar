@@ -50,6 +50,7 @@
   {:key nil
    :last-successful-fetch-ts nil
    :last-attempt-ts nil
+   :forced-update? false
    :status :new
    :update-lock (Object.)
    :last-exception nil
@@ -173,6 +174,9 @@
 
     ;; don't update the same feed in parallel
   (locking (get-in @state [k :update-lock])
+    ;; push force update flag into state to make it accessible to ItemProcessor
+    (swap! state update k assoc :forced-update? force)
+
     (let [cur-state (get @state k)
           cur-status (:status cur-state)]
 
