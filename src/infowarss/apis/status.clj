@@ -119,7 +119,7 @@
    [:script {:src "/static/js/bootstrap.min.js"}]
    [:script {:src "/static/js/hyphenator_loader.js"}]
    [:script
-    (string/join "\n"
+    (string/join " "
       ["Hyphenator_Loader.init("
        "{"
        "  \"en\": \"automatically\","
@@ -129,7 +129,7 @@
        ");"])]
 
    [:script
-    (string/join "\n"
+    (string/join " "
       ["$(\".ajax-toggle\").click(function () {"
        "  var action = \"set\";"
        "  if ($(this).data(\"is-set\")) {"
@@ -169,7 +169,7 @@
     ;;    ;; "});"
     ;;    ])]
    [:script
-    (string/join "\n"
+    (string/join " "
       ["$(\".bookmark-submit\").click(function () {"
        "  var x = $(this);"
        "  console.log($(x.data(\"url-source\")));"
