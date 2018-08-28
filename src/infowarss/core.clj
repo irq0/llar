@@ -182,18 +182,35 @@
                         :tags #{:pics}
                         :cron cron-hourly}
 
-   :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
-          :proc (proc/make
-                  :post [(proc/exchange
-                           [:entry :descriptions]
-                           [:entry :contents])]
-                  :filter (fn [item]
-                            (->> item
-                              :summary
-                              :title
-                              (re-find #"Zu Sarin"))))
+   :fefe {:src (src/selector-feed "https://blog.fefe.de/"
+                 {:urls (S/descendant
+                          (S/find-in-text #"\[l\]"))
+                  :ts (S/tag :h3)
+                  :content (S/tag :li)}
+                 {:content  #(->> % first :content (drop 1))
+                  :author "fefe"
+                  :urls (fn [l] (map (fn [x] (->> x :attrs :href
+                                             (str "https://blog.fefe.de/"))) l))
+                  :ts #(->> %
+                         first
+                         :content
+                         first
+                         (tf/parse (tf/formatter "EEE MMM dd yyyy")))})
           :tags #{:blog}
           :cron cron-hourly}
+
+   ;; :fefe {:src (src/feed "http://blog.fefe.de/rss.xml?html")
+   ;;        :proc (proc/make
+   ;;                :post [(proc/exchange
+   ;;                         [:entry :descriptions]
+   ;;                         [:entry :contents])]
+   ;;                :filter (fn [item]
+   ;;                          (->> item
+   ;;                            :summary
+   ;;                            :title
+   ;;                            (re-find #"Zu Sarin"))))
+   ;;        :tags #{:blog}
+   ;;        :cron cron-hourly}
 
    :upwork-personal {:src (src/feed
 "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
