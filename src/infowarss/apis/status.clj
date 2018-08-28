@@ -790,11 +790,15 @@
     str-url)))
 
 
-(defn word-cloud-fontsize [freq max-freq]
+(defn word-cloud-fontsize [freq min-freq max-freq]
   (let [max-size (- (count +word-cloud-sizes+) 1)
-        size (* (/ (Math/log freq) (Math/log max-freq))
-               max-size)]
-    (nth +word-cloud-sizes+ (int size))))
+        scaled-to-one (if (= max-freq min-freq)
+                        1
+                        (/ (- freq min-freq) (- max-freq min-freq)))
+        scaled scaled-to-one
+        size (Math/log (+ (* scaled-to-one 150) 1))]
+    (nth +word-cloud-sizes+
+      (-> size int (max 0) (min max-size)))))
 
 (defn human-host-identifier [str-url]
   (let [url (io/as-url str-url)
@@ -816,6 +820,7 @@
                                (re-find +boring-words-regex+ word))))
         words (take 50 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
         names (take 50 (filter boring-filter names))
+        min-freq (second (last words))
         max-freq (second (first words))]
 
   [:div {:class "feed-item"}
@@ -858,7 +863,7 @@
    [:p {:class "word-cloud"}
     (html
     (for [[word freq] words
-          :let [size (word-cloud-fontsize freq max-freq)]]
+          :let [size (word-cloud-fontsize freq min-freq max-freq)]]
       [:span {:class (str "word border text-white " size)} word]))
     (html
     (for [n names]
