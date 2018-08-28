@@ -48,7 +48,6 @@
                  [bk/ring-gzip "0.3.0"]
                  [mount "0.1.12"]
                  [robert/hooke "1.3.0"]
-                 [ring/ring-mock "0.3.2"]
                  [clojure-opennlp "0.4.0"]
                  [im.chit/hara.io.scheduler "2.5.10"]
                  [ring/ring-mock "0.3.2"]
