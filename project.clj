@@ -65,3 +65,4 @@
                  [com.google.guava/guava "23.0"]
                  [clojure-humanize "0.2.2"]
                  [clj-time "0.14.4"]
+                 ])
