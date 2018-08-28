@@ -173,23 +173,23 @@
       ["$(\".bookmark-submit\").click(function () {"
        "  var x = $(this);"
        "  console.log($(x.data(\"url-source\")));"
-       "  x.removeClass(\"btn-warning\")"
-       "  x.removeClass(\"btn-seconday\")"
-       "  x.addClass(\"btn-info\")"
+       "  x.removeClass(\"btn-warning\");"
+       "  x.removeClass(\"btn-secondary\");"
+       "  x.addClass(\"btn-info\");"
        "  $.post({url: \"/reader/bookmark/add\","
        "         data: {\"url\": $(x.data(\"url-source\")).val(), "
        "                \"type\": x.data(\"type\")},"
        "         success: function(data) {"
-       "             x.removeClass(\"btn-warning\")"
-       "             x.removeClass(\"btn-info\")"
+       "             x.removeClass(\"btn-warning\");"
+       "             x.removeClass(\"btn-info\");"
        "             $(x.data(\"url-source\")).val(\"\");"
-       "             x.addClass(\"btn-seconday\")"
+       "             x.addClass(\"btn-secondary\");"
        ;; "             window.location.href = \"/reader/group/source-tag/bookmark/source/all/item/by-id/\" + data ;"
        "             return false;"
        "         }}).fail(function(data) {"
-       "             x.addClass(\"btn-warning\")"
-       "             x.removeClass(\"btn-seconday\")"
-       "             x.removeClass(\"btn-info\")"
+       "             x.addClass(\"btn-warning\");"
+       "             x.removeClass(\"btn-secondary\");"
+       "             x.removeClass(\"btn-info\");"
        "         });"
        "  return false;"
        "});"
@@ -205,7 +205,7 @@
                            icon-set-stroke "black"
                            icon-unset-fill "none"
                            icon-unset-stroke "black"}}]
-  [:a {:class "btn btn-seconday ajax-toggle"
+  [:a {:class "btn ajax-toggle"
        :title (str "Toggle tag " (name tag))
        :data-id id
        :data-icon-set icon-set
@@ -338,11 +338,11 @@
                 selected-sources items range-recent range-before]} x
         {:keys [id tags]} (first items)]
     [:nav {:class "navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0"}
-     [:a {:class "navbar-brand col-sm-2 col-md-2 mr-0"
+     [:a {:class "navbar-brand d-none align-middle d-md-block col-md-3 col-lg-2 mr-0"
           :href "#"}
       "(╯°□°）╯︵ ┻━┻"]
 
-     [:ol {:class "px-3 form-control-dark breadcrumb w-100 path"}
+     [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path"}
       (for [item [group-name group-item source-key]]
         [:li {:class "breadcrumb-item"} (name item)])
       (when-not (= source-key :all)
@@ -352,18 +352,19 @@
       (when (= mode :show-item)
         [:li {:class "breadcrumb-item"} (-> items first :title)])]
 
+     [:div {:class "navbar-list row justify-content-between col-xs-12 col-md-3 col-lg-2"}
      (cond
        (= mode :list-items)
-       [:div {:class "navbar-list col-sm-2 col-md-2 mr-0"}
-         [:a {:class "btn btn-seconday"
+       [:div {:class "col-xs-8 col-ld-12"}
+         [:a {:class "btn btn-secondary"
               :href (make-site-href [(:uri x)] (:range-before x) x)}
           (icon "refresh-ccw")]
-         [:a {:class "btn btn-seconday"
+         [:a {:class "btn btn-secondary"
               :href (make-site-href [(:uri x)] x)}
           (icon "skip-back")]]
 
        (= mode :show-item)
-       [:div {:class "navbar-list px-3 col-sm-2 mr-0"}
+       [:div {:class "col-xs-8 col-ld-12"}
          (for [btn +tag-buttons+]
            (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
 
@@ -372,9 +373,21 @@
                            (name group-name)
                            (name group-item)
                            (name source-key))]
-           [:a {:class "btn btn-seconday"
+           [:a {:class "btn btn-secondary"
                 :href (make-site-href [link-prefix "item/by-id" (-> items second :id)] {:mark :read} x)}
-            (icon "arrow-down")]))])]))
+            (icon "arrow-down")]))])
+      [:div {:class "col-xs-4 text-right d-block d-sm-none"}
+      [:a {:class "btn btn-secondary"
+           :data-toggle "collapse"
+           :href "#groupnav"
+           :role "button"}
+       (icon "sidebar")]
+      [:a {:class "btn btn-secondary"
+           :data-toggle "collapse"
+           :href "#sourcenav"
+           :role "button"}
+       (icon "list")]]]
+     ]))
 
 
 (defn group-list [x url-prefix group-items active]
@@ -396,10 +409,9 @@
   (let [active-group (:group-name x)
         active-key (name (:group-item x))]
 
-
-
     ;; simple filter toggle
-    [:nav {:class "col-sm-2 d-none d-md-block bg-light sidebar sidebar-left"}
+    [:nav {:class "collapse col-md-3 col-lg-2 bg-light sidebar sidebar-left"
+           :id "groupnav"}
      [:div {:class "sidebar-sticky"}
 
       [:form {:class "nav flex-column form-inline"}
@@ -480,7 +492,7 @@
           :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
       [:span {:class "sidebar-heading-2"} key]
 
-      [:span {:class "badge badge-pill badge-seconday float-right"}
+      [:span {:class "badge badge-pill badge-secondary float-right"}
        (when (> nitems 0) nitems)]
 
       [:br]
@@ -490,7 +502,8 @@
   (let [active-group (:group-name x)
         active-key (:group-item x)
         active-source (:source-key x)]
-    [:nav {:class "col-sm-2 d-none d-md-block bg-light sidebar sidebar-right"}
+    [:nav {:class "collapse col-md-3 col-lg-2 bg-light sidebar sidebar-right"
+           :id "sourcenav"}
      [:div {:class "sidebar-sticky"}
       [:ul {:class "nav flex-column"}
        (for [src (:active-sources x)]
@@ -525,22 +538,24 @@
                "en")]
     [:div {:class "item-content"}
      [:div {:class "item-content-nav"}
-      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
-       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
-        [:a {:class "btn btn-seconday"}
+      [:div {:class "btn-toolbar " :role "toolbar"}
+       [:div {:class "btn-group btn-group-sm" :role "group"}
+        [:a {:class "btn"}
          "&nbsp;&nbsp;" (icon "hash") nwords]
-        [:a {:class "btn btn-seconday"}
-         "&nbsp;&nbsp;" (icon "tag") (string/join ", " tags)]
-        (when (some? ts)
-        [:a {:class "btn btn-seconday"}
+        [:a {:class "btn"}
+         "&nbsp;&nbsp;" (icon "tag") (string/join ", " tags)]]
+       (when (some? ts)
+       [:div {:class "btn-group btn-group-sm" :role "group"}
+        [:a {:class "btn"}
          "&nbsp;&nbsp;"
-         (icon "calendar") (human/datetime ts)])
+         (icon "calendar") (human/datetime ts)]])
+       [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:target "_blank"
              :href url
              :role "button"
-             :class "btn  btn-seconday"}
+             :class "btn"}
          (icon "external-link")]
-        [:a {:class "btn brn-seconday"
+        [:a {:class "btn"
              :href (make-site-href [id "dump"] x)}
          "&nbsp;" (icon "code")]]
 
@@ -549,9 +564,9 @@
        ;; (for [btn +tag-buttons+]
        ;;   (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]
 
-      [:div {:class "btn-group btn-group-sm" :role "group"}
+       [:div {:class "btn-group btn-group-sm " :role "group"}
        [:div {:class "dropdown show "}
-        [:a {:class "btn btn-secondary dropdown-toggle btn-sm"
+        [:a {:class "btn dropdown-toggle btn-sm"
              :href "#"
              :role "button"
              :id "item-data-select"
@@ -761,13 +776,13 @@
 
    [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
     [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
-     [:a {:class "btn btn-seconday"}
+     [:a {:class "btn"}
       "&nbsp;" (icon "hash") nwords]
-     [:a {:class "btn brn-seconday"}
+     [:a {:class "btn"}
       "&nbsp;" (icon "tag") (string/join ", " tags)]
-     [:a {:class "btn brn-seconday" :href url}
+     [:a {:class "btn" :href url}
       "&nbsp;" (icon "external-link")]
-     [:a {:class "btn brn-seconday"
+     [:a {:class "btn"
           :href (make-site-href [link-prefix "item/by-id" id "dump"] x)}
       "&nbsp;" (icon "code")]]
 
@@ -792,7 +807,7 @@
 
 (defn main-view [x]
   [:main {:role "main"
-          :class "col-sm-8 pt-3 px-4"}
+          :class "col-xs-12 col-md-6 col-lg-8"}
    [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
     (case (:mode x)
       :show-item (main-show-item x)
