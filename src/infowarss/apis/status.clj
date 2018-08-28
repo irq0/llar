@@ -1060,36 +1060,32 @@
   ([params]
    (log/info "[INFOWARSS-UI]" params)
    (let [{:keys [mode group-name group-item source-key]} params
+         item-tags (future (db/get-tag-stats))
+
          sources (with-log-exec-time
                    (-> (db/get-sources)
-                   (db/sources-merge-in-config)
-                   (db/sources-merge-in-item-tags-with-count)
-                   (update/sources-merge-in-state)
-                   (doall)))
+                     (db/sources-merge-in-config)
+                     (db/sources-merge-in-item-tags-with-count)
+                     (update/sources-merge-in-state)))
          ;; right sidebar
-         active-sources (with-log-exec-time (doall (get-active-group-sources sources params)))
+         active-sources (with-log-exec-time (get-active-group-sources sources params))
          ;; main view
-         selected-sources (with-log-exec-time (doall (get-selected-sources active-sources params)))
+         selected-sources (with-log-exec-time (get-selected-sources active-sources params))
          items (with-log-exec-time (doall (get-items-for-current-view sources params)))
-
-         recent (-> items first (select-keys [:ts :id]))
-         before (-> items last (select-keys [:ts :id]))
 
          params (merge params {:sources sources
                                :active-sources active-sources
                                :selected-sources selected-sources
-                               :item-tags (db/get-tag-stats)
-                               :range-recent recent
-                               :range-before before
-                               :items items})]
-
-     (log/infof "[INFOWARSS-UI] DATA: items#=%s active-sources#=%s sources#=%s"
-       (count items) (count active-sources) (count sources))
+                               :item-tags @item-tags
+                               :items items
+                               :range-recent (-> items first (select-keys [:ts :id]))
+                               :range-before (-> items last (select-keys [:ts :id]))
+                               })]
 
      (let [nav-bar (nav-bar params)
-           group-nav (with-log-exec-time (html (group-nav params)))
-           main-view (with-log-exec-time (html (main-view params)))
-           source-nav (with-log-exec-time (html (source-nav params)))
+           group-nav (html (group-nav params))
+           main-view (html (main-view params))
+           source-nav (html (source-nav params))
 
            html (with-log-exec-time
                   (wrap-body

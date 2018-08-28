@@ -2,7 +2,7 @@
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash tag-items]]
             [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.persistency :refer [CouchItem]]
-            [infowarss.http :refer [fetch absolutify-links-in-hick get-base-url]]
+            [infowarss.http :refer [fetch absolutify-links-in-hick absolutify-url get-base-url]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
