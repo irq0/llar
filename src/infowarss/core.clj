@@ -835,6 +835,10 @@
             :tags #{:startups}
             :cron cron-daily}
 
+   :themorningpaper {:src (src/feed "https://blog.acolyer.org/feed/")
+                     :tags #{:sci}
+                     :cron cron-daily}
+
    :theregister-storage {:src (src/feed "https://www.theregister.co.uk/data_centre/storage/headlines.atom" :force-update? false)
                          :proc (proc/make
                                  :post [(fn [item]
