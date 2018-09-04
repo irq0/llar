@@ -701,18 +701,24 @@
         (get-html-content item :description "text/html")
         (get-html-content item selected-data selected-content-type))]]))
 
-
-
 (defn list-entry-kv
   "List entry key / value pair"
   [k v]
   [:li (icon "file") "&nbsp;" [:strong (str k)] "&nbsp;"
-   (if (coll? v)
+   (cond
+     (coll? v)
      [:span (format "n=%s [%s]" (count v)
               (string/join ", " v))]
+
+     (= k "text/html")
+     [:code [:pre  (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]
+
+     (= k "text/plain")
+     [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]
+
+     :default
      [:span
       (str v) " (" (type v) ")"])])
-
 
 (defn map-to-tree
   "Convert nested map to semantic ui tree"
