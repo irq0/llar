@@ -86,8 +86,7 @@
 
 (defn make-reddit-entry [c]
   {:url (io/as-url (:url c))
-   :comments-url (io/as-url (:permalink (str "https://www.reddit.com"
-                                          (:permalink c))))
+   :comments-url (io/as-url (str "https://www.reddit.com" (:permalink c)))
    :thumbnail (:thumbnail c)
    :pub-ts (reddit-ts-to-joda (:created_utc c))
    :title (:title c)
