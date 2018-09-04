@@ -844,7 +844,11 @@
        "&nbsp;"
        (icon "rss") source-key
        (when (= (:type item) :item-type/link)
-         [:span " → " (human-host-identifier url)])])
+         [:span "&nbsp;"
+          (when-let [comments-url (or (:hn-url entry)
+                                    (:comments-url entry))]
+            [:a {:href comments-url} "(comments)"])
+          " → " (human-host-identifier url)])])
     (when-not (string/blank? author)
       [:li {:class "list-inline-item"}
        "&nbsp;"
