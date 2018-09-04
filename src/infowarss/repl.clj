@@ -3,7 +3,6 @@
    [infowarss.core :as core :refer [*srcs* config]]
    [infowarss.persistency :as persistency :refer [store-items!]]
    [infowarss.update :refer :all :as update]
-   [infowarss.webapp :as webapp]
    [infowarss.src :as src]
    [infowarss.db :as db]
    [infowarss.fetch :as fetch]
@@ -330,13 +329,6 @@
          "<description>All the extracted videos!!1111!1!elf</description>"
          "<generator>infowarss</generator>"]
         (map #(podcast-item (str directory "/" %)) files)))))
-
-
-
-(comment
-  (defonce jetty (run-jetty #'webapp/fever-app {:port 8765 :join? false}))
-  (.start jetty)
-  (.stop jetty))
 
 ;; twitter spam filter training data
 
