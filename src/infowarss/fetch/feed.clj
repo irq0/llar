@@ -86,8 +86,9 @@
       nil)))
 
 (defn- http-get-feed-content [url]
-  (log/debug "Fetching feed item content of " url)
-  (let [http-item (fetch url)
+  (log/debug "Fetching feed item content of " url " - " (get-base-url url))
+  (let [base-url (get-base-url url)
+        http-item (fetch url)
         hick (->> http-item
                :hickory
                (hick-s/select
@@ -95,7 +96,6 @@
                    (hick-s/tag :body)))
                first)
         body (-> hick
-               (absolutify-links-in-hick url)
                hick-r/hickory-to-html)]
     {"text/html" body
      "text/plain" (conv/html2text body)}))
@@ -133,8 +133,9 @@
               in-feed-contents (extract-feed-content (:contents re))
               contents-url (-> re :link maybe-extract-url)
               contents-base-url (get-base-url contents-url)
-              contents (if (and (get-in src [:args :deep?])
-                             (string? contents-url))
+              deep-fetch? (and (get-in src [:args :deep?])
+                             (some? contents-url))
+              contents (if deep-fetch?
                          (http-get-feed-content contents-url)
                          (process-feed-html-contents contents-base-url in-feed-contents))
               descriptions (process-feed-html-contents contents-base-url
