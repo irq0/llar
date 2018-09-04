@@ -7,7 +7,7 @@
    [infowarss.persistency :as persistency]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
-   [infowarss.http :refer [fetch absolutify-links-in-hick get-base-url]]
+   [infowarss.http :refer [fetch absolutify-links-in-hick get-base-url blobify]]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]
@@ -75,6 +75,7 @@
                      :content
                      hick/parse hick/as-hickory
                      (absolutify-links-in-hick base-url)
+                     blobify
                      hick-r/hickory-to-html))
                  (catch Object _
                    (log/warn &throw-context "Mercury post processing failed. Using vanilla")
