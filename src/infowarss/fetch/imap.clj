@@ -41,8 +41,6 @@
 (defn mail-body-to-contents [m]
   (into {} (map (fn [b] [(try-get-base-type (:content-type b)) (:body b)]) (:body m))))
 
-(def last-mail (atom []))
-
 (defn get-new-messages [uri {:keys [username password]}]
   (let [p (as-properties {"mail.imap.starttls.enable" "true"
                           "mail.imap.ssl.checkserveridentity" "true"})
@@ -64,7 +62,6 @@
                                 :body (mail-body-to-contents msg)
                                 :headers (:headers msg)})))
                            (unread-messages store (subs (.getPath uri) 1))))]
-    (reset! last-mail msgs)
     (close-store store)
     msgs))
 

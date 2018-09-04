@@ -67,8 +67,6 @@
       (throw+))))
 
 
-(def last-items (atom []))
-
 (defn store-item! [item]
   (let [doc (to-couch item)]
     (db/add-document doc)))
@@ -78,8 +76,6 @@
   (let [name (get-in item [:meta :source-name])
         title (get-in item [:summary :title])]
     (try+
-      (swap! last-items conj item)
-
       (let [{:keys [id]} (store-item! item)]
         (log/debugf "Stored item %s/\"%s\": %s" name title id)
         id)
