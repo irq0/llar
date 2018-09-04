@@ -52,6 +52,8 @@
   :start (start-server :port 42000 :handler cider-nrepl-handler)
   :stop (stop-server nrepl-server))
 
+(def +current-fetch-preview+ (atom nil))
+
 (defn format-interval [period]
   (let [formatter (some-> (org.joda.time.format.PeriodFormatterBuilder.)
                     .printZeroNever
@@ -137,6 +139,7 @@
 
       (log/infof "Preview of %s: fetched: %s, limit: %s, after processing: %s"
         (str src) (count fetched) limit (count processed))
+      (reset! +current-fetch-preview+ processed)
       processed)
 
     (catch Object e
