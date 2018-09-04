@@ -140,7 +140,9 @@
       (log/infof "Preview of %s: fetched: %s, limit: %s, after processing: %s"
         (str src) (count fetched) limit (count processed))
       (reset! +current-fetch-preview+ processed)
-      processed)
+      {:info "Open http://localhost:8023/preview"
+       :n (count processed)
+       :limited-preview (map #(select-keys % [:summary :feed :meta :hash]) processed)})
 
     (catch Object e
       (log/error e "Error fetching " (str src))
