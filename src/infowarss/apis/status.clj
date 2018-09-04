@@ -112,15 +112,13 @@
    [:meta {:name "viewport" :content "width=device-width, initial-scale=1, shrink-to-fit=no"}]
    [:title "Infowarss"]
    [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/bitter.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/fira.css"}]
+   [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
    [:script {:src "/static/js/feather.min.js"}]
    [:link {:rel "stylesheet" :href "/static/css/my.css"}]])
 
 (defn html-footer []
   [[:script {:src "/static/js/jquery.min.js"}]
-   [:script {:src "/static/js/popper.min.js"}]
    [:script {:src "/static/js/bootstrap.min.js"}]
    [:script {:src "/static/js/hyphenator_loader.js"}]
    [:script
