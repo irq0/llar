@@ -326,6 +326,7 @@
                            icon-unset-stroke "black"}}]
   [:a {:class "btn ajax-toggle"
        :title (str "Toggle tag " (name tag))
+       :id (str "btn-tag-" (name tag))
        :data-id id
        :data-icon-set icon-set
        :data-icon-set-fill icon-set-fill
@@ -517,7 +518,8 @@
                            (name group-name)
                            (name group-item)
                            (name source-key))]
-           [:a {:class "btn btn-secondary"
+            [:a {:class "btn btn-secondary"
+                 :id "btn-next-item"
                 :href (make-site-href [link-prefix "item/by-id" (-> items second :id)] {:mark :read} x)}
             (icon "arrow-down")]))])
       [:div {:class "col-xs-4 text-right d-block d-sm-none"}
