@@ -6,6 +6,7 @@
              "-XX:-OmitStackTraceInFastThrow"
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
+             "-Djdk.attach.allowAttachSelf=true"
              "-XX:+CMSClassUnloadingEnabled"
              "-XX:+CMSParallelRemarkEnabled"
              "-XX:+AggressiveOpts"]
@@ -65,4 +66,5 @@
                  [com.google.guava/guava "23.0"]
                  [clojure-humanize "0.2.2"]
                  [clj-time "0.14.4"]
+                 [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                  ])

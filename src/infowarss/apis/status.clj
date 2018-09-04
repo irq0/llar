@@ -10,6 +10,7 @@
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.blobstore :as blobstore]
    [infowarss.repl :refer [+current-fetch-preview+]]
+   [clj-memory-meter.core :as mm]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-time.core :as time]
@@ -388,6 +389,30 @@
        (for [cell row]
          [:td cell])])]])
 
+(defn memory-stats []
+  (html
+    [:h4 "Memory Stats"]
+    [:div {:class "table-responsive"}
+     [:table {:class "table"}
+      [:thead {:class "table-dark"}
+       [:tr
+        [:th "Metric"]
+        [:th "Size"]]]
+      [:tbody
+       [:tr
+        [:td "Total"]
+        [:td (human/filesize (.totalMemory (Runtime/getRuntime)))]]
+       [:tr
+        [:td "Free"]
+        [:td (human/filesize (.freeMemory (Runtime/getRuntime)))]]
+       [:tr
+        [:td "Used"]
+        [:td (human/filesize
+               (- (.totalMemory (Runtime/getRuntime))
+                 (.freeMemory (Runtime/getRuntime))))]]
+       ]]]))
+
+
 (defn database-stats []
   (html
     [:h4 "Word Count Groups"]
@@ -438,6 +463,7 @@
     (html [:h1 "Infowarss Status"]
       [:div {:class "container-fluid"}
        [:div {:class "row"}
+        (memory-stats)
         (database-stats)
         (state-stats)
         (source-status)]])))
