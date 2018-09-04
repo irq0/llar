@@ -4,6 +4,7 @@
             [infowarss.persistency :refer [CouchItem]]
             [infowarss.schema :as schema]
             [infowarss.analysis :as analysis]
+            [infowarss.blobstore :as blobstore]
             [twitter.api.restful :as twitter]
             [schema.core :as s]
             [clojure.java.io :as io]
@@ -51,7 +52,8 @@
     (format "<a class=\"mention-entity\" href=\"https://twitter.com/%s\">%s%s</a>"
       data (get tweet-symbols category) data)
     :media
-    (format "<img class=\"media-entity\" src=\"%s\">" data)
+    (let [hash (blobstore/add-from-url! data)]
+      (format "<img class=\"media-entity\" src=\"%s\">" (str "/blob/" hash)))
     :urls
     (format "<a class=\"url-entity\" href=\"%s\">%s</a>"
       data (get tweet-symbols category))
