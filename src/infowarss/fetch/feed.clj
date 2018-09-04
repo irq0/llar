@@ -2,7 +2,7 @@
   (:require [infowarss.fetch :refer [FetchSource item-to-string make-meta make-item-hash tag-items]]
             [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.persistency :refer [CouchItem]]
-            [infowarss.http :refer [fetch absolutify-links-in-hick absolutify-url get-base-url]]
+            [infowarss.http :refer [fetch absolutify-links-in-hick absolutify-url get-base-url blobify]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
@@ -106,6 +106,7 @@
       (-> html
         hick/parse hick/as-hickory
         (absolutify-links-in-hick base-url)
+        (blobify)
         (hick-r/hickory-to-html)))
     contents))
 
