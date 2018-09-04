@@ -149,7 +149,9 @@
           (map->FeedItem
             (-> http-item
               (dissoc :hash :hickory :summary :body)
-              (merge {:raw re
+              (merge {:meta (merge (make-meta src)
+                              {:source-name (:title feed)})
+                      :raw re
                       :feed feed
                       :entry (merge base-entry
                                {:authors authors
@@ -192,8 +194,9 @@
   infowarss.src.SelectorFeed
   (fetch-source [src]
     (let [{:keys [url selectors extractors]} src
-          {:keys [summary hickory meta]} (fetch url)
+          {:keys [summary hickory]} (fetch url)
 
+          meta (make-meta src)
           feed {:title (:title summary)
                 :url url
                 :feed-type "selector-feed"}
