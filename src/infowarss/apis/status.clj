@@ -114,6 +114,7 @@
    [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/bitter.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/fira.css"}]
+   [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
    [:script {:src "/static/js/feather.min.js"}]
    [:link {:rel "stylesheet" :href "/static/css/my.css"}]])
 
