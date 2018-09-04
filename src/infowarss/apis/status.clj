@@ -8,11 +8,13 @@
    [infowarss.db :as db]
    [infowarss.persistency :as persistency]
    [infowarss.sched :refer [get-sched-info]]
+   [infowarss.blobstore :as blobstore]
    [infowarss.repl :refer [+current-fetch-preview+]]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
+   [clj-time.format :as tf]
    [compojure.core :refer :all]
    [compojure.route :as route]
    [compojure.coercions :refer [as-int]]
@@ -1257,5 +1259,19 @@
     (GET "/preview" []
       {:status 200
        :body (fetch-preview)})
+
+    (GET "/blob/:h" [h]
+      (try+
+        (let [blob (blobstore/get-blob h)]
+          {:status 200
+           :headers {"Content-Type" (:mime-type blob)
+                     "Etag" h
+                     "Last-Modified" (tf/unparse
+                                       (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z")
+                                       (:created blob))}
+           :body (:data blob)})
+        (catch Object e
+          (log/warn e "get-blob failed: " h)
+          {:status 404})))
     (route/resources "/static" {:root "status"})
     (route/not-found "404 Not found")))
