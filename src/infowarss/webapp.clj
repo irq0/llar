@@ -5,7 +5,7 @@
    [ring.adapter.jetty :refer [run-jetty]]
    [mount.core :refer [defstate]]
    [infowarss.apis.fever :as fever]
-   [ring.middleware params gzip keyword-params json stacktrace lint basic-authentication]))
+   [ring.middleware params gzip keyword-params json stacktrace lint basic-authentication not-modified]))
 ;;;; Web APIs
 
 ;;; Fever API - https://feedafever.com/api
@@ -34,6 +34,7 @@
     ring.middleware.keyword-params/wrap-keyword-params
     ring.middleware.params/wrap-params
     ring.middleware.gzip/wrap-gzip
+    ring.middleware.not-modified/wrap-not-modified
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
