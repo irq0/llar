@@ -75,7 +75,7 @@
 
 (defn g+activity
   [user-id api-key]
-  (->GooglePlusActivityFeed user-id api-key))
+  (->GooglePlusActivityFeed user-id (:api-key api-key)))
 
 (def TwitterCreds
   {:app-key schema/NotEmptyStr
