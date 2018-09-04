@@ -8,6 +8,7 @@
    [infowarss.db :as db]
    [infowarss.persistency :as persistency]
    [infowarss.sched :refer [get-sched-info]]
+   [infowarss.repl :refer [+current-fetch-preview+]]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-time.core :as time]
@@ -1097,6 +1098,16 @@
        html))))
 
 
+(defn fetch-preview []
+  (wrap-body
+    (html
+      [:body
+       [:main {:role "main"
+               :class "col-xs-12 col-md-6 col-lg-8"}
+        [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+         (for [item @+current-fetch-preview+]
+           (dump-item {:items [item]}))]]])))
+
 (defn reader-item-modify [id action tag]
   (log/info "[INFOWARSS-UI] Item mod:" id action tag)
   (str (case action
@@ -1242,5 +1253,9 @@
                     :source-key :all
                     :mode :list-items})))
     (GET "/" [] (status-index))
+
+    (GET "/preview" []
+      {:status 200
+       :body (fetch-preview)})
     (route/resources "/static" {:root "status"})
     (route/not-found "404 Not found")))
