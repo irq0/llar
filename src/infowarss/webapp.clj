@@ -1,7 +1,9 @@
 (ns infowarss.webapp
   (:require
-   [infowarss.apis.infowarss :as infowarss]
+   [taoensso.timbre :as log]
    [infowarss.apis.status :as status]
+   [infowarss.apis.dataworkbench :as datawb]
+   [slingshot.slingshot :refer [throw+ try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [mount.core :refer [defstate]]
    [infowarss.apis.fever :as fever]
@@ -19,35 +21,49 @@
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
-(def infowarss-app
-  (->
-    infowarss/app
-    (ring.middleware.basic-authentication/wrap-basic-authentication infowarss/api-authenticated? "Infowarss API")
-    ring.middleware.keyword-params/wrap-keyword-params
-    ring.middleware.params/wrap-params
-    ring.middleware.stacktrace/wrap-stacktrace-log
-    ring.middleware.lint/wrap-lint))
-
 (def status-app
   (->
     status/app
+    ring.middleware.json/wrap-json-response
     ring.middleware.keyword-params/wrap-keyword-params
     ring.middleware.params/wrap-params
+    ring.middleware.json/wrap-json-params
+    ring.middleware.gzip/wrap-gzip
+    ring.middleware.not-modified/wrap-not-modified
+    ring.middleware.stacktrace/wrap-stacktrace-log
+    ring.middleware.lint/wrap-lint))
+
+(def data-app
+  (->
+    datawb/app
+    ring.middleware.json/wrap-json-response
+    ring.middleware.keyword-params/wrap-keyword-params
+    ring.middleware.params/wrap-params
+    ring.middleware.json/wrap-json-params
     ring.middleware.gzip/wrap-gzip
     ring.middleware.not-modified/wrap-not-modified
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
 
+(defn try-start-app [app port]
+  (try+
+    (run-jetty app {:port port :join? false})
+    (catch java.net.BindException e
+      (log/error e "Failed to start jetty" app port))))
+
+(defn try-stop-app [jetty]
+  (when-not (nil? jetty)
+    (.stop jetty)))
+
 (defstate fever
-  :start (run-jetty #'fever-app {:port 8765 :join? false})
-  :stop (.stop fever))
-
-
-(defstate infowarss
-  :start (run-jetty #'infowarss-app {:port 7654 :join? false})
-  :stop (.stop infowarss))
+  :start (try-start-app #'fever-app 8765)
+  :stop (try-stop-app fever))
 
 (defstate status
-  :start (run-jetty #'status-app {:port 8023 :join? false})
-  :stop (.stop status))
+  :start (try-start-app status-app 8023)
+  :stop (try-stop-app status))
+
+(defstate datawb
+  :start (try-start-app data-app 8042)
+  :stop (try-stop-app data-app))

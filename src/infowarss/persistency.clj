@@ -81,10 +81,9 @@
         id)
       (catch [:type :infowarss.db/duplicate] _
         (if overwrite?
-          (do
-            (let [ret (overwrite-item! item)]
-              (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)
-              ret))
+          (let [ret (overwrite-item! item)]
+            (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)
+            ret)
           (log/debugf "Skipping item %s/\"%s\": duplicate" name title)))
       (catch Object _
         (log/errorf (:throwable &throw-context) "Unexpected exception while storing item %s/\"%s\"" name title)))))

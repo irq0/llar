@@ -63,6 +63,9 @@
 (defschema HttpSource
   {:url URLStr})
 
+(defschema URLType
+  (s/cond-pre java.net.URL java.net.URI clojurewerkz.urly.UrlLike))
+
 ;;; *Items
 
 (defschema Metadata
@@ -106,7 +109,7 @@
 ;;; Feed Items
 
 (defschema FeedEntry
-  {:url (s/maybe java.net.URL)
+  {:url (s/maybe URLType)
    :updated-ts (s/maybe org.joda.time.DateTime)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :title s/Str
@@ -118,7 +121,7 @@
 (defschema Feed
   {:title s/Str
    :language (s/maybe s/Str)
-   :url (s/maybe java.net.URL)
+   :url (s/maybe URLType)
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
    :encoding (s/maybe s/Str)
    :pub-ts (s/maybe org.joda.time.DateTime)
@@ -127,9 +130,9 @@
 
 ;;; Mercury Parser
 (defschema MercuryEntry
-  {:url (s/maybe java.net.URL)
-   :lead-image-url (s/maybe java.net.URL)
-   :next-page-url (s/maybe java.net.URL)
+  {:url (s/maybe URLType)
+   :lead-image-url (s/maybe URLType)
+   :next-page-url (s/maybe URLType)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :title s/Str
    :authors [s/Str]
@@ -140,8 +143,8 @@
 ;;; Reddit
 
 (defschema RedditEntry
-  {:url (s/maybe java.net.URL)
-   :thumbnail (s/maybe java.net.URL)
+  {:url (s/maybe URLType)
+   :thumbnail (s/maybe URLType)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :title s/Str
    :authors [s/Str]
@@ -153,7 +156,7 @@
 
 
 (defschema DocumentEntry
-  {:url (s/maybe java.net.URL)
+  {:url (s/maybe URLType)
    :title s/Str
    :authors [s/Str]
    :pub-ts (s/maybe org.joda.time.DateTime)
@@ -176,17 +179,6 @@
               (s/optional-key "text/html") s/Str}
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
-
-(defschema GooseEntry
-  {:url (s/maybe java.net.URL)
-   :title s/Str
-   :authors [s/Str]
-   :put-ts (s/maybe org.joda.time.DateTime)
-   :lead-image-url (s/maybe java.net.URL)
-   :contents {(s/required-key "text/plain") (s/maybe s/Str)
-              (s/optional-key "text/html") s/Str}
-   :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
-   :entities {:movies (s/maybe [java.net.URL])}})
 
 ;;; Twitter API (incoming)
 
@@ -325,7 +317,7 @@
 ;;; Tweet Items
 
 (defschema TweetEntry
-  {:url (s/maybe java.net.URL)
+  {:url (s/maybe URLType)
    :pub-ts (s/maybe org.joda.time.DateTime)
    :score {:favs PosInt
            :retweets PosInt}
@@ -334,7 +326,7 @@
    :type (s/enum :retweet :reply :tweet)
    :entities {:hashtags [s/Str]
               :user_mentions [s/Str]
-              :photos [java.net.URL]}
+              :photos [URLType]}
    :authors [s/Str]
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
@@ -348,8 +340,8 @@
    :pub-ts (s/maybe org.joda.time.DateTime)
    :title s/Str
    :type s/Keyword
-   :url (s/maybe java.net.URL) ;; something
-   :hn-url (s/maybe java.net.URL) ;; https://news.ycombinator.com/item?id=
+   :url (s/maybe URLType) ;; something
+   :hn-url (s/maybe URLType) ;; https://news.ycombinator.com/item?id=
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
 

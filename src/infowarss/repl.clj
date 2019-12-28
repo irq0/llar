@@ -37,8 +37,8 @@
    [hickory.zip :as hick-z]
    [me.raynes.clhue.lights :as lights]
    [mount.core :refer [defstate]]
-   [clojure.tools.nrepl.server :refer [start-server stop-server]]
-   [cider.nrepl :refer (cider-nrepl-handler)]
+   [nrepl.server :refer [start-server stop-server]]
+   [cider.nrepl :refer [cider-nrepl-handler]]
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.namespace.repl :refer [refresh]]
    [taoensso.timbre.appenders.core :as appenders]))
@@ -47,8 +47,12 @@
 
 (s/set-fn-validation! true)
 
+(defn nrepl-handler []
+  (require 'cider.nrepl)
+  (ns-resolve 'cider.nrepl 'cider-nrepl-handler))
+
 (defstate nrepl-server
-  :start (start-server :port 42000 :handler cider-nrepl-handler)
+  :start (start-server :port 42005 :handler (nrepl-handler))
   :stop (stop-server nrepl-server))
 
 (def +current-fetch-preview+ (atom nil))
@@ -121,15 +125,17 @@
 ;;; Preview - Try out filters, processing, fetch
 
 (defn preview
-  [src & {:keys [limit post filter skip-postproc]
+  [src & {:keys [limit post pre filter skip-postproc]
           :or {limit nil
                post []
+               pre []
                filter (constantly false)
                skip-postproc false}}]
   (try+
     (let [fetched (fetch/fetch-source src)
           postproc (proc/make
                      :post post
+                     :pre pre
                      :filter filter)
           processed (cond->> fetched
                       limit (take limit)
@@ -300,35 +306,20 @@
         (log/error e "Unexpected error")))))
 
 
+;;; toying around with urban sports club
 
-(defn podcast-item [filename]
-  (let [file (io/as-file filename)
-        size (.length file)
-        meta (pantomime.extract/parse file)
-        mime-type (pantomime.mime/mime-type-of file)]
-    (string/join "\n"
-      ["<item>"
-       (format "<title><![CDATA[%s]]</title>" (first (:title meta)))
-       "<link></link"
-       (format "<description><![CDATA[%s]]</description>" (:text meta))
-       (format "<enclosure url=\"http://10.23.1.23:7654%s\" length=\"%s\" type=\"%s\" />"
-         (str "/files/videos/" (.getName file)) size mime-type)
-       "</item>"])))
+(defn get-usc-venues []
+  (:body (http/get "https://urbansportsclub.com/studios-map?city=1" {:as :json})))
 
-(defn podcast-feed [directory]
-  (let [path (io/as-file directory)
-        files (seq (.list path (reify java.io.FilenameFilter
-                                 (^boolean accept [_ ^java.io.File dir ^String name]
-                                  (some? (re-find #".+\.mp4" name))))))]
-    (string/join "\n"
-      (concat
-        ["<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss version=\"2.0\""
-         "xmlns:itunes=\"http://www.itunes.com/dtds/podcast-1.0.dtd\""
-         "<channel>"
-         "<title>infowarss podcast feed</title>"
-         "<description>All the extracted videos!!1111!1!elf</description>"
-         "<generator>infowarss</generator>"]
-        (map #(podcast-item (str directory "/" %)) files)))))
+(defn usc-l-only [usc-venues]
+  (->> usc-venues :data :venues
+    (filter #(= 3 (apply min (:planTypeIds %))))
+    (remove #(some (partial = "Massage") (map :name (:categories %))))
+    (map #(merge (select-keys % [:district :name :location])
+            {:categories (string/join ", " (map :name (:categories %)))}))
+    ))
+
+
 
 ;; twitter spam filter training data
 

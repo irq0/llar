@@ -20,12 +20,16 @@
 ;; Every source may have a processing record
 (s/defrecord Processing
     [post :- schema/FuncList
+     pre :- schema/FuncList
      filter :- schema/Func])
 
 (defn make
   "Make new Processing record"
-  [& {:keys [post filter] :or {post [] filter (constantly false)}}]
-  (Processing. post filter))
+  [& {:keys [post pre filter]
+      :or {post []
+           pre []
+           filter (constantly false)}}]
+  (Processing. post pre filter))
 
 
 ;;;; Postprocessing utility functions
@@ -64,11 +68,11 @@
 
 
 (def +mercury-site-blacklist+
-  #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
+  #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
 
 (defn replace-contents-with-mercury [creds item keep-orig?]
   (let [url (get-in item [:entry :url])
-        src (src/mercury (str url) (get-in creds [:api-key]))
+        src (src/mercury (str url))
         mercu (process-feedless-item src (first (fetch/fetch-source src)))
         html (if keep-orig?
                (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
@@ -192,47 +196,82 @@
 (defn check-intermediate-maybe-coll [items where]
   (if (or
         (and
-          (coll? items)
+          (sequential? items)
           (every? (partial satisfies? ItemProcessor) items))
         (satisfies? ItemProcessor items))
     items
     (log/errorf "Processing pipeline failure after %s. Intermediate result garbage: %s %s"
       where (type items) items)))
 
+(defn check-pre-multiple [items]
+  (let [unique-hashes (hash-set (map :hash items))]
+  (when (< (count unique-hashes) (count items))
+    (throw+ {:type ::pre-proc-into-multipe-made-duplicates :unique-hashes unique-hashes :item-count (count items)}))))
 
 (defn process-item
   "Postprocess and filter a single item"
   [feed state item]
   (let [{:keys [src]} feed
         all-proc #(all-items-process % src state)
-        per-feed-proc (apply comp
-                        (->> feed
-                          :proc :post
-                          (map #(wrap-proc-fn item %))))
+        per-feed-proc-pre (apply comp
+                            (->> feed
+                              :proc :pre
+                              (map #(wrap-proc-fn item %))))
+        per-feed-proc-post (apply comp
+                             (->> feed
+                               :proc :post
+                               (map #(wrap-proc-fn item %))))
         proto-feed-proc (wrap-proc-fn item
                           #(post-process-item % src state))
 
-        per-feed-filter (-> feed :proc :filter)]
+        per-feed-filter (-> feed :proc :filter)
+
+
+        pre-chain (fn [item] (some-> item
+                           (all-proc)
+                           (check-intermediate :all-proc)
+                           (per-feed-proc-pre)
+                           (check-intermediate-maybe-coll :per-feed-pre-processor)))
+
+        main-chain (fn [item] (some-> item
+                            (apply-filter
+                             #(filter-item % src state))
+                            (check-intermediate :protocol-filter)
+                            (proto-feed-proc)
+                            (check-intermediate :protocol-processor)
+                            (apply-filter per-feed-filter)
+                            (check-intermediate :per-feed-filter)
+                            (per-feed-proc-post)
+                            (check-intermediate :per-feed-post-processor)))]
 
     (log/debugf "Processing %s"
       (str item))
 
-    (let [processed (some-> item
-                      (all-proc)
-                      (check-intermediate :all-proc)
-                      (apply-filter
-                        #(filter-item % src state))
-                      (check-intermediate :protocol-filter)
-                      (proto-feed-proc)
-                      (check-intermediate :protocol-processor)
-                      (apply-filter per-feed-filter)
-                      (check-intermediate :per-feed-filter)
-                      (per-feed-proc)
-                      (check-intermediate-maybe-coll :per-feed-processor))]
+    (let [pre-chain-processed (pre-chain item)
+
+          processed (if (sequential? pre-chain-processed)
+                      (do
+                        (log/debug "Pre chain produced " (count pre-chain-processed) " extra items")
+                        (map main-chain pre-chain-processed))
+                      (main-chain pre-chain-processed))]
       (when (nil? processed)
         (log/debugf "Filtered out: %s"
-          (str item)))
+                    (str item)))
       processed)))
+    ;; (let [processed (some-> item
+    ;;                   (all-proc)
+    ;;                   (check-intermediate :all-proc)
+    ;;                   (per-feed-proc-pre)
+    ;;                   (check-intermediate-maybe-coll :per-feed-pre-processor)
+    ;;                   (apply-filter
+    ;;                     #(filter-item % src state))
+    ;;                   (check-intermediate :protocol-filter)
+    ;;                   (proto-feed-proc)
+    ;;                   (check-intermediate :protocol-processor)
+    ;;                   (apply-filter per-feed-filter)
+    ;;                   (check-intermediate :per-feed-filter)
+    ;;                   (per-feed-proc-post)
+    ;;                   (check-intermediate-maybe-coll :per-feed-post-processor))]
 
 (defn process [feed state items]
   (let [{:keys [src]} feed]

@@ -80,7 +80,9 @@
                           fetched)
                         (catch Object _
                           (throw+ {:type ::proc-error
-                                   :fetched fetched
+                                   :fetched (map #(select-keys %
+                                                    [:summary :meta])
+                                              fetched)
                                    :feed feed
                                    :skip skip-proc})))
 
@@ -146,7 +148,7 @@
   "Set feed's status"
   [k new-status]
   (let [src (get @state k)]
-    (when (not (instance? clojure.lang.Atom src))
+    (when-not (instance? clojure.lang.Atom src)
       (swap! state assoc-in [k :status] new-status)
       new-status)))
 
@@ -213,7 +215,7 @@
 
 (defn update-all! [& args]
   (doall
-    (for [[k v] (shuffle (into [] *srcs*))
+    (for [[k v] (shuffle (vec *srcs*))
           :when (satisfies? fetch/FetchSource (:src v))]
       (apply update! k args))))
 

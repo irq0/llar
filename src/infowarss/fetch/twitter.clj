@@ -4,7 +4,7 @@
             [infowarss.persistency :refer [CouchItem]]
             [infowarss.schema :as schema]
             [infowarss.analysis :as analysis]
-            [infowarss.blobstore :as blobstore]
+            [infowarss.http :refer [try-blobify-url!]]
             [twitter.api.restful :as twitter]
             [schema.core :as s]
             [clojure.java.io :as io]
@@ -24,7 +24,8 @@
     (tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy") ts)))
 
 (defn- tweet-title [s]
-  (let [new (subs s 0 (min (count s) 50))]
+  (let [s (or s "")
+        new (subs s 0 (min (count s) 50))]
     (if (< (count new) (count s))
       (str new "…")
       new)))
@@ -52,8 +53,7 @@
     (format "<a class=\"mention-entity\" href=\"https://twitter.com/%s\">%s%s</a>"
       data (get tweet-symbols category) data)
     :media
-    (let [hash (blobstore/add-from-url! data)]
-      (format "<img class=\"media-entity\" src=\"%s\">" (str "/blob/" hash)))
+    (format "<img class=\"media-entity\" src=\"%s\">" (try-blobify-url! data))
     :urls
     (format "<a class=\"url-entity\" href=\"%s\">%s</a>"
       data (get tweet-symbols category))
@@ -85,7 +85,7 @@
   ;;We use a mutable StringBuffer to reassemble since it supports
   ;;adding code points.
 
-  (let [text (get tweet :text)
+  (let [text (or (get tweet :full_text) (get tweet :text))
         changes (tweet-text-changes tweet)
         sb (StringBuilder.)
         text-code-points (->> text
@@ -110,7 +110,7 @@
 (defn tweet-to-entry [tweet]
   (let [user (get-in tweet [:user :screen_name])
         id (get tweet :id)
-        text (get tweet :text)
+        text (or (get tweet :full_text) (get tweet :text))
         entities (get tweet :entities)]
 
     {:url (io/as-url (format "https://twitter.com/%s/status/%s"
@@ -126,10 +126,13 @@
                 :mentions (some->> (get entities :user_mentions)
                             (map :screen_name))
                 :photos (some->> (get entities :media)
-                          (map :media_url))}
+                          (map :media_url)
+                          (map try-blobify-url!))}
      :authors [(get-in tweet [:user :screen_name])]
      :contents {"text/plain" text
-                "text/html" (htmlize-tweet-text tweet)}}))
+                "text/html" (if (string? text)
+                              (htmlize-tweet-text tweet)
+                              "")}}))
 
 
 (extend-protocol FetchSource
@@ -138,7 +141,9 @@
     (let [{:keys [query oauth-creds]} src
           resp (twitter/search-tweets
                  :oauth-creds oauth-creds
-                 :params {:q query})
+                 :params {:q query
+                          :tweet_mode "extended"
+                          })
           tweets (get-in resp [:body :statuses])]
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
@@ -179,9 +184,7 @@
 (extend-protocol ItemProcessor
   TweetItem
   (post-process-item [item src state]
-    (-> item
-      (update :entry merge (:entry item) (analysis/analyze-entry (:entry item)))
-    ))
+    (update item :entry merge (:entry item) (analysis/analyze-entry (:entry item))))
   (filter-item [item src state] false))
 
 

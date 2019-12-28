@@ -22,53 +22,98 @@ div.item-preview-small img {
     margin-bottom: 1.5em;
 }
 
+div.navbar-toggler {
+    padding: 0;
+    border: none;
+    height: 1.8em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding-right: 1em;
+
+}
+
+div.navbar-toggler a {
+    border: none;
+}
+
+div.navbar-toggler {
+    font-size: 0.9rem;
+}
+
 /* phone */
 @media (max-width: 699px) {
-div.item-content-body {
-    font-family: charter, serif;
-    font-size: 0.9rem;
-    text-align: justify;
-    hyphens: auto;
-    line-height: 1.9;
-    max-width: 60ch;
-    margin: auto;
-    padding-bottom: 1.5em;
-}
+    div.item-content-body h1,h2,h3,h4 {
+	padding-top: 0.2em;
+	text-align: left;
+	font-family: Fira Sans;
+    }
+    div.item-content-body h1 {
+	font-size: 1.5rem;
+    }
+    div.item-content-body h2 {
+	font-size: 1.4rem;
+    }
+    div.item-content-body h3 {
+	font-size: 1.3rem;
+    }
+    div.item-content-body h4 {
+	font-size: 1.2rem;
+    }
+
+    div.item-content-body {
+	font-family: charter, serif;
+	font-size: 0.9rem;
+	text-align: justify;
+	line-height: 1.9;
+	max-width: 60ch;
+	margin: auto;
+	padding-bottom: 1.5em;
+	overflow: hidden;
+    }
 }
 
 /* desktop / tablet */
 @media (min-width: 700px) and (max-width: 1499px) {
-div.item-content-body {
-    font-family: charter, serif;
-    text-align: justify;
-    hyphens: auto;
-    line-height: 1.9;
-    max-width: 60ch;
-    margin: auto;
-    padding-bottom: 1.5em;
-}
+    div.item-content-body {
+	font-family: charter, serif;
+	text-align: justify;
+	line-height: 1.9;
+	font-size: 13pt;
+	max-width: 60ch;
+	margin: auto;
+	padding-bottom: 1.5em;
+    }
+    div.item-content-body h1,h2,h3,h4 {
+	font-family: charter, serif;
+	padding-top: 0.8em;
+	padding-bottom: 0.2em;
+	text-align: left;
+	font-weight: 600;
+    }
 }
 
 /* large desktop */
 @media (min-width: 1500px) {
-div.item-content-body {
-    font-family: charter, serif;
-    text-align: justify;
-    hyphens: auto;
-    line-height: 1.8;
-    columns: 40ch;
-    margin-right: 5em;
-    overflow-x: scroll;
-    height: calc(100vh - 9em);
-}
+    div.item-content-body {
+	font-family: charter, serif;
+	text-align: justify;
+	line-height: 1.8;
+	font-size: 13pt;
+	columns: 40ch;
+	margin-right: 5em;
+	overflow-x: scroll;
+	height: calc(100vh - 9em);
+    }
+    div.item-content-body h1,h2,h3,h4 {
+	font-family: charter, serif;
+	padding-top: 0.8em;
+	padding-bottom: 0.2em;
+	text-align: left;
+	font-weight: 600;
+    }
 }
 
-div.item-content-body h1,h2,h3,h4 {
-    padding-top: 0.2em;
-    text-align: left;
-    font-family: Fira Sans;
-    font-weight: 400;
-}
 
 div.item-content-body .orig-content {
     text-align: left;
@@ -98,17 +143,26 @@ div.item-content-body pre {
 }
 
 div.item-content-body a {
-    font-family: Fira Sans;
-    font-weight: 400;
-    font-size: .9rem;
-    font-style: italic;
     color: #212529;
 }
 
-div.item-content-body a:hover {
-    font-style: italic;
-    text-decoration: none;
+div.item-content-body a:after {
+    position: relative;
+    content: "\FEFF†";
+    /* ° †*/
+    margin-left: 0.10em;
+    font-size: 90%;
+    top: -0.10em;
+    color: #FF8833;
+    font-feature-settings: 'caps' 1;
 }
+
+
+div.item-content-body a:hover {
+    text-decoration: none;
+    background: #FBE870;
+    transition-property: background;
+    transition-duration: 0.2s;}
 
 div.item-content-body a:visited {
     color: #AAA;
@@ -127,9 +181,13 @@ div.item-content-body p > code {
 
 .hyphenate {
     hyphens: auto;
-    -webkit-hyphens: auto;
-    -moz-hyphens: auto;
     -ms-hyphens: auto;
+    -moz-hyphens: auto;
+    -webkit-hyphens: auto;
+}
+
+.hyphenate p {
+    text-align: justify;
 }
 
 div.item-content-body p {
@@ -193,7 +251,13 @@ sidebar {
   padding-top: .5rem;
   overflow-x: hidden;
   overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
+  padding-bottom: 32px;
 }
+
+#left-nav {
+
+}
+
 }
 
 .sidebar .nav-link {
@@ -255,8 +319,6 @@ sidebar {
     font-size: 1rem;
     padding-top: 0.65rem;
     padding-bottom: 0.65rem;
-  background-color: rgba(0, 0, 0, .25);
-  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .25);
 }
 
 .navbar {
@@ -270,6 +332,7 @@ sidebar {
   margin: 0;
   font-size: 0.8em;
   background-color: rgba(0,0,0,0);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -360,7 +423,7 @@ sidebar {
     background-color: #6c757d;
 }
 
-@media (min-width: 700px) {
+@media (min-width: 1500px) {
 .navbar ol {
     display: -webkit-inline-box;
     overflow: hidden;
@@ -369,7 +432,8 @@ sidebar {
 
 .navbar ol li {
     text-overflow: ellipsis;
-    /* white-space: nowrap; */
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 main {
@@ -383,4 +447,102 @@ main {
   #groupnav {
     display: block;
   }
+}
+
+.viewport-pivot::before {
+    content: "↲";
+    color: #aaa;
+    font-size: 1rem;
+    position: absolute;
+    left: 1em;
+}
+
+.viewport-bottom::before {
+    content: "⇣";
+    color: #aaa;
+    font-size: 1rem;
+    position: absolute;
+    left: 1em;
+}
+
+.viewport-bottom[view=out]::before  {
+    content: "⇊";
+    color: #aaa;
+    position: absolute;
+    left: 1em;
+}
+
+#leaflet-map {
+    height: 500px;
+}
+
+.leaflet-icon {
+    font-size: 2em;
+}
+
+.icon-is-set {
+    color: #FF8833;
+}
+
+#headlines td, #headlines th {
+    border-top: none;
+
+}
+
+#headlines .toolbox a {
+    font-size: 0.8em;
+    margin: 0;
+    padding: 0.2em;
+    color: #555;
+}
+
+#headlines .title a {
+    color: black;
+    font-weight: 400;
+}
+
+#headlines .title a:hover {
+    color: #000;
+    text-decoration: none;
+}
+
+#headlines .ts {
+    font-size: 0.8em;
+    color: #555;
+}
+
+#headlines .source {
+    font-size: 0.8em;
+    color: #555;
+}
+
+#headlines .nwords {
+    font-size: 0.8em;
+    color: #555;
+}
+
+#gallery .toolbox a {
+    font-size: 0.5em;
+    margin: 0;
+    padding: 0.2em;
+    color: #555;
+}
+
+#gallery a:hover {
+    color: #000;
+    text-decoration: none;
+}
+
+#gallery a {
+    color: black;
+    font-weight: 400;
+}
+
+#pagemap {
+    position: fixed;
+    width: 200px;
+    height: 100%;
+    z-index: 100;
+    left: 65%;
+    top: 3em;
 }

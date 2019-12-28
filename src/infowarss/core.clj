@@ -4,18 +4,24 @@
    [infowarss.src :as src]
    [infowarss.http :as http]
    [infowarss.converter :as converter]
+   [infowarss.fetch :refer [make-item-hash]]
    [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
    [clj-time.format :as tf]
+   [clojure.set :refer [union intersection]]
    [hiccup.core :refer [html]]
    [hickory.select :as S]
    [slingshot.slingshot :refer [throw+ try+]]
+   [clj-http.client :as http-client]
+   [clj-http.cookies :as http-cookies]
    [hickory.core :as hick]
    [hickory.render :refer [hickory-to-html]]
    [clj-time.coerce :as tc]
+   [clojure.contrib.humanize :as human]
    [infowarss.postproc :as proc]
    [clojure.string :as string]
    [hara.io.scheduler :as sched]
+   [clojurewerkz.urly.core :as urly]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [mount.core :refer [defstate]]
@@ -57,9 +63,8 @@
     [:h1 "Content"]))
 
 
-(defn human-host-identifier [str-url]
-  (let [url (io/as-url str-url)
-        host (.getHost url)]
+(defn human-host-identifier [url]
+  (let [host (.getHost url)]
     (try+
       (let [domain (com.google.common.net.InternetDomainName/from host)
             site (.topPrivateDomain host)]
@@ -68,15 +73,15 @@
         (str host)))))
 
 
-(defn make-bookmark-feed [url]
-  (let [src (src/mercury url (get-in creds [:mercury :api-key]))]
+(defn make-readability-bookmark-feed [url]
+  (let [src (src/mercury url)]
     {:src src
      :tags #{:bookmark}
      :proc (proc/make
              :post [(fn [item]
                      (let [summary (bookmark-html item)
                            html (get-in item [:entry :contents "text/html"])
-                           url (some-> item :entry :url)
+                           url (some-> item :entry :url urly/url-like)
                            site (human-host-identifier url)]
                        (-> item
                          (assoc-in [:entry :contents "text/html"]
@@ -85,10 +90,35 @@
                            (if (some? site)
                              (keyword (str "bookmark-" (str site)))
                              :bookmark))
+                         (assoc :hash (make-item-hash url))
                          (assoc-in [:meta :source-name]
                            (if (some? site)
                              (format "[Bookmark: %s]" (str site))
                              "[Bookmark]")))))])}))
+
+(defn make-raw-bookmark-feed [url]
+  (let [src (src/website url)]
+    {:src src
+     :tags #{:bookmark}
+     :proc (proc/make
+             :post [(fn [item]
+                     (let [summary (bookmark-html item)
+                           html (get-in item [:entry :contents "text/html"])
+                           url (some-> item :entry :url urly/url-like)
+                           site (human-host-identifier url)]
+                       (-> item
+                         (assoc-in [:entry :contents "text/html"]
+                           (str summary "\n\n\n" html))
+                         (assoc-in [:meta :source-key]
+                           (if (some? site)
+                             (keyword (str "bookmark-" (str site)))
+                             :bookmark))
+                         (assoc :hash (make-item-hash url))
+                         (assoc-in [:meta :source-name]
+                           (if (some? site)
+                             (format "[Bookmark: %s]" (str site))
+                             "[Bookmark]")))))])}))
+
 
 (defn make-doc-feed [url]
   (let [src (src/doc url)]
@@ -109,18 +139,18 @@
           (and (= :story type)
             (>= score min-score))
           (and (= :story type)
-            (re-find #"clojure|lisp|book|alan kay|futurism" title)
+            (re-find #"clojure|lisp|book|alan kay|futurism|rob pike|" title)
             (>= score min-score-match))
           (and
             (some? site)
-            (re-find #"nautil\.us|theatlantic|medium|youtube|nytimes|theguardian|washingtonpost|99percentinvisible|theverge|phys\.org|bbc\.com"
+            (re-find #"nautil\.us|theatlantic|medium|youtube|theguardian|washingtonpost|99percentinvisible|theverge|phys\.org|bbc\.com"
               site)
             (>= score min-score-match)))))))
 
 (defn make-category-filter [blacklist]
   (fn [item]
     (let [has (some-> item :entry :categories set)]
-      (>= (count (clojure.set/intersection has (set blacklist))) 1))))
+      (>= (count (intersection has (set blacklist))) 1))))
 
 (defn make-reddit-proc [min-score]
   (proc/make
@@ -167,6 +197,7 @@
 
    :twit-berlin-pics {:src (src/twitter-search "#berlin filter:images"
                                (:twitter-api creds))
+                      :options #{:mark-read-on-view}
                       :proc (proc/make
                               :filter (fn [item]
                                           (let [type (get-in item [:entry :type])
@@ -182,15 +213,26 @@
                         :tags #{:pics}
                         :cron cron-hourly}
 
-   :fefe {:src (src/selector-feed "https://blog.fefe.de/"
+   :fefe {:src (src/selector-feed "https://blog.fefe.de"
                  {:urls (S/descendant
                           (S/find-in-text #"\[l\]"))
                   :ts (S/tag :h3)
+                  :title (S/tag :li)
                   :content (S/tag :li)}
                  {:content  #(->> % first :content (drop 1))
                   :author "fefe"
-                  :urls (fn [l] (map (fn [x] (->> x :attrs :href
-                                             (str "https://blog.fefe.de/"))) l))
+                  :urls (fn [l] (map (fn [x] (->> x :attrs :href)) l))
+                  :title (fn [l]
+                           (human/truncate
+                             (->> l
+                               first
+                               :content
+                               (drop 1)
+                               first
+                               hickory-to-html
+                               (converter/html2text))
+                             70))
+
                   :ts #(->> %
                          first
                          :content
@@ -222,8 +264,8 @@
                                              haves #{"python" "clojure" "ceph" "c++" "c" "logstash" "kibana" "java" "linux"}
                                              dontwants #{"php" "node.js" "javascript" "ecmascript" "wordpress" "scrapy" "django"}]
                                          (not
-                                           (and (< (count (clojure.set/intersection wants dontwants)) 2)
-                                             (>= (count (clojure.set/intersection wants haves)) 1))))))}
+                                           (and (< (count (intersection wants dontwants)) 2)
+                                             (>= (count (intersection wants haves)) 1))))))}
 
    :irq0 {:src (src/feed "http://irq0.org/news/index.atom")
           :proc (proc/make
@@ -233,11 +275,9 @@
 
    :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
                    :cron cron-daily
+                   :proc (proc/make
+                           :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
                    :tags #{:tech :magazine}}
-
-   :oreilly-fourshortlinks {:src (src/feed "http://feeds.feedburner.com/FourShortLinks")
-                            :cron cron-daily
-                            :tags #{:tech :magazine}}
 
    :danluu {:src (src/feed "https://danluu.com/atom.xml")
             :tags #{:tech :blog}
@@ -274,12 +314,13 @@
            :tags #{:tech :blog}
            :cron cron-daily}
 
-   :99pi {:src (src/feed "https://feeds.feedburner.com/99pi")
+   :n99pi {:src (src/feed "https://feeds.feedburner.com/99pi")
           :tags #{:design}
           :cron cron-daily}
 
    :kottke {:src (src/feed "http://feeds.kottke.org/main")
             :tags #{:magazine}
+            :options #{:mark-read-on-view}
             :cron cron-daily}
 
    :stackoverflow-engineering {:src (src/feed "https://stackoverflow.blog/engineering/feed/")
@@ -311,7 +352,7 @@
                         :cron cron-daily}
 
    :acm-queue {:src (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml" :deep? true :force-update? true)
-               :tags #{:tech :magazine}
+               :tags #{:tech :magazine :sci}
                :cron cron-daily}
 
    :reddit-diy {:src (src/reddit "DIY" :hot)
@@ -456,17 +497,20 @@
 ;; TODO   :metacritic {:src (src/feed "http://www.metacritic.com/rss/music"
 
    :vice {:src (src/feed "https://www.vice.com/en_us/rss" :deep? true :force-update? true)
+          :options #{:mark-read-on-view}
           :tags #{:magazine}
           :cron cron-daily}
 
    :hn-top {:src (src/hn "topstories" :throttle-secs (* 23 60))
-          :tags #{:tech}
+            :tags #{:tech}
+            :options #{:mark-read-on-view}
             :proc (proc/make
                     :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
                     :filter (make-hacker-news-filter 350 150))}
 
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
-          :tags #{:tech}
+             :tags #{:tech}
+             :options #{:mark-read-on-view}
              :proc (proc/make
                      :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
                      :filter (make-hacker-news-filter 350 150))}
@@ -499,18 +543,21 @@
 
    :pixelenvy {:src (src/feed "https://feedpress.me/pxlnv")
                :cron cron-daily
+               :options #{:mark-read-on-view}
                :tags #{:magazine}
                :proc (proc/make
                        :filter (fn [item]
                                  (let [names (get-in item [:entry :nlp :names])
                                        dontwant #{"App Store" "Apple" "Apple Music" "Apple Store" "MacOS" "OSX"}]
-                                   (log/spy (clojure.set/intersection names dontwant))
-                                   (>= (count (clojure.set/intersection names dontwant)) 2))))}
+                                   (log/spy (intersection names dontwant))
+                                   (>= (count (intersection names dontwant)) 2))))}
    :rumpus {:src (src/feed "http://therumpus.net/feed/")
+            :options #{:mark-read-on-view}
             :tags #{:magazine}
             :cron cron-daily}
 
    :atlantic-best-of {:src (src/feed "https://www.theatlantic.com/feed/best-of/")
+            :options #{:mark-read-on-view}
                       :tags #{:magazine}
                       :cron cron-daily}
 
@@ -518,6 +565,36 @@
           (src/feed "http://irq0.org/404")}
 
    :newsletter-mailbox {:src (src/imap "imap://mail.cpu0.net/NEWSLETTER" (:imap creds))
+                        :proc (proc/make
+                                :post [(fn [item]
+                                         (let [sane-html (some-> (get-in item [:entry :contents "text/html"])
+                                                           hick/parse
+                                                           hick/as-hickory
+                                                           http/sanitize
+                                                           http/blobify
+                                                           hickory-to-html)
+                                               headers (get-in item [:raw :headers])
+                                               from-address (get-in item [:raw :from :address])
+                                               find-header (fn [k] (some-> (filter
+                                                                            (fn [x]
+                                                                              (= (some-> x first key string/lower-case) k))
+                                                                            headers)
+                                                                    first first val))
+                                               mail-sender (or
+                                                             (some-> item :raw :from first :name)
+                                                             (find-header "sender")
+                                                             (find-header "from")
+                                                             (find-header "list-id")
+                                                             "unknown")
+                                               src-key (str "newsletter-"
+                                                         (-> mail-sender
+                                                           (string/replace #"[^\w]" "_")
+                                                           string/lower-case))
+                                               src-name (str "[NEWSLETTER: " mail-sender)]
+                                           (-> item
+                                             (assoc-in [:entry :contents "text/html"] sane-html)
+                                             (assoc-in [:meta :source-key] src-key)
+                                             (assoc-in [:meta :source-name] src-name))))])
                         :cron cron-daily}
 
    :pocoo-lucumr {:src (src/feed "http://lucumr.pocoo.org/feed.atom")
@@ -557,7 +634,7 @@
                       :proc (proc/make
                               :post [(fn [item]
                                        (let [html (http/fetch (get-in item [:entry :url]))
-                                             comic-link (-> (S/select
+                                             comic-link (some-> (S/select
                                                              (S/descendant
                                                                (S/id "comic-container")
                                                                (S/tag :img)) (:hickory html))
@@ -682,17 +759,26 @@
                        :tags #{:sci}
                        :cron cron-daily}
 
-   :economist-scitech {:src (src/feed "http://www.economist.com/sections/science-technology/rss.xml")
+   :economist-scitech {:src (src/feed "https://www.economist.com/science-and-technology/rss.xml")
+                       :options #{:mark-read-on-view}
                        :tags #{:magazine}
                        :proc (proc/make
                                :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                        :cron cron-daily}
 
    :theverge {:src (src/feed "https://www.theverge.com/rss/full.xml")
+              :options #{:mark-read-on-view}
               :tags #{:magazine}
               :cron cron-daily}
 
+   :recode {:src (src/feed "https://www.recode.net/rss/index.xml")
+            :options #{:mark-read-on-view}
+            :tags #{:magazine}
+            :cron cron-daily}
+
+
    :vox {:src (src/feed "https://www.vox.com/rss/index.xml")
+         :options #{:mark-read-on-view}
          :tags #{:magazine}
          :cron cron-daily}
 
@@ -750,13 +836,11 @@
                        :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                :cron cron-daily}
 
-   :infoq-articles {:src (src/feed "https://www.infoq.com/feed/articles" :force-update? false)
-                    :proc (proc/make
-                            :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+   :infoq-articles {:src (src/feed "https://www.infoq.com/feed/articles" :force-update? false :deep? true)
                     :cron cron-daily
                     :tags #{:tech :magazine}}
 
-   :gatesnotes {:src (src/feed "https://www.gatesnotes.com/rss" :deep? true :force-update false)
+   :gatesnotes {:src (src/feed "https://www.gatesnotes.com/rss" :deep? true :force-update? true)
                 :tags #{:tech-meta :blog}
                 :proc (proc/make
                        :post [(fn [item]
@@ -774,69 +858,79 @@
                 :cron cron-daily}
 
    :startup50 {:src (src/feed "http://startup50.com/feed/" :force-update? false)
-               :tags #{:startups}
+               :tags #{:corporate}
                :proc (proc/make
                        :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
                :cron cron-daily}
 
    :clearskydata {:src (src/feed "https://www.clearskydata.com/blog/rss.xml")
-                  :tags #{:startups}
+                  :tags #{:corporate}
                   :cron cron-daily}
 
    :cloudendure {:src (src/feed "https://www.cloudendure.com/feed/")
-                 :tags #{:startups}
+                 :tags #{:corporate}
                  :cron cron-daily}
 
    :elastifile {:src (src/feed "https://blog.elastifile.com/rss.xml")
-                :tags #{:startups}
+                :tags #{:corporate}
                 :cron cron-daily}
 
    :excelero {:src (src/feed "https://www.excelero.com/feed/")
-              :tags #{:startups}
+              :tags #{:corporate}
               :cron cron-daily}
 
    :hedviginc {:src (src/feed "https://www.hedviginc.com/blog/rss.xml" :deep? true :force-update true)
-               :tags #{:startups}
+               :tags #{:corporate}
                :cron cron-daily}
 
    :igneous {:src (src/feed "https://inside.igneous.io/rss.xml")
-             :tags #{:startups}
+             :tags #{:corporate}
              :cron cron-daily}
 
    :iofabric {:src (src/feed "https://www.iofabric.com/feed/")
-              :tags #{:startups}
+              :tags #{:corporate}
               :cron cron-daily}
 
    :quobyte {:src (src/feed "https://www.quobyte.com/blog/feed/")
-             :tags #{:startups}
+             :tags #{:corporate}
              :cron cron-daily}
 
-   :reduxio {:src (src/feed "https://beyondtheblocks.reduxio.com/rss.xml")
-             :tags #{:startups}
+   :reduxio {:src (src/feed "https://beyondtheblocks.reduxio.com/feed/")
+             :tags #{:corporate}
              :cron cron-daily}
 
    :smartiops {:src (src/feed "http://www.smartiops.com/feed/")
-               :tags #{:startups}
+               :tags #{:corporate}
                :cron cron-daily}
 
    :snowflake {:src (src/feed "https://www.snowflake.net/feed/")
-               :tags #{:startups}
+               :tags #{:corporate}
                :cron cron-daily}
 
    :softnas {:src (src/feed "https://www.softnas.com/wp/feed/")
-             :tags #{:startups}
+             :tags #{:corporate}
              :cron cron-daily}
 
    :storpool {:src (src/feed "https://storpool.com/feed")
-              :tags #{:startups}
+              :tags #{:corporate}
               :cron cron-daily}
 
    :wasabi {:src (src/feed "https://wasabi.com/blog/feed/")
-            :tags #{:startups}
+            :tags #{:corporate}
             :cron cron-daily}
 
+   :kinvolk {:src (src/feed "https://kinvolk.io/blog/index.xml")
+             :tags #{:corporate}
+             :cron cron-daily}
+
+   :gruenderszene-de {:src (src/feed "https://www.gruenderszene.de/feed")
+                      :proc (proc/make
+                             :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+                      :tags #{:corporate}
+                      :cron cron-daily}
+
    :themorningpaper {:src (src/feed "https://blog.acolyer.org/feed/")
-                     :tags #{:sci}
+                     :tags #{:sci :tech}
                      :cron cron-daily}
 
    :theregister-storage {:src (src/feed "https://www.theregister.co.uk/data_centre/storage/headlines.atom" :force-update? false)
@@ -848,8 +942,14 @@
                                     (-> item
                                       (assoc-in [:entry :url] fixed-url))))
                                 (proc/mercury-contents (:mercury creds) :keep-orig? false)])
+                         :options #{:mark-read-on-view}
                          :tags #{:storage :magazine}
                          :cron cron-daily}
+
+   :blocksandfiles {:src (src/wp-json "https://blocksandfiles.com/wp-json/")
+                    :options #{:mark-read-on-view}
+                    :tags #{:storage :magazine}
+                    :cron cron-daily}
 
    :infostor {:src (src/feed "http://www.infostor.com/index/rssfaq/rss_article_and_wp.noncurrentissue.articles.infostor.html?block" :force-update? false)
               :proc (proc/make
@@ -873,7 +973,7 @@
                     {:description #(-> % first :attrs :content)
                      :author #(-> % first :content)
                      :ts #(-> % first :attrs :content tc/from-string)})
-             :tags #{:startups}
+             :tags #{:corporate}
              :cron cron-daily}
 
    :qumulo-eng {:src (src/selector-feed "https://qumulo.com/blog/tag/engineering/"
@@ -894,15 +994,35 @@
                               (re-find #"Posted (\w+ \d+, \d{4})")
                               second
                               (tf/parse (tf/formatter "MMMM dd, yyyy")))})
-             :tags #{:startups}
+             :tags #{:corporate}
                 :cron cron-daily}
 
+   :joyent {:src (src/feed "https://www.joyent.com/blog/feed" :deep? true)
+            :tags #{:corporate}
+            :cron cron-daily}
 
 
    :wekaio {:src (src/wp-json "https://www.weka.io/wp-json")
-            :tags #{:startups}
+            :tags #{:corporate}
             :cron cron-daily}
 
+   :quantum {:src (src/wp-json "https://blog.quantum.com/wp-json/")
+            :tags #{:corporate}
+             :cron cron-daily}
+
+   :objectmatrix {:src (src/wp-json "http://object-matrix.com/wp-json/")
+                  :tags #{:corporate}
+                  :cron cron-daily}
+
+   :collabora {:src (src/feed "https://www.collabora.com/newsroom-rss-feed.rss")
+               :tags #{:corporate}
+               :proc (proc/make
+                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+               :cron cron-daily}
+
+   :systemswelove {:src (src/website "https://systemswe.love/")
+               :tags #{:conference}
+               :cron cron-daily}
 
    :signalvnoise {:src (src/feed "https://m.signalvnoise.com/feed")
                   :tags #{:tech :blog}
@@ -934,6 +1054,23 @@
            :tags #{:hackerspace :berlin}
            :cron cron-daily}
 
+   :otherlandbooks {:src (src/feed "https://www.otherland-berlin.de/share/otherland_magazin.xml" :deep? true)
+                    :tags #{:berlin}
+                    :proc (proc/make
+                            :post [(fn [item]
+                                     (let [hickory (->
+                                                     (hick/parse (get-in item [:entry :contents "text/html"]))
+                                                     hick/as-hickory)
+                                           content (-> (S/select (S/descendant (S/id "news-details")) hickory)
+                                                     first)
+                                           html (hickory-to-html content)]
+                                       (-> item
+                                         (assoc-in [:entry :contents]
+                                           {"text/html" html
+                                            "text/plain" (converter/html2text html)}))))])
+                    :cron cron-daily}
+
+
    :manu-el {:src (src/feed "https://manuel-uberti.github.io/feed" :deep? true)
              :tags #{:tech :blog}
              :cron cron-daily}
@@ -955,6 +1092,7 @@
             :cron cron-daily}
 
    :nerdcore {:src (src/wp-json "https://nerdcore.de/wp-json/")
+              :options #{:mark-read-on-view}
               :tags #{:magazine :fun}
               :cron cron-daily}
 
@@ -964,13 +1102,292 @@
                           :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                 :cron cron-daily}
 
-   :krisk {:src (src/g+activity "+KristianKohntopp" (:google creds))
-           :tags #{:blog}
-           :cron cron-daily}
+   ;; :krisk {:src (src/g+activity "+KristianKohntopp" (:google creds))
+   ;;         :tags #{:blog}
+   ;;         :cron cron-daily}
 
    :berlin-backyard-fleamarkets {:src (src/website "http://polly.sternenlaub.de/fleamarkets/list")
                                  :tags #{:berlin}
                                  :cron cron-daily}
+
+   :netflix-tech {:src (src/feed "https://medium.com/feed/@NetflixTechBlog")
+                  :tags #{:tech}
+                  :cron cron-daily}
+
+   :nasa-image-of-the-day {:src (src/feed "https://www.nasa.gov/rss/dyn/image_of_the_day.rss")
+                           :proc (proc/make
+                                   :post [(fn [item]
+                                            (let [orig-img-url (some-> item :raw :enclosures first :url)
+                                                  img-url (http/try-blobify-url! orig-img-url)
+                                                  title (get-in item [:summary :title])
+                                                  descr (get-in item [:entry :descriptions "text/plain"])
+                                                  content {"text/plain" (string/join "\n"
+                                                                          [title orig-img-url descr])
+                                                           "text/html" (hiccup.core/html
+                                                                         [:div
+                                                                          [:h1 title]
+                                                                          [:img {:src img-url
+                                                                                 :orig-src orig-img-url}]
+                                                                          [:p descr]])}]
+                                              (-> item
+                                                (assoc-in [:entry :contents] content)
+                                                (assoc-in [:entry :lead-image-url] img-url))))])
+                           :tags #{:pics}
+                           :cron cron-daily}
+
+   :wired {:src (src/feed "https://www.wired.com/feed" :deep? true)
+           :options #{:mark-read-on-view}
+           :tags #{:magazine}
+           :cron cron-daily}
+
+   :iprogrammer {:src (src/feed "https://www.i-programmer.info/component/ninjarsssyndicator/?feed_id=3" :deep? true)
+                  :tags #{:tech}
+                  :cron cron-daily}
+
+   :erdgeist {:src (src/feed "https://erdgeist.org/blog/rss.xml")
+                :tags #{:blog}
+                  :proc (proc/make
+                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+              :cron cron-daily}
+
+   :frankrieger {:src (src/feed "http://frank.geekheim.de/?feed=rss2")
+                 :tags #{:blog}
+                 :cron cron-daily}
+
+   :corydoctorow {:src (src/feed "https://craphound.com/feed/")
+                  :tags #{:blog}
+                  :cron cron-daily}
+
+
+   :juliaevans {:src (src/feed "https://jvns.ca/atom.xml")
+                :tags #{:blog}
+                :cron cron-daily}
+
+   :willcrichton {:src (src/selector-feed "http://willcrichton.net/notes/"
+                         {:urls (S/class "note-link")
+                          :ts (S/class "date")
+                          :content (S/class "note")}
+                         {:content #(-> % first :attrs :content)
+                          :author (constantly "Will Crichton")
+                          :ts #(->> % log/spy first :content first (re-find #"\w+\s\d{1,2},\s\d{4}") (tf/parse (tf/formatter "MMM dd, yyyy")))})
+                  :tags #{:blog}
+                  :cron cron-daily}
+
+   :slatestarcodex {:src (src/wp-json "http://slatestarcodex.com/wp-json/")
+                    :tags #{:blog}
+                    :cron cron-daily}
+
+   :joschabach {:src (src/feed "http://bach.ai/feed.xml")
+                :tags #{:blog}
+                :cron cron-daily}
+
+   :baldurbjarnason {:src (src/feed "https://www.baldurbjarnason.com/index.xml" :deep? true)
+                     :tags #{:blog}
+                     :cron cron-daily}
+
+   :golem {:src (src/feed "https://rss.golem.de/rss_sub_media.php?token=7t10zqba")
+           :options #{:mark-read-on-view}
+           :proc (proc/make
+                   :pre [(fn [item]
+                           (let [raw-html (get-in item [:entry :descriptions "text/plain"])
+                                 html (some-> raw-html
+                                        hick/parse
+                                        hick/as-hickory
+                                        (http/sanitize :remove-css? true)
+                                        http/blobify
+                                        hickory-to-html)]
+                             (log/info "preproc")
+                              (-> item
+                                (assoc-in [:entry :descriptions]
+                                  {"text/plain" ""})
+                                (assoc-in [:entry :contents]
+                                  {"text/html" html
+                                  "text/plain" (converter/html2text html)}))))])
+           :tags #{:tech :itnews}
+           :cron cron-daily}
+
+   ;; :lwn-weekly {:src (src/website+paywall
+   ;;                     "https://lwn.net/current/bigpage"
+   ;;                     (fn [] (let [cs (clj-http.cookies/cookie-store)]
+   ;;                             (http-client/post "https://lwn.net/Login/"
+   ;;                               {:form-params (:lwn creds)
+   ;;                                :cookie-store cs})
+   ;;                             cs)))
+   ;;              :proc (proc/make
+   ;;                      :pre [(fn [item]
+   ;;                              (let [content (-> (S/select
+   ;;                                                  (S/descendant
+   ;;                                                    (S/class "ArticleText"))
+   ;;                                                  (:hickory item))
+   ;;                                              first)
+   ;;                                    html (hickory-to-html content)
+   ;;                                    html-no-comment-count
+   ;;                                    (-> html
+   ;;                                      (string/replace #">Comments .+posted.<" ">Comments<")
+   ;;                                      (string/replace #">comments: .+<" ""))]
+   ;;                                (assoc-in item [:entry :contents "text/html"] html-no-comment-count)))])
+   ;;              :tags #{:tech :itnews}
+   ;;              :cron cron-daily}
+   :lwn-weekly {:src (src/website+paywall "https://lwn.net/current"
+                                          (fn [] (let [cs (http-cookies/cookie-store)]
+                                                  (http-client/post "https://lwn.net/Login/"
+                                                                    {:form-params (:lwn creds)
+                                                                     :cookie-store cs})
+                                                  cs)))
+                :proc (proc/make
+                   :pre [(fn [item]
+                           (let [new-items
+                                 (->> (S/select (S/descendant
+                                                 (S/class "ArticleText"))
+                                                (:hickory item))
+                                      first :content
+                                      (reduce (fn [r item]
+                                                (let [hl-hick (S/select (S/and (S/tag :h2) (S/class "SummaryHL")) item)
+                                                      meta-hick (S/select (S/class "FeatureByline") item)
+                                                      title (-> hl-hick first :content first :content first)
+                                                      author (-> meta-hick first :content second :content first)
+                                                      index (dec (count r))]
+                                                  (cond
+                                                    (string? title)
+                                                    (conj r {:title title
+                                                             :hick []
+                                                             :author nil})
+
+                                                    (string? author)
+                                                    (assoc-in r [index :author] author)
+
+                                                    (>= index 0)
+                                                    (update-in r [index :hick] conj item)
+
+                                                    :default
+                                                    r)))
+                                              []))]
+                             (for [{:keys [title hick author]} new-items
+                                   :let [html (-> {:type :element
+                                                   :attrs nil
+                                                   :tag :div
+                                                   :content hick}
+                                                  (http/absolutify-links-in-hick "https://lwn.net")
+                                                  (http/sanitize)
+                                                  (http/blobify)
+                                                  hickory-to-html)]]
+                               (-> item
+                                   (assoc :hash (make-item-hash title))
+                                   (assoc-in [:summary :title] title)
+                                   (assoc-in [:entry :title] title)
+                                   (assoc :hickory hick)
+                                   (assoc-in [:entry :authors] [author])
+                                   (assoc-in [:entry :descriptions]
+                                             {"text/plain" ""})
+                                   (assoc-in [:entry :contents]
+                                             {"text/html" html
+                                              "text/plain" (converter/html2text html)}))))
+                           )])
+                :tags #{:tech :itnews}
+                :cron cron-daily}
+
+   :thenewstack {:src (src/feed "https://thenewstack.io/feed/")
+                 :options #{:mark-read-on-view}
+                 :tags #{:tech :itnews}
+                 :cron cron-daily}
+
+   :manybutfinite {:src (src/feed "https://manybutfinite.com/feed.xml")
+                   :tags #{:tech :new-but-interesting-backlog}
+                   :cron cron-daily}
+
+   :mechanical-sympathy {:src (src/feed "https://mechanical-sympathy.blogspot.com/feeds/posts/default")
+                   :tags #{:tech :new-but-interesting-backlog}
+                         :cron cron-daily}
+
+   :igoro {:src (src/feed "http://feeds.feedburner.com/igoro")
+           :tags #{:tech :new-but-interesting-backlog}
+           :cron cron-daily}
+
+   :randomascii {:src (src/feed "https://randomascii.wordpress.com/feed/")
+                 :tags #{:tech :new-but-interesting-backlog}
+                 :cron cron-daily}
+
+   :sdn-clinic {:src (src/wp-json "https://blog.sdn.clinic/wp-json/")
+                 :tags #{:tech :new-but-interesting-backlog}
+                 :cron cron-daily}
+
+   :scotthyoung {:src (src/feed "https://www.scotthyoung.com/blog/feed/")
+                 :tags #{:blog :improvement}
+                 :cron cron-daily}
+
+   :kallasch& {:src (src/feed "http://fetchrss.com/rss/5cc575018a93f856418b45675cc575408a93f807428b4567.xml")
+               :tags #{:berlin}
+               :cron cron-daily}
+
+   :petersburg-artspace {:src (src/feed "http://fetchrss.com/rss/5cc575018a93f856418b45675cc574d18a93f8303d8b4567.xml")
+                         :tags #{:berlin}
+                         :cron cron-daily}
+
+
+
+   :longform {:src (src/feed "https://longform.org/feed.rss")
+              :proc (proc/make
+                     :pre [(fn [item] (let [redirect-page (http/fetch (get-in item [:entry :url]))
+                                           real-article-link (some-> (S/select
+                                                                      (S/descendant
+                                                                       (S/class "post__link"))
+                                                                      (:hickory redirect-page))
+                                                                     first :attrs :href)]
+                                       (assoc-in item [:entry :url] (urly/url-like real-article-link))))
+                           (proc/mercury-contents nil)])
+              :tags #{:magazine}
+              :options #{:main-list-use-description}
+              :cron cron-daily}
+
+
+
+
+   ;; :ibc-2018-party {:src (src/website "https://www.broadcastprojects.com/ibc-2018-party-event-list/")
+   ;;                  :tags #{:conference}
+   ;;                  :proc (proc/make
+   ;;                          :post [(proc/add-tag :ibc2018)])
+   ;;                  :cron cron-daily}
+
+   ;; :twit-ibc {:src (src/twitter-search "#IBC2018 OR #IBCConf OR @ibcshow"
+   ;;                   (:twitter-api creds))
+   ;;            :proc (proc/make
+   ;;                    :filter (fn [item]
+   ;;                              (let [type (get-in item [:entry :type])
+   ;;                                    text (get-in item [:entry :contents "text/plain"])]
+   ;;                                (or
+   ;;                                  (#{:retweet} type)
+   ;;                                  (re-find #"pussy|porn|camsex|webcam" text))))
+   ;;                    :post [(proc/add-tag :ibc2018)])
+   ;;            :tags #{:conference}
+   ;;            :cron cron-hourly}
+
+   ;; :twit-ibc-party {:src (src/twitter-search "#IBC2018 party"
+   ;;                   (:twitter-api creds))
+   ;;            :proc (proc/make
+   ;;                    :filter (fn [item]
+   ;;                              (let [type (get-in item [:entry :type])
+   ;;                                    text (get-in item [:entry :contents "text/plain"])]
+   ;;                                (or
+   ;;                                  (#{:retweet} type)
+   ;;                                  (re-find #"pussy|porn|camsex|webcam" text))))
+   ;;                    :post [(proc/add-tag :ibc2018)])
+   ;;            :tags #{:conference}
+   ;;                  :cron cron-hourly}
+
+   ;; :twit-ibc-storage {:src (src/twitter-search "#IBC2018 storage"
+   ;;                   (:twitter-api creds))
+   ;;            :proc (proc/make
+   ;;                    :filter (fn [item]
+   ;;                              (let [type (get-in item [:entry :type])
+   ;;                                    text (get-in item [:entry :contents "text/plain"])]
+   ;;                                (or
+   ;;                                  (#{:retweet} type)
+   ;;                                  (re-find #"pussy|porn|camsex|webcam" text))))
+   ;;                    :post [(proc/add-tag :ibc2018)])
+   ;;            :tags #{:conference}
+   ;;            :cron cron-hourly}
+
+
 
    ;; hubspot
    ;; :elastifile {:src (src/selector-feed "https://www.datera.io/blog/"

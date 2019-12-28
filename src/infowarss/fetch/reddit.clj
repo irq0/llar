@@ -32,9 +32,7 @@
   RedditItem
   (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))]
-      (-> item
-        (update :entry merge (:entry item) nlp))))
-
+      (update item :entry merge (:entry item) nlp)))
   (filter-item [item src state] false))
 
 (extend-protocol persistency/CouchItem
@@ -68,20 +66,16 @@
 
 (defn reddit-html-summary [c]
   (html
-    [:h1 (:title c)]
-    [:div {:class "summary"}
-     [:ul
-      (when (some? (:subreddit_name_prefixed c))
-        [:li [:spam {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
-      [:li [:span {:class "key"} "Score: "] (:score c)]
-      [:li [:span {:class "key"} "Time: "] (reddit-ts-to-joda (:created_utc c))]
-    [:div {:class "links"}
-     [:ul
-      [:li [:span {:class "key"} "URL: "]
-       [:a {:href (:url c)} (:url c)]]
-      [:li [:span {:class "key"} "Comments: "]
-       [:a {:href (str "https://www.reddit.com" (:permalink c))}
-        (str "https://www.reddit.com" (:permalink c))]]]]]]))
+   [:h1 (:title c)]
+   [:div {:class "summary"}
+    [:ul
+     (when (some? (:subreddit_name_prefixed c))
+       [:li [:spam {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
+     [:li [:span {:class "key"} "Score: "] (:score c)]
+     [:li [:span {:class "key"} "Time: "] (reddit-ts-to-joda (:created_utc c))]
+     [:li [:a {:href (:url c)} "URL"]]
+     [:li [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]
+   [:p {:style "white-space: pre-line"} (:selftext c)]))
 
 
 (defn make-reddit-entry [c]
@@ -101,7 +95,7 @@
 (extend-protocol fetch/FetchSource
   infowarss.src.Reddit
   (fetch-source [src]
-    (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=42"
+    (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100"
                                (:subreddit src) (:feed src)))]
       (for [child (get-in reddit [:data :children])
             :let [item (:data child)]]

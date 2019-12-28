@@ -16,7 +16,9 @@
    [mpg.core :as mpg]
    [clj-time.jdbc]
    [byte-streams :refer [to-byte-buffer to-string]]
-   [cheshire.core :refer :all])
+   [cheshire.core :refer :all]
+   [cheshire.generate :refer [add-encoder encode-str]])
+
   (:import [java.sql SQLException]))
 
 (def ^:dynamic *db*
@@ -40,6 +42,13 @@
   (sql-value [kw]
     (kw->pgenum kw)))
 
+(extend-type clojurewerkz.urly.UrlLike
+  clojure.java.jdbc/ISQLValue
+  (sql-value [urly]
+    (str urly)))
+
+(add-encoder clojurewerkz.urly.UrlLike encode-str)
+
 (def +schema-enums+
   "A set of all PostgreSQL enums in schema.sql. Used to convert
   enum-values back into Clojure keywords."
@@ -56,17 +65,16 @@
 (defn create-source [doc]
   (let [meta (get doc :meta)
         feed (get doc :feed)]
-    (->
-      (j/insert! *db* :sources
-        {:name (-> meta :source-name)
-         :key (-> meta :source-key name)
-         :created_ts (time/now)
-         :type (keyword "item_type" (name (:type doc)))
-         :data (select-keys feed [:feed-type :language :title :url])})
-      first)))
+    (first (j/insert! *db* :sources
+                      {:name (-> meta :source-name)
+                       :key (-> meta :source-key name)
+                       :created_ts (time/now)
+                       :type (keyword "item_type" (name (:type doc)))
+                       :data (select-keys
+                              feed [:feed-type :language :title :url])}))))
 
 (defn get-source-for-doc [doc]
-  (let [key (-> (get-in doc [:meta :source-key]) name)]
+  (let [key (name (get-in doc [:meta :source-key]))]
     (first (j/query *db* ["select * from sources where key = ?" key]))))
 
 (defn get-or-create-source-for-doc [doc]
@@ -100,28 +108,27 @@
         ds (map (partial make-item-data-row item-id :item_data_type/description) descriptions)
         ths (map (partial make-item-data-row item-id :item_data_type/thumbnail) thumbs)]
 
-    (->> (concat cs ds ths)
-      (remove nil?))))
+    (remove nil? (concat cs ds ths))))
 
 
 (defn doc-to-sql-row [doc source-id]
   (let [entry (:entry doc)]
-  {:hash (:hash doc)
-   :source_id source-id
-   :ts (or (get-in doc [:summary :ts]) (time/date-time 0))
-   :title (get-in doc [:summary :title])
-   :author (string/join "," (get-in doc [:entry :authors]))
-   :type (keyword "item_type" (name (:type doc)))
-   :tags (into {} (map (fn [x] [(name x) nil]) (get-in doc [:meta :tags])))
-   :nlp_nwords (or (get-in doc [:entry :nlp :nwords]) -1)
-   :nlp_urls (into [] (or (get-in doc [:entry :nlp :urls]) []))
-   :nlp_names (into [] (or (get-in doc [:entry :nlp :names]) []))
-   :nlp_nouns (into [] (or (get-in doc [:entry :nlp :nouns]) []))
-   :nlp_verbs (into [] (or (get-in doc [:entry :nlp :verbs]) []))
-   :nlp_top (or (get-in doc [:entry :nlp :top]) {})
-   :revision 2
-   :entry (-> entry
-            (dissoc :nlp :contents :descriptions :thumbs))}))
+    {:hash (:hash doc)
+     :source_id source-id
+     :ts (or (get-in doc [:summary :ts]) (time/date-time 0))
+     :title (get-in doc [:summary :title])
+     :author (string/join "," (get-in doc [:entry :authors]))
+     :type (keyword "item_type" (name (:type doc)))
+     :tags (into {} (map (fn [x] [(name x) nil]) (get-in doc [:meta :tags])))
+     :nlp_nwords (or (get-in doc [:entry :nlp :nwords]) -1)
+     :nlp_urls (into [] (or (get-in doc [:entry :nlp :urls]) []))
+     :nlp_names (into [] (or (get-in doc [:entry :nlp :names]) []))
+     :nlp_nouns (into [] (or (get-in doc [:entry :nlp :nouns]) []))
+     :nlp_verbs (into [] (or (get-in doc [:entry :nlp :verbs]) []))
+     :nlp_top (or (get-in doc [:entry :nlp :top]) {})
+     :revision 2
+     :entry (-> entry
+                (dissoc :nlp :contents :descriptions :thumbs))}))
 
 (defn add-document [doc]
   (try+
@@ -181,34 +188,36 @@
 
 
 (defn get-word-count-groups []
-  (->>
-    (j/query *db*
-      [(str "select "
-         "case "
-         "when nlp_nwords > 0   and nlp_nwords <= 200 then 200 "
-         "when nlp_nwords > 200 and nlp_nwords <= 400 then 400 "
-         "when nlp_nwords > 400 and nlp_nwords <= 800 then 800 "
-         "when nlp_nwords > 800 and nlp_nwords <= 1600 then 1600 "
-         "when nlp_nwords > 1600 and nlp_nwords <= 3200 then 3200 "
-         "when nlp_nwords > 3200 then 0 "
-         "end as nword_groups, "
-         "count(*) "
-         "from items "
-         "group by nword_groups "
-         "order by nword_groups")]
-      {:as-arrays? true})
-    (drop 1)))
+  (drop 1
+        (j/query *db*
+                 [(str "select "
+                         "case "
+                         "when nlp_nwords > 0   and nlp_nwords <= 200 then 200 "
+                         "when nlp_nwords > 200 and nlp_nwords <= 400 then 400 "
+                         "when nlp_nwords > 400 and nlp_nwords <= 800 then 800 "
+                         "when nlp_nwords > 800 and nlp_nwords <= 1600 then 1600 "
+                         "when nlp_nwords > 1600 and nlp_nwords <= 3200 then 3200 "
+                         "when nlp_nwords > 3200 then 0 "
+                         "end as nword_groups, "
+                         "count(*) "
+                         "from items "
+                         "group by nword_groups "
+                         "order by nword_groups")]
+                 {:as-arrays? true})))
+
 
 (defn get-tag-stats []
-  (->>
-    (j/query *db* (string/join " "
-                    ["SELECT tag, SUM(count)"
-                     "FROM ("
-                     "SELECT COUNT(AKEYS(tags)), UNNEST(AKEYS(tags)) AS tag"
-                     "FROM items"
-                     "GROUP BY AKEYS(tags)) AS x GROUP BY tag"])
-      {:as-arrays? true})
-    (drop 1)))
+  (drop 1
+        (j/query *db*
+                 (string/join
+                  " "
+                  ["SELECT tag, SUM(count)"
+                   "FROM ("
+                   "SELECT COUNT(AKEYS(tags)), UNNEST(AKEYS(tags)) AS tag"
+                   "FROM items"
+                   "GROUP BY AKEYS(tags)) AS x GROUP BY tag"])
+                 {:as-arrays? true})))
+
 
 (defn get-type-stats []
   (j/query *db* ["select count(*), type from items group by type"]))
@@ -228,7 +237,7 @@
 
 (defn get-sources-item-tags []
   (into {}
-    (j/query *db* (string/join " "
+    (j/query *db* (string/join " ")
                   '(
                     "SELECT key, array_agg(DISTINCT source_tags) AS \"item-tags\""
                     "FROM ( "
@@ -236,7 +245,7 @@
                     "FROM sources INNER JOIN items"
                     "ON sources.id = items.source_id"
                     "GROUP BY sources.id, AKEYS(items.tags)) AS x"
-                    "GROUP BY key"))
+                    "GROUP BY key")
       {:row-fn (fn [row] [(keyword (:key row))
                           {:item-tags (apply hash-set
                                         (map keyword (:item-tags row)))}])})))
@@ -265,9 +274,9 @@
     {:row-fn :id}))
 
 (defn item-set-tags [id & tags]
-  (let [pairs (->> tags
-                (mapv (fn [tag]
-                        (format "['%s', NULL]" (name tag)))))
+  (let [pairs (mapv (fn [tag]
+                      (format "['%s', NULL]" (name tag)))
+                    tags)
         sql-tags (str "ARRAY[" (string/join "," pairs) "]")
         sql (str "update items set tags = tags || hstore(" sql-tags ") where id = ?")]
     (try+
@@ -277,16 +286,15 @@
         (throw+ {:type ::general :sql sql :id id :tags tags})))))
 
 (defn item-set-all-tags-for-source [source-id & tags]
-  (let [pairs (->> tags
-                (mapv (fn [tag]
-                        (format "['%s', NULL]" (name tag)))))
+  (let [pairs (mapv (fn [tag]
+                      (format "['%s', NULL]" (name tag))) tags)
         sql-tags (str "ARRAY[" (string/join "," pairs) "]")
         sql (str "update items set tags = tags || hstore(" sql-tags ") where source_id = ?")]
     (try+
-      (first (j/execute! *db* [sql source-id]))
-      (catch org.postgresql.util.PSQLException _
-        (log/error (:throwable &throw-context) "SQL failed")
-        (throw+ {:type ::general :sql sql :id source-id :tags tags})))))
+     (first (j/execute! *db* [sql source-id]))
+     (catch org.postgresql.util.PSQLException _
+       (log/error (:throwable &throw-context) "SQL failed")
+       (throw+ {:type ::general :sql sql :id source-id :tags tags})))))
 
 
 (defn item-remove-tags [id & tags]
@@ -395,6 +403,18 @@
     "(item_data.type = 'content' "
     "  OR item_data.type = 'description') "))
 
+(def +get-items-by-id-sql-join-with-preview-data-where+
+  (str
+    "FROM items "
+    "INNER JOIN sources ON items.source_id = sources.id "
+    "LEFT JOIN item_data ON items.id = item_data.item_id "
+    " AND item_data.type = 'description' "
+    " AND mime_type = 'text/plain' "
+    "WHERE "
+    " 1 = 1 "))
+
+
+
 (def +get-items-by-id-sql-join-without-data-where+
   (str
     "FROM items "
@@ -409,50 +429,50 @@
     "json_agg(item_data.data) as \"bin-data\", "))
 
 (defn get-items-by-id-sql
-  [& {:keys [extra-select extra-where with-data?]
-      :or {extra-select "" extra-where "" with-data? false}}]
+  [& {:keys [extra-select extra-where with-data? with-preview-data?]
+      :or {extra-select "" extra-where "" with-data? false with-preview-data? false}}]
   (str
-    +get-items-by-id-sql-select+
-    (if with-data?
-      +get-items-by-id-sql-select-data+
-      "")
-    extra-select
-    "items.id "
-    " "
-    (if with-data?
-      +get-items-by-id-sql-join-with-data-where+
-      +get-items-by-id-sql-join-without-data-where+)
-    " "
-    extra-where))
+   +get-items-by-id-sql-select+
+   (if (or with-data? with-preview-data?)
+     +get-items-by-id-sql-select-data+
+     "")
+   extra-select
+   "items.id "
+   " "
+   (cond with-data? +get-items-by-id-sql-join-with-data-where+
+         with-preview-data? +get-items-by-id-sql-join-with-preview-data-where+
+         :default +get-items-by-id-sql-join-without-data-where+)
+   " "
+   extra-where))
 
 (defn get-items-by-id-range-fever
   [since max & {:keys [limit] :or {limit "ALL"}}]
-  (j/query *db*
-    (->
-     [(str get-items-by-id-fever-base-sql
-       "AND "
-       (cond
-         (and (number? since) (number? max))
-         "items.id >= ? and items.id < ?"
-         (and (number? since) (nil? max))
-         "items.id >= ?"
-         (and (nil? since) (number? max))
-          "items.id < ?"
-         (and (nil? since) (nil? max))
-          "items.id >= 0")
-       "  "
-       "GROUP BY items.id "
-       "ORDER BY items.id "
-       "LIMIT " limit)]
-     (concat
-       (cond
-         (and (number? since) (number? max))
-         [since max]
-         (and (number? since) (nil? max))
-         [since]
-         (and (nil? since) (number? max))
-         [max])))
-    {:row-fn process-items-row-fever}))
+  (j/query
+   *db*
+   (concat
+    [(str get-items-by-id-fever-base-sql
+          "AND "
+          (cond
+            (and (number? since) (number? max))
+            "items.id >= ? and items.id < ?"
+            (and (number? since) (nil? max))
+            "items.id >= ?"
+            (and (nil? since) (number? max)
+                 "items.id < ?")
+            (and (nil? since) (nil? max)
+                 "items.id >= 0"))
+          "  "
+          "GROUP BY items.id "
+          "ORDER BY items.id "
+          "LIMIT " limit)]
+    (cond
+      (and (number? since) (number? max))
+      [since max]
+      (and (number? since) (nil? max))
+      [since]
+      (and (nil? since) (number? max))
+      [max]))
+   {:row-fn process-items-row-fever}))
 
 
 (defn get-items-by-id-fever
@@ -489,8 +509,8 @@
                      " LIMIT ?")]
     (j/query *db* [(get-items-by-id-sql
                      :with-data? with-data?
-                     :extra-where where-cond) (name source-key) limit]
-    {:row-fn process-items-row})))
+                     :extra-where where-cond) (name source-key) limit])
+    {:row-fn process-items-row}))
 
 (defn simple-filter-to-sql [kw]
   (case kw
@@ -501,7 +521,7 @@
 
 (defn get-items-recent
   "Get items sorted by timestamp - used by the reader gui"
-  [{:keys [limit before with-tag with-type with-source-keys with-data? simple-filter]
+  [{:keys [limit before with-tag with-type with-source-keys with-data? with-preview-data? simple-filter]
     :or {limit "ALL" with-data? false}
     :as args}]
   (let [where-cond (str
@@ -524,8 +544,9 @@
                      " ORDER BY ts DESC, id DESC "
                      " LIMIT ?")
         sql (get-items-by-id-sql
-              :with-data? with-data?
-              :extra-where where-cond)]
+             :with-data? with-data?
+             :with-preview-data? with-preview-data?
+             :extra-where where-cond)]
     (try+
       (j/query *db*
         (remove nil? [sql
@@ -544,7 +565,30 @@
 (defn search
   "Search for query. postgres query format"
   [query]
-  (j/query *db* ["select id, title, key, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query ]))
+  (j/query *db* ["select id, title, key, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query]))
 
 (defn refresh-search-index []
   (j/execute! *db* ["refresh materialized view search_index"]))
+
+(defn refresh-idf []
+  (j/execute! *db* ["refresh materialized view idf_top_words"]))
+
+
+(defn item-tf-idf [id]
+  (j/query *db* [(str
+                  "select term_tf->>0 as term, (term_tf->>1)::float as tf, idf_top_words.ln as idf, (term_tf->>1)::float * idf_top_words.ln as tf_idf "
+                  " from "
+                  "(select id, jsonb_array_elements(nlp_top->'words') as term_tf from items where id = ?) as i "
+                  "inner join "
+                  "idf_top_words on (term_tf->0 = idf_top_words.term) "
+                  "order by tf_idf asc") id]))
+
+
+(defn recommendations
+  "Find similar items for id"
+  [id])
+  ;; compute cosine distance to all docs in db
+
+
+(defn cluster [])
+  ;; k means on all documents

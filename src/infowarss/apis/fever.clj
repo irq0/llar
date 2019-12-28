@@ -4,6 +4,7 @@
    [infowarss.db :as db]
    [infowarss.schema :as schema]
    [infowarss.update :refer [sources-merge-in-state]]
+   [infowarss.logging :refer [log-status]]
    [ring.util.response :as response]
    [digest]
    [clj-time.coerce :as tc]
@@ -11,8 +12,7 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [schema.core :as s]
-   [clojure.java.io :as io])
-  (:import [java.util.Base64.Encoder]))
+   [clojure.java.io :as io]))
 
 ;;;; Fever compatible API
 
@@ -101,7 +101,7 @@
 (s/defn all-feeds-group :- schema/FeverFeedsGroup
   "Return group containing all feeds"
   []
-  (let [sources (-> (db/get-sources) vals)
+  (let [sources (vals (db/get-sources))
         feedids (map :id sources)]
     {:group_id (fever-group-id-for-tag :all)
      :feed_ids (string/join "," feedids)}))
@@ -361,57 +361,57 @@
         op (extract-op req)
         params (:params req)]
     (log/debugf "[FEVER/%s] OP: %s params: %s query-string: %s"
-      req-uuid op params (:query-string req))
+                req-uuid op params (:query-string req))
     (try+
-      (let [response (condp = op
-                         :groups (groups)
-                         :feeds (feeds)
-                         :items (items :since
-                                  (swallow-exceptions (Long/parseLong (get params :since_id)))
-                                  :max
-                                  (swallow-exceptions (Long/parseLong (get params :max_id)))
-                                  :with
-                                  (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params :with_ids)))))
-                         :links (links)
-                         :favicons (favicons)
-                         :unread_item_ids (unread-item-ids)
-                         :saved_item_ids (saved-item-ids)
-                         nil (when (get-in req [:params :id])
-                               (handle-write-op (assoc req :req-uuid req-uuid)))
-                         {})]
-        (if (empty? response)
-          (log/tracef "[FEVER/%s] OP: %s empty response" req-uuid op)
-          (log/tracef "[FEVER/%s] OP: %s response: %s" req-uuid
-          op (into {} (map (fn [[k v]]
-                             [k (cond
-                                  (number? v)
-                                  v
-                                  (string? v)
-                                  (format "type=%s n=%s first_20=%s.."
-                                    (type v) (count v) (subs v 0 (min (count v) 20)))
-                                  (sequential? v)
+     (let [response (condp = op
+                      :groups (groups)
+                      :feeds (feeds)
+                      :items (items :since
+                                    (swallow-exceptions (Long/parseLong (get params :since_id)))
+                                    :max
+                                    (swallow-exceptions (Long/parseLong (get params :max_id)))
+                                    :with
+                                    (swallow-exceptions (map #(Long/parseLong %) (re-seq #"\d+" (get params :with_ids)))))
+                      :links (links)
+                      :favicons (favicons)
+                      :unread_item_ids (unread-item-ids)
+                      :saved_item_ids (saved-item-ids)
+                      nil (when (get-in req [:params :id])
+                            (handle-write-op (assoc req :req-uuid req-uuid)))
+                      {})]
+       (if (empty? response)
+         (log/tracef "[FEVER/%s] OP: %s empty response" req-uuid op)
+         (log/tracef "[FEVER/%s] OP: %s response: %s" req-uuid
+                     op (into {} (map (fn [[k v]]
+                                        [k (cond
+                                             (number? v)
+                                             v
+                                             (string? v)
+                                             (format "type=%s n=%s first_20=%s.."
+                                                     (type v) (count v) (subs v 0 (min (count v) 20)))
+                                             (sequential? v)
 
-                                  (let [cnt (count v)
-                                        ids (remove nil? (map :id v))
-                                        type (type v)]
-                                    (if (some? ids)
-                                      (format "type=%s n=%s id_max=%s id_min=%s ids=%s"
-                                        type cnt
-                                        (when (> (count ids) 0) (apply max ids))
-                                        (when (> (count ids) 0) (apply min ids))
-                                        (pr-str ids))
-                                      (format "type=%s n=%s"
-                                        type cnt)))
-                                  :default
-                                  (format "type=%s" (type v)))])
-                        response))))
-        response)
-      (catch [:type :schema.core/error] {:keys [schema value]}
-        (log/error (:throwable &throw-context) (str "[FEVER/" req-uuid "] Broken response, schema:" schema))
-        (log/trace (str "[FEVER/" req-uuid "] Value of broken response" value)))
-      (catch Object _
-        (log/error (:throwable &throw-context) (str "[FEVER/" req-uuid "] Broken response for OP: ")
-          op params)))))
+                                             (let [cnt (count v)
+                                                   ids (remove nil? (map :id v))
+                                                   type (type v)]
+                                               (if (some? ids)
+                                                 (format "type=%s n=%s id_max=%s id_min=%s ids=%s"
+                                                         type cnt
+                                                         (when (pos? (count ids)) (apply max ids))
+                                                         (when (pos? (count ids)) (apply min ids))
+                                                         (pr-str ids))
+                                                 (format "type=%s n=%s"
+                                                         type cnt)))
+                                             :default
+                                             (format "type=%s" (type v)))])
+                                      response))))
+       response)
+     (catch [:type :schema.core/error] {:keys [schema value]}
+       (log/error (:throwable &throw-context) (str "[FEVER/" req-uuid "] Broken response, schema:" schema))
+       (log/trace (str "[FEVER/" req-uuid "] Value of broken response" value)))
+     (catch Object _
+       (log/error (:throwable &throw-context) (str "[FEVER/" req-uuid "] Broken response for OP: ")
+                  op params)))))
 
 
 (defn fever-api

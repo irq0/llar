@@ -22,6 +22,18 @@
   [url :- s/Str]
   (GenericWebsite. (io/as-url url)))
 
+(s/defrecord PaywalledWebsite
+    [url :- java.net.URL
+     cookie-getter :- s/Any]
+  Object
+  (toString [src] (str "[PaywalledWebsite: " (:url src) "]")))
+
+
+(s/defn website+paywall :- PaywalledWebsite
+  [url :- s/Str
+   cookie-getter :- s/Any]
+  (PaywalledWebsite. (io/as-url url) cookie-getter))
+
 ;;; Feed
 
 (s/defrecord Feed
@@ -125,28 +137,14 @@
 
 
 (s/defrecord MercuryWebParser
-    [url :- java.net.URL
-     api-key :- schema/NotEmptyStr]
+    [url :- java.net.URL]
   Object
   (toString [src] (str "[MercuryWebParser: " (:url src) "]")))
 
 (s/defn mercury :- MercuryWebParser
   "Fetch URL using Mercury Web Parser API"
-  [url :- schema/NotEmptyStr
-   api-key :- schema/NotEmptyStr]
-  (->MercuryWebParser
-    (io/as-url url)
-    api-key))
-
-(s/defrecord GooseArticleExtractor
-    [url :- java.net.URL]
-  Object
-  (toString [src] (str "[GooseArticleExtractor: " (:url src) "]")))
-
-(s/defn goose :- GooseArticleExtractor
-  "Fetch URL using goose article extractor"
   [url :- schema/NotEmptyStr]
-  (->GooseArticleExtractor
+  (->MercuryWebParser
     (io/as-url url)))
 
 (s/defrecord Document

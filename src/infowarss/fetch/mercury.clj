@@ -7,7 +7,8 @@
    [infowarss.persistency :as persistency]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
-   [infowarss.http :refer [fetch absolutify-links-in-hick get-base-url blobify]]
+   [infowarss.http :refer [fetch absolutify-url absolutify-links-in-hick get-base-url blobify try-blobify-url!]]
+   [clojurewerkz.urly.core :as urly]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]
@@ -20,7 +21,9 @@
    [clojure.string :as string]
    [clojure.java.io :as io]
    [schema.core :as s]
-   ))
+   [clojure.java.shell :as shell]
+   [cheshire.core :as json]))
+
 
 (s/defrecord MercuryItem
     [meta :- schema/Metadata
@@ -35,18 +38,17 @@
   MercuryItem
   (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))
-          tags (into #{}
-                 (remove nil?
-                 [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
-                    :has-video)
-                  (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
-                    :has-video)
+          tags (set
+                (remove nil?
+                        [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
+                           :has-video)
+                         (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
+                           :has-video)]))]
 
-                  ]))]
-      (log/spy tags)
+
       (-> item
-        (update-in [:meta :tags] into tags)
-        (update :entry merge (:entry item) nlp))))
+          (update-in [:meta :tags] into tags)
+          (update :entry merge (:entry item) nlp))))
 
   (filter-item [item src state] false))
 
@@ -59,14 +61,17 @@
       (assoc-in [:meta :source :args] nil)
       (assoc :type :bookmark))))
 
-(defn mercury-get [url api-key]
+(s/defn mercury-get
+  [url :- schema/URLType
+   api-key :- s/Str]
   (try+
-    (let [resp (http/get "https://mercury.postlight.com/parser"
+    (let [url (urly/url-like url)
+          resp (http/get "https://mercury.postlight.com/parser"
                   {:accept :json
                    :as :json
                    :content-type :json
                    :headers {:x-api-key api-key}
-                   :query-params {:url url}})
+                   :query-params {:url (str url)}})
           base-url (get-base-url url)
           body (try+
                  (assoc (:body resp) :content
@@ -83,31 +88,60 @@
       body)
     ;; Mercury sends 502 when it's unable to parse the url
     (catch [:status 502] {:keys [headers body status]}
-      (log/errorf "Mercury Error (%s): %s %s" status headers body)
+      (log/error "Mercury Error: " url status body)
       (throw+ {:type ::not-parsable}))
 
     (catch Object _
       (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
       (throw+))))
 
+
+(s/defn mercury-local
+  [url :- schema/URLType]
+  (try+
+   (let [url (urly/url-like url)
+         {:keys [exit out err]} (shell/sh "/home/seri/opt/mercury-parser/cli.js" (str url))
+         base-url (get-base-url url)
+         json (json/parse-string out true)]
+     (if (zero? exit)
+       (assoc json :content
+              (try+
+               (-> json
+                   :content
+                   hick/parse
+                   hick/as-hickory
+                   (absolutify-links-in-hick base-url)
+                   blobify
+                   hick-r/hickory-to-html)
+               (catch Object _
+                 (log/warn &throw-context "Mercury post processing failed. Using vanilla"))))
+       (do
+         (log/error "Mercury Error: " url err)
+         (throw+ {:type ::not-parsable}))))
+   (catch Object _
+     (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
+     (throw+))))
+
+
 (extend-protocol fetch/FetchSource
   infowarss.src.MercuryWebParser
   (fetch-source [src]
-    (let [mercu (mercury-get (:url src) (:api-key src))
+    (let [url (urly/url-like (:url src))
+          base-url (get-base-url url)
+          mercu (mercury-local url)
           pub-ts (or (tc/from-string (:date_published mercu)) (time/now))
           title (cond
                   (string? (:title mercu)) (:title mercu)
-                  (vector? (:title mercu)) (first :title mercu)
+                  (vector? (:title mercu)) (first (:title mercu))
                   :else "")]
-
 
       [(->MercuryItem
         (fetch/make-meta src)
         {:ts pub-ts :title title}
         (fetch/make-item-hash (:content mercu))
-        {:url (io/as-url (:url mercu))
-         :lead-image-url (io/as-url (:lead_image_url mercu))
-         :next-page-url (io/as-url (:next_page_url mercu))
+        {:url (absolutify-url (:url mercu) base-url)
+         :lead-image-url (try-blobify-url! (absolutify-url (:lead_image_url mercu) base-url))
+         :next-page-url (absolutify-url (:next_page_url mercu) base-url)
          :pub-ts pub-ts
          :title title
          :authors [(or (:author mercu) (:domain mercu))]

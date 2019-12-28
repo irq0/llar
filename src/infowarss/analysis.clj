@@ -4,6 +4,7 @@
    [opennlp.nlp :as nlp]
    [clojure.java.shell :as shell]
    [taoensso.timbre :as log]
+   [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [opennlp.tools.filters :as nlp-filter]
    [pantomime.languages :as pl]))
@@ -31,7 +32,13 @@
    :de (nlp/make-pos-tagger (io/resource "nlp/models/de-pos-perceptron.bin"))})
 
 (defn find-names [lang tokens]
-  (mapcat (fn [finder] (finder tokens)) (get name-find lang)))
+  (try+
+   (mapcat (fn [finder] (finder tokens)) (get name-find lang))
+   (catch Object _
+     (log/warn (:throwable &throw-context) "Open NLP Name finder failed. Returning empty set")
+     [])))
+
+
 
 (def url-regex #"https?://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?")
 
@@ -90,7 +97,7 @@
         (if (#{:de :en} detected-lang)
           detected-lang
           (do
-            (log/warn "NLP: Unsupported language detected: " detected-lang)
+            (log/debug "NLP: Unsupported language detected: " detected-lang)
             :en))))))
 
 (defn analyze-text [text & {:keys [language]}]

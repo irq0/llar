@@ -3,6 +3,8 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [clojure.string :as string]
+   [clj-time.format :as tf]
+   [clojurewerkz.urly.core :as urly]
    [pantomime.mime :as pm]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
@@ -79,12 +81,12 @@
         out-file (io/as-file (string/replace (.getAbsolutePath file) #"\.pdf$" ".html"))]
     (io/copy data file)
     (let [{:keys [exit out err]} (shell/sh "pdf2htmlEX"
-                                   "--no-drm" "1"
-                                   "--printing" "1"
-                                   "--zoom" "1.3"
-                                   (.getName file)
-                                   :dir (.getParent file)
-                                   :out-enc :bytes)]
+                                           "--no-drm" "1"
+                                           "--printing" "1"
+                                           "--zoom" "1.3"
+                                           (.getName file)
+                                           :dir (.getParent file)
+                                           :out-enc :bytes)]
       (when-not (zero? exit)
         (throw+ {:type ::conversion-failed :exit exit :out out :file file :err err}))
 
@@ -92,7 +94,7 @@
       (with-open [out (java.io.ByteArrayOutputStream.)]
         (clojure.java.io/copy (clojure.java.io/input-stream out-file) out)
         (.delete out-file)
-        (.toString out)))))
+        (str out)))))
 
 (defmulti thumbnail get-mimetype)
 
@@ -116,6 +118,18 @@
   (.write w (str v))
   (.write w "\""))
 
+(defmethod print-method java.net.URI
+  [v ^java.io.Writer w]
+  (.write w "#url \"")
+  (.write w (str v))
+  (.write w "\""))
+
+(defmethod print-method clojurewerkz.urly.UrlLike
+  [v ^java.io.Writer w]
+  (.write w "#url \"")
+  (.write w (str v))
+  (.write w "\""))
+
 (defmethod print-method clojure.lang.Atom
   [v ^java.io.Writer w]
   (.write w "#atom ")
@@ -133,7 +147,8 @@
 (defn read-edn-string [s]
   (edn/read-string
     {:readers {'datetime tc/from-string
-               'url io/as-url
+               'url urly/url-like
+               'uri urly/url-like
                'atom (fn [x] (atom x))
                'error (fn [_] nil)  ; Throw away error details
                'object (fn [_] (Object.))}
@@ -151,3 +166,7 @@
       (max 0))
     (catch Object _
       0)))
+
+(defn parse-http-ts [ts]
+  (when-not (nil? ts)
+    (tf/parse (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z") ts)))
