@@ -6,6 +6,7 @@
    [clojure.set :refer [union intersection]]
    [clojure.string :as string]
    [clojurewerkz.urly.core :as urly]
+   [slingshot.test :refer :all]
    [mount.core :as mount]))
 
 
@@ -176,4 +177,41 @@
 
 
 (deftest absolutify-url
-  (is (urly/absolute? (uut/absolutify-url "https://example.com" ""))))
+  (testing
+      "OK combinations / urls"
+    (are [x y] (= (str x) (str y))
+      "http://example.com/foo" (uut/absolutify-url "http://example.com/foo" "")
+      "http://example.com/foo" (uut/absolutify-url "http://example.com/foo" nil)
+      "http://example.com/foo" (uut/absolutify-url "/foo" "http://example.com")
+      "http://example.com/foo/bar" (uut/absolutify-url "/foo/bar" "http://example.com")))
+  (testing
+      "Half kaputt, but quirks-mode parsable"
+
+    (is (= "http://www.google.com/search?hl=en&q=2%5E20+*+2%5E12+bytes+in+GB"
+           (str (uut/absolutify-url "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB" nil))))
+    (is (= "https://example.com/3/extending/extending.html"
+           (str (uut/absolutify-url "https://example.com/3/extending/extending.html\"" nil))))
+    (is (= "https://example.com/972"
+           (str (uut/absolutify-url "(https://example.com/972)" nil)))))
+  (testing
+      "Absolute urls"
+    (is
+     (= "http://example.com/" (str (uut/absolutify-url "http://example.com"
+                                                       "http://some-other-base-url.com")))
+     "Absolute urls are returned as is regardless of base url"))
+  (testing "Meaningless input should throw"
+    (is (thrown+? [:type :schema.core/error]
+                  (uut/absolutify-url nil "")))
+    (is (thrown+? [:type :infowarss.http/absolutify-impossible
+                   :reason :infowarss.http/base-url-relative]
+                  (uut/absolutify-url "/example.com" "/foo"))))
+  (testing "broken urls should throw"
+    (is (thrown+? [:type :infowarss.http/absolutify-impossible
+                   :reason :infowarss.http/unparsable-url]
+                  (uut/absolutify-url "<?= $page->url() ?>" "http://example.com")))
+    (is (thrown+? [:type :infowarss.http/absolutify-impossible
+                   :reason :infowarss.http/unparsable-url]
+                  (uut/absolutify-url "<?= $page->url() ?>" "http://example.com"))))
+
+
+  )

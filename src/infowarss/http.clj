@@ -23,6 +23,7 @@
 
 ;; Infowarss HTTP Fetch utility
 
+
 (def +http-user-agent+
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
 
@@ -32,185 +33,188 @@
 
 (defn get-blacklist [url]
   (-> url
-    http/get
-    :body
-    (string/split #"\n")
-    (into #{})))
+      http/get
+      :body
+      (string/split #"\n")
+      (into #{})))
 
 (defn fetch-domain-blocklists []
   (->> public-blacklists
-    (map get-blacklist)
-    (apply clojure-set/union)
-    (into #{})))
+       (map get-blacklist)
+       (apply clojure-set/union)
+       (into #{})))
 
 (defstate domain-blacklist
   :start (atom (fetch-domain-blocklists)))
 
-
 (defn extract-http-title
   [parsed-html]
   (some-> (hick-s/select (hick-s/child
-                      (hick-s/tag :title))
-       parsed-html)
-    first
-    :content
-    first
-    string/trim))
+                          (hick-s/tag :title))
+                         parsed-html)
+          first
+          :content
+          first
+          string/trim))
 
 (defn extract-http-timestamp
   [resp]
   (let [{:keys [headers]} resp]
     (try+
-      (or (conv/parse-http-ts (get headers "Last-Modified"))
-        (conv/parse-http-ts (get headers "Date")))
-      (catch Object _
-        (time/now)))))
+     (or (conv/parse-http-ts (get headers "Last-Modified"))
+         (conv/parse-http-ts (get headers "Date")))
+     (catch Object _
+       (time/now)))))
 
-(defn- parse-url-that-may-be-just-be-a-filename [raw]
-  (try+
-    (let [raw (-> raw
-                str
-                string/trim
-                (string/replace-first #"^\"" ""))
-          url (urly/url-like (or raw ""))]
-      url)
+;; gruber: liberal url regex to match web urls
+;; https://gist.github.com/gruber/8891611
+(def url-regex #"(?i)\b((?:https?:(?:/{1,3}|[a-z0-9%])|[a-z0-9.\-]+[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)/)(?:[^\s()<>{}\[\]]+|\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\))+(?:\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’])|(?:(?<!@)[a-z0-9]+(?:[.\-][a-z0-9]+)*[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\b/?(?!@)))")
 
-    (catch java.lang.NoSuchMethodError e
-      (if-not (string/starts-with? raw "/")
-        (urly/url-like (str "/" raw))
-        (throw+ {:type ::borken-url :url raw})))))
+(defmacro swallow-exceptions [& body]
+  `(try+ ~@body (catch Object e#)))
 
 (def unparsable-urls (atom []))
 
+(defn parse-url [s]
+  (if-let [url (or (swallow-exceptions (urly/url-like s))
+                   (swallow-exceptions (urly/url-like
+                                        (second (re-find url-regex s))))
+                   (swallow-exceptions (urly/url-like (io/as-url s))))]
+    url
+    (do
+      (swap! unparsable-urls conj s)
+      (throw+ {:type ::absolutify-impossible
+               :reason ::unparsable-url
+               :url s} nil))))
+
+(defn parse-href [s]
+  (if-let [url (or (swallow-exceptions (parse-url s))
+                   (swallow-exceptions (parse-url (str "/" s))))]
+    url))
+
 (s/defn absolutify-url :- (s/maybe schema/URLType)
-  [raw-url :- (s/maybe (s/cond-pre s/Str schema/URLType))
-   raw-base-url :- (s/cond-pre s/Str schema/URLType)]
-  (let [url (parse-url-that-may-be-just-be-a-filename raw-url)
-        base-url (urly/url-like raw-base-url)]
-
+  [raw-href :- (s/cond-pre schema/NotEmptyStr schema/URLType)
+   raw-base-url :- (s/maybe (s/cond-pre s/Str schema/URLType))]
+  (let [url (parse-href raw-href)]
     (cond
-      (and (nil? url) (string? raw-url) (string/starts-with? raw-url "mailto:"))
-      (io/as-url raw-url)
-
-      (nil? raw-url)
-      nil
-
-      (nil? url)
-      (do
-        (swap! unparsable-urls conj raw-url)
-        (throw+ {:type ::unparsable-url
-                 :url raw-url
-                 :base-url raw-base-url}))
+      (and (nil? url) (string? raw-href) (string/starts-with? raw-href "mailto:"))
+      (io/as-url raw-href)
 
       (urly/absolute? url)
       url
 
-      (and (urly/relative? url) (urly/absolute? base-url))
-      (urly/url-like (urly/absolutize (str url) base-url))
-
-      (and (urly/relative? url) (urly/relative? base-url))
-      (throw+ {:type ::absolutify-impossible
-               :url url
-               :base-url base-url
-               :msg "Both urls relative. Can't absolutify"})
-
       :default
-      url)))
+      (let [base-url (parse-url raw-base-url)]
+        (cond
+          (nil? base-url)
+          (throw+ {:type ::absolutify-impossible
+                   :reason ::url-not-absolue-base-url-nil
+                   :raw-href raw-href :raw-base-url raw-base-url
+                   :url url :base-url base-url
+                   :msg "relative url requires absolute base-url"})
+
+          (urly/relative? base-url)
+          (throw+ {:type ::absolutify-impossible
+                   :reason ::base-url-relative
+                   :raw-href raw-href :raw-base-url raw-base-url
+                   :url url :base-url base-url
+                   :msg "base-url must be absolute"})
+
+          (and (urly/relative? url) (urly/absolute? base-url))
+          (urly/url-like (urly/absolutize (str url) base-url)))))))
 
 (s/defn get-base-url :- (s/constrained clojurewerkz.urly.UrlLike urly/absolute? "Absolute URL")
   [url :- clojurewerkz.urly.UrlLike]
   (-> url
-    urly/without-query-string-and-fragment
-    (.mutatePath "")))
+      urly/without-query-string-and-fragment
+      (.mutatePath "")))
 
 (defn parse-img-srcset [str]
   (when (string? str)
     (map #(string/split % #"\s")
-      (string/split
-        (java.net.URLDecoder/decode str "UTF-8")
-        #"(?<=\d+[wx]),\s*"))))
-
+         (string/split
+          (java.net.URLDecoder/decode str "UTF-8")
+          #"(?<=\d+[wx]),\s*"))))
 
 (defn unparse-img-srcset [parsed]
   (when (coll? parsed)
-      (->>
-        parsed
-        (map (fn [[url descr]]
-               (str
-                 url
-                 " "
-                 descr)))
-        (string/join ", "))))
+    (->>
+     parsed
+     (map (fn [[url descr]]
+            (str
+             url
+             " "
+             descr)))
+     (string/join ", "))))
 
 (defn edit-img-tag [base-url loc]
   (zip/edit loc update-in [:attrs]
-    (fn [attrs]
-      (let [{:keys [src srcset]} attrs]
-        (-> attrs
-          (assoc :src (str (absolutify-url src base-url)))
-          (assoc :srcset (some->> (parse-img-srcset srcset)
-                           (map (fn [[url descr]] [(str (absolutify-url url base-url)) descr]))
-                           unparse-img-srcset)))))))
-
+            (fn [attrs]
+              (let [{:keys [src srcset]} attrs]
+                (-> attrs
+                    (assoc :src (str (absolutify-url src base-url)))
+                    (assoc :srcset (some->> (parse-img-srcset srcset)
+                                            (map (fn [[url descr]] [(str (absolutify-url url base-url)) descr]))
+                                            unparse-img-srcset)))))))
 
 (defn absolutify-links-in-hick [root base-url]
   (let [zipper (hick-z/hickory-zip root)
         edit-tag (fn [tag loc]
                    (try+
-                     (case tag
-                       :a (zip/edit loc update-in
-                            [:attrs :href]
-                            #(str (absolutify-url % base-url)))
-                       :img (edit-img-tag base-url loc)
-                       loc)
-                     (catch java.lang.Object e
-                       (log/error e "Absolutify error loc:"
-                         (select-keys (zip/node loc) [:tag :type :attrs]))
-                       loc)))]
+                    (case tag
+                      :a (zip/edit loc update-in
+                                   [:attrs :href]
+                                   #(str (absolutify-url % base-url)))
+                      :img (edit-img-tag base-url loc)
+                      loc)
+                    (catch java.lang.Object e
+                      (log/error e "Absolutify error loc:"
+                                 (merge {:base-url base-url}
+                                        (select-keys (zip/node loc) [:tag :type :attrs])))
+                      loc)))]
     (loop [loc zipper]
       (if (zip/end? loc)
         (zip/root loc)
         (let [{:keys [tag type content attrs]} (zip/node loc)]
           (if (= type :element)
             (recur
-              (zip/next
-                (edit-tag tag loc)))
+             (zip/next
+              (edit-tag tag loc)))
             (recur (zip/next loc))))))))
-
 
 (defn try-blobify-url! [url]
   (if (nil? url)
     url
     (let [url (urly/url-like url)]
       (if (or (= (str url) (str (get-base-url url)))
-            (= (urly/path-of url) "/")
-            (= (urly/path-of url) "/#"))
+              (= (urly/path-of url) "/")
+              (= (urly/path-of url) "/#"))
         (str url)
         (try+
-          (let [content-hash (blobstore/add-from-url! url)
-                blobstore-url (str "/blob/" content-hash)]
-            blobstore-url)
-          (catch Object _
-            (str url)))))))
+         (let [content-hash (blobstore/add-from-url! url)
+               blobstore-url (str "/blob/" content-hash)]
+           blobstore-url)
+         (catch Object _
+           (str url)))))))
 
 (defn blobify-image [loc]
   (zip/edit loc update-in [:attrs]
-    (fn [attrs]
-      (let [{:keys [src srcset]} attrs]
-        (if (or (string/blank? src) (string/starts-with? src "/blob/"))
-          attrs
-          (-> attrs
-            (assoc :src (try-blobify-url! src))
-            (assoc :orig-src src)
-            (assoc :orig-srcset srcset)
-            (assoc :srcset
-              (some->> (parse-img-srcset srcset)
-                (map (fn [[url descr]]
-                       (if (or (string/blank? url) (string/starts-with? url "/blob/"))
-                         [url descr]
-                         [(try-blobify-url! url) descr])))
+            (fn [attrs]
+              (let [{:keys [src srcset]} attrs]
+                (if (or (string/blank? src) (string/starts-with? src "/blob/"))
+                  attrs
+                  (-> attrs
+                      (assoc :src (try-blobify-url! src))
+                      (assoc :orig-src src)
+                      (assoc :orig-srcset srcset)
+                      (assoc :srcset
+                             (some->> (parse-img-srcset srcset)
+                                      (map (fn [[url descr]]
+                                             (if (or (string/blank? url) (string/starts-with? url "/blob/"))
+                                               [url descr]
+                                               [(try-blobify-url! url) descr])))
 
-                unparse-img-srcset))))))))
+                                      unparse-img-srcset))))))))
 
 (defn blobify [root]
   (let [zipper (hick-z/hickory-zip root)
@@ -224,7 +228,7 @@
         (let [{:keys [tag type content attrs]} (zip/node loc)]
           (if (= type :element)
             (recur
-              (zip/next (edit-tag tag loc)))
+             (zip/next (edit-tag tag loc)))
             (recur (zip/next loc))))))))
 
 (defn sanitize
@@ -269,13 +273,12 @@
 
                 (and (contains? #{:a :img} tag)
                      (try+
-                      (let [url (urly/url-like (get attrs (get url-attribs tag)))
+                      (let [url (parse-url (get attrs (get url-attribs tag)))
                             host (urly/host-of url)
                             in-blacklist (contains? @domain-blacklist host)]
                         in-blacklist)
-
                       (catch Object _
-                        (log/error "SANITIZE: Swallowing exception during sanitize uri: "
+                        (log/debug "SANITIZE: Swallowing exception during sanitize uri: "
                                    (:throwable &throw-context) attrs))))
                 (zip/edit loc
                           (fn [node]
@@ -295,39 +298,39 @@
   (let [url (urly/url-like url)
         base-url (get-base-url url)]
     (try+
-      (let [response (http/get (str url)
-                       {:headers {:user-agent +http-user-agent+}
-                        :decode-cookies false
-                        :cookie-policy :none})
-            parsed-html (-> response
-                          :body
-                          hick/parse hick/as-hickory
-                          (absolutify-links-in-hick base-url)
-                          sanitize
-                          blobify)]
-        (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
-        {:raw response
-         :body (hick-r/hickory-to-html parsed-html)
-         :summary {:ts (extract-http-timestamp response)
-                   :title (extract-http-title parsed-html)}
-         :hickory parsed-html})
+     (let [response (http/get (str url)
+                              {:headers {:user-agent +http-user-agent+}
+                               :decode-cookies false
+                               :cookie-policy :none})
+           parsed-html (-> response
+                           :body
+                           hick/parse hick/as-hickory
+                           (absolutify-links-in-hick base-url)
+                           sanitize
+                           blobify)]
+       (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
+       {:raw response
+        :body (hick-r/hickory-to-html parsed-html)
+        :summary {:ts (extract-http-timestamp response)
+                  :title (extract-http-title parsed-html)}
+        :hickory parsed-html})
 
-      (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
-          {:keys [headers body status]}
-        (log/errorf "Client error probably due to broken request (%s): %s %s"
-          status headers body)
-        (throw+ {:type ::request-error}))
+     (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
+            {:keys [headers body status]}
+       (log/errorf "Client error probably due to broken request (%s): %s %s"
+                   status headers body)
+       (throw+ {:type ::request-error}))
 
-      (catch (contains? #{500 501 502 503 504} (get % :status))
-          {:keys [headers body status] :as orig}
-        (log/errorf "Server Error (%s): %s %s" status headers body)
-        (throw+ {:type ::server-error-retry-later}))
+     (catch (contains? #{500 501 502 503 504} (get % :status))
+            {:keys [headers body status] :as orig}
+       (log/errorf "Server Error (%s): %s %s" status headers body)
+       (throw+ {:type ::server-error-retry-later}))
 
-      (catch [:status 408]
-          {:keys [headers body status]}
-        (log/errorf "Client Error (%s): %s %s" status headers body)
-        (throw+ {:type :client-error-retry-later}))
+     (catch [:status 408]
+            {:keys [headers body status]}
+       (log/errorf "Client Error (%s): %s %s" status headers body)
+       (throw+ {:type :client-error-retry-later}))
 
-      (catch Object _
-        (log/error "Unexpected error: " (:throwable &throw-context) url)
-        (throw+ {:type ::unexpected-error :url url :base-url base-url})))))
+     (catch Object _
+       (log/error "Unexpected error: " (:throwable &throw-context) url)
+       (throw+ {:type ::unexpected-error :url url :base-url base-url})))))
