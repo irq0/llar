@@ -2,6 +2,7 @@
   (:require
    [taoensso.timbre :as log]
    [infowarss.apis.status :as status]
+   [infowarss.apis.reader :as reader]
    [infowarss.apis.dataworkbench :as datawb]
    [slingshot.slingshot :refer [throw+ try+]]
    [ring.adapter.jetty :refer [run-jetty]]
@@ -33,6 +34,19 @@
     ring.middleware.stacktrace/wrap-stacktrace-log
     ring.middleware.lint/wrap-lint))
 
+(def reader-app
+  (->
+    reader/app
+    ring.middleware.json/wrap-json-response
+    ring.middleware.keyword-params/wrap-keyword-params
+    ring.middleware.params/wrap-params
+    ring.middleware.json/wrap-json-params
+    ring.middleware.gzip/wrap-gzip
+    ring.middleware.not-modified/wrap-not-modified
+    ring.middleware.stacktrace/wrap-stacktrace-log
+    ring.middleware.lint/wrap-lint))
+
+
 (def data-app
   (->
     datawb/app
@@ -61,8 +75,12 @@
   :stop (try-stop-app fever))
 
 (defstate status
-  :start (try-start-app status-app 8023)
+  :start (try-start-app status-app 9999)
   :stop (try-stop-app status))
+
+(defstate reader
+  :start (try-start-app reader-app 8023)
+  :stop (try-stop-app reader))
 
 (defstate datawb
   :start (try-start-app data-app 8042)
