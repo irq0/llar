@@ -12,7 +12,7 @@
                                     get-base-url
                                     blobify
                                     sanitize
-                                    +http-user-agent+]]
+                                    resolve-user-agent]]
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
@@ -119,7 +119,7 @@
   (fetch-source [src]
     (let [url (urly/url-like (:url src))
           base-url (get-base-url url)
-          http-item (fetch url)
+          http-item (fetch url :user-agent (get-in src [:args :user-agent]))
           res (try+
                (-> http-item :raw :body rome/build-feed)
                (catch Object _
@@ -206,8 +206,9 @@
 (extend-protocol FetchSource
   infowarss.src.SelectorFeed
   (fetch-source [src]
-    (let [{:keys [url selectors extractors]} src
-          {:keys [summary hickory]} (fetch url)
+    (let [{:keys [url selectors extractors args]} src
+          user-agent (:user-agent args)
+          {:keys [summary hickory]} (fetch url :user-agent user-agent)
           base-url (get-base-url (urly/url-like url))
 
           meta (make-meta src)
@@ -224,7 +225,7 @@
       (doall
        (for [raw-item-url item-urls
              :let [item-url (absolutify-url raw-item-url base-url)
-                   item (fetch item-url)
+                   item (fetch item-url :user-agent user-agent)
                    {:keys [hickory summary]} item]]
          (let [author (hick-select-extract-with-source src :author hickory nil)
                title (hick-select-extract-with-source src :title hickory (:title summary))
@@ -257,9 +258,13 @@
   infowarss.src.WordpressJsonFeed
   (fetch-source [src]
     (let [wp-json-url (str (:url src))
-          site (log/spy (http/get wp-json-url {:as :json :headers {:user-agent +http-user-agent+}}))
+          user-agent (resolve-user-agent
+                      (get-in src [:args :user-agent]))
+          site (http/get wp-json-url
+                         {:as :json
+                          :headers {:user-agent user-agent}})
           posts-url (log/spy (get-in site [:body :routes (keyword "/wp/v2/posts") :_links :self]))
-          posts (-> (http/get posts-url {:headers {:user-agent +http-user-agent+}})
+          posts (-> (http/get posts-url {:headers {:user-agent user-agent}})
                     :body (cheshire/parse-string true)) ]
       (doall
        (for [post posts]
@@ -270,7 +275,7 @@
                            (get-in [:body :name]
                                    (http/get url
                                              {:as :json
-                                              :headers {:user-agent +http-user-agent+}}))))
+                                              :headers {:user-agent user-agent}}))))
                         (catch [:status 403] {:keys [body]}
                           (log/debug "Strange, some wp json access blocked:" body)
                           [""]))

@@ -13,41 +13,54 @@
 
 ;;; Http
 
+(def +http-default-args+
+  {:user-agent :default})
+
+(def +feed-default-args+
+  {:user-agent :default
+   :deep? false
+   :force-update? false})
+
 (s/defrecord GenericWebsite
-    [url :- java.net.URL]
+    [url :- java.net.URL
+     args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
+
   Object
   (toString [src] (str "[GenericWebsite: " (:url src) "]")))
 
-(s/defn website :- GenericWebsite
-  [url :- s/Str]
-  (GenericWebsite. (io/as-url url)))
+(defn website
+  [url
+   & {:keys [user-agent] :as args}]
+  (GenericWebsite. (io/as-url url) (merge +http-default-args+ args)))
 
 (s/defrecord PaywalledWebsite
     [url :- java.net.URL
-     cookie-getter :- s/Any]
+     cookie-getter :- s/Any
+     args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
   Object
   (toString [src] (str "[PaywalledWebsite: " (:url src) "]")))
 
-
-(s/defn website+paywall :- PaywalledWebsite
-  [url :- s/Str
-   cookie-getter :- s/Any]
-  (PaywalledWebsite. (io/as-url url) cookie-getter))
+(defn website+paywall
+  [url
+   cookie-getter
+   & {:keys [user-agent] :as args}]
+  (PaywalledWebsite. (io/as-url url) cookie-getter (merge +http-default-args+ args)))
 
 ;;; Feed
 
 (s/defrecord Feed
     [url :- java.net.URL
-     args :- {:deep? s/Bool :force-update? s/Bool}]
+     args :- {:deep? s/Bool
+              :force-update? s/Bool
+              :user-agent (s/cond-pre s/Str s/Keyword)}]
   Object
   (toString [src] (str "[Feed: " (:url src) "]")))
 
 (defn feed
   [url
-   & {:keys [deep? force-update?]
-      :or {deep? false force-update? true}
+   & {:keys [deep? force-update? user-agent]
       :as args}]
-  (->Feed (io/as-url url) args))
+  (->Feed (io/as-url url) (merge +feed-default-args+ args)))
 
 (s/defrecord SelectorFeed
     [url :- java.net.URL
@@ -60,24 +73,27 @@
                     :ts s/Any
                     :author s/Any
                     :content s/Any
-                    :description s/Any}]
+                    :description s/Any}
+     args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
   Object
   (toString [src] (str "[SelectorFeed: " (:url src) "]")))
 
 (defn selector-feed
-  [url
-   selectors
-   extractors]
-  (->SelectorFeed (io/as-url url) selectors extractors))
+  [url selectors extractors & {:keys [user-agent]
+                               :as args}]
+  (->SelectorFeed (io/as-url url) selectors extractors (merge +http-default-args+ args)))
 
 (s/defrecord WordpressJsonFeed
-    [url :- java.net.URL]
+    [url :- java.net.URL
+     args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
   Object
   (toString [src] (str "[WpJsonFeed: " (:url src) "]")))
 
 (defn wp-json
-  [url]
-  (->WordpressJsonFeed (io/as-url url)))
+  [url
+   & {:keys [user-agent]
+      :as args}]
+  (->WordpressJsonFeed (io/as-url url) (merge +http-default-args+ args)))
 
 (s/defrecord GooglePlusActivityFeed
     [user-id :- schema/NotEmptyStr

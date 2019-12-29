@@ -35,8 +35,9 @@
 (extend-protocol FetchSource
   infowarss.src.GenericWebsite
   (fetch-source [src]
-    (let [{:keys [url]} src
-          {:keys [summary body raw hickory]} (http/fetch url)
+    (let [{:keys [url args]} src
+          {:keys [summary body raw hickory]} (http/fetch
+                                              url :user-agent (:user-agent args))
           feed {:title "[website]"
                 :url ""
                 :feed-type "generic-website"}]
@@ -58,41 +59,42 @@
 (extend-protocol FetchSource
   infowarss.src.PaywalledWebsite
   (fetch-source [src]
-    (let [{:keys [url cookie-getter]} src
+    (let [{:keys [url cookie-getter args]} src
           url (urly/url-like url)
           base-url (http/get-base-url url)
           cookie-jar (cookie-getter)]
       (try+
-        (let [response (http-client/get (str url)
-                         {:headers {:user-agent http/+http-user-agent+}
-                          :cookie-store cookie-jar})
-              parsed-html (-> response
-                            :body
-                            hick/parse hick/as-hickory
-                            (http/absolutify-links-in-hick base-url)
-                            (http/sanitize :remove-css? true)
-                            http/blobify)
+       (let [response (http-client/get (str url)
+                                       {:headers {:user-agent (http/resolve-user-agent
+                                                               (:user-agent args))}
+                                        :cookie-store cookie-jar})
+             parsed-html (-> response
+                             :body
+                             hick/parse hick/as-hickory
+                             (http/absolutify-links-in-hick base-url)
+                             (http/sanitize :remove-css? true)
+                             http/blobify)
 
-              summary {:ts (http/extract-http-timestamp response)
-                       :title (http/extract-http-title parsed-html)}
-              body (hick-r/hickory-to-html parsed-html)
-              feed {:title "[website]"
-                    :url ""
-                    :feed-type "generic-website"}]
-          (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
-          [(map->GenericWebsiteItem
-             {:meta (make-meta src)
-              :summary summary
-              :hickory parsed-html
-              :hash (make-item-hash (:title summary) body)
-              :entry {:pub-ts (:ts summary)
-                      :url url
-                      :title (:title summary)
-                      :authors ""
-                      :descriptions {"text/plain" body}
-                      :contents {"text/html" body
-                                 "text/plain" (conv/html2text body)}}
-              :feed feed})])))))
+             summary {:ts (http/extract-http-timestamp response)
+                      :title (http/extract-http-title parsed-html)}
+             body (hick-r/hickory-to-html parsed-html)
+             feed {:title "[website]"
+                   :url ""
+                   :feed-type "generic-website"}]
+         (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
+         [(map->GenericWebsiteItem
+           {:meta (make-meta src)
+            :summary summary
+            :hickory parsed-html
+            :hash (make-item-hash (:title summary) body)
+            :entry {:pub-ts (:ts summary)
+                    :url url
+                    :title (:title summary)
+                    :authors ""
+                    :descriptions {"text/plain" body}
+                    :contents {"text/html" body
+                               "text/plain" (conv/html2text body)}}
+            :feed feed})])))))
 
 
 (extend-protocol ItemProcessor
@@ -120,32 +122,3 @@
   GenericWebsiteItem
   (to-couch [item]
     (assoc item :type :website)))
-
-;; (extend-protocol ItemProcessor
-;;   ChangeDetectionWebsiteItem
-;;   (post-process-item [item src state] item)
-;;   (filter-item [item src state] false))
-
-
-;; (extend-protocol FetchSource
-;;   infowarss.src.ChangeDetectionWebsite
-;;   (fetch-source [src]
-;;     (let [{:keys [url]} src
-;;           {:keys [summary body raw hickory meta]} (fetch url)
-
-;;           feed {:title (:title summary)
-;;                 :url url
-;;                 :feed-type "generic-website"}]
-
-;;       [(map->GenericWebsiteItem
-;;         {:meta meta
-;;          :summary summary
-;;          :hash (make-item-hash (:title summary) body)
-;;          :entry {:pub-ts (:ts summary)
-;;                  :url url
-;;                  :title (:title summary)
-;;                  :authors ""
-;;                  :descriptions {"text/plain" body}
-;;                  :contents {"text/html" body
-;;                             "text/plain" (conv/html2text body)}}
-;;          :feed feed})])))

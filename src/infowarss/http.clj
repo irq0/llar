@@ -25,7 +25,18 @@
 
 
 (def +http-user-agent+
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
+  {:bot "Mozilla/5.0 (compatible); Googlebot/2.1; +http://www.google.com/bot.html)"
+   :browser "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+   :default "Mozilla/5.0 (compatible; 🖖/0.1; +http://irq0.org)"})
+
+(defn resolve-user-agent [kw-or-s]
+  (cond (string? kw-or-s) kw-or-s
+        (keyword? kw-or-s) (get +http-user-agent+ kw-or-s)
+        :default (throw+ {:type ::invalid-user-agent
+                          :msg "Use string or keyword"
+                          :offending-value kw-or-s
+                          :offending-type (type kw-or-s)
+                          :keywords (keys +http-user-agent+)})))
 
 (def public-blacklists
   ["https://raw.githubusercontent.com/austinheap/sophos-xg-block-lists/master/adguard.txt"
@@ -296,14 +307,15 @@
                 loc)))
             (recur (zip/next loc))))))))
 
-(s/defn fetch :- s/Any
+(defn fetch
   "Generic HTTP fetcher"
-  [url :- schema/URLType]
+  [url & {:keys [user-agent]
+          :or {user-agent :default}}]
   (let [url (parse-url url)
         base-url (get-base-url url)]
     (try+
      (let [response (http/get (str url)
-                              {:headers {:user-agent +http-user-agent+}
+                              {:headers {:user-agent (resolve-user-agent user-agent)}
                                :decode-cookies false
                                :cookie-policy :none})
            parsed-html (-> response
@@ -322,7 +334,7 @@
      (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
          {:keys [headers body status]}
        (log/errorf "Client error probably due to broken request (%s): %s %s"
-                   status headers body)
+                   status headers body user-agent)
        (throw+ {:type ::request-error}))
 
      (catch (contains? #{500 501 502 503 504} (get % :status))
