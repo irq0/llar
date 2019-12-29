@@ -219,7 +219,6 @@
          (let [item-id (:id (first (j/query t ["select items.id from items where hash = ?"
                                                (:hash doc)])))
                item-data-rows (make-item-data-rows item-id doc)]
-           (log/info item-id)
            (when (seq item-data-rows)
              (j/delete! t :item_data
                         ["item_id = ?" item-id])

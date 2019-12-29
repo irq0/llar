@@ -128,7 +128,6 @@
                 (map first)
                 (remove non-word-string-filter)
                 (map string/lower-case))]
-    (log/debug "NLP Analysis running" )
     {:language lang
      :readability (readability-scores text-sanitized)
      :nlp {:nwords (count words)

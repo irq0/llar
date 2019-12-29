@@ -660,7 +660,6 @@
                                       comic-src (-> comic-img :src (subs 3))
                                       comic-alt (-> comic-img :alt)
                                       comic-url (str "https://www.geekculture.com/joyoftech/" comic-src)]
-                                  (log/info comic-url)
                                   (-> item
                                     (assoc-in [:entry :contents "text/html"]
                                       (format "<img src=\"%s\"/><p>%s</p>" comic-url comic-alt)))))])
@@ -938,7 +937,6 @@
                                  :post [(fn [item]
                                   (let [url (get-in item [:entry :url])
                                         fixed-url (string/replace url #"go\.theregister\.com/feed/" "")]
-                                    (log/info url)
                                     (-> item
                                       (assoc-in [:entry :url] fixed-url))))
                                 (proc/mercury-contents (:mercury creds) :keep-orig? false)])
@@ -1196,7 +1194,6 @@
                                         (http/sanitize :remove-css? true)
                                         http/blobify
                                         hickory-to-html)]
-                             (log/info "preproc")
                               (-> item
                                 (assoc-in [:entry :descriptions]
                                   {"text/plain" ""})

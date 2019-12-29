@@ -11,31 +11,33 @@
 
 ;;; Logger
 
-(log/merge-config!
-  {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
-                           {:path "/tmp/infowarss_all.log"
-                            :max-size (* 42 1024 1024) })}})
 
 (log/merge-config!
-  {:ns-blacklist  ["org.apache.http.*"
-                   "org.eclipse.jetty.io.*"
-                   "org.eclipse.jetty.http.*"
-                   "org.eclipse.jetty.server.*"
-                   "org.eclipse.jetty.util.*"
-                   "org.apache.pdfbox.io.*"
-                   "com.ning.http.client.providers.netty.handler.*"
-                   "com.ning.http.client.providers.netty.channel.*"
-                   ]
-   :level :trace})
+ {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
+                         {:path "/tmp/infowarss_all.log"
+                          :max-size (* 42 1024 1024) })}})
 
 (log/merge-config!
-  {:appenders {:spit (assoc (appenders/spit-appender
-                              {:fname "/tmp/infowarss_info.log"})
-                       :min-level :info)}})
+ {:ns-blacklist  ["org.apache.http.*"
+                  "org.eclipse.jetty.io.*"
+                  "org.eclipse.jetty.http.*"
+                  "org.eclipse.jetty.server.*"
+                  "org.eclipse.jetty.util.*"
+                  "org.apache.pdfbox.io.*"
+                  "com.ning.http.client.providers.netty.handler.*"
+                  "com.ning.http.client.providers.netty.channel.*"
+                  ]
+  :level :trace})
 
 (log/merge-config!
-  {:appenders {:println {:min-level :error
-                         :stream :std-err}}})
+ {:appenders {:spit (assoc (appenders/spit-appender
+                            {:fname "/tmp/infowarss_info.log"})
+                           :min-level :info)}})
+
+(log/merge-config!
+ {:appenders {:println {:min-level :error
+                        :enabled? false
+                        :stream :std-err}}})
 
 
 ;; from mount examples
