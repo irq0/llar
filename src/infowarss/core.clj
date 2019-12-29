@@ -335,10 +335,6 @@
                           :tags #{:tech}
                           :cron cron-daily}
 
-   :spotify-insights {:src (src/feed "https://insights.spotify.com/us/feed/")
-                      :tags #{:tech :sci}
-                      :cron cron-daily}
-
    :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
                                :tags #{:tech :digest}
                                :proc (proc/make
@@ -351,7 +347,8 @@
                         :tags #{:events}
                         :cron cron-daily}
 
-   :acm-queue {:src (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml" :deep? true :force-update? true)
+   :acm-queue {:src (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml"
+                              :deep? true :force-update? true)
                :tags #{:tech :magazine :sci}
                :cron cron-daily}
 
@@ -443,11 +440,6 @@
                   :cron cron-daily
                   :tags #{:reddit :music}
                   :proc (make-reddit-proc 5)}
-
-   :reddit-rock {:src (src/reddit "rock" :hot)
-                 :cron cron-daily
-                 :tags #{:reddit :music}
-                 :proc (make-reddit-proc 5)}
 
    :reddit-hfy {:src (src/reddit "HFY" :top)
                 :cron cron-daily
@@ -601,9 +593,6 @@
                   :tags #{:tech}
                   :cron cron-daily}
 
-   :yt-kirstenlepore {:src (src/feed "https://www.youtube.com/user/kirstenlepore")
-                      :cron cron-daily}
-
    :programmingisterrible {:src (src/feed "http://programmingisterrible.com/rss")
                            :tags #{:tech :blog}
                            :proc (proc/make
@@ -689,35 +678,44 @@
    :document {:src nil
               :tags #{:document}}
 
-   :tumblr-worstofchefkoch {:src (src/feed "https://worstofchefkoch.tumblr.com/rss")
+   :tumblr-worstofchefkoch {:src (src/feed "https://worstofchefkoch.tumblr.com/rss"
+                                           :user-agent :bot)
                             :tags #{:fun}
                             :cron cron-daily}
 
-   :tumblr-powerlinesinanime {:src (src/feed "https://powerlinesinanime.tumblr.com/rss")
+   :tumblr-powerlinesinanime {:src (src/feed "https://powerlinesinanime.tumblr.com/rss"
+                                             :user-agent :bot)
                               :tags #{:fun}
                               :cron cron-daily}
 
-   :tumblr-awkwardstockphotos {:src (src/feed "http://awkwardstockphotos.com/rss")
+   :tumblr-awkwardstockphotos {:src (src/feed "http://awkwardstockphotos.com/rss"
+                                              :user-agent :bot)
                                :tags #{:fun}
                                :proc (proc/make
-                                      :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                      :post [(proc/exchange [:entry :descriptions]
+                                                            [:entry :contents])])
                                :cron cron-daily}
-   :tumblr-weirdtumblrs {:src (src/feed "http://weirdtumblrs.tumblr.com/rss")
+
+   :tumblr-weirdtumblrs {:src (src/feed "http://weirdtumblrs.tumblr.com/rss"
+                                        :user-agent :bot)
                          :tags #{:fun}
                          :proc (proc/make
                                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                          :cron cron-daily}
 
-   :tumblr-mcmensionhell {:src (src/feed "http://mcmansionhell.com/rss")
+   :tumblr-mcmensionhell {:src (src/feed "http://mcmansionhell.com/rss"
+                                         :user-agent :bot)
                           :tags #{:fun}
                           :proc (proc/make
                                  :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                           :cron cron-daily}
 
-   :tumblr-runningahackerspace {:src (src/feed "https://runningahackerspace.tumblr.com/rss")
+   :tumblr-runningahackerspace {:src (src/feed "https://runningahackerspace.tumblr.com/rss"
+                                               :user-agent :bot)
                                 :tags #{:fun}
                                 :proc (proc/make
-                                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                       :post [(proc/exchange [:entry :descriptions]
+                                                             [:entry :contents])])
                                 :cron cron-daily}
 
    :orkpiraten {:src (src/feed "https://www.orkpiraten.de/blog/feed")
@@ -914,10 +912,6 @@
               :tags #{:corporate}
               :cron cron-daily}
 
-   :wasabi {:src (src/feed "https://wasabi.com/blog/feed/")
-            :tags #{:corporate}
-            :cron cron-daily}
-
    :kinvolk {:src (src/feed "https://kinvolk.io/blog/index.xml")
              :tags #{:corporate}
              :cron cron-daily}
@@ -1075,12 +1069,6 @@
              :cron cron-daily}
 
 
-   :send-more-paramedics {:src (src/feed "http://blog.fogus.me/feed/")
-                          :tags #{:tech :blog}
-                          :proc (proc/make
-                                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
-                          :cron cron-daily}
-
    :uswitch-labs {:src (src/feed "https://labs.uswitch.com/rss/")
                   :tags #{:tech}
                   :cron cron-daily}
@@ -1138,10 +1126,6 @@
            :options #{:mark-read-on-view}
            :tags #{:magazine}
            :cron cron-daily}
-
-   :iprogrammer {:src (src/feed "https://www.i-programmer.info/component/ninjarsssyndicator/?feed_id=3" :deep? true)
-                 :tags #{:tech}
-                 :cron cron-daily}
 
    :erdgeist {:src (src/feed "https://erdgeist.org/blog/rss.xml")
               :tags #{:blog}
@@ -1336,75 +1320,6 @@
               :tags #{:magazine}
               :options #{:main-list-use-description}
               :cron cron-daily}
-
-
-
-
-   ;; :ibc-2018-party {:src (src/website "https://www.broadcastprojects.com/ibc-2018-party-event-list/")
-   ;;                  :tags #{:conference}
-   ;;                  :proc (proc/make
-   ;;                          :post [(proc/add-tag :ibc2018)])
-   ;;                  :cron cron-daily}
-
-   ;; :twit-ibc {:src (src/twitter-search "#IBC2018 OR #IBCConf OR @ibcshow"
-   ;;                   (:twitter-api creds))
-   ;;            :proc (proc/make
-   ;;                    :filter (fn [item]
-   ;;                              (let [type (get-in item [:entry :type])
-   ;;                                    text (get-in item [:entry :contents "text/plain"])]
-   ;;                                (or
-   ;;                                  (#{:retweet} type)
-   ;;                                  (re-find #"pussy|porn|camsex|webcam" text))))
-   ;;                    :post [(proc/add-tag :ibc2018)])
-   ;;            :tags #{:conference}
-   ;;            :cron cron-hourly}
-
-   ;; :twit-ibc-party {:src (src/twitter-search "#IBC2018 party"
-   ;;                   (:twitter-api creds))
-   ;;            :proc (proc/make
-   ;;                    :filter (fn [item]
-   ;;                              (let [type (get-in item [:entry :type])
-   ;;                                    text (get-in item [:entry :contents "text/plain"])]
-   ;;                                (or
-   ;;                                  (#{:retweet} type)
-   ;;                                  (re-find #"pussy|porn|camsex|webcam" text))))
-   ;;                    :post [(proc/add-tag :ibc2018)])
-   ;;            :tags #{:conference}
-   ;;                  :cron cron-hourly}
-
-   ;; :twit-ibc-storage {:src (src/twitter-search "#IBC2018 storage"
-   ;;                   (:twitter-api creds))
-   ;;            :proc (proc/make
-   ;;                    :filter (fn [item]
-   ;;                              (let [type (get-in item [:entry :type])
-   ;;                                    text (get-in item [:entry :contents "text/plain"])]
-   ;;                                (or
-   ;;                                  (#{:retweet} type)
-   ;;                                  (re-find #"pussy|porn|camsex|webcam" text))))
-   ;;                    :post [(proc/add-tag :ibc2018)])
-   ;;            :tags #{:conference}
-   ;;            :cron cron-hourly}
-
-
-
-   ;; hubspot
-   ;; :elastifile {:src (src/selector-feed "https://www.datera.io/blog/"
-   ;;                     {:urls (S/descendant
-   ;;                              (S/class "post-header")
-   ;;                              (S/tag :h2)
-   ;;                              (S/tag :a))
-   ;;                      :description (S/and
-   ;;                                     (S/tag :meta)
-   ;;                                     (S/attr :name #(= % "description")))
-   ;;                      :author (S/class "hs-blog-author")
-   ;;                      :ts (S/class "hd-blog-data")
-   ;;                      :content (S/class "blog-section")}
-   ;;                     {:description #(-> % first :attrs :content)
-   ;;                      :author #(-> % first :content first)
-   ;;                      :ts #(some-> % first :content first
-   ;;                            (partial tf/parse (tf/formatter "MMMM dd, yyyy")))})
-   ;;              :tags #{:startups}
-   ;;              :cron cron-daily}
    })
 
 ;;;; todo
