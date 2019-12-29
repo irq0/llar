@@ -42,7 +42,7 @@ div.navbar-toggler {
 }
 
 /* phone */
-@media (max-width: 699px) {
+@media (max-width: 768px) {
     div.item-content-body h1,h2,h3,h4 {
 	padding-top: 0.2em;
 	text-align: left;
@@ -73,8 +73,28 @@ div.navbar-toggler {
     }
 }
 
-/* desktop / tablet */
-@media (min-width: 700px) and (max-width: 1499px) {
+/* tablet  */
+@media (min-width: 769px) and (max-width: 991px) {
+    div.item-content-body {
+	font-family: charter, serif;
+	text-align: justify;
+	line-height: 1.9;
+	font-size: 13pt;
+	max-width: 60ch;
+	margin: auto;
+	padding-bottom: 1.5em;
+    }
+    div.item-content-body h1,h2,h3,h4 {
+	font-family: charter, serif;
+	padding-top: 0.8em;
+	padding-bottom: 0.2em;
+	text-align: left;
+	font-weight: 600;
+    }
+}
+
+/* standard desktop */
+@media (min-width: 992px) and (max-width: 1700px) {
     div.item-content-body {
 	font-family: charter, serif;
 	text-align: justify;
@@ -94,7 +114,7 @@ div.navbar-toggler {
 }
 
 /* large desktop */
-@media (min-width: 1500px) {
+@media (min-width: 1700px) {
     div.item-content-body {
 	font-family: charter, serif;
 	text-align: justify;
@@ -207,56 +227,102 @@ sidebar {
     padding-top: 2em;
 }
 
-@media (max-width: 699px) {
-.sidebar-right {
-    position: fixed;
-    padding-top: 8em;
-    top: 0;
-    bottom: 0;
-  overflow: scroll;
-  z-index: 100;
-  position: -webkit-sticky;
-  position: sticky;
-  top: 48px; /* Height of navbar */
-  height: calc(100vh - 48px);
-  padding-top: .5rem;
-  overflow-x: hidden;
-  overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
-}
+
+    .sidebar-right {
+	padding-top: .5rem;
+	z-index: 100;
+	position: fixed;
+	height: calc(100vh - 48px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	width: 100%;
+	right: 0px;
+    }
+    main {
+	overflow-x: hidden;
+    }
+    .sidebar-left {
+	padding-top: .5rem;
+	z-index: 100;
+	position: fixed;
+	height: calc(100vh - 48px);
+	overflow-x: hidden;
+	overflow-y: auto;
+	width: 100%;
+    }
+
+/* tablet */
+@media (min-width: 500px) and (max-width: 800px) {
+    .sidebar-right {
+	z-index: 100;
+	padding: 0;
+	box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+	position: fixed;
+	height: calc(100vh - 48px);
+	padding-top: .5rem;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding-bottom: 32px;
+	width: 30%;
+	right: 0px;
+    }
+    main {
+	overflow-x: hidden;
+    }
+    .sidebar-left {
+	z-index: 100;
+	padding: 0;
+	box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+	position: fixed;
+	height: calc(100vh - 48px);
+	padding-top: .5rem;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding-bottom: 32px;
+	width: 30%;
+    }
 }
 
-@media (min-width: 700px) {
-.sidebar-right {
-  position: fixed;
-  bottom: 0;
-  right: 0;
-  z-index: 100; /* Behind the navbar */
-  padding-left: 0.2em;
-  padding-bottom: 1em;
-  box-shadow: inset 1px 0 0 rgba(0, 0, 0, .1);
-  top: 48px; /* Height of navbar */
 
-  padding-top: .5rem;
-  overflow-x: hidden;
-  overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
-}
-.sidebar-left {
-  z-index: 100; /* Behind the navbar */
-  padding: 0;
-  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
-  position: -webkit-sticky;
-  position: sticky;
-  top: 48px; /* Height of navbar */
-  height: calc(100vh - 48px);
-  padding-top: .5rem;
-  overflow-x: hidden;
-  overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
-  padding-bottom: 32px;
-}
+/* standard desktop */
+@media (min-width: 800px) {
+    .sidebar-right {
+	position: fixed;
+	bottom: 0;
+	right: 0;
+	z-index: 100; /* Behind the navbar */
+	padding-left: 0.2em;
+	padding-bottom: 1em;
+	box-shadow: inset 1px 0 0 rgba(0, 0, 0, .1);
+	top: 48px; /* Height of navbar */
 
-#left-nav {
+	padding-top: .5rem;
+	overflow-x: hidden;
+	overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
+    }
+    .sidebar-left {
+	z-index: 100; /* Behind the navbar */
+	padding: 0;
+	box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+	position: -webkit-sticky;
+	position: sticky;
+	top: 48px; /* Height of navbar */
+	height: calc(100vh - 48px);
+	padding-top: .5rem;
+	overflow-x: hidden;
+	overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
+	padding-bottom: 32px;
+    }
+    #sourcenav {
+	display: block;
+    }
+    #groupnav {
+	display: block;
+    }
 
-}
+    #left-nav {
+
+    }
 
 }
 
@@ -424,10 +490,10 @@ sidebar {
 }
 
 @media (min-width: 1500px) {
-.navbar ol {
-    display: -webkit-inline-box;
-    overflow: hidden;
-}
+    .navbar ol {
+	display: -webkit-inline-box;
+	overflow: hidden;
+    }
 }
 
 .navbar ol li {
@@ -438,15 +504,6 @@ sidebar {
 
 main {
     padding-top: 1em;
-}
-
-@media (min-width: 700px) {
-  #sourcenav {
-    display: block;
-  }
-  #groupnav {
-    display: block;
-  }
 }
 
 .viewport-pivot::before {

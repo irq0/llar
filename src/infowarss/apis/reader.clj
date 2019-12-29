@@ -274,7 +274,7 @@
           (for [btn +tag-buttons+]
             (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
           next-item-button])
-       [:div {:class "col-xs-4 text-right d-block d-sm-none"}
+       [:div {:class "col-xs-4 text-right d-block d-md-none"}
         [:a {:class "btn btn-secondary"
              :data-toggle "collapse"
              :href "#groupnav"
