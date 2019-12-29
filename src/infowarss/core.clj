@@ -174,11 +174,11 @@
 (def ^:dynamic *srcs*
   {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api creds))
                :proc (proc/make
-                       :filter (fn [item]
-                                 (->> item
-                                   :entry
-                                   :type
-                                   #{:retweet})))
+                      :filter (fn [item]
+                                (->> item
+                                     :entry
+                                     :type
+                                     #{:retweet})))
                :tags #{}
                :cron cron-twitter}
    ;; :twit-augsburg-pics {:src (src/twitter-search "augsburg filter:images"
@@ -196,48 +196,48 @@
                       :cron cron-twitter}
 
    :twit-berlin-pics {:src (src/twitter-search "#berlin filter:images"
-                               (:twitter-api creds))
+                                               (:twitter-api creds))
                       :options #{:mark-read-on-view}
                       :proc (proc/make
-                              :filter (fn [item]
-                                          (let [type (get-in item [:entry :type])
-                                                text (get-in item [:entry :contents "text/plain"])]
-                                            (or
-                                              (#{:retweet} type)
-                                              (= (count (get-in item [:entry :entities :photos])) 0)
-                                              (re-find #"pussy|porn|camsex|webcam" text))))
-                                :proc [(fn [item]
-                                         (assoc-in item [:entry :contents "text/html"]
-                                           (format "<img src=\"%s\"/>"
-                                             (first (get-in item [:entry :entities :photos])))))])
-                        :tags #{:pics}
-                        :cron cron-hourly}
+                             :filter (fn [item]
+                                       (let [type (get-in item [:entry :type])
+                                             text (get-in item [:entry :contents "text/plain"])]
+                                         (or
+                                          (#{:retweet} type)
+                                          (= (count (get-in item [:entry :entities :photos])) 0)
+                                          (re-find #"pussy|porn|camsex|webcam" text))))
+                             :proc [(fn [item]
+                                      (assoc-in item [:entry :contents "text/html"]
+                                                (format "<img src=\"%s\"/>"
+                                                        (first (get-in item [:entry :entities :photos])))))])
+                      :tags #{:pics}
+                      :cron cron-hourly}
 
    :fefe {:src (src/selector-feed "https://blog.fefe.de"
-                 {:urls (S/descendant
-                          (S/find-in-text #"\[l\]"))
-                  :ts (S/tag :h3)
-                  :title (S/tag :li)
-                  :content (S/tag :li)}
-                 {:content  #(->> % first :content (drop 1))
-                  :author "fefe"
-                  :urls (fn [l] (map (fn [x] (->> x :attrs :href)) l))
-                  :title (fn [l]
-                           (human/truncate
-                             (->> l
-                               first
-                               :content
-                               (drop 1)
-                               first
-                               hickory-to-html
-                               (converter/html2text))
-                             70))
+                                  {:urls (S/descendant
+                                          (S/find-in-text #"\[l\]"))
+                                   :ts (S/tag :h3)
+                                   :title (S/tag :li)
+                                   :content (S/tag :li)}
+                                  {:content  #(->> % first :content (drop 1))
+                                   :author "fefe"
+                                   :urls (fn [l] (map (fn [x] (->> x :attrs :href)) l))
+                                   :title (fn [l]
+                                            (human/truncate
+                                             (->> l
+                                                  first
+                                                  :content
+                                                  (drop 1)
+                                                  first
+                                                  hickory-to-html
+                                                  (converter/html2text))
+                                             70))
 
-                  :ts #(->> %
-                         first
-                         :content
-                         first
-                         (tf/parse (tf/formatter "EEE MMM dd yyyy")))})
+                                   :ts #(->> %
+                                             first
+                                             :content
+                                             first
+                                             (tf/parse (tf/formatter "EEE MMM dd yyyy")))})
           :tags #{:blog}
           :cron cron-hourly}
 
@@ -255,28 +255,28 @@
    ;;        :cron cron-hourly}
 
    :upwork-personal {:src (src/feed
-"https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
+                           "https://www.upwork.com/ab/feed/topics/atom?securityToken=c037416c760678f3b3aa058a7d31f4a0dc32a269dd2f8f947256d915b19c8219029b5846f9f18209e6890ca6b72be221653cf275086926945f522d934a200eec&userUid=823911365103362048&orgUid=823911365107556353")
                      :tags #{:jobs}
                      :cron cron-hourly
                      :proc (proc/make
-                             :filter (fn [item]
-                                       (let [wants (get-in item [:entry :nlp :nouns])
-                                             haves #{"python" "clojure" "ceph" "c++" "c" "logstash" "kibana" "java" "linux"}
-                                             dontwants #{"php" "node.js" "javascript" "ecmascript" "wordpress" "scrapy" "django"}]
-                                         (not
-                                           (and (< (count (intersection wants dontwants)) 2)
-                                             (>= (count (intersection wants haves)) 1))))))}
+                            :filter (fn [item]
+                                      (let [wants (get-in item [:entry :nlp :nouns])
+                                            haves #{"python" "clojure" "ceph" "c++" "c" "logstash" "kibana" "java" "linux"}
+                                            dontwants #{"php" "node.js" "javascript" "ecmascript" "wordpress" "scrapy" "django"}]
+                                        (not
+                                         (and (< (count (intersection wants dontwants)) 2)
+                                              (>= (count (intersection wants haves)) 1))))))}
 
    :irq0 {:src (src/feed "http://irq0.org/news/index.atom")
           :proc (proc/make
-                  :post [(proc/add-tag :personal)])
+                 :post [(proc/add-tag :personal)])
           :tags #{:personal}
           :cron cron-daily}
 
    :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
                    :cron cron-daily
                    :proc (proc/make
-                           :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+                          :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
                    :tags #{:tech :magazine}}
 
    :danluu {:src (src/feed "https://danluu.com/atom.xml")
@@ -291,7 +291,7 @@
                     :tags #{:tech :blog}
                     :cron cron-daily}
    :chneukirchen {:src (src/feed "http://chneukirchen.org/trivium/index.atom")
-                    :tags #{:tech :blog}
+                  :tags #{:tech :blog}
                   :cron cron-daily}
    :codinghorror {:src (src/feed "http://feeds.feedburner.com/codinghorror")
                   :tags #{:tech :blog}
@@ -302,9 +302,9 @@
    :summit-route {:src (src/feed "http://summitroute.com/blog/feed.xml")
                   :tags #{:tech :security :blog}
                   :proc (proc/make
-                          :post [(proc/exchange
-                                   [:entry :descriptions]
-                                   [:entry :contents])])
+                         :post [(proc/exchange
+                                 [:entry :descriptions]
+                                 [:entry :contents])])
                   :cron cron-daily}
    :joe-duffy {:src (src/feed "http://joeduffyblog.com/feed.xml" :deep? true)
                :tags #{:tech :blog}
@@ -315,8 +315,8 @@
            :cron cron-daily}
 
    :n99pi {:src (src/feed "https://feeds.feedburner.com/99pi")
-          :tags #{:design}
-          :cron cron-daily}
+           :tags #{:design}
+           :cron cron-daily}
 
    :kottke {:src (src/feed "http://feeds.kottke.org/main")
             :tags #{:magazine}
@@ -329,9 +329,9 @@
 
    :soundcloud-backstage {:src (src/feed "https://developers.soundcloud.com/blog.rss")
                           :proc (proc/make
-                                  :post [(proc/exchange
-                                           [:entry :descriptions]
-                                           [:entry :contents])])
+                                 :post [(proc/exchange
+                                         [:entry :descriptions]
+                                         [:entry :contents])])
                           :tags #{:tech}
                           :cron cron-daily}
 
@@ -342,9 +342,9 @@
    :weekly-programming-digest {:src (src/feed "http://feeds.feedburner.com/digest-programming")
                                :tags #{:tech :digest}
                                :proc (proc/make
-                                       :post [(proc/exchange
-                                                [:entry :descriptions]
-                                                [:entry :contents])])
+                                      :post [(proc/exchange
+                                              [:entry :descriptions]
+                                              [:entry :contents])])
                                :cron cron-daily}
 
    :usenix-conferences {:src (src/feed "https://www.usenix.org/upcoming-conferences-feed")
@@ -386,8 +386,8 @@
                     :proc (make-reddit-proc 50000)}
 
    :reddit-europe {:src (src/reddit "europe" :top)
-                    :cron cron-daily
-                    :tags #{:reddit}
+                   :cron cron-daily
+                   :tags #{:reddit}
                    :proc (make-reddit-proc 300)}
 
    :reddit-photoshopbattles {:src (src/reddit "photoshopbattles" :hot)
@@ -478,23 +478,23 @@
                  :cron cron-daily
                  :tags #{:shopping}
                  :proc (proc/make
-                         :filter (make-category-filter ["Handys &amp; Tablets" "Home &amp; Living" "Fashion &amp; Accessoires"])
-                         :post [(fn [item]
-                                  (let [raw (:raw item)
-                                        merchant (->> raw
-                                                   :foreign-markup
-                                                   (some #(when (= (.getName %) "merchant") %)))]
-                                    (-> item
-                                      (assoc-in [:entry :merchant] (some-> merchant (.getAttribute "name") .getValue))
-                                      (assoc-in [:entry :price] (some-> merchant (.getAttribute "price") .getValue)))))])}
+                        :filter (make-category-filter ["Handys &amp; Tablets" "Home &amp; Living" "Fashion &amp; Accessoires"])
+                        :post [(fn [item]
+                                 (let [raw (:raw item)
+                                       merchant (->> raw
+                                                     :foreign-markup
+                                                     (some #(when (= (.getName %) "merchant") %)))]
+                                   (-> item
+                                       (assoc-in [:entry :merchant] (some-> merchant (.getAttribute "name") .getValue))
+                                       (assoc-in [:entry :price] (some-> merchant (.getAttribute "price") .getValue)))))])}
 
    :humblebundle {:src (src/feed "http://blog.humblebundle.com/rss")
                   :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                         :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                   :cron cron-daily
                   :tags #{:shopping}}
 
-;; TODO   :metacritic {:src (src/feed "http://www.metacritic.com/rss/music"
+   ;; TODO   :metacritic {:src (src/feed "http://www.metacritic.com/rss/music"
 
    :vice {:src (src/feed "https://www.vice.com/en_us/rss" :deep? true :force-update? true)
           :options #{:mark-read-on-view}
@@ -505,40 +505,40 @@
             :tags #{:tech}
             :options #{:mark-read-on-view}
             :proc (proc/make
-                    :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
-                    :filter (make-hacker-news-filter 350 150))}
+                   :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
+                   :filter (make-hacker-news-filter 350 150))}
 
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
              :tags #{:tech}
              :options #{:mark-read-on-view}
              :proc (proc/make
-                     :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
-                     :filter (make-hacker-news-filter 350 150))}
+                    :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)]
+                    :filter (make-hacker-news-filter 350 150))}
 
    :xkcd {:src (src/feed "https://xkcd.com/rss.xml")
           :proc (proc/make
-                  :post [(fn [item]
-                           (let [hick (-> (hick/parse (get-in item [:entry :descriptions "text/html"])) hickory.core/as-hickory)
-                                 alt-text (-> (S/select
-                                               (S/descendant
-                                                 (S/tag :img)) hick)
-                                            first :attrs :alt)]
-                             (log/spy alt-text)
-                             (-> item
-                               (assoc-in [:entry :contents "text/html"]
-                                 (str
-                                   (get-in item [:entry :descriptions "text/html"])
-                                   "<p>" alt-text "</p>")))))])
+                 :post [(fn [item]
+                          (let [hick (-> (hick/parse (get-in item [:entry :descriptions "text/html"])) hickory.core/as-hickory)
+                                alt-text (-> (S/select
+                                              (S/descendant
+                                               (S/tag :img)) hick)
+                                             first :attrs :alt)]
+                            (log/spy alt-text)
+                            (-> item
+                                (assoc-in [:entry :contents "text/html"]
+                                          (str
+                                           (get-in item [:entry :descriptions "text/html"])
+                                           "<p>" alt-text "</p>")))))])
           :cron cron-daily
           :tags #{:comics}}
 
    :daily-wtf {:src (src/feed "http://syndication.thedailywtf.com/TheDailyWtf")
                :tags #{:fun}
                :proc (proc/make
-                       :filter (fn [item]
-                                 (let [title (get-in item [:summary :title])]
-                                   (re-find #"^(Sponsor Post|CodeSOD|Error'd|Representative Line):" title)))
-                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                      :filter (fn [item]
+                                (let [title (get-in item [:summary :title])]
+                                  (re-find #"^(Sponsor Post|CodeSOD|Error'd|Representative Line):" title)))
+                      :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                :cron cron-daily}
 
    :pixelenvy {:src (src/feed "https://feedpress.me/pxlnv")
@@ -546,18 +546,18 @@
                :options #{:mark-read-on-view}
                :tags #{:magazine}
                :proc (proc/make
-                       :filter (fn [item]
-                                 (let [names (get-in item [:entry :nlp :names])
-                                       dontwant #{"App Store" "Apple" "Apple Music" "Apple Store" "MacOS" "OSX"}]
-                                   (log/spy (intersection names dontwant))
-                                   (>= (count (intersection names dontwant)) 2))))}
+                      :filter (fn [item]
+                                (let [names (get-in item [:entry :nlp :names])
+                                      dontwant #{"App Store" "Apple" "Apple Music" "Apple Store" "MacOS" "OSX"}]
+                                  (log/spy (intersection names dontwant))
+                                  (>= (count (intersection names dontwant)) 2))))}
    :rumpus {:src (src/feed "http://therumpus.net/feed/")
             :options #{:mark-read-on-view}
             :tags #{:magazine}
             :cron cron-daily}
 
    :atlantic-best-of {:src (src/feed "https://www.theatlantic.com/feed/best-of/")
-            :options #{:mark-read-on-view}
+                      :options #{:mark-read-on-view}
                       :tags #{:magazine}
                       :cron cron-daily}
 
@@ -566,35 +566,35 @@
 
    :newsletter-mailbox {:src (src/imap "imap://mail.cpu0.net/NEWSLETTER" (:imap creds))
                         :proc (proc/make
-                                :post [(fn [item]
-                                         (let [sane-html (some-> (get-in item [:entry :contents "text/html"])
-                                                           hick/parse
-                                                           hick/as-hickory
-                                                           http/sanitize
-                                                           http/blobify
-                                                           hickory-to-html)
-                                               headers (get-in item [:raw :headers])
-                                               from-address (get-in item [:raw :from :address])
-                                               find-header (fn [k] (some-> (filter
-                                                                            (fn [x]
-                                                                              (= (some-> x first key string/lower-case) k))
-                                                                            headers)
-                                                                    first first val))
-                                               mail-sender (or
-                                                             (some-> item :raw :from first :name)
-                                                             (find-header "sender")
-                                                             (find-header "from")
-                                                             (find-header "list-id")
-                                                             "unknown")
-                                               src-key (str "newsletter-"
-                                                         (-> mail-sender
-                                                           (string/replace #"[^\w]" "_")
-                                                           string/lower-case))
-                                               src-name (str "[NEWSLETTER: " mail-sender)]
-                                           (-> item
-                                             (assoc-in [:entry :contents "text/html"] sane-html)
-                                             (assoc-in [:meta :source-key] src-key)
-                                             (assoc-in [:meta :source-name] src-name))))])
+                               :post [(fn [item]
+                                        (let [sane-html (some-> (get-in item [:entry :contents "text/html"])
+                                                                hick/parse
+                                                                hick/as-hickory
+                                                                http/sanitize
+                                                                http/blobify
+                                                                hickory-to-html)
+                                              headers (get-in item [:raw :headers])
+                                              from-address (get-in item [:raw :from :address])
+                                              find-header (fn [k] (some-> (filter
+                                                                          (fn [x]
+                                                                            (= (some-> x first key string/lower-case) k))
+                                                                          headers)
+                                                                         first first val))
+                                              mail-sender (or
+                                                           (some-> item :raw :from first :name)
+                                                           (find-header "sender")
+                                                           (find-header "from")
+                                                           (find-header "list-id")
+                                                           "unknown")
+                                              src-key (str "newsletter-"
+                                                           (-> mail-sender
+                                                               (string/replace #"[^\w]" "_")
+                                                               string/lower-case))
+                                              src-name (str "[NEWSLETTER: " mail-sender)]
+                                          (-> item
+                                              (assoc-in [:entry :contents "text/html"] sane-html)
+                                              (assoc-in [:meta :source-key] src-key)
+                                              (assoc-in [:meta :source-name] src-name))))])
                         :cron cron-daily}
 
    :pocoo-lucumr {:src (src/feed "http://lucumr.pocoo.org/feed.atom")
@@ -607,7 +607,7 @@
    :programmingisterrible {:src (src/feed "http://programmingisterrible.com/rss")
                            :tags #{:tech :blog}
                            :proc (proc/make
-                                   :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                  :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                            :cron cron-daily}
 
    :preshing {:src (src/feed "http://preshing.com/feed")
@@ -621,68 +621,68 @@
    :elibendersky {:src (src/feed "http://eli.thegreenplace.net/feeds/all.atom.xml")
                   :tags #{:tech :blog}
                   :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                         :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                   :cron cron-daily}
 
    :abstrusegoose {:src (src/feed "http://abstrusegoose.com/atomfeed.xml")
                    :proc (proc/make
-                           :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                    :tags #{:comics}
                    :cron cron-daily}
 
    :cyanidehappiness {:src (src/feed "https://feeds.feedburner.com/Explosm")
                       :proc (proc/make
-                              :post [(fn [item]
-                                       (let [html (http/fetch (get-in item [:entry :url]))
-                                             comic-link (some-> (S/select
-                                                             (S/descendant
-                                                               (S/id "comic-container")
-                                                               (S/tag :img)) (:hickory html))
+                             :post [(fn [item]
+                                      (let [html (http/fetch (get-in item [:entry :url]))
+                                            comic-link (some-> (S/select
+                                                                (S/descendant
+                                                                 (S/id "comic-container")
+                                                                 (S/tag :img)) (:hickory html))
 
-                                                          first :attrs :src (string/replace #"^http://explosm.net///" "http://"))]
-                                         (-> item
-                                           (assoc-in [:entry :contents "text/html"] (format "<img src=\"%s\"/>" comic-link)))))])
+                                                               first :attrs :src (string/replace #"^http://explosm.net///" "http://"))]
+                                        (-> item
+                                            (assoc-in [:entry :contents "text/html"] (format "<img src=\"%s\"/>" comic-link)))))])
                       :tags #{:comics}
                       :cron cron-daily}
 
    :joyoftech {:src (src/feed "http://www.joyoftech.com/joyoftech/jotblog/atom.xml" :force-update? false)
                :proc (proc/make
-                       :post [(fn [item]
-                                (let [html (http/fetch (get-in item [:entry :url]))
-                                      comic-img (-> (S/select
-                                                      (S/descendant
-                                                        (S/tag :div)
-                                                        (S/nth-child 3)
-                                                        (S/tag :a)
-                                                        (S/tag :img))
-                                                      (:hickory html))
-                                                  second :attrs)
-                                      comic-src (-> comic-img :src (subs 3))
-                                      comic-alt (-> comic-img :alt)
-                                      comic-url (str "https://www.geekculture.com/joyoftech/" comic-src)]
-                                  (-> item
-                                    (assoc-in [:entry :contents "text/html"]
-                                      (format "<img src=\"%s\"/><p>%s</p>" comic-url comic-alt)))))])
-                       :tags #{:comics}
-                       :cron cron-daily}
+                      :post [(fn [item]
+                               (let [html (http/fetch (get-in item [:entry :url]))
+                                     comic-img (-> (S/select
+                                                    (S/descendant
+                                                     (S/tag :div)
+                                                     (S/nth-child 3)
+                                                     (S/tag :a)
+                                                     (S/tag :img))
+                                                    (:hickory html))
+                                                   second :attrs)
+                                     comic-src (-> comic-img :src (subs 3))
+                                     comic-alt (-> comic-img :alt)
+                                     comic-url (str "https://www.geekculture.com/joyoftech/" comic-src)]
+                                 (-> item
+                                     (assoc-in [:entry :contents "text/html"]
+                                               (format "<img src=\"%s\"/><p>%s</p>" comic-url comic-alt)))))])
+               :tags #{:comics}
+               :cron cron-daily}
 
    :theoatmeal {:src (src/feed "https://feeds.feedburner.com/oatmealfeed"
-                       :force-update? false)
+                               :force-update? false)
                 :tags #{:comics}
                 :proc (proc/make
-                        :post [(fn [item]
-                                 (let [html (http/fetch (get-in item [:entry :url]))
-                                       content (-> (S/select
-                                                (S/descendant
-                                                  (S/id :comic))
-                                                (:hickory html))
-                                                 first hickory.render/hickory-to-html)]
-                                   (if (string? content)
-                                     (-> item
-                                       (assoc-in [:entry :contents "text/html"]
-                                         content))
-                                     item)))])
-               :cron cron-daily}
+                       :post [(fn [item]
+                                (let [html (http/fetch (get-in item [:entry :url]))
+                                      content (-> (S/select
+                                                   (S/descendant
+                                                    (S/id :comic))
+                                                   (:hickory html))
+                                                  first hickory.render/hickory-to-html)]
+                                  (if (string? content)
+                                    (-> item
+                                        (assoc-in [:entry :contents "text/html"]
+                                                  content))
+                                    item)))])
+                :cron cron-daily}
 
    :bookmark {:src nil
               :tags #{:bookmark}}
@@ -700,25 +700,25 @@
    :tumblr-awkwardstockphotos {:src (src/feed "http://awkwardstockphotos.com/rss")
                                :tags #{:fun}
                                :proc (proc/make
-                                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                      :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                                :cron cron-daily}
    :tumblr-weirdtumblrs {:src (src/feed "http://weirdtumblrs.tumblr.com/rss")
                          :tags #{:fun}
                          :proc (proc/make
-                                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                          :cron cron-daily}
 
    :tumblr-mcmensionhell {:src (src/feed "http://mcmansionhell.com/rss")
                           :tags #{:fun}
                           :proc (proc/make
-                                  :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                           :cron cron-daily}
 
    :tumblr-runningahackerspace {:src (src/feed "https://runningahackerspace.tumblr.com/rss")
                                 :tags #{:fun}
-                          :proc (proc/make
-                                  :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
-                          :cron cron-daily}
+                                :proc (proc/make
+                                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                                :cron cron-daily}
 
    :orkpiraten {:src (src/feed "https://www.orkpiraten.de/blog/feed")
                 :tags #{:fun :blog}
@@ -754,7 +754,7 @@
 
    :usenix-multimedia {:src (src/feed "https://www.usenix.org/multimedia/rss.xml")
                        :proc (proc/make
-                               :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                              :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                        :tags #{:sci}
                        :cron cron-daily}
 
@@ -762,7 +762,7 @@
                        :options #{:mark-read-on-view}
                        :tags #{:magazine}
                        :proc (proc/make
-                               :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                              :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                        :cron cron-daily}
 
    :theverge {:src (src/feed "https://www.theverge.com/rss/full.xml")
@@ -784,24 +784,24 @@
    :ccc {:src (src/feed "http://www.ccc.de/de/rss/updates.rdf")
          :tags #{:politics}
          :proc (proc/make
-                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
          :cron cron-daily}
 
    :flarp {:src (src/feed "http://www.flarp.de/feed/")
            :proc (proc/make
-                   :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                  :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
            :tags #{:berlin}
            :cron cron-daily}
 
    :inside-hpc {:src (src/feed "http://feeds.feedburner.com/insidehpc")
                 :tags #{:hpc}
-                  :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                :proc (proc/make
+                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                 :cron cron-daily}
 
    :github-trends {:src (src/feed "http://github-trends.ryotarai.info/rss/github_trends_all_weekly.rss")
                    :tags #{:trends}
-                  :proc (proc/make
+                   :proc (proc/make
                           :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                    :cron cron-daily}
 
@@ -809,7 +809,7 @@
    :snia-storage {:src (src/feed "http://sniablog.org/feed/atom/")
                   :tags #{:storage}
                   :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                         :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                   :cron cron-daily}
 
    :ibm-dev-storage {:src (src/feed "https://developer.ibm.com/storage/feed/")
@@ -826,13 +826,13 @@
 
 
    :pragmaticemacs {:src (src/feed "http://pragmaticemacs.com/feed/")
-                     :tags #{:emacs :blog}
-                     :cron cron-daily}
+                    :tags #{:emacs :blog}
+                    :cron cron-daily}
 
    :mattmight {:src (src/feed "http://matt.might.net/articles/feed.rss" :force-update? false)
                :tags #{:tech-meta :blog}
                :proc (proc/make
-                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                      :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                :cron cron-daily}
 
    :infoq-articles {:src (src/feed "https://www.infoq.com/feed/articles" :force-update? false :deep? true)
@@ -844,22 +844,22 @@
                 :proc (proc/make
                        :post [(fn [item]
                                 (let [hickory (->
-                                             (hick/parse (get-in item [:entry :contents "text/html"]))
-                                             hick/as-hickory)
+                                               (hick/parse (get-in item [:entry :contents "text/html"]))
+                                               hick/as-hickory)
                                       content (-> (S/select (S/descendant (S/id "mainContent")) hickory)
-                                                first)
+                                                  first)
                                       html (hickory-to-html content)]
                                   (-> item
-                                    (assoc-in [:entry :contents]
-                                      {"text/html" html
-                                       "text/plain" (converter/html2text html)}))))])
+                                      (assoc-in [:entry :contents]
+                                                {"text/html" html
+                                                 "text/plain" (converter/html2text html)}))))])
 
                 :cron cron-daily}
 
    :startup50 {:src (src/feed "http://startup50.com/feed/" :force-update? false)
                :tags #{:corporate}
                :proc (proc/make
-                       :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+                      :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
                :cron cron-daily}
 
    :clearskydata {:src (src/feed "https://www.clearskydata.com/blog/rss.xml")
@@ -934,12 +934,12 @@
 
    :theregister-storage {:src (src/feed "https://www.theregister.co.uk/data_centre/storage/headlines.atom" :force-update? false)
                          :proc (proc/make
-                                 :post [(fn [item]
-                                  (let [url (get-in item [:entry :url])
-                                        fixed-url (string/replace url #"go\.theregister\.com/feed/" "")]
-                                    (-> item
-                                      (assoc-in [:entry :url] fixed-url))))
-                                (proc/mercury-contents (:mercury creds) :keep-orig? false)])
+                                :post [(fn [item]
+                                         (let [url (get-in item [:entry :url])
+                                               fixed-url (string/replace url #"go\.theregister\.com/feed/" "")]
+                                           (-> item
+                                               (assoc-in [:entry :url] fixed-url))))
+                                       (proc/mercury-contents (:mercury creds) :keep-orig? false)])
                          :options #{:mark-read-on-view}
                          :tags #{:storage :magazine}
                          :cron cron-daily}
@@ -951,53 +951,54 @@
 
    :infostor {:src (src/feed "http://www.infostor.com/index/rssfaq/rss_article_and_wp.noncurrentissue.articles.infostor.html?block" :force-update? false)
               :proc (proc/make
-                      :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+                     :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
               :tags #{:storage :magazine}
               :cron cron-daily}
 
    ;; wordpress
    :scality {:src (src/selector-feed "https://www.scality.com/blog/"
-                    {:urls (S/descendant
-                             (S/class "read--more--button")
-                             (S/tag :a))
-                     :description (S/and
-                                    (S/tag :meta)
-                                    (S/attr :name #(= % "description")))
-                     :author (S/class "author")
-                     :ts (S/and
-                           (S/tag :meta)
-                           (S/attr :property #(= % "article:published_time")))
-                     :content (S/tag :article)}
-                    {:description #(-> % first :attrs :content)
-                     :author #(-> % first :content)
-                     :ts #(-> % first :attrs :content tc/from-string)})
+                                     {:urls (S/descendant
+                                             (S/class "read--more--button")
+                                             (S/tag :a))
+                                      :description (S/and
+                                                    (S/tag :meta)
+                                                    (S/attr :name #(= % "description")))
+                                      :author (S/class "author")
+                                      :ts (S/and
+                                           (S/tag :meta)
+                                           (S/attr :property #(= % "article:published_time")))
+                                      :content (S/tag :article)}
+                                     {:description #(-> % first :attrs :content)
+                                      :author #(-> % first :content)
+                                      :ts #(-> % first :attrs :content tc/from-string)})
              :tags #{:corporate}
              :cron cron-daily}
 
    :qumulo-eng {:src (src/selector-feed "https://qumulo.com/blog/tag/engineering/"
-                       {:urls (S/descendant
-                                (S/class "listitem-media__body")
-                                (S/tag :a))
-                        :description (S/and
-                                       (S/tag :meta)
-                                       (S/attr :name #(= % "description")))
-                        :title (S/descendant (S/class "band") (S/tag :h1))
-                        :author (S/descendant (S/class "band") (S/tag :h5))
-                        :ts (S/descendant (S/class "band") (S/tag :h5))}
-                       {:title #(-> % first :content first)
-                        :description #(-> % first :attrs :content)
-                        :author #(some->> % first :content first
-                                  (re-seq #"\s+(.+) —") (map second))
-                        :ts #(some->> % first :content first
-                              (re-find #"Posted (\w+ \d+, \d{4})")
-                              second
-                              (tf/parse (tf/formatter "MMMM dd, yyyy")))})
-             :tags #{:corporate}
+                                        {:urls (S/descendant
+                                                (S/class "listitem-media__body")
+                                                (S/tag :a))
+                                         :description (S/and
+                                                       (S/tag :meta)
+                                                       (S/attr :name #(= % "description")))
+                                         :title (S/descendant (S/class "band") (S/tag :h1))
+                                         :author (S/descendant (S/class "band") (S/tag :h5))
+                                         :ts (S/descendant (S/class "band") (S/tag :h5))}
+                                        {:title #(-> % first :content first)
+                                         :description #(-> % first :attrs :content)
+                                         :author #(some->> % first :content first
+                                                           (re-seq #"\s+(.+) —") (map second))
+                                         :ts #(some->> % first :content first
+                                                       (re-find #"Posted (\w+ \d+, \d{4})")
+                                                       second
+                                                       (tf/parse (tf/formatter "MMMM dd, yyyy")))})
+                :tags #{:corporate}
                 :cron cron-daily}
 
-   :joyent {:src (src/feed "https://www.joyent.com/blog/feed" :deep? true)
-            :tags #{:corporate}
-            :cron cron-daily}
+   :joyent {:src (src/feed "https://www.joyent.com/blog/feed")
+            :proc (proc/make
+                   :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+            :tags #{:corporate}}
 
 
    :wekaio {:src (src/wp-json "https://www.weka.io/wp-json")
@@ -1005,7 +1006,7 @@
             :cron cron-daily}
 
    :quantum {:src (src/wp-json "https://blog.quantum.com/wp-json/")
-            :tags #{:corporate}
+             :tags #{:corporate}
              :cron cron-daily}
 
    :objectmatrix {:src (src/wp-json "http://object-matrix.com/wp-json/")
@@ -1015,27 +1016,27 @@
    :collabora {:src (src/feed "https://www.collabora.com/newsroom-rss-feed.rss")
                :tags #{:corporate}
                :proc (proc/make
-                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                      :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                :cron cron-daily}
 
    :systemswelove {:src (src/website "https://systemswe.love/")
-               :tags #{:conference}
-               :cron cron-daily}
+                   :tags #{:conference}
+                   :cron cron-daily}
 
    :signalvnoise {:src (src/feed "https://m.signalvnoise.com/feed")
                   :tags #{:tech :blog}
                   :cron cron-daily}
 
    :seriouseats-foodlab {:src (src/feed "https://feeds.feedburner.com/SeriousEats-thefoodlab"
-                                :force-update? false)
+                                        :force-update? false)
                          :proc (proc/make
-                                 :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+                                :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
                          :cron cron-daily
                          :tags #{:food}}
    :seriouseats-recipes {:src (src/feed "https://feeds.feedburner.com/seriouseats/recipes"
-                                :force-update? false)
+                                        :force-update? false)
                          :proc (proc/make
-                                 :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
+                                :post [(proc/mercury-contents (:mercury creds) :keep-orig? true)])
                          :cron cron-daily
                          :tags #{:food}}
 
@@ -1055,17 +1056,17 @@
    :otherlandbooks {:src (src/feed "https://www.otherland-berlin.de/share/otherland_magazin.xml" :deep? true)
                     :tags #{:berlin}
                     :proc (proc/make
-                            :post [(fn [item]
-                                     (let [hickory (->
-                                                     (hick/parse (get-in item [:entry :contents "text/html"]))
-                                                     hick/as-hickory)
-                                           content (-> (S/select (S/descendant (S/id "news-details")) hickory)
-                                                     first)
-                                           html (hickory-to-html content)]
-                                       (-> item
-                                         (assoc-in [:entry :contents]
-                                           {"text/html" html
-                                            "text/plain" (converter/html2text html)}))))])
+                           :post [(fn [item]
+                                    (let [hickory (->
+                                                   (hick/parse (get-in item [:entry :contents "text/html"]))
+                                                   hick/as-hickory)
+                                          content (-> (S/select (S/descendant (S/id "news-details")) hickory)
+                                                      first)
+                                          html (hickory-to-html content)]
+                                      (-> item
+                                          (assoc-in [:entry :contents]
+                                                    {"text/html" html
+                                                     "text/plain" (converter/html2text html)}))))])
                     :cron cron-daily}
 
 
@@ -1075,13 +1076,13 @@
 
 
    :send-more-paramedics {:src (src/feed "http://blog.fogus.me/feed/")
-                  :tags #{:tech :blog}
-                  :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
-                  :cron cron-daily}
+                          :tags #{:tech :blog}
+                          :proc (proc/make
+                                 :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                          :cron cron-daily}
 
    :uswitch-labs {:src (src/feed "https://labs.uswitch.com/rss/")
-             :tags #{:tech}
+                  :tags #{:tech}
                   :cron cron-daily}
 
 
@@ -1096,8 +1097,8 @@
 
    :meetups-my {:src (src/feed "https://www.meetup.com/events/rss/139002912/50f0499c4b59a743ecbf7d1e950eb8078ca2cf5b/going")
                 :tags #{:berlin}
-                  :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+                :proc (proc/make
+                       :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                 :cron cron-daily}
 
    ;; :krisk {:src (src/g+activity "+KristianKohntopp" (:google creds))
@@ -1114,22 +1115,22 @@
 
    :nasa-image-of-the-day {:src (src/feed "https://www.nasa.gov/rss/dyn/image_of_the_day.rss")
                            :proc (proc/make
-                                   :post [(fn [item]
-                                            (let [orig-img-url (some-> item :raw :enclosures first :url)
-                                                  img-url (http/try-blobify-url! orig-img-url)
-                                                  title (get-in item [:summary :title])
-                                                  descr (get-in item [:entry :descriptions "text/plain"])
-                                                  content {"text/plain" (string/join "\n"
-                                                                          [title orig-img-url descr])
-                                                           "text/html" (hiccup.core/html
-                                                                         [:div
-                                                                          [:h1 title]
-                                                                          [:img {:src img-url
-                                                                                 :orig-src orig-img-url}]
-                                                                          [:p descr]])}]
-                                              (-> item
-                                                (assoc-in [:entry :contents] content)
-                                                (assoc-in [:entry :lead-image-url] img-url))))])
+                                  :post [(fn [item]
+                                           (let [orig-img-url (some-> item :raw :enclosures first :url)
+                                                 img-url (http/try-blobify-url! orig-img-url)
+                                                 title (get-in item [:summary :title])
+                                                 descr (get-in item [:entry :descriptions "text/plain"])
+                                                 content {"text/plain" (string/join "\n"
+                                                                                    [title orig-img-url descr])
+                                                          "text/html" (hiccup.core/html
+                                                                       [:div
+                                                                        [:h1 title]
+                                                                        [:img {:src img-url
+                                                                               :orig-src orig-img-url}]
+                                                                        [:p descr]])}]
+                                             (-> item
+                                                 (assoc-in [:entry :contents] content)
+                                                 (assoc-in [:entry :lead-image-url] img-url))))])
                            :tags #{:pics}
                            :cron cron-daily}
 
@@ -1139,13 +1140,13 @@
            :cron cron-daily}
 
    :iprogrammer {:src (src/feed "https://www.i-programmer.info/component/ninjarsssyndicator/?feed_id=3" :deep? true)
-                  :tags #{:tech}
-                  :cron cron-daily}
+                 :tags #{:tech}
+                 :cron cron-daily}
 
    :erdgeist {:src (src/feed "https://erdgeist.org/blog/rss.xml")
-                :tags #{:blog}
-                  :proc (proc/make
-                          :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
+              :tags #{:blog}
+              :proc (proc/make
+                     :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
               :cron cron-daily}
 
    :frankrieger {:src (src/feed "http://frank.geekheim.de/?feed=rss2")
@@ -1162,12 +1163,12 @@
                 :cron cron-daily}
 
    :willcrichton {:src (src/selector-feed "http://willcrichton.net/notes/"
-                         {:urls (S/class "note-link")
-                          :ts (S/class "date")
-                          :content (S/class "note")}
-                         {:content #(-> % first :attrs :content)
-                          :author (constantly "Will Crichton")
-                          :ts #(->> % log/spy first :content first (re-find #"\w+\s\d{1,2},\s\d{4}") (tf/parse (tf/formatter "MMM dd, yyyy")))})
+                                          {:urls (S/class "note-link")
+                                           :ts (S/class "date")
+                                           :content (S/class "note")}
+                                          {:content #(-> % first :attrs :content)
+                                           :author (constantly "Will Crichton")
+                                           :ts #(->> % log/spy first :content first (re-find #"\w+\s\d{1,2},\s\d{4}") (tf/parse (tf/formatter "MMM dd, yyyy")))})
                   :tags #{:blog}
                   :cron cron-daily}
 
@@ -1186,20 +1187,20 @@
    :golem {:src (src/feed "https://rss.golem.de/rss_sub_media.php?token=7t10zqba")
            :options #{:mark-read-on-view}
            :proc (proc/make
-                   :pre [(fn [item]
-                           (let [raw-html (get-in item [:entry :descriptions "text/plain"])
-                                 html (some-> raw-html
-                                        hick/parse
-                                        hick/as-hickory
-                                        (http/sanitize :remove-css? true)
-                                        http/blobify
-                                        hickory-to-html)]
-                              (-> item
+                  :pre [(fn [item]
+                          (let [raw-html (get-in item [:entry :descriptions "text/plain"])
+                                html (some-> raw-html
+                                             hick/parse
+                                             hick/as-hickory
+                                             (http/sanitize :remove-css? true)
+                                             http/blobify
+                                             hickory-to-html)]
+                            (-> item
                                 (assoc-in [:entry :descriptions]
-                                  {"text/plain" ""})
+                                          {"text/plain" ""})
                                 (assoc-in [:entry :contents]
-                                  {"text/html" html
-                                  "text/plain" (converter/html2text html)}))))])
+                                          {"text/html" html
+                                           "text/plain" (converter/html2text html)}))))])
            :tags #{:tech :itnews}
            :cron cron-daily}
 
@@ -1232,54 +1233,54 @@
                                                                      :cookie-store cs})
                                                   cs)))
                 :proc (proc/make
-                   :pre [(fn [item]
-                           (let [new-items
-                                 (->> (S/select (S/descendant
-                                                 (S/class "ArticleText"))
-                                                (:hickory item))
-                                      first :content
-                                      (reduce (fn [r item]
-                                                (let [hl-hick (S/select (S/and (S/tag :h2) (S/class "SummaryHL")) item)
-                                                      meta-hick (S/select (S/class "FeatureByline") item)
-                                                      title (-> hl-hick first :content first :content first)
-                                                      author (-> meta-hick first :content second :content first)
-                                                      index (dec (count r))]
-                                                  (cond
-                                                    (string? title)
-                                                    (conj r {:title title
-                                                             :hick []
-                                                             :author nil})
+                       :pre [(fn [item]
+                               (let [new-items
+                                     (->> (S/select (S/descendant
+                                                     (S/class "ArticleText"))
+                                                    (:hickory item))
+                                          first :content
+                                          (reduce (fn [r item]
+                                                    (let [hl-hick (S/select (S/and (S/tag :h2) (S/class "SummaryHL")) item)
+                                                          meta-hick (S/select (S/class "FeatureByline") item)
+                                                          title (-> hl-hick first :content first :content first)
+                                                          author (-> meta-hick first :content second :content first)
+                                                          index (dec (count r))]
+                                                      (cond
+                                                        (string? title)
+                                                        (conj r {:title title
+                                                                 :hick []
+                                                                 :author nil})
 
-                                                    (string? author)
-                                                    (assoc-in r [index :author] author)
+                                                        (string? author)
+                                                        (assoc-in r [index :author] author)
 
-                                                    (>= index 0)
-                                                    (update-in r [index :hick] conj item)
+                                                        (>= index 0)
+                                                        (update-in r [index :hick] conj item)
 
-                                                    :default
-                                                    r)))
-                                              []))]
-                             (for [{:keys [title hick author]} new-items
-                                   :let [html (-> {:type :element
-                                                   :attrs nil
-                                                   :tag :div
-                                                   :content hick}
-                                                  (http/absolutify-links-in-hick "https://lwn.net")
-                                                  (http/sanitize)
-                                                  (http/blobify)
-                                                  hickory-to-html)]]
-                               (-> item
-                                   (assoc :hash (make-item-hash title))
-                                   (assoc-in [:summary :title] title)
-                                   (assoc-in [:entry :title] title)
-                                   (assoc :hickory hick)
-                                   (assoc-in [:entry :authors] [author])
-                                   (assoc-in [:entry :descriptions]
-                                             {"text/plain" ""})
-                                   (assoc-in [:entry :contents]
-                                             {"text/html" html
-                                              "text/plain" (converter/html2text html)}))))
-                           )])
+                                                        :default
+                                                        r)))
+                                                  []))]
+                                 (for [{:keys [title hick author]} new-items
+                                       :let [html (-> {:type :element
+                                                       :attrs nil
+                                                       :tag :div
+                                                       :content hick}
+                                                      (http/absolutify-links-in-hick "https://lwn.net")
+                                                      (http/sanitize)
+                                                      (http/blobify)
+                                                      hickory-to-html)]]
+                                   (-> item
+                                       (assoc :hash (make-item-hash title))
+                                       (assoc-in [:summary :title] title)
+                                       (assoc-in [:entry :title] title)
+                                       (assoc :hickory hick)
+                                       (assoc-in [:entry :authors] [author])
+                                       (assoc-in [:entry :descriptions]
+                                                 {"text/plain" ""})
+                                       (assoc-in [:entry :contents]
+                                                 {"text/html" html
+                                                  "text/plain" (converter/html2text html)}))))
+                               )])
                 :tags #{:tech :itnews}
                 :cron cron-daily}
 
@@ -1293,7 +1294,7 @@
                    :cron cron-daily}
 
    :mechanical-sympathy {:src (src/feed "https://mechanical-sympathy.blogspot.com/feeds/posts/default")
-                   :tags #{:tech :new-but-interesting-backlog}
+                         :tags #{:tech :new-but-interesting-backlog}
                          :cron cron-daily}
 
    :igoro {:src (src/feed "http://feeds.feedburner.com/igoro")
@@ -1305,8 +1306,8 @@
                  :cron cron-daily}
 
    :sdn-clinic {:src (src/wp-json "https://blog.sdn.clinic/wp-json/")
-                 :tags #{:tech :new-but-interesting-backlog}
-                 :cron cron-daily}
+                :tags #{:tech :new-but-interesting-backlog}
+                :cron cron-daily}
 
    :scotthyoung {:src (src/feed "https://www.scotthyoung.com/blog/feed/")
                  :tags #{:blog :improvement}

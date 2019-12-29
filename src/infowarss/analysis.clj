@@ -112,33 +112,33 @@
 
         stopwords (get stopwords lang)
         words (->> pos
-                not-punctuation
-                (map first)
-                (remove non-word-string-filter)
-                (map string/lower-case)
-                (remove stopwords))
+                   not-punctuation
+                   (map first)
+                   (remove non-word-string-filter)
+                   (map string/lower-case)
+                   (remove stopwords))
         nouns (->> pos
-                nlp-filter/nouns
-                (map first)
-                (remove non-word-string-filter)
-                (map string/lower-case)
-                (remove stopwords))
+                   nlp-filter/nouns
+                   (map first)
+                   (remove non-word-string-filter)
+                   (map string/lower-case)
+                   (remove stopwords))
         verbs (->> pos
-                verbs-de-en
-                (map first)
-                (remove non-word-string-filter)
-                (map string/lower-case))]
+                   verbs-de-en
+                   (map first)
+                   (remove non-word-string-filter)
+                   (map string/lower-case))]
     {:language lang
      :readability (readability-scores text-sanitized)
      :nlp {:nwords (count words)
            :top {:words (->> words
-                          token-frequencies
-                          (sort-by val)
-                          reverse)
+                             token-frequencies
+                             (sort-by val)
+                             reverse)
                  :nouns (->> nouns
-                          token-frequencies
-                          (sort-by val)
-                          reverse)}
+                             token-frequencies
+                             (sort-by val)
+                             reverse)}
            :urls (set urls)
            :names (set (find-names lang tokens))
            :nouns (set nouns)
