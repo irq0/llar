@@ -546,3 +546,20 @@ main {
     left: 65%;
     top: 3em;
 }
+
+table td.details-control:before {
+   content: '\f152';
+   font-family: 'Font Awesome\ 5 Free';
+   cursor: pointer;
+   font-size: 22px;
+   color: #55a4be;
+}
+
+table tr.shown td.details-control:before {
+  content: '\f150';
+  color: black;
+}
+
+.clj-pprint {
+    background: #666;
+}
