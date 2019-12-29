@@ -67,4 +67,5 @@
                  [clj-time "0.15.2"]
                  [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                  [clojurewerkz/urly "1.0.0"]
-                 ])
+                 [com.mchange/c3p0 "0.9.5.2"]
+                 [clj-commons/iapetos "0.1.9"]])
