@@ -141,7 +141,6 @@
         (fetch/make-item-hash (:content mercu))
         {:url (absolutify-url (:url mercu) base-url)
          :lead-image-url (try-blobify-url! (absolutify-url (:lead_image_url mercu) base-url))
-         :next-page-url (absolutify-url (:next_page_url mercu) base-url)
          :pub-ts pub-ts
          :title title
          :authors [(or (:author mercu) (:domain mercu))]

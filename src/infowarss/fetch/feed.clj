@@ -208,6 +208,7 @@
   (fetch-source [src]
     (let [{:keys [url selectors extractors]} src
           {:keys [summary hickory]} (fetch url)
+          base-url (get-base-url (urly/url-like url))
 
           meta (make-meta src)
           feed {:title (:title summary)
@@ -222,17 +223,18 @@
         (throw+ {:type ::selector-found-shit :extractor item-extractor :urls item-urls :selector (:urls selectors)}))
       (doall
        (for [raw-item-url item-urls
-             :let [item-url (urly/url-like raw-item-url)
+             :let [item-url (absolutify-url raw-item-url base-url)
                    item (fetch item-url)
                    {:keys [hickory summary]} item]]
          (let [author (hick-select-extract-with-source src :author hickory nil)
                title (hick-select-extract-with-source src :title hickory (:title summary))
                pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
                description (hick-select-extract-with-source src :description hickory nil)
+               sanitized (process-feed-html-contents base-url hickory)
                content (or
                         (and (some? (:content selectors))
-                             (first (hick-s/select (:content selectors) hickory)))
-                        (first (hick-s/select (hick-s/child (hick-s/tag :body)) hickory)))
+                             (first (hick-s/select (:content selectors) sanitized)))
+                        (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
                content-html (hick-r/hickory-to-html content)]
            (map->FeedItem
             (-> item
@@ -255,19 +257,22 @@
   infowarss.src.WordpressJsonFeed
   (fetch-source [src]
     (let [wp-json-url (str (:url src))
-          site (http/get wp-json-url {:as :json :headers {:user-agent +http-user-agent+}})
-          posts-url (get-in site [:body :routes (keyword "/wp/v2/posts") :_links :self])
-          posts (-> (http/get posts-url {:headers {:user-agent +http-user-agent+}}) :body (cheshire/parse-string true)) ]
+          site (log/spy (http/get wp-json-url {:as :json :headers {:user-agent +http-user-agent+}}))
+          posts-url (log/spy (get-in site [:body :routes (keyword "/wp/v2/posts") :_links :self]))
+          posts (-> (http/get posts-url {:headers {:user-agent +http-user-agent+}})
+                    :body (cheshire/parse-string true)) ]
       (doall
        (for [post posts]
          (let [
                authors (try+
-                        (for [url (map :href (get-in post [:_links :author]))]
-                          (get-in [:body :name]
-                                  (http/get url
-                                            {:as :json
-                                             :headers {:user-agent +http-user-agent+}})))
-                        (catch Object _
+                        (doall
+                         (for [url (map :href (get-in post [:_links :author]))]
+                           (get-in [:body :name]
+                                   (http/get url
+                                             {:as :json
+                                              :headers {:user-agent +http-user-agent+}}))))
+                        (catch [:status 403] {:keys [body]}
+                          (log/debug "Strange, some wp json access blocked:" body)
                           [""]))
                url (urly/url-like (get post :link))
                title (get-in post [:title :rendered])

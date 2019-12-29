@@ -130,7 +130,7 @@
       (.mutatePath "")))
 
 (defn parse-img-srcset [str]
-  (when (string? str)
+  (when (and (string? str) (not (string/blank? str)))
     (map #(string/split % #"\s")
          (string/split
           (java.net.URLDecoder/decode str "UTF-8")
@@ -161,14 +161,20 @@
   (let [zipper (hick-z/hickory-zip root)
         edit-tag (fn [tag loc]
                    (try+
-                    (case tag
-                      :a (zip/edit loc update-in
-                                   [:attrs :href]
-                                   #(str (absolutify-url % base-url)))
-                      :img (edit-img-tag base-url loc)
+                    (cond
+                      (and (= tag :a) (string? (get-in loc [:attrs :href])))
+                      (zip/edit loc update-in
+                                [:attrs :href]
+                                #(str (absolutify-url % base-url)))
+
+                      (and (= tag :img) (or (string? (get-in loc [:attrs :src]))
+                                            (string? (get-in loc [:attrs :srcset]))))
+                      (edit-img-tag base-url loc)
+
+                      :default
                       loc)
                     (catch java.lang.Object e
-                      (log/error e "Absolutify error loc:"
+                      (log/debug e "Absolutify error loc:"
                                  (merge {:base-url base-url}
                                         (select-keys (zip/node loc) [:tag :type :attrs])))
                       loc)))]
@@ -183,19 +189,17 @@
             (recur (zip/next loc))))))))
 
 (defn try-blobify-url! [url]
-  (if (nil? url)
-    url
-    (let [url (urly/url-like url)]
-      (if (or (= (str url) (str (get-base-url url)))
-              (= (urly/path-of url) "/")
-              (= (urly/path-of url) "/#"))
-        (str url)
-        (try+
-         (let [content-hash (blobstore/add-from-url! url)
-               blobstore-url (str "/blob/" content-hash)]
-           blobstore-url)
-         (catch Object _
-           (str url)))))))
+  (let [url (parse-url url)]
+    (if (or (nil? url)
+            (= (urly/path-of url) "/")
+            (= (urly/path-of url) "/#"))
+      (str url)
+      (try+
+       (let [content-hash (blobstore/add-from-url! url)
+             blobstore-url (str "/blob/" content-hash)]
+         blobstore-url)
+       (catch Object _
+         (str url))))))
 
 (defn blobify-image [loc]
   (zip/edit loc update-in [:attrs]
@@ -295,7 +299,7 @@
 (s/defn fetch :- s/Any
   "Generic HTTP fetcher"
   [url :- schema/URLType]
-  (let [url (urly/url-like url)
+  (let [url (parse-url url)
         base-url (get-base-url url)]
     (try+
      (let [response (http/get (str url)
@@ -316,18 +320,18 @@
         :hickory parsed-html})
 
      (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
-            {:keys [headers body status]}
+         {:keys [headers body status]}
        (log/errorf "Client error probably due to broken request (%s): %s %s"
                    status headers body)
        (throw+ {:type ::request-error}))
 
      (catch (contains? #{500 501 502 503 504} (get % :status))
-            {:keys [headers body status] :as orig}
+         {:keys [headers body status] :as orig}
        (log/errorf "Server Error (%s): %s %s" status headers body)
        (throw+ {:type ::server-error-retry-later}))
 
      (catch [:status 408]
-            {:keys [headers body status]}
+         {:keys [headers body status]}
        (log/errorf "Client Error (%s): %s %s" status headers body)
        (throw+ {:type :client-error-retry-later}))
 

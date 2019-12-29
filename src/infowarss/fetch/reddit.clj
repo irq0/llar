@@ -7,6 +7,7 @@
    [infowarss.persistency :as persistency]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
+   [infowarss.http :as infowarss-http]
    [digest]
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
@@ -79,7 +80,7 @@
 
 
 (defn make-reddit-entry [c]
-  {:url (io/as-url (:url c))
+  {:url (infowarss-http/absolutify-url (:url c) "https://www.reddit.com")
    :comments-url (io/as-url (str "https://www.reddit.com" (:permalink c)))
    :thumbnail (:thumbnail c)
    :pub-ts (reddit-ts-to-joda (:created_utc c))
