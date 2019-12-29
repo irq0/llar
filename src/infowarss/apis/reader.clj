@@ -139,12 +139,13 @@
      (if (string/blank? query-string)
        (string/join "/" path)
        (str (string/join "/" path) "?" query-string)))))
-(defn html-header []
+
+(defn html-header [title]
   [:head
    [:meta {:charset "utf-8"}]
    [:meta {:http-equiv "X-UA-Compatible" :content "IE=edge"}]
    [:meta {:name "viewport" :content "width=device-width, initial-scale=1, shrink-to-fit=no"}]
-   [:title "Infowarss"]
+   [:title title]
    [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
@@ -170,14 +171,6 @@
    (if is-set?
      (icon icon-set)
      (icon icon-unset))])
-
-(defn wrap-body [body]
-  (html [:html {:lang "en"}
-         (html-header)
-         [:body
-          (concat
-           body
-           (html-footer))]]))
 
 
 (defn nav-bar
@@ -358,56 +351,56 @@
                :href (make-site-href [(:uri x)] {:filter k} x)}
            (icon ico) "&nbsp;" [:span name]]])]
 
-      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
-                        "align-items-center px-3 mt-4 mb-1 text-muted")}
-       [:span "List Style"]]
-      [:ul {:class "nav flex-column" :id "view-style-select"}
-       [:li {:class "nav-item"}
-        [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style nil} x)}
-         (icon "far fa-newspaper") "&nbsp;" "Default"]]
-       [:li {:class "nav-item"}
-        [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style :headlines} x)}
-         (icon "far fa-list-alt") "&nbsp;" "Headlines"]]
-       [:li {:class "nav-item"}
-        [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style :gallery} x)}
-         (icon "far fa-images") "&nbsp;" "Gallery"]]]
+                   [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                                     "align-items-center px-3 mt-4 mb-1 text-muted")}
+                    [:span "List Style"]]
+                   [:ul {:class "nav flex-column" :id "view-style-select"}
+                    [:li {:class "nav-item"}
+                     [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style nil} x)}
+                      (icon "far fa-newspaper") "&nbsp;" "Default"]]
+                    [:li {:class "nav-item"}
+                     [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style :headlines} x)}
+                      (icon "far fa-list-alt") "&nbsp;" "Headlines"]]
+                    [:li {:class "nav-item"}
+                     [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style :gallery} x)}
+                      (icon "far fa-images") "&nbsp;" "Gallery"]]]
 
-      [:br]
-      [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when
-                                        (and (= active-group :default)
-                                             (= active-key :all)) " active"))
-             :href (make-site-href ["/reader/group/default/all/source/all/items"] x)}
-         "any"]]]
+                   [:br]
+                   [:ul {:class "nav flex-column"}
+                    [:li {:class "nav-item"}
+                     [:a {:class (str "nav-link" (when
+                                                     (and (= active-group :default)
+                                                          (= active-key :all)) " active"))
+                          :href (make-site-href ["/reader/group/default/all/source/all/items"] x)}
+                      "any"]]]
 
-      ;; source types
-      [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-       [:span "type"]]
-      [:ul {:class "nav flex-column"}
-       (group-list x "/reader/group/type"
-                   (->> x :sources vals (map :type) (into (sorted-set)))
-                   (when (= active-group :type) active-key)
-                   nil)]
+                   ;; source types
+                   [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
+                    [:span "type"]]
+                   [:ul {:class "nav flex-column"}
+                    (group-list x "/reader/group/type"
+                                (->> x :sources vals (map :type) (into (sorted-set)))
+                                (when (= active-group :type) active-key)
+                                nil)]
 
-      ;; item tags
-      [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-       [:span "item tags"]]
-      [:ul {:class "nav flex-column"}
-       (group-list x "/reader/group/item-tags"
-                   (->> x :item-tags (map first) sort)
-                   (when (= active-group :item-tags) active-key)
-                   (into {} (for [{:keys [tag icon-set]} +tag-buttons+]
-                              [(name tag) (string/replace icon-set #"icon-is-set" "")])))]
+                   ;; item tags
+                   [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
+                    [:span "item tags"]]
+                   [:ul {:class "nav flex-column"}
+                    (group-list x "/reader/group/item-tags"
+                                (->> x :item-tags (map first) sort)
+                                (when (= active-group :item-tags) active-key)
+                                (into {} (for [{:keys [tag icon-set]} +tag-buttons+]
+                                           [(name tag) (string/replace icon-set #"icon-is-set" "")])))]
 
-      ;; source tags
-      [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-       [:span "source tags"]]
-      [:ul {:class "nav flex-column"}
-       (group-list x "/reader/group/source-tag"
-                   (->> (:sources x) vals (map :tags) (apply set/union) sort)
-                   (when (= active-group :source-tag) active-key)
-                   nil)]]]))
+                   ;; source tags
+                   [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
+                    [:span "source tags"]]
+                   [:ul {:class "nav flex-column"}
+                    (group-list x "/reader/group/source-tag"
+                                (->> (:sources x) vals (map :tags) (apply set/union) sort)
+                                (when (= active-group :source-tag) active-key)
+                                nil)]]]))
 
 (defn source-list-item
   "Source Navigation List Item"
@@ -579,7 +572,10 @@
   (let [item (first (:items x))]
     [:div {:class "item-content"}
      [:div {:class "item-content-nav"}
-      (map-to-tree item)]]))
+      [:h3 "Current Item"]
+      (map-to-tree item)
+      [:h3 "Full Datastructure"]
+      (map-to-tree x)]]))
 
 
 (defn awesome-url-text
@@ -659,6 +655,22 @@
        (.name site))
      (catch Object _
        (str host)))))
+
+(defn short-page-headline
+  [x]
+  (let [{:keys [mode source-key group-item group-name]} x
+        current-item (first (:items x))]
+    (cond
+      (= mode :dump-item)
+      "💩"
+
+      (= mode :show-item)
+      (format "🕮 %s [%s]"
+              (:title current-item) (name source-key))
+
+      (= mode :list-items)
+      (format "▤ %s/%s"
+              (name group-item) (name source-key)))))
 
 (defn main-list-item
   "Main Item List - Word Cloud Style"
@@ -1116,34 +1128,41 @@
                                :range-recent (-> @items first (select-keys [:ts :id]))
                                :range-before (-> @items last (select-keys [:ts :id]))})]
 
-
      (let [nav-bar (nav-bar params)
-           group-nav (html (group-nav params))
-           main-view (html (main-view params))
-           source-nav (html (source-nav params))
+           group-nav (group-nav params)
+           main-view (main-view params)
+           source-nav (source-nav params)
+           title (short-page-headline params)
 
            html (metrics/with-prom-exec-time
                   :render-html
-                  (wrap-body
-                   (html
-                    nav-bar
-                    [:div {:class "container-fluid"}
-                     [:div {:class "row "}
-                      group-nav main-view source-nav]])))]
+                  (html
+                   [:html {:lang "en"}
+                    (html-header title)
+                    [:body
+                     (concat
+                      [nav-bar]
+                      [[:div {:class "container-fluid"}
+                        [:div {:class "row"}
+                         group-nav
+                         main-view
+                         source-nav]]]
+                      (html-footer))]]))]
        html))))
-
 
 (defn fetch-preview
   "Preview Mode Entrypoint"
   []
-  (wrap-body
-   (html
+  (html
+   [:html {:lang "en"}
+    (html-header "preview")
     [:body
      [:main {:role "main"
              :class "col-xs-12 col-md-6 col-lg-8"}
       [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
        (for [item @+current-fetch-preview+]
-         (dump-item {:items [item]}))]]])))
+         (dump-item {:items [item]}))]]
+     (html-footer)]]))
 
 (defn add-thing
   "Bookmark / Document Add URL Entry Point"
