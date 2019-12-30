@@ -93,12 +93,18 @@ $(".ajax-toggle").click(function () {
 
 // custom tag modal form
 $("form.add-custom-tag").submit(function (event) {
+    event.preventDefault();
     var action = "set";
     var tag = $(this).find('input:first').val();
     var id = $(this).data("id");
-    $.post("/reader/item/by-id/" + id, {
-	"action": action,
-	"tag": tag});
+    $.post("/reader/item/by-id/" + id,
+	   {
+	       "action": action,
+	       "tag": tag
+	   },
+	   function() {
+	       location.reload();
+	   });
 });
 
 
@@ -225,6 +231,11 @@ $(window).scroll(function () {
 $("body").keypress(function(event) {
     var main_top = $("main").offset().top;
     var main_bottom = window.innerHeight;
+
+    if ($("body").hasClass("modal-open")) {
+	return;
+    }
+
     // main list view
     if ($(".feed-item").length > 0) {
 	content = $(".feed-item");

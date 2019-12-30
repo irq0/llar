@@ -442,6 +442,35 @@
           src
           active-source))]]]))
 
+(defn tags-button-group [item-id tags]
+  [:div {:class "btn-group btn-group-sm"}
+   [:a {:class "btn"
+        :data-toggle "modal"
+        :data-target (str "#add-custom-tag-" item-id)}
+    "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]
+   [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1" :role "dialog"}
+    [:div {:class "modal-dialog modal-dialog-centered"}
+     [:div {:class "modal-content"}
+      [:div {:class "modal-header"}
+       [:h5 "Edit Tags"]
+       [:button {:type "button" :class "close"
+                 :data-dismiss "modal"}
+        [:span "&times;"]]]
+      [:div {:class "Modal-body"}
+       [:ul
+        (for [tag tags]
+          [:li
+           (tag-button item-id {:tag tag
+                                :icon-set "fas fa-check-circle icon-is-set"
+                                :icon-unset "far fa-circle"
+                                :is-set? true})
+           "&nbsp;"
+           tag])]
+       [:form {:class "add-custom-tag" :data-id item-id}
+        [:div {:class "form-group"}
+         [:label {:for (str "add-tag-" item-id)} "Add Custom Tag"]
+         [:input {:class "form-control" :id (str "add-tag-" item-id)}]]
+        [:input {:class "btn btn-primary" :data-modal (str "#add-custom-tag-" item-id) :type "submit"}]]]]]]])
 
 (defn get-html-content
   "Show Item Helper: Get best content to display in full"
@@ -476,8 +505,7 @@
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:class "btn"}
          "&nbsp;&nbsp;" (icon "far file-word") nwords]
-        [:a {:class "btn"}
-         "&nbsp;&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]]
+        (tags-button-group id tags)]
        (when (some? ts)
          [:div {:class "btn-group btn-group-sm" :role "group"}
           [:a {:class "btn"}
@@ -790,38 +818,7 @@
 
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
-
-
-       [:a {:class "btn" :data-toggle "modal" :data-target (str "#add-custom-tag-" id)}
-        "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]
-
-       [:div {:class "modal" :id (str "add-custom-tag-" id) :tabindex "-1" :role "dialog"}
-        [:div {:class "modal-dialog modal-dialog-centered"}
-         [:div {:class "modal-content"}
-          [:div {:class "modal-header"}
-           [:h5 "Edit Tags"]
-           [:button {:type "button" :class "close"
-                     :data-dismiss "modal"}
-            [:span "&times;"]]]
-
-
-          [:div {:class "Modal-body"}
-           [:ul
-            (for [tag tags]
-              [:li
-               (tag-button id {:tag tag
-                               :icon-set "fas fa-check-circle icon-is-set"
-                               :icon-unset "far fa-circle"
-                               :is-set? true})
-               "&nbsp;"
-               tag])]
-
-           [:form {:class "add-custom-tag" :data-id id}
-            [:div {:class "form-group"}
-             [:label {:for (str "add-tag-" id)} "Add Custom Tag"]
-             [:input {:class "form-control" :id (str "add-tag-" id)}]]
-            [:input {:class "btn btn-primary" :data-modal (str "#add-custom-tag-" id) :type "submit"}]]]]]]
-
+       (tags-button-group id tags)
        [:a {:class "btn" :href url}
         "&nbsp;" (icon "fas fa-external-link-alt")]
        [:a {:class "btn"
