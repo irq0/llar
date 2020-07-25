@@ -4,7 +4,7 @@ body {
 }
 
 code, kbd, samp, pre, tt, var, textarea {
-    font-family: 'Fira Mono';
+    font-family: 'Fira Code';
     font-weight: 400;
 }
 
@@ -46,7 +46,6 @@ div.navbar-toggler {
     div.item-content-body h1,h2,h3,h4 {
 	padding-top: 0.2em;
 	text-align: left;
-	font-family: Fira Sans;
     }
     div.item-content-body h1 {
 	font-size: 1.5rem;
@@ -85,7 +84,6 @@ div.navbar-toggler {
 	padding-bottom: 1.5em;
     }
     div.item-content-body h1,h2,h3,h4 {
-	font-family: charter, serif;
 	padding-top: 0.8em;
 	padding-bottom: 0.2em;
 	text-align: left;
@@ -105,7 +103,6 @@ div.navbar-toggler {
 	padding-bottom: 1.5em;
     }
     div.item-content-body h1,h2,h3,h4 {
-	font-family: charter, serif;
 	padding-top: 0.8em;
 	padding-bottom: 0.2em;
 	text-align: left;
@@ -126,7 +123,6 @@ div.navbar-toggler {
 	height: calc(100vh - 9em);
     }
     div.item-content-body h1,h2,h3,h4 {
-	font-family: charter, serif;
 	padding-top: 0.8em;
 	padding-bottom: 0.2em;
 	text-align: left;
@@ -189,13 +185,10 @@ div.item-content-body a:visited {
 }
 
 div.item-content-body table {
-    font-family: Fira Sans;
-    font-weight: 400;
     font-size: .9rem;
 }
 
 div.item-content-body p > code {
-    font-family: Fira Code;
     color: black;
 }
 
@@ -554,7 +547,7 @@ main {
 }
 
 #headlines .title a {
-    color: black;
+    color: #16161D;
     font-weight: 400;
 }
 
@@ -619,4 +612,8 @@ table tr.shown td.details-control:before {
 
 .clj-pprint {
     background: #666;
+}
+
+table.exception-chain tr {
+    vertical-align: top;
 }
