@@ -8,8 +8,7 @@
    [ring.adapter.jetty :refer [run-jetty]]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
-   [ring.middleware params gzip keyword-params json stacktrace lint basic-authentication not-modified]))
-;;;; Web APIs
+   [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
 (defn exception-response [ex]
   (let [th (Throwable->map ex)]

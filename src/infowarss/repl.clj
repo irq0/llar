@@ -35,7 +35,6 @@
    [hickory.select :as S]
    [hickory.render :as hick-r]
    [hickory.zip :as hick-z]
-   [me.raynes.clhue.lights :as lights]
    [mount.core :refer [defstate]]
    [nrepl.server :refer [start-server stop-server]]
    [cider.nrepl :refer [cider-nrepl-handler]]

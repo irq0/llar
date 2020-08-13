@@ -10,14 +10,12 @@
    [taoensso.timbre.appenders.core :as appenders]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
-   [clojurewerkz.serialism.core :as s]
    [clojure.java.jdbc :as j]
    [clojure.java.io :as io]
    [mpg.core :as mpg]
    [clj-time.jdbc]
    [byte-streams :refer [to-byte-buffer to-string]]
    [cheshire.core :refer :all]
-   [honeysql.core :as hsql]
    [mount.core :refer [defstate]]
    [cheshire.generate :refer [add-encoder encode-str]])
 
@@ -31,6 +29,7 @@
 (mpg/patch {:default-map :hstore
             :datetime false
             :date false})
+
 (defmacro with-log-exec-time [& body]
   `(let [start# (java.lang.System/nanoTime)
          result# (do ~@body)
