@@ -15,17 +15,18 @@
 
 ;;; Extra cheshire encoders
 
+
 (add-encoder org.joda.time.DateTime
-  (fn [dt jg]
-    (.writeString jg (tc/to-string dt))))
+             (fn [dt jg]
+               (.writeString jg (tc/to-string dt))))
 
 (add-encoder java.net.URL
-  (fn [dt jg]
-    (.writeString jg (str dt))))
+             (fn [dt jg]
+               (.writeString jg (str dt))))
 
 (add-encoder java.net.URI
-  (fn [dt jg]
-    (.writeString jg (str dt))))
+             (fn [dt jg]
+               (.writeString jg (str dt))))
 
 ;;; Item -> Persistency abstraction
 ;;; Split into two parts:
@@ -58,13 +59,12 @@
 
 (defn overwrite-item! [item]
   (try+
-    (let [doc (to-couch item)]
-      (db/inplace-update-document doc))
-    (catch java.lang.IllegalAccessException e
-      (log/error e "Failed to store item. Probably called with an unsupported record "
-        (type item) ":" item)
-      (throw+))))
-
+   (let [doc (to-couch item)]
+     (db/inplace-update-document doc))
+   (catch java.lang.IllegalAccessException e
+     (log/error e "Failed to store item. Probably called with an unsupported record "
+                (type item) ":" item)
+     (throw+))))
 
 (defn store-item! [item]
   (let [doc (to-couch item)]
@@ -75,17 +75,17 @@
   (let [name (get-in item [:meta :source-name])
         title (get-in item [:summary :title])]
     (try+
-      (let [{:keys [id]} (store-item! item)]
-        (log/debugf "Stored item %s/\"%s\": %s" name title id)
-        id)
-      (catch [:type :infowarss.db/duplicate] _
-        (if overwrite?
-          (let [ret (overwrite-item! item)]
-            (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)
-            ret)
-          (log/debugf "Skipping item %s/\"%s\": duplicate" name title)))
-      (catch Object _
-        (log/errorf (:throwable &throw-context) "Unexpected exception while storing item %s/\"%s\"" name title)))))
+     (let [{:keys [id]} (store-item! item)]
+       (log/debugf "Stored item %s/\"%s\": %s" name title id)
+       id)
+     (catch [:type :infowarss.db/duplicate] _
+       (if overwrite?
+         (let [ret (overwrite-item! item)]
+           (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)
+           ret)
+         (log/debugf "Skipping item %s/\"%s\": duplicate" name title)))
+     (catch Object _
+       (log/errorf (:throwable &throw-context) "Unexpected exception while storing item %s/\"%s\"" name title)))))
 ;;; API
 
 (defn store-items!
@@ -99,9 +99,9 @@
   (let [by-type (group-by type mixed-items)]
     (when (>= (count mixed-items) 1)
       (log/debugf "Persisting %d items with types: %s"
-        (count mixed-items) (keys by-type))
+                  (count mixed-items) (keys by-type))
       (doall
-        (apply concat
-          (for [[type items] by-type]
-            (do (log/debugf "Persisting %s items" type)
-                (remove nil? (map #(store-item-skip-duplicate! % :overwrite? overwrite?) items )))))))))
+       (apply concat
+              (for [[type items] by-type]
+                (do (log/debugf "Persisting %s items" type)
+                    (remove nil? (map #(store-item-skip-duplicate! % :overwrite? overwrite?) items)))))))))

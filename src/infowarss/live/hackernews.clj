@@ -17,28 +17,27 @@
 
 ;;;; Hacker News Firebase API live source
 
+
 (def hacker-news-base-url "https://hacker-news.firebaseio.com/v0/")
 
 (defn hn-item-to-string [item]
   (format "[%s: %s/%s/%s/%s]"
-    (.getSimpleName (class item))
-    (str (get-in item [:meta :source]))
-    (if-not (nil? (get-in item [:summary :ts]))
-      (tc/to-string (get-in item [:summary :ts]))
-      "?")
-    (str (get-in item [:summary :title]))
-    (str (get-in item [:entry :id]))))
-
+          (.getSimpleName (class item))
+          (str (get-in item [:meta :source]))
+          (if-not (nil? (get-in item [:summary :ts]))
+            (tc/to-string (get-in item [:summary :ts]))
+            "?")
+          (str (get-in item [:summary :title]))
+          (str (get-in item [:entry :id]))))
 
 (s/defrecord HackerNewsItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     raw :- s/Any
-     entry :- schema/HackerNewsEntry]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              raw :- s/Any
+              entry :- schema/HackerNewsEntry]
   Object
   (toString [item] (hn-item-to-string item)))
-
 
 (extend-protocol postproc/ItemProcessor
   HackerNewsItem
@@ -50,9 +49,9 @@
   HackerNewsItem
   (to-couch [item]
     (-> item
-      (dissoc :raw)
-      (assoc-in [:meta :source :args] nil)
-      (assoc :type :link))))
+        (dissoc :raw)
+        (assoc-in [:meta :source :args] nil)
+        (assoc :type :link))))
 
 (s/defn make-hn-summary :- schema/Summary
   [hn-entry :- schema/HackerNewsEntry]
@@ -62,22 +61,22 @@
 
 (defn hn-html-summary [item]
   (html
-    [:h1 (get item "title")]
-    [:div {:class "summary"}
-     [:ul
-      [:li [:span {:class "key"} "Score: "] (get item "score")]
-      [:li [:span {:class "key"} "Time: "] (tc/to-string (tc/from-long (* 1000 (get item "time"))))]
-      [:li [:span {:class "key"} "Type: "] (get item "type")]]]
-    [:div {:class "links"}
-     [:ul
-      [:li [:span {:class "key"} "URL: "]
-       [:a {:href (get item "url")} (get item "url")]]
-      [:li [:span {:class "key"} "Comments: "]
-       [:a {:href (str "https://news.ycombinator.com/item?id=" (get item "id"))}
-        (str "https://news.ycombinator.com/item?id=" (get item "id"))]]]]))
+   [:h1 (get item "title")]
+   [:div {:class "summary"}
+    [:ul
+     [:li [:span {:class "key"} "Score: "] (get item "score")]
+     [:li [:span {:class "key"} "Time: "] (tc/to-string (tc/from-long (* 1000 (get item "time"))))]
+     [:li [:span {:class "key"} "Type: "] (get item "type")]]]
+   [:div {:class "links"}
+    [:ul
+     [:li [:span {:class "key"} "URL: "]
+      [:a {:href (get item "url")} (get item "url")]]
+     [:li [:span {:class "key"} "Comments: "]
+      [:a {:href (str "https://news.ycombinator.com/item?id=" (get item "id"))}
+       (str "https://news.ycombinator.com/item?id=" (get item "id"))]]]]))
 
 (defn make-hn-entry [item]
-  (let [hn-url(io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))]
+  (let [hn-url (io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))]
     {:score (get item "score")
      :author (get item "by")
      :id (get item "id")
@@ -105,17 +104,17 @@
         raw (get-value path)
         entry (make-hn-entry raw)]
     (try+
-      (->HackerNewsItem
-        (make-meta src @state)
-        (make-hn-summary entry)
-        (str "SHA-256:" (digest/sha-256 (str id)))
-        raw
-        entry)
-      (catch Object e
-        (log/error e "HackerNews resolver failed -> terminating source")
-        (async/put! (get-in @state [:firebase :resolve-term-chan]) :terminate)
-        (swap! state assoc :status :failed)
-        (swap! state assoc-in [:firebase :last-exception] e)))))
+     (->HackerNewsItem
+      (make-meta src @state)
+      (make-hn-summary entry)
+      (str "SHA-256:" (digest/sha-256 (str id)))
+      raw
+      entry)
+     (catch Object e
+       (log/error e "HackerNews resolver failed -> terminating source")
+       (async/put! (get-in @state [:firebase :resolve-term-chan]) :terminate)
+       (swap! state assoc :status :failed)
+       (swap! state assoc-in [:firebase :last-exception] e)))))
 
 (defn- hn-resolver-thread
   "Resolve ids from in-chan to HackerNewsEntries on out-chan"
@@ -145,22 +144,22 @@
 
               listener-f (fn [ids]
                            (try+
-                             (let [next-update-ok (when-not (nil? (get @state :last-update-ts))
-                                                    (time/plus (get @state :last-update-ts)
-                                                      (time/seconds (or (get-in src [:args :throttle-secs]) 60))))]
-                               (if (or (nil? next-update-ok)
-                                     (time/after? (time/now) next-update-ok))
-                                 (do
-                                   (log/debugf "HackerNews feed %s update (last: %s): %s items"
-                                     story-feed (get @state :last-update-ts) (count ids))
-                                   (swap! state assoc :last-update-ts (time/now))
-                                   (doseq [id ids]
-                                     (async/put! resolve-chan id)))
-                                 (log/debugf "HackerNews feed %s update skipped (last: %s, next: %s)"
-                                   story-feed (get @state :last-update-ts) next-update-ok)))
-                             (catch Object e
-                               (swap! state assoc :last-exception e)
-                               (log/error e "Exception in listener"))))
+                            (let [next-update-ok (when-not (nil? (get @state :last-update-ts))
+                                                   (time/plus (get @state :last-update-ts)
+                                                              (time/seconds (or (get-in src [:args :throttle-secs]) 60))))]
+                              (if (or (nil? next-update-ok)
+                                      (time/after? (time/now) next-update-ok))
+                                (do
+                                  (log/debugf "HackerNews feed %s update (last: %s): %s items"
+                                              story-feed (get @state :last-update-ts) (count ids))
+                                  (swap! state assoc :last-update-ts (time/now))
+                                  (doseq [id ids]
+                                    (async/put! resolve-chan id)))
+                                (log/debugf "HackerNews feed %s update skipped (last: %s, next: %s)"
+                                            story-feed (get @state :last-update-ts) next-update-ok)))
+                            (catch Object e
+                              (swap! state assoc :last-exception e)
+                              (log/error e "Exception in listener"))))
 
               listener (listen-value-changes ref listener-f)]
 

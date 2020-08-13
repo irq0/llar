@@ -5,7 +5,6 @@
    [schema.core :as s]
    [clj-time.core :as time]))
 
-
 (def state-template
   "New sources start with this template"
   {:key nil
@@ -14,16 +13,14 @@
    :start-ts nil
    :last-update-ts nil})
 
-
 (defn item-to-string [item]
   (format "[%s: %s/%s/%s]"
-    (.getSimpleName (class item))
-    (str (get-in item [:meta :source]))
-    (if-not (nil? (get-in item [:summary :ts]))
-      (tc/to-string (get-in item [:summary :ts]))
-      "?")
-    (str (get-in item [:summary :title]))))
-
+          (.getSimpleName (class item))
+          (str (get-in item [:meta :source]))
+          (if-not (nil? (get-in item [:summary :ts]))
+            (tc/to-string (get-in item [:summary :ts]))
+            "?")
+          (str (get-in item [:summary :title]))))
 
 (defprotocol LiveSource
   "Protocol to work with live sources"

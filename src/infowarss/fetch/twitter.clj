@@ -11,11 +11,11 @@
             [clj-time.format :as tf]))
 
 (s/defrecord TweetItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     raw :- schema/Tweet
-     entry :- schema/TweetEntry]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              raw :- schema/Tweet
+              entry :- schema/TweetEntry]
   Object
   (toString [item] (item-to-string item)))
 
@@ -48,15 +48,15 @@
   (condp = category
     :hashtags
     (format "<a class=\"hashtag-entity\" href=\"https://twitter.com/hashtag/%s\">%s%s</a>"
-      data (get tweet-symbols category) data)
+            data (get tweet-symbols category) data)
     :user_mentions
     (format "<a class=\"mention-entity\" href=\"https://twitter.com/%s\">%s%s</a>"
-      data (get tweet-symbols category) data)
+            data (get tweet-symbols category) data)
     :media
     (format "<img class=\"media-entity\" src=\"%s\">" (try-blobify-url! data))
     :urls
     (format "<a class=\"url-entity\" href=\"%s\">%s</a>"
-      data (get tweet-symbols category))
+            data (get tweet-symbols category))
     nil
     ""))
 
@@ -64,15 +64,15 @@
   "Generate sorted list of changes to apply to tweet text"
   [tweet]
   (sort
-    (apply concat
-      (for [[category key] [[:hashtags :text]
-                            [:user_mentions :screen_name]
-                            [:media :media_url]
-                            [:urls :expanded_url]]]
-        (for [item (get-in tweet [:entities category])]
-          (let [{:keys [indices]} item]
-            [[(first indices) (second indices)]
-             [category (get item key)]]))))))
+   (apply concat
+          (for [[category key] [[:hashtags :text]
+                                [:user_mentions :screen_name]
+                                [:media :media_url]
+                                [:urls :expanded_url]]]
+            (for [item (get-in tweet [:entities category])]
+              (let [{:keys [indices]} item]
+                [[(first indices) (second indices)]
+                 [category (get item key)]]))))))
 
 (defn htmlize-tweet-text
   "Get html representation of tweet text"
@@ -89,23 +89,21 @@
         changes (tweet-text-changes tweet)
         sb (StringBuilder.)
         text-code-points (->> text
-                           .codePoints
-                           .toArray
-                           vec)
-        text-len (count text-code-points)
-        ]
-    (doseq [ [[[_ end] [cat data]]
-              [[next-start _] [_ _]]]
+                              .codePoints
+                              .toArray
+                              vec)
+        text-len (count text-code-points)]
+    (doseq [[[[_ end] [cat data]]
+             [[next-start _] [_ _]]]
             (partition 2 1 (concat
-                             [[[0 0] [nil nil]]]
-                             changes
-                             [[[text-len text-len] [nil nil]]]))]
+                            [[[0 0] [nil nil]]]
+                            changes
+                            [[[text-len text-len] [nil nil]]]))]
       (let [subs (subvec text-code-points end next-start)]
-                  (.append sb (htmlize-entity cat data))
-                  (doseq [s subs]
-                    (.appendCodePoint sb s))
-                  ))
-      (str sb)))
+        (.append sb (htmlize-entity cat data))
+        (doseq [s subs]
+          (.appendCodePoint sb s))))
+    (str sb)))
 
 (defn tweet-to-entry [tweet]
   (let [user (get-in tweet [:user :screen_name])
@@ -114,7 +112,7 @@
         entities (get tweet :entities)]
 
     {:url (io/as-url (format "https://twitter.com/%s/status/%s"
-                       user id))
+                             user id))
      :pub-ts (parse-twitter-ts (get tweet :created_at))
      :score {:favs (get tweet :favorite_count)
              :retweets (get tweet :retweet_count)}
@@ -122,64 +120,60 @@
      :id id
      :type (tweet-type tweet)
      :entities {:hashtags (some->> (get entities :hashtags)
-                            (map :text))
+                                   (map :text))
                 :mentions (some->> (get entities :user_mentions)
-                            (map :screen_name))
+                                   (map :screen_name))
                 :photos (some->> (get entities :media)
-                          (map :media_url)
-                          (map try-blobify-url!))}
+                                 (map :media_url)
+                                 (map try-blobify-url!))}
      :authors [(get-in tweet [:user :screen_name])]
      :contents {"text/plain" text
                 "text/html" (if (string? text)
                               (htmlize-tweet-text tweet)
                               "")}}))
 
-
 (extend-protocol FetchSource
   infowarss.src.TwitterSearch
   (fetch-source [src]
     (let [{:keys [query oauth-creds]} src
           resp (twitter/search-tweets
-                 :oauth-creds oauth-creds
-                 :params {:q query
-                          :tweet_mode "extended"
-                          })
+                :oauth-creds oauth-creds
+                :params {:q query
+                         :tweet_mode "extended"})
           tweets (get-in resp [:body :statuses])]
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]
         (map->TweetItem
-          {:raw tweet
-           :meta (make-meta src)
-           :summary {:ts (get entry :pub-ts )
-                     :title (tweet-title content)}
-           :hash (make-item-hash
-                   (first (get entry :authors))
-                   content)
-           :entry entry})))))
-
+         {:raw tweet
+          :meta (make-meta src)
+          :summary {:ts (get entry :pub-ts)
+                    :title (tweet-title content)}
+          :hash (make-item-hash
+                 (first (get entry :authors))
+                 content)
+          :entry entry})))))
 
 (extend-protocol FetchSource
   infowarss.src.TwitterApi
   (fetch-source [src]
     (let [{:keys [api-fn params oauth-creds]} src
           resp (api-fn
-                 :oauth-creds oauth-creds
-                 :params params)
+                :oauth-creds oauth-creds
+                :params params)
           tweets (get-in resp [:body :statuses])]
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]
         (map->TweetItem
-          {:raw tweet
-           :meta (make-meta src)
-           :summary {:ts (get entry :pub-ts )
-                     :title (tweet-title content)}
-           :hash (make-item-hash
-                   (first (get entry :authors))
-                   content)
-           :entry entry})))))
-
+         {:raw tweet
+          :meta (make-meta src)
+          :summary {:ts (get entry :pub-ts)
+                    :title (tweet-title content)}
+          :hash (make-item-hash
+                 (first (get entry :authors))
+                 content)
+          :entry entry})))))
 
 (extend-protocol ItemProcessor
   TweetItem
@@ -187,12 +181,11 @@
     (update item :entry merge (:entry item) (analysis/analyze-entry (:entry item))))
   (filter-item [item src state] false))
 
-
 (extend-protocol CouchItem
   TweetItem
   (to-couch [item]
     (-> item
-      (assoc :type :tweet)
-      (dissoc :raw)
-      (dissoc :body)
-      (assoc-in [:meta :source :oauth-creds] nil))))
+        (assoc :type :tweet)
+        (dissoc :raw)
+        (dissoc :body)
+        (assoc-in [:meta :source :oauth-creds] nil))))

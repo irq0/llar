@@ -15,12 +15,12 @@
 
 (defn item-to-string [item]
   (format "[%s: %s/%s/%s]"
-    (.getSimpleName (class item))
-    (str (get-in item [:meta :source]))
-    (if-not (nil? (get-in item [:summary :ts]))
-      (tc/to-string (get-in item [:summary :ts]))
-      "?")
-    (str (get-in item [:summary :title]))))
+          (.getSimpleName (class item))
+          (str (get-in item [:meta :source]))
+          (if-not (nil? (get-in item [:summary :ts]))
+            (tc/to-string (get-in item [:summary :ts]))
+            "?")
+          (str (get-in item [:summary :title]))))
 
 ;;; Constructors
 
@@ -41,13 +41,12 @@
    :tags #{}
    :version 2})
 
-
 (defn tag-items [item _]
   (let [title (get-in item [:summary :title])
         src-key (name (or (get-in item [:meta :source-key]) :unknown))
         title-re #"Four short links:|Weekly Programming Digest|Emacs news"]
     (if (or (re-find title-re title)
-          (re-find #"99pi|nasa-image-of-the-day" src-key))
+            (re-find #"99pi|nasa-image-of-the-day" src-key))
       (update-in item [:meta :tags] conj :daily)
       item)))
 
@@ -56,7 +55,6 @@
 (defprotocol FetchSource
   "Protocol to work with data sources"
   (fetch-source [src]))
-
 
 (defn fetch
   "Fetch feed. Return seq of new items"

@@ -3,12 +3,12 @@
             [clojure.test :refer [function?]]
             [clojure.string :as string]
             [clj-time.format :as tf]
-            [clojure.java.io :as io]
-   ))
+            [clojure.java.io :as io]))
 
 ;;;; Schemas - Both for internal and external data
 
 ;;; Base "Types"
+
 
 (defschema Func
   (s/pred function?))
@@ -37,7 +37,7 @@
 
 (defschema TwitterTimestamp
   (s/constrained s/Str
-    (partial tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy"))))
+                 (partial tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy"))))
 
 (defschema URLStr
   (s/constrained s/Str io/as-url))
@@ -148,7 +148,6 @@
               (s/optional-key "text/html") s/Str}
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
-
 (defschema DocumentEntry
   {:url (s/maybe URLType)
    :title s/Str
@@ -175,6 +174,7 @@
 
 
 ;;; Twitter API (incoming)
+
 
 (defschema TweetEntityIndices
   [(s/one PosInt "s") (s/one PosInt "e")])
@@ -264,10 +264,7 @@
    (s/optional-key :withheld_scope) s/Str
    :is_translation_enabled s/Bool
    :has_extended_profile s/Bool
-   :translator_type s/Any
-
-   })
-
+   :translator_type s/Any})
 
 (defschema Tweet
   "Twitter tweet schema based on https://dev.twitter.com/overview/api/tweets"

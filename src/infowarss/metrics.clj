@@ -1,9 +1,7 @@
 (ns infowarss.metrics
   (:require
    [iapetos.core :as prometheus]
-   [mount.core :refer [defstate]]
-   ))
-
+   [mount.core :refer [defstate]]))
 
 (defstate prom-registry
   :start (-> (prometheus/collector-registry)
@@ -17,7 +15,6 @@
               (prometheus/histogram :render-download)
               (prometheus/histogram :items-current-view))))
 
-
 (defmacro with-log-exec-time [& body]
   `(let [start# (java.lang.System/nanoTime)
          result# (do ~@body)
@@ -26,7 +23,6 @@
          elasped-sec# (/ elasped# 1000000)]
      (log/debugf "%s: %.2fms" (quote ~@body) (float elasped-sec#))
      result#))
-
 
 (defmacro with-prom-exec-time [metric & body]
   `(let [start# (java.lang.System/nanoTime)

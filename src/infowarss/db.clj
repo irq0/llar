@@ -114,7 +114,6 @@
     :today "date(ts) = current_date AND exist_inline(tags, 'unread')"
     "1 = 1"))
 
-
 (defn get-source-for-doc [doc]
   (let [key (name (get-in doc [:meta :source-key]))]
     (first (j/query db ["select * from sources where key = ?" key]))))
@@ -127,21 +126,21 @@
 
 (defn make-item-data-row [item-id att-type [mime-type data]]
   (try+
-    (when (some? data)
-      (if (re-find #"^text/.+" mime-type)
-        (when (and (string? data) (not (string/blank? data)))
-          [item-id mime-type data nil att-type])
-        [item-id mime-type nil (to-byte-buffer data) att-type]))
-    (catch Object _
-      (log/error (:throwable &throw-context) "Unexpected error: "
-        item-id att-type mime-type data)
-      (throw+ {:type ::data-row-conversion-fail
-               :item-id item-id
-               :mime-type mime-type
-               :att-type att-type
+   (when (some? data)
+     (if (re-find #"^text/.+" mime-type)
+       (when (and (string? data) (not (string/blank? data)))
+         [item-id mime-type data nil att-type])
+       [item-id mime-type nil (to-byte-buffer data) att-type]))
+   (catch Object _
+     (log/error (:throwable &throw-context) "Unexpected error: "
+                item-id att-type mime-type data)
+     (throw+ {:type ::data-row-conversion-fail
+              :item-id item-id
+              :mime-type mime-type
+              :att-type att-type
 
-               :data {:type (type data)
-                      :data :data}}))))
+              :data {:type (type data)
+                     :data :data}}))))
 
 (defn make-item-data-rows [item-id doc]
   (let [{:keys [contents descriptions thumbs]} (:entry doc)
@@ -151,7 +150,6 @@
         ths (map (partial make-item-data-row item-id :item_data_type/thumbnail) thumbs)]
 
     (remove nil? (concat cs ds ths))))
-
 
 (defn doc-to-sql-row [doc source-id]
   (let [entry (:entry doc)]
@@ -225,25 +223,23 @@
      (log/error (:throwable &throw-context) "Add Document SQL failed")
      (throw+ {:type ::general :doc doc}))))
 
-
 (defn get-word-count-groups []
   (drop 1
         (j/query db
                  [(str "select "
-                         "case "
-                         "when nlp_nwords > 0   and nlp_nwords <= 200 then 200 "
-                         "when nlp_nwords > 200 and nlp_nwords <= 400 then 400 "
-                         "when nlp_nwords > 400 and nlp_nwords <= 800 then 800 "
-                         "when nlp_nwords > 800 and nlp_nwords <= 1600 then 1600 "
-                         "when nlp_nwords > 1600 and nlp_nwords <= 3200 then 3200 "
-                         "when nlp_nwords > 3200 then 0 "
-                         "end as nword_groups, "
-                         "count(*) "
-                         "from items "
-                         "group by nword_groups "
-                         "order by nword_groups")]
+                       "case "
+                       "when nlp_nwords > 0   and nlp_nwords <= 200 then 200 "
+                       "when nlp_nwords > 200 and nlp_nwords <= 400 then 400 "
+                       "when nlp_nwords > 400 and nlp_nwords <= 800 then 800 "
+                       "when nlp_nwords > 800 and nlp_nwords <= 1600 then 1600 "
+                       "when nlp_nwords > 1600 and nlp_nwords <= 3200 then 3200 "
+                       "when nlp_nwords > 3200 then 0 "
+                       "end as nword_groups, "
+                       "count(*) "
+                       "from items "
+                       "group by nword_groups "
+                       "order by nword_groups")]
                  {:as-arrays? true})))
-
 
 (defn get-tag-stats []
   (drop 1
@@ -260,24 +256,21 @@
 (defn get-type-stats []
   (j/query db ["select count(*), type from items group by type"]))
 
-
-
 (defn get-sources []
   (into {}
-    (for [src (j/query db "select * from sources")
-          :let [key (keyword (:key src))]]
-      [key
-       (-> src
-         (assoc :key key)
-         (merge (into {}
-                  (map (fn [[k v]] [(keyword (subs k 1)) v]) (:data src))))
-         (dissoc :data))])))
+        (for [src (j/query db "select * from sources")
+              :let [key (keyword (:key src))]]
+          [key
+           (-> src
+               (assoc :key key)
+               (merge (into {}
+                            (map (fn [[k v]] [(keyword (subs k 1)) v]) (:data src))))
+               (dissoc :data))])))
 
 (defn get-sources-item-tags []
   (into {}
         (j/query db (string/join " ")
-                 '(
-                   "SELECT key, array_agg(DISTINCT source_tags) AS \"item-tags\""
+                 '("SELECT key, array_agg(DISTINCT source_tags) AS \"item-tags\""
                    "FROM ( "
                    "SELECT sources.id AS id, key, UNNEST(AKEYS(items.tags)) AS source_tags"
                    "FROM sources INNER JOIN items"
@@ -285,8 +278,8 @@
                    "GROUP BY sources.id, AKEYS(items.tags)) AS x"
                    "GROUP BY key")
                  {:row-fn (fn [row] [(keyword (:key row))]
-                                    {:item-tags (apply hash-set
-                                                       (map keyword (:item-tags row)))})})))
+                            {:item-tags (apply hash-set
+                                               (map keyword (:item-tags row)))})})))
 
 (defn new-get-sources []
   (into {}
@@ -343,7 +336,6 @@
                             (assoc :key key)
                             (merge (get *srcs* key)))))}))
 
-
 (defn get-sources-item-tags-with-count []
   (into {}
         (j/query db "select key, json_object_agg(tag, count) as \"item-tags\" from (select key, count(*), skeys(tags) as tag from sources inner join items on sources.id = items.source_id group by key, skeys(tags) UNION select key, count(*), 'total' as tag from sources inner join items on sources.id = items.source_id group by key UNION  select key, count(*), 'today' as tag from sources inner join items on sources.id = items.source_id where date(ts) = current_date and exist_inline(tags,'unread') group by key UNION select key, count(*), 'new' as tag from sources inner join items on sources.id = items.source_id where akeys(tags) = ARRAY['unread'] group by key) as A group by key"
@@ -364,7 +356,7 @@
 
 (defn get-item-ids-by-tag [tag]
   (j/query db ["select id from items where exist_inline(tags, ?)" (name tag)]
-    {:row-fn :id}))
+           {:row-fn :id}))
 
 (defn item-set-tags [id & tags]
   (let [pairs (mapv (fn [tag]
@@ -373,10 +365,10 @@
         sql-tags (str "ARRAY[" (string/join "," pairs) "]")
         sql (str "update items set tags = tags || hstore(" sql-tags ") where id = ?")]
     (try+
-      (first (j/execute! db [sql id]))
-      (catch org.postgresql.util.PSQLException _
-        (log/error (:throwable &throw-context) "SQL failed")
-        (throw+ {:type ::general :sql sql :id id :tags tags})))))
+     (first (j/execute! db [sql id]))
+     (catch org.postgresql.util.PSQLException _
+       (log/error (:throwable &throw-context) "SQL failed")
+       (throw+ {:type ::general :sql sql :id id :tags tags})))))
 
 (defn item-set-all-tags-for-source [source-id & tags]
   (let [pairs (mapv (fn [tag]
@@ -389,85 +381,83 @@
        (log/error (:throwable &throw-context) "SQL failed")
        (throw+ {:type ::general :sql sql :id source-id :tags tags})))))
 
-
 (defn item-remove-tags [id & tags]
   (let [sql-tags (str "ARRAY[" (string/join ","
-                                 (map (fn [tag] (str "'" (name tag) "'"))
-                                   tags))
-                   "]")
+                                            (map (fn [tag] (str "'" (name tag) "'"))
+                                                 tags))
+                      "]")
         sql (str "update items set tags = delete(tags, " sql-tags ") where id = ?")]
     (try+
-      (first (j/execute! db [sql id]))
-      (catch org.postgresql.util.PSQLException _
-        (log/error (:throwable &throw-context) "SQL failed")
-        (throw+ {:type ::general :sql sql :id id :tags tags})))))
+     (first (j/execute! db [sql id]))
+     (catch org.postgresql.util.PSQLException _
+       (log/error (:throwable &throw-context) "SQL failed")
+       (throw+ {:type ::general :sql sql :id id :tags tags})))))
 
 (defn item-remove-all-tags-for-source [source-id & tags]
   (let [sql-tags (str "ARRAY[" (string/join ","
-                                 (map (fn [tag] (str "'" (name tag) "'"))
-                                   tags))
-                   "]")
+                                            (map (fn [tag] (str "'" (name tag) "'"))
+                                                 tags))
+                      "]")
         sql (str "update items set tags = delete(tags, " sql-tags ") where source_id = ?")]
     (try+
-      (j/execute! db [sql source-id])
+     (j/execute! db [sql source-id])
 
-      (catch org.postgresql.util.PSQLException _
-        (log/error (:throwable &throw-context) "SQL failed")
-        (throw+ {:type ::general :sql sql :source-id source-id :tags tags})))))
-
+     (catch org.postgresql.util.PSQLException _
+       (log/error (:throwable &throw-context) "SQL failed")
+       (throw+ {:type ::general :sql sql :source-id source-id :tags tags})))))
 
 (defn process-items-row [row]
   (if (some? (:data_types row))
     (-> row
-      (assoc :data
-        (->>
-          (map (fn [t m text bin]
-                 [t {m (or text (converter/bytea-hex-to-byte-array bin))}])
-            (map keyword (:data_types row))
-            (:mime_types row)
-            (:text row)
-            (:bin-data row))
-          (group-by first)
-          (map (fn [[k v]]
-                 [k (apply merge (map second v))]))
-          (into {})))
-      (dissoc :data_types :bin-data :mime_types :text))
+        (assoc :data
+               (->>
+                (map (fn [t m text bin]
+                       [t {m (or text (converter/bytea-hex-to-byte-array bin))}])
+                     (map keyword (:data_types row))
+                     (:mime_types row)
+                     (:text row)
+                     (:bin-data row))
+                (group-by first)
+                (map (fn [[k v]]
+                       [k (apply merge (map second v))]))
+                (into {})))
+        (dissoc :data_types :bin-data :mime_types :text))
     row))
 
 (defn process-items-row-fever [row]
   (-> row
-    (assoc :data
-      (->>
-        (map (fn [t m d]
-               [t {m d}])
-          (map keyword (:data_types row))
-          (:mime_types row)
-          (:text row))
-        (group-by first)
-        (map (fn [[k v]]
-               [k (apply merge (map second v))]))
-        (into {})))
-    (update :created_on_time converter/to-fever-timestamp)
-    (update :url str)
-    (dissoc :data_types :mime_types :text)))
+      (assoc :data
+             (->>
+              (map (fn [t m d]
+                     [t {m d}])
+                   (map keyword (:data_types row))
+                   (:mime_types row)
+                   (:text row))
+              (group-by first)
+              (map (fn [[k v]]
+                     [k (apply merge (map second v))]))
+              (into {})))
+      (update :created_on_time converter/to-fever-timestamp)
+      (update :url str)
+      (dissoc :data_types :mime_types :text)))
 
 (def get-items-by-id-fever-base-sql
   (str
-    "SELECT items.id, items.source_id as feed_id, title, "
-    "author, "
-    "entry->'url' as url, "
-    "exist_inline(tags, 'saved')::int as is_saved, "
-    "(not exist_inline(tags, 'unread'))::int as is_read, "
-    "ts as created_on_time, "
-    "json_agg(mime_type) as mime_types, "
-    "json_agg(item_data.type) as data_types, "
-    "json_agg(item_data.text) as text "
-    "FROM items "
-    "INNER JOIN sources ON items.source_id = sources.id "
-    "LEFT JOIN item_data ON items.id = item_data.item_id "
-    "WHERE "
-    "(item_data.type = 'content' "
-    "  OR item_data.type = 'description') "))
+   "SELECT items.id, items.source_id as feed_id, title, "
+   "author, "
+   "entry->'url' as url, "
+   "exist_inline(tags, 'saved')::int as is_saved, "
+   "(not exist_inline(tags, 'unread'))::int as is_read, "
+   "ts as created_on_time, "
+   "json_agg(mime_type) as mime_types, "
+   "json_agg(item_data.type) as data_types, "
+   "json_agg(item_data.text) as text "
+   "FROM items "
+   "INNER JOIN sources ON items.source_id = sources.id "
+   "LEFT JOIN item_data ON items.id = item_data.item_id "
+   "WHERE "
+   "(item_data.type = 'content' "
+   "  OR item_data.type = 'description') "))
 
 (def +get-items-by-id-sql-select+
   (str
@@ -505,7 +495,6 @@
    "nlp_nwords as nwords, "
    "max(sources.key) as \"source-key\", "))
 
-
 (def +get-items-by-id-sql-join-with-data-where+
   (str
    "FROM items "
@@ -533,10 +522,10 @@
 
 (def +get-items-by-id-sql-select-data+
   (str
-    "json_agg(mime_type) as mime_types, "
-    "json_agg(item_data.type) as data_types, "
-    "json_agg(item_data.text) as text, "
-    "json_agg(item_data.data) as \"bin-data\", "))
+   "json_agg(mime_type) as mime_types, "
+   "json_agg(item_data.type) as data_types, "
+   "json_agg(item_data.text) as text, "
+   "json_agg(item_data.data) as \"bin-data\", "))
 
 (defn get-items-by-id-sql
   [& {:keys [extra-select extra-where with-data? with-preview-data?]
@@ -556,8 +545,7 @@
          with-preview-data? +get-items-by-id-sql-join-with-preview-data-where+
          :else +get-items-by-id-sql-join-without-data-where+)
    " "
-   extra-where
-   ))
+   extra-where))
 
 (defn get-items-by-id-range-fever
   [since max & {:keys [limit] :or {limit "ALL"}}]
@@ -588,15 +576,14 @@
       [max]))
    {:row-fn process-items-row-fever}))
 
-
 (defn get-items-by-id-fever
   [ids & {:keys [limit] :or {limit "ALL"}}]
   (let [sql-arr (str "ARRAY[" (string/join "," ids) "]")]
     (j/query db [(str get-items-by-id-fever-base-sql
-                     " AND items.id = ANY(" sql-arr ") "
-                     "GROUP BY items.id "
-                     "LIMIT " limit)]
-      {:row-fn process-items-row-fever})))
+                      " AND items.id = ANY(" sql-arr ") "
+                      "GROUP BY items.id "
+                      "LIMIT " limit)]
+             {:row-fn process-items-row-fever})))
 
 (defn get-items-by-id
   [ids & {:keys [limit with-data?] :or {limit "ALL" with-data? true}}]
@@ -634,8 +621,8 @@
                                              (string/join ", ")))]
                             {:row-fn :id})]
     (j/execute! db [(log/spy (format "update items set tags = tags - 'unread'::text where source_id in (%s) and exist_inline(tags, 'unread') and ts <= ?"
-                         (->> source-ids (string/join ", ")) ))
-                 older-than-ts])))
+                                     (->> source-ids (string/join ", "))))
+                    older-than-ts])))
 
 (defn get-items-recent
   "Get items sorted by timestamp - used by the reader gui"
@@ -702,21 +689,20 @@
 (defn search
   "Search for query. postgres query format"
   ([query {:keys [with-source-key time-ago-period]}]
-     (j/query db [(log/spy (str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
-                       " from search_index"
-                       " where document @@ to_tsquery('english', ?)"
-                       "  and "
-                       (->>
-                        ["1=1"
-                         (when time-ago-period
-                           (str "ts > " (j/sql-value (time/ago time-ago-period))))
-                         (when with-source-key (str "key = '" (name with-source-key) "'"))]
-                        (remove nil?)
-                        (string/join " and "))
-                       " order by rank desc")) query query]))
+   (j/query db [(log/spy (str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
+                              " from search_index"
+                              " where document @@ to_tsquery('english', ?)"
+                              "  and "
+                              (->>
+                               ["1=1"
+                                (when time-ago-period
+                                  (str "ts > " (j/sql-value (time/ago time-ago-period))))
+                                (when with-source-key (str "key = '" (name with-source-key) "'"))]
+                               (remove nil?)
+                               (string/join " and "))
+                              " order by rank desc")) query query]))
   ([query]
    (j/query db ["select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query])))
-
 
 (defn refresh-search-index []
   (j/execute! db ["refresh materialized view search_index"]))
@@ -724,22 +710,20 @@
 (defn refresh-idf []
   (j/execute! db ["refresh materialized view idf_top_words"]))
 
-
 (defn item-tf-idf [id]
   (j/query db [(str
-                  "select term_tf->>0 as term, (term_tf->>1)::float as tf, idf_top_words.ln as idf, (term_tf->>1)::float * idf_top_words.ln as tf_idf "
-                  " from "
-                  "(select id, jsonb_array_elements(nlp_top->'words') as term_tf from items where id = ?) as i "
-                  "inner join "
-                  "idf_top_words on (term_tf->0 = idf_top_words.term) "
-                  "order by tf_idf asc") id]))
+                "select term_tf->>0 as term, (term_tf->>1)::float as tf, idf_top_words.ln as idf, (term_tf->>1)::float * idf_top_words.ln as tf_idf "
+                " from "
+                "(select id, jsonb_array_elements(nlp_top->'words') as term_tf from items where id = ?) as i "
+                "inner join "
+                "idf_top_words on (term_tf->0 = idf_top_words.term) "
+                "order by tf_idf asc") id]))
 
 ;; TF = term frequence
 ;; IDF inverse document frequency
 
 (defn top-idf [max]
   (j/query db ["select term, ln from idf_top_words limit ?" max]))
-
 
 (defn recommendations
   "Find similar items for id"
@@ -748,23 +732,22 @@
 
 (defn saved-items-tf-idf []
   (rest (j/query db [(str "select "
-                    "id, "
-                    "json_agg(json_build_array(term_tf->>0 , "
-                    " (term_tf->>1)::float * idf_top_words.ln )) "
-                    " from "
-                    "(select id, jsonb_array_elements(nlp_top->'words') as term_tf "
-                    "from items "
-                    "where exist_inline(tags, 'saved') or (items.type = 'bookmark' and exist_inline(tags, 'unread')) ) as i "
-                    "inner join "
-                    "idf_top_words on (term_tf->0 = idf_top_words.term) "
-                    "group by id "
-                    )]
-           {:as-arrays? true
-            :row-fn (fn [[id term-tf-idf]]
-                      (assoc (into {} term-tf-idf) "item_id" (double id)))
-                      })))
+                          "id, "
+                          "json_agg(json_build_array(term_tf->>0 , "
+                          " (term_tf->>1)::float * idf_top_words.ln )) "
+                          " from "
+                          "(select id, jsonb_array_elements(nlp_top->'words') as term_tf "
+                          "from items "
+                          "where exist_inline(tags, 'saved') or (items.type = 'bookmark' and exist_inline(tags, 'unread')) ) as i "
+                          "inner join "
+                          "idf_top_words on (term_tf->0 = idf_top_words.term) "
+                          "group by id ")]
+                 {:as-arrays? true
+                  :row-fn (fn [[id term-tf-idf]]
+                            (assoc (into {} term-tf-idf) "item_id" (double id)))})))
 
 ;; make adjustmens here to limit the number of words to use in k means
+
 
 (defn saved-items-tf-idf-terms []
   (first (second (j/query db [(str "select array_agg(foo.term) from (select distinct "
@@ -778,6 +761,5 @@
                                    "idf_top_words on (term_tf->0 = idf_top_words.term) "
                                    "where (term_tf->>1)::float > 1 and length(term_tf->>0) > 4 and not (term_tf->>0) like '%/%'"
                                    ") as foo")]
-           {:as-arrays? true}))
-))
+                          {:as-arrays? true}))))
 

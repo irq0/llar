@@ -15,7 +15,7 @@
 (log/merge-config!
  {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
                          {:path "/tmp/infowarss_all.log"
-                          :max-size (* 42 1024 1024) })}})
+                          :max-size (* 42 1024 1024)})}})
 
 (log/merge-config!
  {:ns-blacklist  ["org.apache.http.*"
@@ -25,8 +25,7 @@
                   "org.eclipse.jetty.util.*"
                   "org.apache.pdfbox.io.*"
                   "com.ning.http.client.providers.netty.handler.*"
-                  "com.ning.http.client.providers.netty.channel.*"
-                  ]
+                  "com.ning.http.client.providers.netty.channel.*"]
   :level :trace})
 
 (log/merge-config!
@@ -41,6 +40,8 @@
 
 
 ;; from mount examples
+
+
 (defn- f-to-action [f {:keys [status]}]
   (let [fname (-> (str f)
                   (string/split #"@")

@@ -13,17 +13,15 @@
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
-   [schema.core :as s]
-   ))
+   [schema.core :as s]))
 
 (s/defrecord RedditItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     entry :- schema/RedditEntry]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              entry :- schema/RedditEntry]
   Object
   (toString [item] (fetch/item-to-string item)))
-
 
 (extend-protocol postproc/ItemProcessor
   RedditItem
@@ -36,10 +34,10 @@
   RedditItem
   (to-couch [item]
     (-> item
-      (assoc :type :link)
-      (dissoc :raw)
-      (dissoc :body)
-      (assoc-in [:meta :source :args] nil))))
+        (assoc :type :link)
+        (dissoc :raw)
+        (dissoc :body)
+        (assoc-in [:meta :source :args] nil))))
 
 (defn reddit-get [url]
   (try+
@@ -48,11 +46,11 @@
                              :headers {:user-agent "java:infowarss:23: (by /u/irq0x00)"}})]
      (:body resp))
    (catch (contains? #{500 501 502 503 504} (get % :status))
-       {:keys [headers body status]}
+          {:keys [headers body status]}
      (log/errorf "Server Error (%s): %s %s" status headers body)
      (throw+ {:type ::server-error-retry-later}))
    (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
-       {:keys [headers body status]}
+          {:keys [headers body status]}
      (log/errorf "Client error probably due to broken request (%s): %s %s"
                  status headers body)
      (throw+ {:type ::request-error}))
@@ -63,7 +61,6 @@
 (defn reddit-ts-to-joda [t]
   (when (number? t)
     (tc/from-long (* 1000 (long t)))))
-
 
 (defn reddit-html-summary [c]
   (html
@@ -78,7 +75,6 @@
      [:li [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]
    [:p {:style "white-space: pre-line"} (:selftext c)]))
 
-
 (defn make-reddit-entry [c]
   {:url (infowarss-http/absolutify-url (:url c) "https://www.reddit.com")
    :comments-url (io/as-url (str "https://www.reddit.com" (:permalink c)))
@@ -92,17 +88,16 @@
               "text/html" (reddit-html-summary c)}
    :descriptions {"text/plain" ""}})
 
-
 (extend-protocol fetch/FetchSource
   infowarss.src.Reddit
   (fetch-source [src]
     (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100"
-                               (:subreddit src) (:feed src)))]
+                                     (:subreddit src) (:feed src)))]
       (for [child (get-in reddit [:data :children])
             :let [item (:data child)]]
         (->RedditItem
-          (fetch/make-meta src)
-          {:ts (reddit-ts-to-joda (:created_utc item)) :title (:title item)}
+         (fetch/make-meta src)
+         {:ts (reddit-ts-to-joda (:created_utc item)) :title (:title item)}
 ;          (fetch/make-item-hash (:title item) (:selftext item))
-          (fetch/make-item-hash (:id item))
-          (make-reddit-entry item))))))
+         (fetch/make-item-hash (:id item))
+         (make-reddit-entry item))))))

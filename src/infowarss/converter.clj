@@ -11,14 +11,11 @@
    [clojure.edn :as edn]
    [clojure.java.shell :as shell]))
 
-
 (def +html-to-text-tools+
   {:pandoc ["pandoc" "-f" "html" "-t" "plain" "--reference-links"]
    :w3m ["w3m" "-T" "text/html" "-dump"]
    :lynx ["lynx" "-dump" "-list_inline" "-width 1024" "-stdin"]
    :html2text ["html2text" "-style" "pretty" "-utf8"]})
-
-
 
 (defn html2text
   "Convert html to text"
@@ -36,13 +33,13 @@
 
 (defmethod base64-encode String [data]
   (.encodeToString
-    (java.util.Base64/getMimeEncoder)
-    (.getBytes data)))
+   (java.util.Base64/getMimeEncoder)
+   (.getBytes data)))
 
 (defmethod base64-encode (Class/forName "[B") [data]
   (.encodeToString
-    (java.util.Base64/getMimeEncoder)
-    data))
+   (java.util.Base64/getMimeEncoder)
+   data))
 
 (defmulti base64-decode class)
 
@@ -51,28 +48,26 @@
 
 (defmethod base64-decode String [data]
   (.decode
-    (java.util.Base64/getMimeDecoder)
-    data))
+   (java.util.Base64/getMimeDecoder)
+   data))
 
 (defn data-uri [data & {:keys [mime-type]
                         :or {mime-type (pm/mime-type-of data)}}]
   (if (and (instance? String data) (nil? mime-type))
     (format "data:text/plain;%s" (java.net.URLEncoder/encode data "UTF-8"))
     (format "data:%s;base64,%s"
-      mime-type (java.net.URLEncoder/encode (base64-encode data) "ASCII"))))
+            mime-type (java.net.URLEncoder/encode (base64-encode data) "ASCII"))))
 
 (defn bytea-hex-to-byte-array [bytea]
   (byte-array
-    (map (fn [[a b]] (Integer/parseInt (str a b) 16))
-      (drop 1 (partition 2 bytea)))))
-
+   (map (fn [[a b]] (Integer/parseInt (str a b) 16))
+        (drop 1 (partition 2 bytea)))))
 
 (defn get-mimetype
   [data & {:keys [mime-type]}]
   (if-not (string/blank? mime-type)
     mime-type
     (pm/mime-type-of data)))
-
 
 (defmulti convert-to-html get-mimetype)
 
@@ -100,11 +95,10 @@
 
 (defmethod thumbnail "application/pdf" [data & _]
   (let [{:keys [exit out err]} (shell/sh "pdftocairo" "-png" "-singlefile"
-                             "-scale-to" "800" "-" "-" :in data :out-enc :bytes)]
+                                         "-scale-to" "800" "-" "-" :in data :out-enc :bytes)]
     (when-not (zero? exit)
       (throw+ {:type ::thumbnail-creation-failed :exit exit :out out :err err}))
     {"image/png" out}))
-
 
 (defmethod print-method org.joda.time.DateTime
   [v ^java.io.Writer w]
@@ -135,7 +129,6 @@
   (.write w "#atom ")
   (.write w (prn-str @v)))
 
-
 (defmethod print-method java.lang.Object
   [v ^java.io.Writer w]
   (.write w "#object \"")
@@ -146,26 +139,26 @@
 
 (defn read-edn-string [s]
   (edn/read-string
-    {:readers {'datetime tc/from-string
-               'url urly/url-like
-               'uri urly/url-like
-               'atom (fn [x] (atom x))
-               'error (fn [_] nil)  ; Throw away error details
-               'object (fn [_] (Object.))}
-     :default ->TaggedValue}
-    s))
+   {:readers {'datetime tc/from-string
+              'url urly/url-like
+              'uri urly/url-like
+              'atom (fn [x] (atom x))
+              'error (fn [_] nil)  ; Throw away error details
+              'object (fn [_] (Object.))}
+    :default ->TaggedValue}
+   s))
 
 (defn to-fever-timestamp
   "Convert clj-time time object to fever unix timestamp"
   [time]
   (try+
-    (-> time
-      tc/to-long
-      (/ 1000)
-      (.longValue)
-      (max 0))
-    (catch Object _
-      0)))
+   (-> time
+       tc/to-long
+       (/ 1000)
+       (.longValue)
+       (max 0))
+   (catch Object _
+     0)))
 
 (defn parse-http-ts [ts]
   (when-not (nil? ts)

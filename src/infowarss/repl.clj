@@ -37,17 +37,17 @@
 
 (defn format-interval [period]
   (let [formatter (some-> (org.joda.time.format.PeriodFormatterBuilder.)
-                    .printZeroNever
-                    .appendDays
-                    (.appendSuffix "d")
-                    .appendHours
-                    (.appendSuffix "h")
-                    .appendMinutes
-                    (.appendSuffix "m")
-                    .printZeroAlways
-                    .appendSeconds
-                    (.appendSuffix "s")
-                    .toFormatter)]
+                          .printZeroNever
+                          .appendDays
+                          (.appendSuffix "d")
+                          .appendHours
+                          (.appendSuffix "h")
+                          .appendMinutes
+                          (.appendSuffix "m")
+                          .printZeroAlways
+                          .appendSeconds
+                          (.appendSuffix "s")
+                          .toFormatter)]
     (.print formatter period)))
 
 (defn period-since-now [ts]
@@ -55,9 +55,9 @@
 
 (defn since-now-str [ts]
   (some-> ts
-    period-since-now
-    format-interval
-    (str " ago")))
+          period-since-now
+          format-interval
+          (str " ago")))
 
 (defn- get-state [k]
   (if (instance? clojure.lang.Atom (get @update/state k))
@@ -68,9 +68,9 @@
   [[k v]]
   (let [state (get-state k)
         base (cond->
-                 {:key k
-                  :name (str (get v :src))
-                  :status (:status state)}
+              {:key k
+               :name (str (get v :src))
+               :status (:status state)}
                (instance? org.joda.time.DateTime (:last-update-ts state)) ; live feeds have a last update
                (assoc :last-update (since-now-str (:last-update-ts state)))
                (instance? org.joda.time.DateTime (:last-attempt-ts state)) ; others have last success / attempt
@@ -94,9 +94,9 @@
   "Return list of sources for human consumption"
   []
   (concat
-    (sources :by-state :temp-fail)
-    (sources :by-state :perm-fail)
-    (sources :by-state :failed)))
+   (sources :by-state :temp-fail)
+   (sources :by-state :perm-fail)
+   (sources :by-state :failed)))
 
 ;;; Preview - Try out filters, processing, fetch
 
@@ -126,8 +126,7 @@
        :limited-preview (map #(select-keys % [:summary :feed :meta :hash]) processed)})
 
     (catch Throwable th
-      (log/error th "Error fetching " (str src))
-      )))
+      (log/error th "Error fetching " (str src)))))
 
 
 ;; clustering
@@ -140,6 +139,7 @@
 ;;                                         items)]
 ;;     ds))
 
+
 (def current-clustered-saved-items (atom {}))
 
 (defn make-saved-dataset []
@@ -151,11 +151,10 @@
                                  (if (= s :item_id)
                                    (.setWeight new-attrib 0.0)
                                    (.setWeight new-attrib 1.0))
-                                 new-attrib
-                                                          ))
-                               attributes)
+                                 new-attrib))
+                             attributes)
         ds (weka.core.Instances. "saved-items" (java.util.ArrayList. weka-attributes)
-                                          (count term-tf-idf-maps))]
+                                 (count term-tf-idf-maps))]
         ;; ds (ml-data/make-dataset "saved-items" attributes (count term-tf-idf-maps))]
     (doseq [m term-tf-idf-maps]
       (let [inst (weka.core.SparseInstance. (count attributes))]
@@ -172,21 +171,19 @@
 
     ds))
 
-
 (defn improvise-cluster-name [attributes centroid]
-  (let [take-this (nth (sort centroid) (- (count centroid) 5) )]
+  (let [take-this (nth (sort centroid) (- (count centroid) 5))]
     (string/join "+"
                  (take 5
-               (remove nil?
-                       (map (fn [att val]
-                              (let [name (.name att)]
-                                (when (and (>= val take-this)
-                                           (not (re-find #"\W" name))
-                                           (not= "item_id" name)
-                                           )
-                                  name)))
-                            attributes
-                            centroid))))))
+                       (remove nil?
+                               (map (fn [att val]
+                                      (let [name (.name att)]
+                                        (when (and (>= val take-this)
+                                                   (not (re-find #"\W" name))
+                                                   (not= "item_id" name))
+                                          name)))
+                                    attributes
+                                    centroid))))))
 
 (defn cluster-saved []
   (let [ds (make-saved-dataset)
@@ -202,8 +199,7 @@
                                               (-> cent
                                                   ml-data/instance-to-vector))]
                                 human
-                                (keyword (str k))
-                               )])
+                                (keyword (str k)))])
                            centroids))]
       (log/info names)
       (->> ds-clst
@@ -220,19 +216,18 @@
                      :id id})))
            (group-by :class)))))
 
-
 (defn youtube-dl-music [url]
   (let [{:keys [exit out err]} (shell/sh
-                                 "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
-                                 "youtube-dl"
-                                 "--no-progress"
-                                 "-f" "bestaudio"
-                                 "--extract-audio"
-                                 "--ignore-errors"
-                                 "--audio-format" "mp3"
-                                 "--audio-quality" "320"
-                                 url
-                                 :dir "/tank/media/Music/Miner")
+                                "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
+                                "youtube-dl"
+                                "--no-progress"
+                                "-f" "bestaudio"
+                                "--extract-audio"
+                                "--ignore-errors"
+                                "--audio-format" "mp3"
+                                "--audio-quality" "320"
+                                url
+                                :dir "/tank/media/Music/Miner")
         youtube-err (second (re-find #"ERROR: (.+)" err))]
     (log/trace "Youtube-dl OUT: " out)
     (log/trace "Youtube-dl ERR: " err)
@@ -247,19 +242,19 @@
 (defn youtube-dl-video [url dest-dir]
   (let [{:keys [exit out err]} (shell/sh
                                  ;; "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
-                             "/home/seri/.local/bin/youtube-dl"
-                             "--format" "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-                             "--recode-video" "mp4"
-                             "--embed-subs"
-                             "--embed-thumbnail"
-                             "--no-call-home"
-                             "--no-progress"
-                             "--no-continue"
-                             "--no-part"
-                             "--no-playlist"
-                             "--dump-json"
-                             url
-                             :dir dest-dir)]
+                                "/home/seri/.local/bin/youtube-dl"
+                                "--format" "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                                "--recode-video" "mp4"
+                                "--embed-subs"
+                                "--embed-thumbnail"
+                                "--no-call-home"
+                                "--no-progress"
+                                "--no-continue"
+                                "--no-part"
+                                "--no-playlist"
+                                "--dump-json"
+                                url
+                                :dir dest-dir)]
     (if (zero? exit)
       (let [j (json/parse-string out true)]
         (log/info "Youtube-dl success: " (:_filename j))
@@ -271,60 +266,57 @@
                    err)
         (throw+ {:type :youtube-error :exit exit})))))
 
-
 (defn music-links []
   (let [sources (-> (db/get-sources)
-                  (db/sources-merge-in-config)
-                  vals)
+                    (db/sources-merge-in-config)
+                    vals)
         music-srcs (->> sources
-                     (filter #(contains? (:tags %) :music))
-                     (map :key))
+                        (filter #(contains? (:tags %) :music))
+                        (map :key))
         items (db/get-items-recent
-                  {:with-source-keys music-srcs
-                   :limit 512
-                   :with-tag :unread})]
-      (->> items
-        (map (juxt :id :title :url))
-        (filter (fn [[_ _ url]]
-                  (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url))))))
+               {:with-source-keys music-srcs
+                :limit 512
+                :with-tag :unread})]
+    (->> items
+         (map (juxt :id :title :url))
+         (filter (fn [[_ _ url]]
+                   (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url))))))
 
 (defn music-miner []
   (doseq [[id title url] (music-links)]
     (try+
-      (log/info "Music Mining: " title url)
-      (let [filename (youtube-dl-music url)]
-        (log/infof "Music Miner downloaded %s/%s to %s"
-          title url filename)
-        (db/item-set-tags id :music-mined)
-        (db/item-remove-tags id :unread))
-      (catch [:type :youtube-error] {:keys [msg]}
-        (db/item-set-tags id :music-mined :music-miner-failed)
-        (db/item-remove-tags id :unread)
-        (log/errorf "Music miner failed for %s/%s: %s" title url msg))
-      (catch Object e
-        (log/error e "Unexpected error")))))
+     (log/info "Music Mining: " title url)
+     (let [filename (youtube-dl-music url)]
+       (log/infof "Music Miner downloaded %s/%s to %s"
+                  title url filename)
+       (db/item-set-tags id :music-mined)
+       (db/item-remove-tags id :unread))
+     (catch [:type :youtube-error] {:keys [msg]}
+       (db/item-set-tags id :music-mined :music-miner-failed)
+       (db/item-remove-tags id :unread)
+       (log/errorf "Music miner failed for %s/%s: %s" title url msg))
+     (catch Object e
+       (log/error e "Unexpected error")))))
 
 (defn download-tagged-stuff []
   (let [items (db/get-items-by-tag :download)]
     (doall
-    (for [item items]
-      (let [url (get-in item [:entry :url])
-            dest-dir (str "/home/seri/Desktop/MEDIA/"
-                          (name (:key item)))]
-        (when (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)
-          (log/info "Downloading " url " to " dest-dir)
-          (-> (io/as-file dest-dir) .mkdirs)
-          (future
-            (try+
-             (let [filename (youtube-dl-video url dest-dir)]
-               (db/item-remove-tags (:id item) :download)
-               filename)
-             (catch [:type :youtube-error] {:keys [msg]}
-               (log/errorf "Miner failed for %s: %s" item msg))
-             (catch Object e
-               (log/error e "Unexpected error")))
-            )
-          ))))))
+     (for [item items]
+       (let [url (get-in item [:entry :url])
+             dest-dir (str "/home/seri/Desktop/MEDIA/"
+                           (name (:key item)))]
+         (when (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)
+           (log/info "Downloading " url " to " dest-dir)
+           (-> (io/as-file dest-dir) .mkdirs)
+           (future
+             (try+
+              (let [filename (youtube-dl-video url dest-dir)]
+                (db/item-remove-tags (:id item) :download)
+                filename)
+              (catch [:type :youtube-error] {:keys [msg]}
+                (log/errorf "Miner failed for %s: %s" item msg))
+              (catch Object e
+                (log/error e "Unexpected error"))))))))))
 
 (defn copy-wallpapers-to-home []
   (doseq [[source destination]
@@ -350,8 +342,7 @@
 
 (defn usc-l-only [usc-venues]
   (->> usc-venues :data :venues
-    (filter #(= 3 (apply min (:planTypeIds %))))
-    (remove #(some (partial = "Massage") (map :name (:categories %))))
-    (map #(merge (select-keys % [:district :name :location])
-            {:categories (string/join ", " (map :name (:categories %)))}))
-    ))
+       (filter #(= 3 (apply min (:planTypeIds %))))
+       (remove #(some (partial = "Massage") (map :name (:categories %))))
+       (map #(merge (select-keys % [:district :name :location])
+                    {:categories (string/join ", " (map :name (:categories %)))}))))

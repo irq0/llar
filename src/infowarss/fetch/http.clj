@@ -16,12 +16,12 @@
    [clojurewerkz.urly.core :as urly]))
 
 (s/defrecord GenericWebsiteItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     entry :- schema/FeedEntry
-     hickory :- s/Any
-     feed :- schema/Feed]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              entry :- schema/FeedEntry
+              hickory :- s/Any
+              feed :- schema/Feed]
   Object
   (toString [item] (item-to-string item)))
 
@@ -30,7 +30,7 @@
   (fetch-source [src]
     (let [{:keys [url args]} src
           {:keys [summary body hickory]} (http/fetch
-                                              url :user-agent (:user-agent args))
+                                          url :user-agent (:user-agent args))
           feed {:title "[website]"
                 :url ""
                 :feed-type "generic-website"}]
@@ -89,7 +89,6 @@
                                "text/plain" (conv/html2text body)}}
             :feed feed})])))))
 
-
 (extend-protocol ItemProcessor
   GenericWebsiteItem
   (post-process-item [item src state]
@@ -102,14 +101,12 @@
                          (when (some #(re-find #"https?://open\.spotify\.com/playlist" %) urls)
                            :has-spotify-playlist)
                          (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" urls))
-                           :has-video)
-                         ]))]
+                           :has-video)]))]
       (-> item
           (update-in [:meta :tags] into tags)
           (update :entry merge (:entry item) nlp)
           (tag-items src))))
   (filter-item [item src state] false))
-
 
 (extend-protocol CouchItem
   GenericWebsiteItem

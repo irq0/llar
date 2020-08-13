@@ -32,10 +32,10 @@
   (cond (string? kw-or-s) kw-or-s
         (keyword? kw-or-s) (get +http-user-agent+ kw-or-s)
         :else (throw+ {:type ::invalid-user-agent
-                          :msg "Use string or keyword"
-                          :offending-value kw-or-s
-                          :offending-type (type kw-or-s)
-                          :keywords (keys +http-user-agent+)})))
+                       :msg "Use string or keyword"
+                       :offending-value kw-or-s
+                       :offending-type (type kw-or-s)
+                       :keywords (keys +http-user-agent+)})))
 
 (def public-blacklists
   ["https://raw.githubusercontent.com/austinheap/sophos-xg-block-lists/master/adguard.txt"
@@ -99,7 +99,7 @@
 
 (defn parse-href [s]
   (when-let [url (or (swallow-exceptions (parse-url s))
-                   (swallow-exceptions (parse-url (str "/" s))))]
+                     (swallow-exceptions (parse-url (str "/" s))))]
     url))
 
 (s/defn absolutify-url :- (s/maybe schema/URLType)
@@ -176,23 +176,23 @@
   (let [zipper (hick-z/hickory-zip root)
         edit-tag (fn [tag _type _content attrs loc]
                    (try
-                    (cond
-                      (and (= tag :a) (string? (:href attrs)))
-                      (zip/edit loc update-in
-                                [:attrs :href]
-                                #(str (absolutify-url % base-url)))
+                     (cond
+                       (and (= tag :a) (string? (:href attrs)))
+                       (zip/edit loc update-in
+                                 [:attrs :href]
+                                 #(str (absolutify-url % base-url)))
 
-                      (and (= tag :img) (or (string? (:src attrs))
-                                            (string? (:srcset attrs))))
-                      (edit-img-tag base-url loc)
+                       (and (= tag :img) (or (string? (:src attrs))
+                                             (string? (:srcset attrs))))
+                       (edit-img-tag base-url loc)
 
-                      :else
-                      loc)
-                    (catch Throwable th
-                      (log/debug th "Absolutify error loc:"
-                                 (merge {:base-url base-url}
-                                        (select-keys (zip/node loc) [:tag :type :attrs])))
-                      loc)))]
+                       :else
+                       loc)
+                     (catch Throwable th
+                       (log/debug th "Absolutify error loc:"
+                                  (merge {:base-url base-url}
+                                         (select-keys (zip/node loc) [:tag :type :attrs])))
+                       loc)))]
     (loop [loc zipper]
       (if (zip/end? loc)
         (zip/root loc)
@@ -337,18 +337,18 @@
         :hickory parsed-html})
 
      (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
-         {:keys [headers body status]}
+            {:keys [headers body status]}
        (log/errorf "Client error probably due to broken request (%s): %s %s"
                    status headers body user-agent)
        (throw+ {:type ::request-error}))
 
      (catch (contains? #{500 501 502 503 504} (get % :status))
-         {:keys [headers body status] :as orig}
+            {:keys [headers body status] :as orig}
        (log/errorf "Server Error (%s): %s %s" status headers body)
        (throw+ {:type ::server-error-retry-later}))
 
      (catch [:status 408]
-         {:keys [headers body status]}
+            {:keys [headers body status]}
        (log/errorf "Client Error (%s): %s %s" status headers body)
        (throw+ {:type :client-error-retry-later}))
 

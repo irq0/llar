@@ -28,16 +28,16 @@
 
     (when (or (= k :unknown) (nil? k) (nil? @state))
       (log/error "Implementation error: item -> :meta"
-        "-> :source-key must be set during collection"))
+                 "-> :source-key must be set during collection"))
     (try+
-      (let [processed (proc/process feed @state [item])
-            dbks (when (some? processed) (persistency/store-items! processed))]
-        (log/debugf "Live processing for %s/%s: processed: %s, db: %s"
-          (str feed) (str item) (count processed) (count dbks)))
+     (let [processed (proc/process feed @state [item])
+           dbks (when (some? processed) (persistency/store-items! processed))]
+       (log/debugf "Live processing for %s/%s: processed: %s, db: %s"
+                   (str feed) (str item) (count processed) (count dbks)))
 
-      (catch Object e
-        (log/error e "Live: Exception in process - persist run")
-        (log/spy (:entry item))))))
+     (catch Object e
+       (log/error e "Live: Exception in process - persist run")
+       (log/spy (:entry item))))))
 
 (defn processor [input-ch term-ch]
   (async/thread
@@ -52,9 +52,9 @@
 
 (defn live-feeds []
   (into {}
-    (for [[k feed] core/*srcs*
-          :when (satisfies? LiveSource (:src feed))]
-      [k feed])))
+        (for [[k feed] core/*srcs*
+              :when (satisfies? LiveSource (:src feed))]
+          [k feed])))
 
 (defstate live
   :start (let [mix-ch (async/chan (async/sliding-buffer 1000))
@@ -62,17 +62,17 @@
                term-ch (async/chan)]
 
            {:sources (into {}
-                       (doall (for [[k feed] (live-feeds)]
-                                (let [state (atom (assoc state-template :key k))
-                                      ch (async/chan (async/sliding-buffer 1000))]
-                                  (start-collecting! (:src feed) state ch)
-                                  (async/admix mix ch)
-                                  (async/toggle mix {ch {:mute false
-                                                         :pause false
-                                                         :solo false}})
-                                  [k {:state state
-                                      :feed feed
-                                      :ch ch}]))))
+                           (doall (for [[k feed] (live-feeds)]
+                                    (let [state (atom (assoc state-template :key k))
+                                          ch (async/chan (async/sliding-buffer 1000))]
+                                      (start-collecting! (:src feed) state ch)
+                                      (async/admix mix ch)
+                                      (async/toggle mix {ch {:mute false
+                                                             :pause false
+                                                             :solo false}})
+                                      [k {:state state
+                                          :feed feed
+                                          :ch ch}]))))
             :mix-ch mix-ch
             :mix mix
             :proc {:term-ch term-ch

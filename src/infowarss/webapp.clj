@@ -30,7 +30,6 @@
              [:h4 "Stack Trace"]
              (status/html-stack-trace th)])}))
 
-
 (defn wrap-exception [handler]
   (fn [request]
     (try
@@ -62,7 +61,6 @@
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception))
 
-
 (def data-app
   (->
    datawb/app
@@ -75,12 +73,11 @@
    wrap-exception
    ring.middleware.lint/wrap-lint))
 
-
 (defn try-start-app [app port]
   (try+
-    (run-jetty app {:port port :join? false})
-    (catch java.net.BindException e
-      (log/error e "Failed to start jetty" app port))))
+   (run-jetty app {:port port :join? false})
+   (catch java.net.BindException e
+     (log/error e "Failed to start jetty" app port))))
 
 (defn try-stop-app [jetty]
   (when-not (nil? jetty)

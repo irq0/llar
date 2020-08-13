@@ -44,6 +44,7 @@
 
 ;; State: annotations live in memory
 
+
 (defn- startup-read-state []
   (let [res (io/resource "annotations.edn")
         backup (io/file (str "/tmp/infowarss_annotations.edn." (tc/to-string (time/now))))]
@@ -58,8 +59,6 @@
 (defstate annotations
   :start (atom (startup-read-state))
   :stop (spit (io/resource "annotations.edn") (prn-str @annotations)))
-
-
 
 (def +max-items+
   "Number of items in item list. All fetched at once."
@@ -113,14 +112,12 @@
                :fn #'headlines-list-items}
    :gallery {:name "Gallery"
              :ico "far fa-images"
-             :fn #'gallery-list-items}
-   })
+             :fn #'gallery-list-items}})
 
 (def +list-style-hints+
   {:storage :headlines
    :shopping :headlines
    :tweet :gallery})
-
 
 (def +filter-overrides+
   {:saved :total})
@@ -146,8 +143,7 @@
    :gaming "fas fa-gamepad"
    :music "fas fa-music"
    :magazine "fas fa-newspaper"
-   :highlight "fas fa-sun"
-   })
+   :highlight "fas fa-sun"})
 
 (def +tags-skip-group-list+
   "Do not display in group list on the left side"
@@ -247,7 +243,6 @@
    (if is-set?
      (icon icon-set)
      (icon icon-unset))])
-
 
 (defn nav-bar
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
@@ -362,7 +357,6 @@
              :role "button"}
          (icon "fas fa-list")]]]]]))
 
-
 (defn group-list
   "Group Item List - Tags, etc."
   [x url-prefix group-items active icons]
@@ -430,7 +424,7 @@
          [:li {:class "nav-item"}
           [:a {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
                                                  (= (:filter x) k))
-                                                 " active"))
+                                        " active"))
                :href (make-site-href [(:uri x)] {:filter k} x)}
            (icon ico) "&nbsp;" [:span name]]])]
 
@@ -446,28 +440,26 @@
                :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
            (when-let [ico (get icons key)] [:span (icon ico) "&nbsp;"])
 
-           (name key)
-           ]])]
+           (name key)]])]
 
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Lab"]]
       [:ul {:class "nav flex-column"}
-         [:li {:class "nav-item"}
-          [:a {:class "nav-link"
-               :href (make-site-href ["/reader/lab/saved-overview"] x)}
-           (icon "fas fa-glass-whiskey") "&nbsp;" "Saved Overview"]]]
+       [:li {:class "nav-item"}
+        [:a {:class "nav-link"
+             :href (make-site-href ["/reader/lab/saved-overview"] x)}
+         (icon "fas fa-glass-whiskey") "&nbsp;" "Saved Overview"]]]
       [:ul {:class "nav flex-column"}
-         [:li {:class "nav-item"}
-          [:a {:class "nav-link"
-               :href (make-site-href ["/reader/lab/dump-data-structure"] x)}
-           (icon "fas fa-glass-whiskey") "&nbsp;" "Data Structure"]]]
+       [:li {:class "nav-item"}
+        [:a {:class "nav-link"
+             :href (make-site-href ["/reader/lab/dump-data-structure"] x)}
+         (icon "fas fa-glass-whiskey") "&nbsp;" "Data Structure"]]]
       [:ul {:class "nav flex-column"}
-         [:li {:class "nav-item"}
-          [:a {:class "nav-link"
-               :href (make-site-href ["/reader/lab/search"] x)}
-           (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
-
+       [:li {:class "nav-item"}
+        [:a {:class "nav-link"
+             :href (make-site-href ["/reader/lab/search"] x)}
+         (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
 
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
@@ -503,8 +495,7 @@
        (group-list x "/reader/group/type"
                    (->> x :sources vals (map :type) (into (sorted-set)))
                    (when (= active-group :type) active-key)
-                   icons)]
-      ]]))
+                   icons)]]]))
 
 (defn source-list-item
   "Source Navigation List Item"
@@ -514,8 +505,7 @@
         nitems (or (get item-tags fltr) 0)
         grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))
         pill [:span {:class "badge badge-pill float-right"}
-              (when (pos? nitems) nitems)]
-        ]
+              (when (pos? nitems) nitems)]]
 
     [:li {:class (str "nav-item")}
      [:a {:class (str
@@ -523,19 +513,19 @@
                   (when (= key active-key) " active "))
           :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
       (cond
-         (= (:type source) :item-type/bookmark)
-         (let [bookmark-name (or (:name source) (:title source) (:key source))
-               nice-url (second (re-find #"(?:\[Bookmark: ([\w\.]+)\]|(.+))" bookmark-name))]
-           [:span pill
+        (= (:type source) :item-type/bookmark)
+        (let [bookmark-name (or (:name source) (:title source) (:key source))
+              nice-url (second (re-find #"(?:\[Bookmark: ([\w\.]+)\]|(.+))" bookmark-name))]
+          [:span pill
            [:span {:class "sidebar-heading-2"}
             (icon "fas fa-bookmark") "&nbsp;" nice-url]])
 
-         :else
-         [:span
-          pill
-          [:span {:class "sidebar-heading-2"} key]
-          [:br]
-          [:span {:class "font-weight-italic"} (human/truncate title 30 "…")]])]]))
+        :else
+        [:span
+         pill
+         [:span {:class "sidebar-heading-2"} key]
+         [:br]
+         [:span {:class "font-weight-italic"} (human/truncate title 30 "…")]])]]))
 
 (defn source-nav
   "Source Navigation: List Sources having the selected tag"
@@ -547,7 +537,7 @@
            :id "sourcenav"}
      [:div {:class "sidebar-sticky"}
       [:ul {:class "nav flex-column"}
-       (for [src (->> (:active-sources x) (sort-by :key) )]
+       (for [src (->> (:active-sources x) (sort-by :key))]
          (source-list-item
           x
           (format "/reader/group/%s/%s/source"
@@ -635,13 +625,13 @@
         [:a {:class "btn"
              :href (make-site-href [id "download"] {:data "content"
                                                     :content-type "text/html"} x)}
-         "&nbsp;" (icon "fas fa-expand")]
-        ]
+         "&nbsp;" (icon "fas fa-expand")]]
 
 
        ;; [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
        ;; (for [btn +tag-buttons+]
        ;;   (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]
+
 
        [:div {:class "btn-group btn-group-sm " :role "group"}
         [:div {:class "dropdown show "}
@@ -664,17 +654,15 @@
                            :content-type content-type}
                           x)}
                (str (name descr) " - " content-type)]))]]]]]
-    [:div {:id "item-content-body-container" :class "container"}
-     [:div {:class "row"}
-     [:div {:class "col-11"}
-      [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
-      (if (and (= (-> x :active-sources first :type) :item-type/document)
-               (nil? selected-data) (nil? selected-content-type))
-        (get-html-content item :description "text/html")
-        (get-html-content item selected-data selected-content-type))]]
-      [:div {:id "minimap" :class "col-1 sticky-top"}]]]]
-      ))
-
+     [:div {:id "item-content-body-container" :class "container"}
+      [:div {:class "row"}
+       [:div {:class "col-11"}
+        [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
+         (if (and (= (-> x :active-sources first :type) :item-type/document)
+                  (nil? selected-data) (nil? selected-content-type))
+           (get-html-content item :description "text/html")
+           (get-html-content item selected-data selected-content-type))]]
+       [:div {:id "minimap" :class "col-1 sticky-top"}]]]]))
 
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
@@ -725,7 +713,6 @@
       (map-to-tree item)
       [:h3 "Full Datastructure"]
       (map-to-tree x)]]))
-
 
 (defn awesome-url-text
   "Helper: Make URL Text from URL, enriched with with Icons, etc."
@@ -782,7 +769,6 @@
      (log/warn (:throwable &throw-context) "Encountered broken url: " str-url)
      str-url)))
 
-
 (defn word-cloud-fontsize
   "Helper: Get world cloud fontsize as bootstrap class"
   [freq min-freq max-freq]
@@ -824,6 +810,8 @@
 
 ;; todo - add number of images
 ;; add number of nouns
+
+
 (defn reading-time-estimate [item]
   (let [words-per-min 200
         {:keys [nwords readability]} item
@@ -833,11 +821,11 @@
         level (cond
                 (>= index 70) :easy
                 (> 70 index 50) :medium
-                (>= 50 index ) :hard)
+                (>= 50 index) :hard)
         factor (case level
-                       :easy 1
-                       :medium 1.5
-                       :hard 2)
+                 :easy 1
+                 :medium 1.5
+                 :hard 2)
         estimate (* (/ nwords words-per-min) factor)]
     {:estimate (int (Math/ceil estimate))
      :difficulty level}))
@@ -883,13 +871,12 @@
       (when (>= nwords 0)
         (let [estimate (reading-time-estimate item)
               human-time (:estimate estimate)]
-        [:li {:class "list-inline-item"}
-         [:a {:class "btn"}
-          "&nbsp;" (icon "far fa-file-word") "&nbsp;" human-time "&thinsp;" "min"]]))
+          [:li {:class "list-inline-item"}
+           [:a {:class "btn"}
+            "&nbsp;" (icon "far fa-file-word") "&nbsp;" human-time "&thinsp;" "min"]]))
       (when (contains? options :mark-read-on-view)
         [:li {:class "list-inline-item"}
          (icon "fas fa-glasses")])
-
 
       (when (string? source-key)
         [:li {:class "list-inline-item"}
@@ -905,8 +892,6 @@
                     (not= (human-host-identifier url)
                           (human-host-identifier (:url source))))
            [:span " → " (human-host-identifier url)])])
-
-
 
       (when-not (string/blank? author)
         [:li {:class "list-inline-item"}
@@ -927,7 +912,6 @@
                     :data-vid (last vid)
                     :data-target (str "youtube-container-" (last vid))
                     :src thumb}]]])))
-
 
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]
        [:div {:class "item-preview"} [:img {:src twit-pic}]])
@@ -967,7 +951,6 @@
           [:a {:href url :class "text-white sz-b"}
            text]]))]
 
-
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
        (tags-button-group id tags)
@@ -980,7 +963,6 @@
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
        (for [btn +tag-buttons+]
          (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]))
-
 
 (defn headlines-list-items
   "Main Item List - Headlines Style"
@@ -1081,8 +1063,8 @@
                 "(no title)"
                 title)]
              [:p {:class "card-text"}]
-             [:p {:class="card-text"} [:small {:class "text-muted"} source-key]]
-             [:p {:class="card-text"} [:small {:class "text-muted"} (human/datetime ts)]]
+             [:p {:class= "card-text"} [:small {:class "text-muted"} source-key]]
+             [:p {:class= "card-text"} [:small {:class "text-muted"} (human/datetime ts)]]
              [:p {:class "card-text toolbox"}
               (concat
                [[:a {:class "btn" :href url}
@@ -1129,8 +1111,7 @@
       :show-item (main-show-item x)
       :dump-item (dump-item x)
       :list-items (list-items x)
-      "Unkown mode")
-    ]])
+      "Unkown mode")]])
 
 (defn get-items-for-current-view
   "Fetch current view items from database"
@@ -1199,7 +1180,6 @@
 
       :else
       [])))
-
 
 (defn get-active-group-sources
   "Return active sources, might hit database"
@@ -1294,7 +1274,7 @@
                                :filter orig-fltr
                                :range-recent (-> @items first (select-keys [:ts :id]))
                                :range-before (-> @items last (select-keys [:ts :id]))})
-         
+
          nav-bar (nav-bar params)
          group-nav (group-nav params)
          main-view (main-view params)
@@ -1303,19 +1283,19 @@
 
          html (metrics/with-prom-exec-time
                 :render-html
-                  (html
-                   [:html {:lang "en"}
-                    (html-header title (:mode params) (some-> params :items first))
-                    [:body
-                     (concat
-                      [nav-bar]
-                      [[:div {:class "container-fluid"}
-                        [:div {:class "row"}
-                         group-nav
-                         main-view
-                         source-nav]]]
-                      (html-footer))]]))]
-       html)))
+                (html
+                 [:html {:lang "en"}
+                  (html-header title (:mode params) (some-> params :items first))
+                  [:body
+                   (concat
+                    [nav-bar]
+                    [[:div {:class "container-fluid"}
+                      [:div {:class "row"}
+                       group-nav
+                       main-view
+                       source-nav]]]
+                    (html-footer))]]))]
+     html)))
 
 (defmulti lab-view-handler :view)
 
@@ -1335,7 +1315,7 @@
           [:p {:class "card-text"}]]
          [:ul {:class "list-group list-group-flush"}
           (for [{:keys
-[id title]} items]
+                 [id title]} items]
             [:li {:class "list-group-item"}
              [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
               title]])]]])]]])
@@ -1393,9 +1373,9 @@
 
        [:p {:class "word-cloud"}
         (let [freqs (->> (map :key results)
-                        frequencies
-                        (sort-by second)
-                        reverse)
+                         frequencies
+                         (sort-by second)
+                         reverse)
               min-freq (-> freqs last second)
               max-freq (-> freqs first second)]
           (log/info freqs min-freq max-freq)
@@ -1423,8 +1403,7 @@
                   title]]
 
             [:td [:a {:href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
-                  key]]
-            ])]]]]]))
+                  key]]])]]]]]))
 
 (defn reader-lab-index
   "Reader Entrypoint"
@@ -1506,8 +1485,7 @@
    (catch Throwable th
      (log/warn th "add-url failed: " feed)
      {:status 500
-      :body {:error (str th)}}
-     )))
+      :body {:error (str th)}})))
 
 (defn reader-item-modify
   "Item Modification (e.g Set Tag) Entry Point"
@@ -1532,87 +1510,84 @@
   [s]
   (io/as-url s))
 
-
 (def app
   "Compojure Routes"
   (routes
    (context
-    "/reader"
-    [:as req]
+     "/reader"
+     [:as req]
 
-    (POST "/item/by-id/:item-id"
-          [item-id :<< as-int
-           action :<< as-keyword
-           tag :<< as-keyword]
-          (reader-item-modify item-id action tag))
+     (POST "/item/by-id/:item-id"
+       [item-id :<< as-int
+        action :<< as-keyword
+        tag :<< as-keyword]
+       (reader-item-modify item-id action tag))
 
-    (POST "/bookmark/add"
-          [url type :<< as-keyword]
-          (try
-            (case type
-              :readability-bookmark (add-thing
-                                     (core/make-readability-bookmark-feed url)
-                                     :bookmark)
-              :raw-bookmark (add-thing
-                             (core/make-raw-bookmark-feed url)
-                             :bookmark)
-              :document (add-thing
-                         (core/make-doc-feed url)
-                         :document))
-            (catch java.net.MalformedURLException ex
-              {:status 400
-               :body {:error (str "Malformed URL: " url)}})))
+     (POST "/bookmark/add"
+       [url type :<< as-keyword]
+       (try
+         (case type
+           :readability-bookmark (add-thing
+                                  (core/make-readability-bookmark-feed url)
+                                  :bookmark)
+           :raw-bookmark (add-thing
+                          (core/make-raw-bookmark-feed url)
+                          :bookmark)
+           :document (add-thing
+                      (core/make-doc-feed url)
+                      :document))
+         (catch java.net.MalformedURLException ex
+           {:status 400
+            :body {:error (str "Malformed URL: " url)}})))
 
+     (POST "/document/add"
+       [url]
+       (add-thing
+        (core/make-doc-feed url)
+        :document))
 
-    (POST "/document/add"
-          [url]
-          (add-thing
-           (core/make-doc-feed url)
-           :document))
-
-    (GET "/lab/:view" [view :<< as-keyword]
-         (reader-lab-index {:uri (:uri req)
-                            :filter (as-keyword (get-in req [:params :filter]))
-                            :request-params (:params req)
-                            :group-name :default
-                            :group-item :all
-                            :source-key :all
-                            :view view
-                            :list-style (as-keyword (get-in req [:params :list-style]))}))
-
-
-    (context
-     "/group/:group-name/:group-item/source/:source-key"
-     [group-name :<< as-keyword
-      group-item :<< as-keyword
-      source-key :<< as-keyword]
-
-     (GET "/items"
-          [id :<< as-int
-           ts :<< as-ts]
-          (reader-index {:uri (:uri req)
-                         :filter (as-keyword (get-in req [:params :filter]))
-                         :group-name group-name
-                         :group-item group-item
-                         :source-key source-key
-                         :mode :list-items
-                         :list-style (as-keyword (get-in req [:params :list-style]))
-                         :range-before {:id id
-                                        :ts ts}}))
-
-     (GET "/items" []
-          (reader-index {:uri (:uri req)
-                         :filter (as-keyword (get-in req [:params :filter]))
-                         :group-name group-name
-                         :group-item group-item
-                         :source-key source-key
-                         :list-style (as-keyword (get-in req [:params :list-style]))
-                         :mode :list-items}))
+     (GET "/lab/:view" [view :<< as-keyword]
+       (reader-lab-index {:uri (:uri req)
+                          :filter (as-keyword (get-in req [:params :filter]))
+                          :request-params (:params req)
+                          :group-name :default
+                          :group-item :all
+                          :source-key :all
+                          :view view
+                          :list-style (as-keyword (get-in req [:params :list-style]))}))
 
      (context
-      "/item/by-id/:item-id"
-      [item-id :<< as-int]
-      (GET "/"
+       "/group/:group-name/:group-item/source/:source-key"
+       [group-name :<< as-keyword
+        group-item :<< as-keyword
+        source-key :<< as-keyword]
+
+       (GET "/items"
+         [id :<< as-int
+          ts :<< as-ts]
+         (reader-index {:uri (:uri req)
+                        :filter (as-keyword (get-in req [:params :filter]))
+                        :group-name group-name
+                        :group-item group-item
+                        :source-key source-key
+                        :mode :list-items
+                        :list-style (as-keyword (get-in req [:params :list-style]))
+                        :range-before {:id id
+                                       :ts ts}}))
+
+       (GET "/items" []
+         (reader-index {:uri (:uri req)
+                        :filter (as-keyword (get-in req [:params :filter]))
+                        :group-name group-name
+                        :group-item group-item
+                        :source-key source-key
+                        :list-style (as-keyword (get-in req [:params :list-style]))
+                        :mode :list-items}))
+
+       (context
+         "/item/by-id/:item-id"
+         [item-id :<< as-int]
+         (GET "/"
            [data :<< as-keyword
             content-type]
            (when (and (some? item-id) (= (get-in req [:params :mark]) "read"))
@@ -1627,7 +1602,7 @@
                           :content-type content-type
                           :data data}))
 
-      (GET "/" []
+         (GET "/" []
            (when (and (some? item-id) (= (get-in req [:params :mark]) "read"))
              (reader-item-modify item-id :del :unread))
            (reader-index {:uri (:uri req)
@@ -1638,11 +1613,10 @@
                           :item-id item-id
                           :mode :show-item})))
 
-
-     (context
-      "/item/by-id/:item-id/download"
-      [item-id :<< as-int]
-      (GET "/"
+       (context
+         "/item/by-id/:item-id/download"
+         [item-id :<< as-int]
+         (GET "/"
            [data :<< as-keyword
             content-type]
            (download-item-content {:uri (:uri req)
@@ -1655,10 +1629,10 @@
                                    :data data
                                    :content-type content-type})))
 
-     (context
-      "/item/by-id/:item-id/dump"
-      [item-id :<< as-int]
-      (GET "/" []
+       (context
+         "/item/by-id/:item-id/dump"
+         [item-id :<< as-int]
+         (GET "/" []
            (reader-index {:uri (:uri req)
                           :filter (as-keyword (get-in req [:params :filter]))
                           :group-name group-name
@@ -1667,81 +1641,79 @@
                           :item-id item-id
                           :mode :dump-item}))))
 
-    (GET "/" [] (reader-index
-                 {:group-name :default
-                  :group-item :all
-                  :source-key :all
-                  :list-style (as-keyword (get-in req [:params :list-style]))
-                  :mode :list-items})))
+     (GET "/" [] (reader-index
+                  {:group-name :default
+                   :group-item :all
+                   :source-key :all
+                   :list-style (as-keyword (get-in req [:params :list-style]))
+                   :mode :list-items})))
 
    (GET "/preview" []
-        {:status 200
-         :body (fetch-preview)})
+     {:status 200
+      :body (fetch-preview)})
 
    (GET "/blob/:h" [h]
-        (try+
-         (let [blob (metrics/with-prom-exec-time :blobstore-get
-                      (blobstore/get-blob h))]
-           {:status 200
-            :headers {"Content-Type" (:mime-type blob)
-                      "Etag" h
-                      "Last-Modified" (tf/unparse
-                                       (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z")
-                                       (:created blob))}
-            :body (:data blob)})
-         (catch Object e
-           (log/warn e "get-blob failed: " h)
-           {:status 404})))
+     (try+
+      (let [blob (metrics/with-prom-exec-time :blobstore-get
+                   (blobstore/get-blob h))]
+        {:status 200
+         :headers {"Content-Type" (:mime-type blob)
+                   "Etag" h
+                   "Last-Modified" (tf/unparse
+                                    (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z")
+                                    (:created blob))}
+         :body (:data blob)})
+      (catch Object e
+        (log/warn e "get-blob failed: " h)
+        {:status 404})))
 
    (context
-    "/ans" [:as req]
-    (GET "/search" []
-         (let [item-id (as-int (get-in req [:params :item_id]))]
-           (if-let [items (get @annotations item-id)]
-             {:status 200
-              :body {:total (count items)
-                     :rows (map-indexed (fn [i item]
-                                          (assoc item :id
-                                                 (str item-id "-" i)))
-                                        items)}}
+     "/ans" [:as req]
+     (GET "/search" []
+       (let [item-id (as-int (get-in req [:params :item_id]))]
+         (if-let [items (get @annotations item-id)]
+           {:status 200
+            :body {:total (count items)
+                   :rows (map-indexed (fn [i item]
+                                        (assoc item :id
+                                               (str item-id "-" i)))
+                                      items)}}
 
-             {:status 200
-              :body {:total 0}})))
+           {:status 200
+            :body {:total 0}})))
 
-    (GET "/annotations/:id" [id]
-         (let [[item-id anno-entry-i]
-               (map as-int (string/split id #"-"))]
-           (if-let [entry (get-in @annotations [item-id anno-entry-i])]
-             {:status 200
-              :body entry}
-             {:status 404})))
+     (GET "/annotations/:id" [id]
+       (let [[item-id anno-entry-i]
+             (map as-int (string/split id #"-"))]
+         (if-let [entry (get-in @annotations [item-id anno-entry-i])]
+           {:status 200
+            :body entry}
+           {:status 404})))
 
-    (POST "/annotations" []
-          (let [body (:json-params req)
-                item-id (get body "item_id")
-                next (swap! annotations update item-id (fnil conj []) body)
-                new-anno-id (dec (count (get next item-id)))
-                url (str "/ans/annotations/" item-id "-" new-anno-id)]
-            (reader-item-modify item-id :set :has-annotation)
-            {:status 303
-             :headers {"Location" url}}))
+     (POST "/annotations" []
+       (let [body (:json-params req)
+             item-id (get body "item_id")
+             next (swap! annotations update item-id (fnil conj []) body)
+             new-anno-id (dec (count (get next item-id)))
+             url (str "/ans/annotations/" item-id "-" new-anno-id)]
+         (reader-item-modify item-id :set :has-annotation)
+         {:status 303
+          :headers {"Location" url}}))
 
-    (DELETE "/annotations/:id" [id]
-            (let [[item-id anno-entry-i] (map as-int (string/split id #"-"))
-                  next (swap! annotations
-                              update-in [item-id]
-                              #(vec (concat (subvec % 0 anno-entry-i)
-                                            (subvec % (inc anno-entry-i)))))]
-              {:status 204}))
+     (DELETE "/annotations/:id" [id]
+       (let [[item-id anno-entry-i] (map as-int (string/split id #"-"))
+             next (swap! annotations
+                         update-in [item-id]
+                         #(vec (concat (subvec % 0 anno-entry-i)
+                                       (subvec % (inc anno-entry-i)))))]
+         {:status 204}))
 
-
-
-    (PUT "/annotations/:id" [id]
-         (let [[item-id anno-entry-i] (map as-int (string/split id #"-"))
-               next (swap! annotations assoc-in [item-id anno-entry-i] (:json-params req))
-               url (str "/ans/annotations/" item-id "-" anno-entry-i)]
-           {:status 303
-            :headers {"Location" url}})))
+     (PUT "/annotations/:id" [id]
+       (let [[item-id anno-entry-i] (map as-int (string/split id #"-"))
+             next (swap! annotations assoc-in [item-id anno-entry-i] (:json-params req))
+             url (str "/ans/annotations/" item-id "-" anno-entry-i)]
+         {:status 303
+          :headers {"Location" url}})))
 
    (route/resources "/static" {:root "status"})
    (route/not-found "404 Not found")))

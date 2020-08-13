@@ -31,26 +31,24 @@
             [clj-time.coerce :as tc]))
 
 (s/defrecord FeedItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     entry :- schema/FeedEntry
-     raw :- s/Any
-     feed :- schema/Feed]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              entry :- schema/FeedEntry
+              raw :- s/Any
+              feed :- schema/Feed]
   Object
   (toString [item] (item-to-string item)))
-
 
 (defn extract-feed-authors
   "Extract feed author from rome feed item"
   [authors]
   (for [{:keys [name email]} authors]
     (str
-      (when-not (nil? name)
-        name)
-      (when-not (nil? email)
-        (str " <" email ">")))))
-
+     (when-not (nil? name)
+       name)
+     (when-not (nil? email)
+       (str " <" email ">")))))
 
 (defn extract-feed-description
   "Extract feed description from rome reed item"
@@ -67,9 +65,9 @@
   "Extract feed content from rome feed item"
   [contents]
   (let [by-type (into {}
-                  (for [{:keys [type value]} contents]
-                    [(get rome-content-type-to-mime
-                       type "application/octet-stream") value]))]
+                      (for [{:keys [type value]} contents]
+                        [(get rome-content-type-to-mime
+                              type "application/octet-stream") value]))]
     ;; Convert non plain text content types
     (condp #(contains? %2 %1) by-type
       "text/html" (assoc by-type "text/plain" (conv/html2text (get by-type "text/html")))
@@ -79,8 +77,8 @@
   "Extract feed entry timestamp"
   [e http]
   (or (some-> e :published-date tc/from-date)
-    (some-> e :updated-date tc/from-date)
-    (get-in http [:meta :fetch-ts])))
+      (some-> e :updated-date tc/from-date)
+      (get-in http [:meta :fetch-ts])))
 
 (defn http-get-feed-content [url]
   (log/debug "Fetching feed item content of " url)
@@ -98,12 +96,12 @@
 (defn- process-feed-html-contents [base-url contents]
   (if-let [html (get-in contents ["text/html"])]
     (assoc contents "text/html"
-      (-> html
-        hick/parse hick/as-hickory
-        (absolutify-links-in-hick base-url)
-        sanitize
-        blobify
-        (hick-r/hickory-to-html)))
+           (-> html
+               hick/parse hick/as-hickory
+               (absolutify-links-in-hick base-url)
+               sanitize
+               blobify
+               (hick-r/hickory-to-html)))
     contents))
 
 (extend-protocol FetchSource
@@ -167,10 +165,8 @@
                        :summary {:ts timestamp
                                  :title (:title re)}}))))))))
 
-
 (defn default-selector-feed-extractor [hick]
   (-> hick first :content first))
-
 
 (defn hick-select-extract [selector extractor hickory]
   (let [extractor (or extractor default-selector-feed-extractor)]
@@ -200,7 +196,6 @@
                  :key k
                  :selector sel
                  :extractor ext})))))
-
 
 (extend-protocol FetchSource
   infowarss.src.SelectorFeed
@@ -255,16 +250,13 @@
                                     :ts pub-ts}}))))
            (catch Throwable th
              (log/warn th "SelectorFeed item processing failed. Skipping:"
-                       raw-item-url))
-
-           ))))))
+                       raw-item-url))))))))
 
 (defn- get-posts-url [json]
   (let [field (get-in json [:routes (keyword "/wp/v2/posts") :_links :self])]
     (cond
       (string? field) field
       (vector? field) (-> field first :href))))
-
 
 (extend-protocol FetchSource
   infowarss.src.WordpressJsonFeed
@@ -277,12 +269,11 @@
                           :headers {"User-Agent" user-agent}})
           posts-url (get-posts-url (:body site))
           posts (-> (http/get (log/spy posts-url) {:as :reader
-                                         :headers {:user-agent user-agent}})
+                                                   :headers {:user-agent user-agent}})
                     :body (cheshire/parse-string true))]
       (doall
        (for [post posts]
-         (let [
-               authors (try+
+         (let [authors (try+
                         (doall
                          (for [url (map :href (get-in post [:_links :author]))]
                            (get-in [:body :name]
@@ -290,7 +281,7 @@
                                              {:as :json
                                               :headers {:user-agent user-agent}}))))
                         (catch (contains? #{403 404} (get % :status))
-                            {:keys [headers body status]}
+                               {:keys [headers body status]}
                           (log/debug "Could not fetch article's authors endpoint:"
                                      headers body status (get-in post [:_links :self]))
                           [""]))
@@ -306,8 +297,7 @@
                                   (absolutify-links-in-hick base-url)
                                   sanitize
                                   blobify
-                                  (hick-r/hickory-to-html))
-               ]
+                                  (hick-r/hickory-to-html))]
 
            (map->FeedItem
             {:meta (make-meta src)
@@ -340,8 +330,7 @@
                          (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" urls))
                            :has-video)
                          (when (some #(re-find #"https?://open\.spotify\.com/playlist" %) urls)
-                           :has-spotify-playlist)
-                         ]))]
+                           :has-spotify-playlist)]))]
       (-> item
           (update-in [:meta :tags] into tags)
           (update :entry merge (:entry item) nlp)
@@ -361,6 +350,6 @@
   FeedItem
   (to-couch [item]
     (-> item
-      (assoc :type :feed)
-      (dissoc :raw)
-      (dissoc :body))))
+        (assoc :type :feed)
+        (dissoc :raw)
+        (dissoc :body))))

@@ -20,22 +20,22 @@
         taoensso-to-firebase (map-invert firebase-to-taoensso)
         firebase-level (get taoensso-to-firebase level)]
 
-  (reify Logger
-    (^void onLogMessage [_
-                         ^Logger$Level level
-                         ^String tag
-                         ^String message
-                         ^long ts]
-     (log/log (get firebase-to-taoensso level) tag message))
-    (^Logger$Level getLogLevel [_]
-     firebase-level))))
+    (reify Logger
+      (^void onLogMessage [_
+                           ^Logger$Level level
+                           ^String tag
+                           ^String message
+                           ^long ts]
+        (log/log (get firebase-to-taoensso level) tag message))
+      (^Logger$Level getLogLevel [_]
+        firebase-level))))
 
 (defn init-firebase
   "Initialize and configure logging for firebase API"
   []
   (Firebase/setDefaultConfig
-    (doto (Firebase/getDefaultConfig)
-      (.setLogger (make-firebase-logger :debug)))))
+   (doto (Firebase/getDefaultConfig)
+     (.setLogger (make-firebase-logger :debug)))))
 
 (defn make-value-event-listener
   "Make com.firebase.client.ValueEventListener. Calls function
@@ -43,9 +43,9 @@
   [on-data-change]
   (reify ValueEventListener
     (^void onDataChange [_ ^DataSnapshot snap]
-     (on-data-change (.getValue snap)))
+      (on-data-change (.getValue snap)))
     (^void onCancelled [_ ^FirebaseError err]
-     (log/error "Firebase error:" err))))
+      (log/error "Firebase error:" err))))
 
 (defn get-value
   "Dereference ref and return value"

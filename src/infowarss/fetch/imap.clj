@@ -16,32 +16,30 @@
   (:import
    [javax.mail Session]))
 
-
-
 (s/defrecord ImapItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     raw :- s/Any
-     entry :- schema/MailEntry]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              raw :- s/Any
+              entry :- schema/MailEntry]
   Object
   (toString [item] (fetch/item-to-string item)))
 
 (defn try-get-base-type [content-type]
   (try+
-    (str (mt/base-type content-type))
-    (catch Object _
-      content-type)))
+   (str (mt/base-type content-type))
+   (catch Object _
+     content-type)))
 
 (defn mail-body-to-contents [m]
   (into {} (map (fn [b] [(try-get-base-type (:content-type b)) (:body b)]) (:body m))))
 
 (defn get-new-messages [uri {:keys [username password]}]
   (let [p (mail-core/as-properties {"mail.imap.starttls.enable" "true"
-                          "mail.imap.ssl.checkserveridentity" "true"})
+                                    "mail.imap.ssl.checkserveridentity" "true"})
         session (Session/getDefaultInstance p)
         store (mail-core/store (.getScheme uri) session (.getHost uri)
-                username password)
+                               username password)
         msgs (doall (map (fn [id]
                            (let [msg (mail-message/read-message id)]
                              (if (nil? (:body msg))
@@ -56,7 +54,7 @@
                                 :content-type (:content-type msg)
                                 :body (mail-body-to-contents msg)
                                 :headers (:headers msg)})))
-                           (mail-core/unread-messages store (subs (.getPath uri) 1))))]
+                         (mail-core/unread-messages store (subs (.getPath uri) 1))))]
     (mail-core/close-store store)
     msgs))
 
@@ -64,38 +62,37 @@
   ImapItem
   (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))]
-          (update item :entry merge (:entry item) nlp)))
+      (update item :entry merge (:entry item) nlp)))
   (filter-item [item src state] false))
 
 (extend-protocol persistency/CouchItem
   ImapItem
   (to-couch [item]
     (-> item
-      (assoc-in [:meta :source :creds] nil)
-      (assoc :type :mail))))
+        (assoc-in [:meta :source :creds] nil)
+        (assoc :type :mail))))
 
 (defn mail-ts [m]
   (tc/from-date (or (:date-sent m)
-                  (:date-received m))))
-
+                    (:date-received m))))
 
 (extend-protocol fetch/FetchSource
   infowarss.src.ImapMailbox
   (fetch-source [src]
     (for [m (get-new-messages (:uri src) (:creds src))]
       (->ImapItem
-        (fetch/make-meta src)
-        {:ts (mail-ts m) :title (:subject m)}
-        (fetch/make-item-hash (:subject m) (:body m))
-        m
-        {:title (:subject m)
-         :id (some-> (filter (fn [x] (= (some-> x first key string/lower-case) "message-id"))
-                      (:headers m))
-               first
-               first
-               val)
-         :received-ts (:date-received m)
-         :sent-ts (:date-sent m)
-         :authors (map #(format "%s <%s>" (:name %) (:address %)) (:from m))
-         :descriptions {"text/plain" ""}
-         :contents (:body m)}))))
+       (fetch/make-meta src)
+       {:ts (mail-ts m) :title (:subject m)}
+       (fetch/make-item-hash (:subject m) (:body m))
+       m
+       {:title (:subject m)
+        :id (some-> (filter (fn [x] (= (some-> x first key string/lower-case) "message-id"))
+                            (:headers m))
+                    first
+                    first
+                    val)
+        :received-ts (:date-received m)
+        :sent-ts (:date-sent m)
+        :authors (map #(format "%s <%s>" (:name %) (:address %)) (:from m))
+        :descriptions {"text/plain" ""}
+        :contents (:body m)}))))

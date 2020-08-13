@@ -23,35 +23,34 @@
 ;;;; to be machine readable.
 
 (s/defrecord DocumentItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     entry :- schema/MercuryEntry]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              entry :- schema/MercuryEntry]
   Object
   (toString [item] (fetch/item-to-string item)))
 
 (defn description-html [i]
   (html
-    [:h1 (get-in i [:summary :title])]
-    [:div {:class "summary"}
-     [:ul
-      [:li [:span {:class "key"} "URL: "]
-       [:a {:href (get-in i [:entry :url])} (get-in i [:entry :url])]]
-      [:li [:span {:class "key"} "Authors: "] (string/join ", " (get-in i [:entry :authors]))]
-      [:li [:span {:class "key"} "Published: "] (tc/to-string (get-in i [:summary :ts]))]
-      [:li [:span {:class "key"} "Mime Type (orig): "] (get-in i [:entry :orig-mime-type])]
-      [:li [:span {:class "key"} "Mime Types Stored: "]
-       (string/join ", " (keys (get-in i [:entry :contents])))]
-      [:li [:span {:class "key"} "Pages: "] (get-in i [:entry :npages])]
-      [:li [:span {:class "key"} "Size (orig): "] (get-in i [:entry :orig-size])]]]
-    [:div {:class "nlp"}
-     [:h2 "Names / Places"]
-     [:p (map (fn [name] [:span [:a {:href (str "https://www.startpage.com/do/search?query=" name)} (str " " name " ")] "&nbsp;" ]) (get-in i [:entry :nlp :names]))]]
-    (when-let [thumb (get-in i [:entry :thumbs "image/png"])]
-      [:div {:class "preview"}
-       [:h2 "Preview"]
-       [:img {:src (converter/data-uri thumb :mime-type "image/png")}]])))
-
+   [:h1 (get-in i [:summary :title])]
+   [:div {:class "summary"}
+    [:ul
+     [:li [:span {:class "key"} "URL: "]
+      [:a {:href (get-in i [:entry :url])} (get-in i [:entry :url])]]
+     [:li [:span {:class "key"} "Authors: "] (string/join ", " (get-in i [:entry :authors]))]
+     [:li [:span {:class "key"} "Published: "] (tc/to-string (get-in i [:summary :ts]))]
+     [:li [:span {:class "key"} "Mime Type (orig): "] (get-in i [:entry :orig-mime-type])]
+     [:li [:span {:class "key"} "Mime Types Stored: "]
+      (string/join ", " (keys (get-in i [:entry :contents])))]
+     [:li [:span {:class "key"} "Pages: "] (get-in i [:entry :npages])]
+     [:li [:span {:class "key"} "Size (orig): "] (get-in i [:entry :orig-size])]]]
+   [:div {:class "nlp"}
+    [:h2 "Names / Places"]
+    [:p (map (fn [name] [:span [:a {:href (str "https://www.startpage.com/do/search?query=" name)} (str " " name " ")] "&nbsp;"]) (get-in i [:entry :nlp :names]))]]
+   (when-let [thumb (get-in i [:entry :thumbs "image/png"])]
+     [:div {:class "preview"}
+      [:h2 "Preview"]
+      [:img {:src (converter/data-uri thumb :mime-type "image/png")}]])))
 
 (extend-protocol postproc/ItemProcessor
   DocumentItem
@@ -60,9 +59,9 @@
           with-nlp (update item :entry merge (:entry item) nlp)
           descr (description-html with-nlp)]
       (-> with-nlp
-        (assoc-in [:entry :descriptions] {"text/plain" (converter/html2text descr)
-                                          "text/html" descr})
-        (assoc-in [:meta :view-hints :html] [:entry :descriptions "text/html"]))))
+          (assoc-in [:entry :descriptions] {"text/plain" (converter/html2text descr)
+                                            "text/html" descr})
+          (assoc-in [:meta :view-hints :html] [:entry :descriptions "text/html"]))))
 
   (filter-item [item src state] false))
 
@@ -70,10 +69,9 @@
   DocumentItem
   (to-couch [item]
     (-> item
-      (dissoc :raw)
-      (dissoc :body)
-      (assoc :type :document))))
-
+        (dissoc :raw)
+        (dissoc :body)
+        (assoc :type :document))))
 
 (extend-protocol fetch/FetchSource
   infowarss.src.Document
@@ -90,22 +88,22 @@
             thumb (converter/thumbnail data)
             meta (extract/parse data)
             ts (or (some-> (:creation-date meta) tc/from-string)
-                 (time/now))
+                   (time/now))
             title (or (first (:title meta)) (some-> (:url src) .getPath io/as-file .getName))]
 
         [(->DocumentItem
-         (fetch/make-meta src)
-         {:ts ts :title title}
-         (fetch/make-item-hash (str (:url src)) (:text meta))
-         {:url (io/as-url (:url src))
-          :title title
-          :authors  [(:author meta)]
-          :pub-ts (some-> (:creation-date meta) tc/from-string)
-          :npages (first (:xmptpg/npages meta))
-          :orig-mime-type mime-type
-          :orig-size (count data)
-          :thumbs thumb
-          :descriptions nil
-          :contents {"text/html" html
-                     "text/plain" (:text meta)
-                     mime-type (bytes data)}})]))))
+          (fetch/make-meta src)
+          {:ts ts :title title}
+          (fetch/make-item-hash (str (:url src)) (:text meta))
+          {:url (io/as-url (:url src))
+           :title title
+           :authors  [(:author meta)]
+           :pub-ts (some-> (:creation-date meta) tc/from-string)
+           :npages (first (:xmptpg/npages meta))
+           :orig-mime-type mime-type
+           :orig-size (count data)
+           :thumbs thumb
+           :descriptions nil
+           :contents {"text/html" html
+                      "text/plain" (:text meta)
+                      mime-type (bytes data)}})]))))

@@ -20,15 +20,13 @@
    [clojure.java.shell :as shell]
    [cheshire.core :as json]))
 
-
 (s/defrecord MercuryItem
-    [meta :- schema/Metadata
-     summary :- schema/Summary
-     hash :- schema/Hash
-     entry :- schema/MercuryEntry]
+             [meta :- schema/Metadata
+              summary :- schema/Summary
+              hash :- schema/Hash
+              entry :- schema/MercuryEntry]
   Object
   (toString [item] (fetch/item-to-string item)))
-
 
 (extend-protocol ItemProcessor
   MercuryItem
@@ -41,7 +39,6 @@
                          (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
                            :has-video)]))]
 
-
       (-> item
           (update-in [:meta :tags] into tags)
           (update :entry merge (:entry item) nlp))))
@@ -52,45 +49,44 @@
   MercuryItem
   (to-couch [item]
     (-> item
-      (dissoc :raw)
-      (dissoc :body)
-      (assoc-in [:meta :source :args] nil)
-      (assoc :type :bookmark))))
+        (dissoc :raw)
+        (dissoc :body)
+        (assoc-in [:meta :source :args] nil)
+        (assoc :type :bookmark))))
 
 (s/defn mercury-get
   [url :- schema/URLType
    api-key :- s/Str]
   (try+
-    (let [url (urly/url-like url)
-          resp (http/get "https://mercury.postlight.com/parser"
-                  {:accept :json
-                   :as :json
-                   :content-type :json
-                   :headers {:x-api-key api-key}
-                   :query-params {:url (str url)}})
-          base-url (get-base-url-with-path url)
-          body (try+
-                 (assoc (:body resp) :content
-                   (-> resp
-                     :body
-                     :content
-                     hick/parse hick/as-hickory
-                     (absolutify-links-in-hick base-url)
-                     blobify
-                     hick-r/hickory-to-html))
-                 (catch Object _
-                   (log/warn &throw-context "Mercury post processing failed. Using vanilla")
-                   (:body resp)))]
-      body)
+   (let [url (urly/url-like url)
+         resp (http/get "https://mercury.postlight.com/parser"
+                        {:accept :json
+                         :as :json
+                         :content-type :json
+                         :headers {:x-api-key api-key}
+                         :query-params {:url (str url)}})
+         base-url (get-base-url-with-path url)
+         body (try+
+               (assoc (:body resp) :content
+                      (-> resp
+                          :body
+                          :content
+                          hick/parse hick/as-hickory
+                          (absolutify-links-in-hick base-url)
+                          blobify
+                          hick-r/hickory-to-html))
+               (catch Object _
+                 (log/warn &throw-context "Mercury post processing failed. Using vanilla")
+                 (:body resp)))]
+     body)
     ;; Mercury sends 502 when it's unable to parse the url
-    (catch [:status 502] {:keys [headers body status]}
-      (log/error "Mercury Error: " url status body)
-      (throw+ {:type ::not-parsable}))
+   (catch [:status 502] {:keys [headers body status]}
+     (log/error "Mercury Error: " url status body)
+     (throw+ {:type ::not-parsable}))
 
-    (catch Object _
-      (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
-      (throw+))))
-
+   (catch Object _
+     (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
+     (throw+))))
 
 (s/defn mercury-local
   [url :- schema/URLType]
@@ -102,24 +98,23 @@
      (if (zero? exit)
        (assoc json :content
               (try
-               (-> json
-                   :content
-                   hick/parse
-                   hick/as-hickory
-                   (absolutify-links-in-hick base-url)
-                   sanitize
-                   blobify
-                   hick-r/hickory-to-html)
-               (catch Throwable th
-                 (log/warn th "Mercury post processing failed. Using vanilla")
-                 (log/debug (:content json)))))
+                (-> json
+                    :content
+                    hick/parse
+                    hick/as-hickory
+                    (absolutify-links-in-hick base-url)
+                    sanitize
+                    blobify
+                    hick-r/hickory-to-html)
+                (catch Throwable th
+                  (log/warn th "Mercury post processing failed. Using vanilla")
+                  (log/debug (:content json)))))
        (do
          (log/error "Mercury Error: " url err)
          (throw+ {:type ::not-parsable}))))
    (catch Object _
      (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
      (throw+))))
-
 
 (extend-protocol FetchSource
   infowarss.src.MercuryWebParser

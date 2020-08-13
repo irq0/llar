@@ -12,7 +12,7 @@
              "-XX:+AggressiveOpts"]
 
   :main user
-
+  :plugins [[lein-cljfmt "0.6.8"]]
   :license {:name "None"
             :url ""}
   :dependencies [[org.clojure/clojure "1.10.1"]

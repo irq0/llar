@@ -38,8 +38,6 @@
      (log/warn (:throwable &throw-context) "Open NLP Name finder failed. Returning empty set")
      [])))
 
-
-
 (def url-regex #"https?://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?")
 
 (defn extract-urls [s]
@@ -50,17 +48,17 @@
 
 (defn remove-html2text-artifacts [s]
   (-> s
-    (string/replace #"[’']" "'")
-    (string/replace #"[”“]" "\"")
-    (string/replace #"\[[0-9]+\]:?" "")
-    (string/replace #"\[+(.+)\]+" "$1")
-    (string/replace #"\[|\]" "")))
+      (string/replace #"[’']" "'")
+      (string/replace #"[”“]" "\"")
+      (string/replace #"\[[0-9]+\]:?" "")
+      (string/replace #"\[+(.+)\]+" "$1")
+      (string/replace #"\[|\]" "")))
 
 (defn non-word-string-filter [s]
   (or (re-find #"^[\W_]+$" s)
-    (re-find #"^['\"]+$" s)
-    (re-find #"^['\"]\w['\"]$" s)
-    (re-find #"^['\"]\w{1,2}$" s)))
+      (re-find #"^['\"]+$" s)
+      (re-find #"^['\"]\w['\"]$" s)
+      (re-find #"^['\"]\w{1,2}$" s)))
 
 (defn readability-scores [s]
   (let [{:keys [exit out err]}
@@ -72,10 +70,8 @@
 
 (defn sanitize-text [s]
   (-> s
-    remove-urls
-    remove-html2text-artifacts
-    ))
-
+      remove-urls
+      remove-html2text-artifacts))
 
 (defn token-frequencies
   "Calcular term frequency. Token freq normanized to token count"
@@ -83,9 +79,9 @@
   (let [freqs (frequencies tokens)
         ntokens (count tokens)]
     (->> freqs
-      (map (fn [[token freq]]
-             [token (/ freq ntokens)]))
-      (into {}))))
+         (map (fn [[token freq]]
+                [token (/ freq ntokens)]))
+         (into {}))))
 
 (defn find-best-analysis-language [{:keys [text lang]}]
   (let [text-size (count text)]
@@ -147,10 +143,9 @@
 
 (defn analyze-entry [entry]
   (let [text (or (get-in entry [:contents "text/plain"])
-               (get-in entry [:descriptions "text/plain"]))]
+                 (get-in entry [:descriptions "text/plain"]))]
     (when-not (string/blank? text)
       (analyze-text text :language (get entry :language)))))
-
 
 (defn analyze-item [item]
   (let [text (get-in item [:entry :contents "text/plain"])]
