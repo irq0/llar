@@ -95,16 +95,6 @@
       :as args}]
   (->WordpressJsonFeed (io/as-url url) (merge +http-default-args+ args)))
 
-(s/defrecord GooglePlusActivityFeed
-    [user-id :- schema/NotEmptyStr
-     api-key :- schema/NotEmptyStr]
-  Object
-  (toString [src] (str "[G+ActivityFeed: " (:user-id src) "]")))
-
-(defn g+activity
-  [user-id api-key]
-  (->GooglePlusActivityFeed user-id (:api-key api-key)))
-
 (def TwitterCreds
   {:app-key schema/NotEmptyStr
    :app-secret schema/NotEmptyStr
