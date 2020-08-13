@@ -18,7 +18,6 @@
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
    [infowarss.logging :refer [with-logging-status]]
-   [infowarss.apis.fever-test]
    [infowarss.repl :refer :all]
    [clj-http.client :as http-client]
    [slingshot.slingshot :refer [throw+ try+]]

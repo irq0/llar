@@ -8,7 +8,6 @@
    [ring.adapter.jetty :refer [run-jetty]]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
-   [infowarss.apis.fever :as fever]
    [ring.middleware params gzip keyword-params json stacktrace lint basic-authentication not-modified]))
 ;;;; Web APIs
 
@@ -40,17 +39,6 @@
       (catch Exception ex
         (log/error ex "Exception during request" request)
         (exception-response ex)))))
-
-;;; Fever API - https://feedafever.com/api
-(def fever-app
-  (->
-   fever/fever-api
-   fever/wrap-auth
-   ring.middleware.json/wrap-json-response
-   ring.middleware.keyword-params/wrap-keyword-params
-   ring.middleware.params/wrap-params
-   wrap-exception
-   ring.middleware.lint/wrap-lint))
 
 (def status-app
   (->
@@ -98,10 +86,6 @@
 (defn try-stop-app [jetty]
   (when-not (nil? jetty)
     (.stop jetty)))
-
-(defstate fever
-  :start (try-start-app #'fever-app 8765)
-  :stop (try-stop-app fever))
 
 (defstate status
   :start (try-start-app status-app 9999)
