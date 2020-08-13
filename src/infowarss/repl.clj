@@ -1,50 +1,25 @@
 (ns infowarss.repl
   (:require
-   [infowarss.core :as core :refer [*srcs* config]]
-   [infowarss.persistency :as persistency :refer [store-items!]]
-   [infowarss.update :refer :all :as update]
-   [infowarss.src :as src]
+   [infowarss.core :as core]
    [infowarss.db :as db]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
-   [infowarss.live :as live]
-   [infowarss.schema :as schema]
-   [infowarss.analysis :as analysis]
-   [infowarss.converter :as converter]
-   [clojure.java.jdbc :as j]
+   [infowarss.update :as update]
+   [infowarss.blobstore :as blobstore]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.core :as time]
-   [clj-time.coerce :as tc]
-   [clj-time.format :as tf]
    [taoensso.timbre :as log]
-   [table.core :refer [table]]
    [clojure.java.io :as io]
    [clojure.string :as string]
-   [clojure.zip :as zip]
-   [infowarss.fetch.twitter]
-   [postal.core :as postal]
    [schema.core :as s]
    [cheshire.core :as json]
-   [twitter.oauth :as twitter-oauth]
-   [twitter.api.restful :as twitter]
-   [clojure.xml :as xml]
    [clojure.java.shell :as shell]
-   [opennlp.nlp :as nlp]
-   [hickory.core :as hick]
-   [hickory.select :as S]
-   [hickory.render :as hick-r]
-   [hickory.zip :as hick-z]
    [mount.core :refer [defstate]]
    [nrepl.server :refer [start-server stop-server]]
-   [cider.nrepl :refer [cider-nrepl-handler]]
-   [clojure.core.async :refer [>!! <!!] :as async]
-   [clojure.tools.namespace.repl :refer [refresh]]
    [pantomime.mime :as pm]
    [clj-ml.clusterers :as ml-clusterers]
-   [clj-ml.data :as ml-data]
-   [clj-ml.filters :as ml-filters]
-   [taoensso.timbre.appenders.core :as appenders]))
+   [clj-ml.data :as ml-data]))
 
 ;;;; Namespace to interact with infowarss from the REPL
 
@@ -111,8 +86,8 @@
 (defn sources
   "Return list of sources for human consumption"
   [& {:keys [by-state]}]
-  (let [srcs (cond->> *srcs*
-               (keyword? by-state) (filter (fn [[k v]] (= (:status (get-state k)) by-state))))]
+  (let [srcs (cond->> core/*srcs*
+               (keyword? by-state) (filter (fn [[k _]] (= (:status (get-state k)) by-state))))]
     (map human-src srcs)))
 
 (defn failed-sources
@@ -122,8 +97,6 @@
     (sources :by-state :temp-fail)
     (sources :by-state :perm-fail)
     (sources :by-state :failed)))
-
-(def hue-config (:hue core/creds))
 
 ;;; Preview - Try out filters, processing, fetch
 
@@ -155,45 +128,6 @@
     (catch Throwable th
       (log/error th "Error fetching " (str src))
       )))
-
-
-(comment
-  (->> yt first :raw :foreign-markup (some #(when (= (.getName %) "group") %))))
-
-(defn youtube-media [dom]
-  (->> dom
-    .getChildren
-    (map (fn [x] [(keyword (.getName x))
-                  (or (.getAttributeValue x "url") (.getText x))]))))
-
-;;.getChildren (map (fn [x] [(keyword (.getName x)) (or (.getAttributeValue x "url") (.getText x))]))))
-
-
-;;; Update Scheduling
-
-
-;;; Toy around area
-
-
-(comment
-(defn readability-scores [s]
-  (let [{:keys [exit out err]}
-        (shell/sh "style" :in s :env {"LANG" "c"})]
-    {:flesch-index (when-let [[_ x] (re-find #"Flesch Index: ([\d\.-]+)/" out)]
-                     (Float/parseFloat x))
-     :smog-grade (when-let [[_ x] (re-find #"SMOG-Grading: ([\d\.-]+)" out)]
-                   (Float/parseFloat x))}))
-
-
-(j/with-db-transaction [t db/*db*]
-  (let [xs (pmap (fn [x]
-                (assoc x :readability
-                  (readability-scores (:text x))))
-           (j/query t "select items.id, item_data.text from items inner join item_data on items.id = item_data.item_id where item_data.type = 'content' and item_data.mime_type = 'text/plain'"))]
-  (doseq [{:keys [id readability]} (take 1 xs)]
-    (log/info id)
-    (j/execute! t ["update items set entry = entry || ? where id = ?" {:readability readability} id]))))
-)
 
 
 ;; clustering
@@ -237,9 +171,6 @@
         (.add ds inst)))
 
     ds))
-
-(comment
-  (def ds2 (ml-filters/make-apply-filter :remove-attributes {:attributes [:item_id]} ds)))
 
 
 (defn improvise-cluster-name [attributes centroid]
@@ -289,42 +220,6 @@
                      :id id})))
            (group-by :class)))))
 
-;; TODO mydealz
-
-(defn call-method
-  [obj method & args]
-  (-> (.getClass obj)
-    (.getDeclaredMethod (str (:name method))
-      (into-array Class (map resolve (:parameter-types method))))
-    (doto (.setAccessible true))
-    (.invoke obj (into-array Object args))))
-
-(defn mydealz-extract-extra [item]
-  (let [raw (:raw item)
-        merchant (->> raw
-                   :foreign-markup
-                   (some #(when (= (.getName %) "merchant") %)))]
-  (-> item
-    (assoc-in [:entry :merchant] (some-> merchant (.getAttribute "name") .getValue))
-    (assoc-in [:entry :price] (some-> merchant (.getAttribute "price") .getValue)))))
-
-
-
-
-(comment
-  (def foo (preview (src/feed "https://www.mydealz.de/rss/alle") :limit 1))
-;;  (-> foo first :raw :foreign-markup first .getName) = merchant:
-
-  (-> foo first :raw :foreign-markup first (.getAttribute "name") .getValue)
-  (-> foo first :raw :foreign-markup first (.getAttribute "price") .getValue)
-
-  )
-;;  filter by categories, price, merchant
-;; amazon
-
-
-
-;; WIP: youtube dl music as mp3
 
 (defn youtube-dl-music [url]
   (let [{:keys [exit out err]} (shell/sh
@@ -364,8 +259,7 @@
                              "--no-playlist"
                              "--dump-json"
                              url
-                             :dir dest-dir)
-        youtube-err (second (re-find #"YouTube said: (.+)$" err))]
+                             :dir dest-dir)]
     (if (zero? exit)
       (let [j (json/parse-string out true)]
         (log/info "Youtube-dl success: " (:_filename j))
@@ -384,15 +278,15 @@
                   vals)
         music-srcs (->> sources
                      (filter #(contains? (:tags %) :music))
-                     (map :key))]
-    (let [items (db/get-items-recent
+                     (map :key))
+        items (db/get-items-recent
                   {:with-source-keys music-srcs
                    :limit 512
                    :with-tag :unread})]
       (->> items
         (map (juxt :id :title :url))
         (filter (fn [[_ _ url]]
-                  (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)))))))
+                  (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url))))))
 
 (defn music-miner []
   (doseq [[id title url] (music-links)]
@@ -440,7 +334,7 @@
                             [(string/replace blob-url "/blob/" "")
                              (:key item)])))
                    (map (fn [[blob source-key]]
-                          (let [local-fn (infowarss.blobstore/get-local-filename blob)
+                          (let [local-fn (blobstore/get-local-filename blob)
                                 mime (pantomime.mime/mime-type-of local-fn)
                                 extension (pantomime.mime/extension-for-name mime)]
                             [local-fn (str source-key "_" blob extension)]))))]
@@ -461,87 +355,3 @@
     (map #(merge (select-keys % [:district :name :location])
             {:categories (string/join ", " (map :name (:categories %)))}))
     ))
-
-
-
-;; twitter spam filter training data
-
-;; Twitter timeline - spam filter toying around
-(comment
-  (def twitter-spam-accounts
-    ["butler746_grace"
-     "freecams_live"
-     "FrontPageCelebs"
-     "dfayvazovskaya"])
-
-  (def twitter-ham-accounts
-    ["c3roc_" "ChaosLady90" "PicardEbooks" "c3soc" "grauhut" "paulg"
-     "chaosupdates" "sama" "Ceph" "usenix"])
-
-  (defonce twitter-spam (atom #{}))
-  (defonce twitter-ham (atom #{}))
-
-  (defn my-timeline []
-    (->>
-      (twitter/statuses-home-timeline
-        :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics)))
-      :body
-      (map infowarss.fetch.twitter/tweet-to-entry)
-      (map #(merge % (analysis/analyze-entry %)))))
-
-  (defn my-following-list []
-    (->>
-      (twitter/friends-list
-        :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics))
-        :params {:count 200})
-      :body :users (map :screen_name)))
-
-  (defn timeline-of [user]
-    (->>
-      (twitter/statuses-user-timeline
-        :oauth-creds (:oauth-creds (get-src :twit-augsburg-pics))
-        :params {:count 200
-                 :screen_name user})
-      :body
-      (map infowarss.fetch.twitter/tweet-to-entry)
-      (map #(merge % (analysis/analyze-entry %)))))
-
-  (def lang-to-n
-    {:en 0
-     :de 1})
-
-
-  (defn to-training-list [x & flag]
-    (let [data [(count (get-in x [:contents "text/plain"]))
-                (count (get-in x [:entities :hashtags]))
-                (count (get-in x [:entities :mentions]))
-                (count (get-in x [:entities :photos]))
-                (get-in x [:score :retweets])
-                (get-in x [:score :favs])
-                (or (get lang-to-n (get-in x [:language])) -1)
-                (count (get-in x [:nlp :names]))
-                (count (get-in x [:nlp :nouns]))
-                (count (get-in x [:nlp :verbs]))]]
-      (if-not (nil? flag)
-        (conj data flag)
-        data)))
-
-  (defonce training-data (atom [])))
-
-
-(defn browse-url [url]
-  (shell/sh "chromium-browser" url))
-
-;; populate lists
-(comment
-  (do (swap! training-data concat (map #(to-training-list % :ham) @twitter-ham)) (swap! training-data concat (map #(to-training-list % :spam) @twitter-spam)) :ok)
-
-
-  (def fit (-> (bayes/make-naive-bayes) (bayes/naive-bayes-fit (random-sample 0.8 @training-data))))
-
-(def fit (-> (bayes/make-naive-bayes) (bayes/naive-bayes-fit (random-sample 0.8 (concat (map #(to-training-list % :ham) @twitter-ham) (map #(to-training-list % :spam) @twitter-spam))))))
-
-
-  (swap! twitter-ham concat (my-timeline))
-  (doseq [x (my-following-list)] (swap! twitter-ham concat (timeline-of x)))
-  (doseq [x twitter-spam-accounts] (swap! twitter-spam concat (timeline-of x))))

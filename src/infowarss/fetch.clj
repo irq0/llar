@@ -5,9 +5,7 @@
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
-   [clojure.java.io :as io]
    [schema.core :as s]))
 
 ;;;; Fetcher - Fetch a Source (infowars.src) to get *Items
@@ -44,7 +42,7 @@
    :version 2})
 
 
-(defn tag-items [item src]
+(defn tag-items [item _]
   (let [title (get-in item [:summary :title])
         src-key (name (or (get-in item [:meta :source-key]) :unknown))
         title-re #"Four short links:|Weekly Programming Digest|Emacs news"]

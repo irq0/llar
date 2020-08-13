@@ -17,23 +17,17 @@
             [infowarss.analysis :as analysis]
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
-            [infowarss.src :as src]
-            [twitter.api.restful :as twitter]
             [schema.core :as s]
             [slingshot.slingshot :refer [throw+ try+]]
             [clojurewerkz.urly.core :as urly]
             [taoensso.timbre :as log]
-            [hiccup.core :refer [html]]
             [hickory.core :as hick]
             [hickory.select :as hick-s]
             [hickory.render :as hick-r]
             [clj-rome.reader :as rome]
-            [clojure.java.io :as io]
             [clj-http.client :as http]
             [cheshire.core :as cheshire]
             [clj-time.core :as time]
-            [clj-time.format :as tf]
-            [clojure.string :as string]
             [clj-time.coerce :as tc]))
 
 (s/defrecord FeedItem
@@ -180,15 +174,13 @@
 
 (defn hick-select-extract [selector extractor hickory]
   (let [extractor (or extractor default-selector-feed-extractor)]
-    (if (some? selector)
+    (when (some? selector)
       (let [tree (hick-s/select selector hickory)]
         (try
           (extractor tree)
           (catch Throwable th
             (log/warn th "Extractor crashed. Selected tree was:" tree)
-            (throw+ th)))
-
-        ))))
+            (throw+ th)))))))
 
 (defn hick-select-extract-with-source [src k hickory fallback]
   (let [{:keys [selectors extractors]} src

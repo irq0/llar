@@ -94,8 +94,8 @@
                            vec)
         text-len (count text-code-points)
         ]
-    (doseq [ [[[start end] [cat data]]
-              [[next-start next-end] [next-cat next-data]]]
+    (doseq [ [[[_ end] [cat data]]
+              [[next-start _] [_ _]]]
             (partition 2 1 (concat
                              [[[0 0] [nil nil]]]
                              changes

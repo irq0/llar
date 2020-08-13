@@ -4,7 +4,7 @@
    [infowarss.apis.status :as status]
    [infowarss.apis.reader :as reader]
    [infowarss.apis.dataworkbench :as datawb]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]

@@ -9,11 +9,9 @@
    [clj-time.coerce :as tc]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
-   [hara.io.scheduler :as sched]
    [mount.core :refer [defstate]]
    [clojure.java.io :as io]
-   [hara.time.joda]
-   [taoensso.timbre.appenders.core :as appenders]))
+   [hara.time.joda]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
@@ -162,7 +160,7 @@
 
 (defn update!
   "Update feed by id (see: *srcs*)"
-  [k & {:keys [force skip-proc skip-store overwrite?]
+  [k & {:keys [force]
         :as args}]
 
   (when (nil? (get *srcs* k))

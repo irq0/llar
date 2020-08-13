@@ -6,19 +6,10 @@
    [infowarss.db :as db]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.metrics :as metrics]
-   [infowarss.apis.reader :as reader]
-   [infowarss.http :as infowarss-http]
-   [clj-memory-meter.core :as mm]
-   [clojure.java.io :as io]
-   [taoensso.timbre :as log]
-   [compojure.core :refer :all]
+   [compojure.core :refer [routes GET]]
    [compojure.route :as route]
-   [clojure.string :as string]
-   [slingshot.slingshot :refer [throw+ try+]]
    [hiccup.core :refer [html]]
-   [hiccup.util :refer [escape-html]]
    [clojure.contrib.humanize :as human]
-   [clojure.pprint :as pprint]
    [iapetos.export :as prometheus-export]
    [mount.core :as mount]
    [puget.printer :as puget]))
@@ -60,7 +51,7 @@
     (contains? (:sources live/live) k)
     @(get-in (:sources live/live) [:hn-show :state])
 
-    :default
+    :else
     nil))
 
 (defn- pprint-html [x]
@@ -116,7 +107,7 @@
          [:tr {:class
                (cond (= :perm-fail status) "table-danger"
                      (or (= :temp-fail status) (nil? sched)) "table-warning"
-                     :default "")
+                     :else "")
                :data-child-value
                (html
                 [:div
@@ -197,7 +188,7 @@
                    "Unknown Length"
                    (zero? start)
                    "Long Read"
-                   :default
+                   :else
                    (str "< " start " Words"))]
          [:tr [:th txt] [:td count]]))]]
    [:h4 "Tags"]

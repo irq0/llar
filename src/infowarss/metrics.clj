@@ -1,8 +1,6 @@
 (ns infowarss.metrics
   (:require
    [iapetos.core :as prometheus]
-   [clj-memory-meter.core :as mm]
-   [iapetos.export :as prometheus-export]
    [mount.core :refer [defstate]]
    ))
 

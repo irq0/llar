@@ -5,13 +5,12 @@
    [infowarss.http :as http]
    [infowarss.converter :as converter]
    [infowarss.fetch :refer [make-item-hash] :as fetch]
-   [clj-time.periodic :refer [periodic-seq]]
    [clj-time.core :as time]
    [clj-time.format :as tf]
-   [clojure.set :refer [union intersection]]
+   [clojure.set :refer [intersection]]
    [hiccup.core :refer [html]]
    [hickory.select :as S]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [try+]]
    [clj-http.client :as http-client]
    [clj-http.cookies :as http-cookies]
    [hickory.core :as hick]
@@ -20,11 +19,9 @@
    [clojure.contrib.humanize :as human]
    [infowarss.postproc :as proc]
    [clojure.string :as string]
-   [hara.io.scheduler :as sched]
    [clojurewerkz.urly.core :as urly]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
-   [mount.core :refer [defstate]]
    [hara.time.joda]))
 
 ;;;; Core configuration and data structures
@@ -66,7 +63,7 @@
 (def +mercury-site-blacklist+
   #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
 
-(defn replace-contents-with-mercury [creds item keep-orig?]
+(defn replace-contents-with-mercury [item keep-orig?]
   (let [url (get-in item [:entry :url])
         src (src/mercury (str url))
         mercu (proc/process-feedless-item src (first (fetch/fetch-source src)))
@@ -87,8 +84,8 @@
 
 
 (defn mercury-contents
-  [creds & {:keys [keep-orig?]
-            :or {keep-orig? false}}]
+  [& {:keys [keep-orig?]
+    :or {keep-orig? false}}]
   (fn [item]
     (let [site (some-> item :entry :url .getHost)
           path (some-> item :entry :url .getPath)]
@@ -106,7 +103,7 @@
         ;; rest: replace with mercury
         :else
         (try+
-          (replace-contents-with-mercury creds item keep-orig?)
+          (replace-contents-with-mercury item keep-orig?)
           (catch [:type :infowarss.fetch.mercury/not-parsable] _
             (log/errorf (str item) "Mercury Error. Not replacing content with mercury")
             item))))))
@@ -115,8 +112,7 @@
 (defn human-host-identifier [url]
   (let [host (.getHost url)]
     (try+
-      (let [domain (com.google.common.net.InternetDomainName/from host)
-            site (.topPrivateDomain host)]
+      (let [site (.topPrivateDomain host)]
         (.name site))
       (catch Object _
         (str host)))))
@@ -205,9 +201,7 @@
 (defn make-reddit-proc [min-score]
   (proc/make
     :filter (fn [item]
-              (let [site (some-> item :entry :url .getHost)
-                    score (get-in item [:entry :score])
-                    title (get-in item [:summary :title])]
+              (let [score (get-in item [:entry :score])]
                 (< score min-score)))
     :post [(fn [item]
              (let [site (some-> item :entry :url .getHost)
@@ -218,7 +212,7 @@
                  (update-in item [:entry :contents "text/html"]
                    str "<img src=\"" (get-in item [:entry :url]) "\"/>")
                  (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
-                 :else ((mercury-contents (:mercury creds) :keep-orig? true) item))))]))
+                 :else ((mercury-contents :keep-orig? true) item))))]))
 
 
 (def ^:dynamic *srcs*
@@ -328,7 +322,7 @@
    :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
                    :cron cron-daily
                    :proc (proc/make
-                          :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                          :post [(mercury-contents :keep-orig? true)])
                    :tags #{:tech :magazine}}
 
    :oreilly-radar {:src (src/feed "https://www.oreilly.com/radar/feed/index.xml")
@@ -336,14 +330,14 @@
                    :options #{:mark-read-on-view}
                    :proc (proc/make
                           :filter(fn [item] (string/includes? (get-in item [:summary :title]) "Four short links"))
-                          :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                          :post [(mercury-contents :keep-orig? true)])
                    :tags #{:tech :magazine}}
    
    :oreilly-fourshortlinks {:src (src/feed "https://www.oreilly.com/radar/topics/four-short-links/feed/index.xml")
                    :cron cron-daily
                    :proc (proc/make
                           :post [(proc/add-tag :daily)
-                                 (mercury-contents (:mercury creds) :keep-orig? true)])
+                                 (mercury-contents :keep-orig? true)])
                    :tags #{:tech}}
    
    :danluu {:src (src/feed "https://danluu.com/atom.xml")
@@ -423,7 +417,7 @@
                               :user-agent :browser
                               :force-update? true)
                :proc (proc/make
-                      :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                      :post [(mercury-contents :keep-orig? true)])
                :tags #{:tech :magazine :sci}
                :cron cron-daily}
 
@@ -537,7 +531,7 @@
    :gamasutra-pc {:src (src/feed "http://feeds.feedburner.com/GamasutraConsolePCNews")
                   :options #{:mark-read-on-view}
                   :proc (proc/make
-                         :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                         :post [(mercury-contents :keep-orig? true)])
                   :cron cron-daily
                   :tags #{:gaming}}
 
@@ -578,28 +572,28 @@
             :tags #{:hackernews}
             :options #{:mark-read-on-view}
             :proc (proc/make
-                   :post [(mercury-contents (:mercury creds) :keep-orig? true)]
+                   :post [(mercury-contents :keep-orig? true)]
                    :filter (make-hacker-news-filter 350 150))}
 
    :hn-best {:src (src/hn "beststories" :throttle-secs (* 23 60))
              :tags #{:hackernews}
              :options #{:mark-read-on-view}
              :proc (proc/make
-                    :post [(mercury-contents (:mercury creds) :keep-orig? true)]
+                    :post [(mercury-contents :keep-orig? true)]
                     :filter (make-hacker-news-filter 350 150))}
 
    :hn-ask {:src (src/hn "askstories" :throttle-secs (* 5 60  60))
             :tags #{:hackernews}
             :options #{:mark-read-on-view}
             :proc (proc/make
-                   :post [(mercury-contents (:mercury creds) :keep-orig? true)]
+                   :post [(mercury-contents :keep-orig? true)]
                    :filter (make-hacker-news-filter 200 100))}
 
    :hn-show {:src (src/hn "showstories" :throttle-secs (* 5 60  60))
              :tags #{:hackernews}
              :options #{:mark-read-on-view}
              :proc (proc/make
-                    :post [(mercury-contents (:mercury creds) :keep-orig? true)]
+                    :post [(mercury-contents :keep-orig? true)]
                     :filter (make-hacker-news-filter 200 100))}
 
 
@@ -661,7 +655,6 @@
                                                                 http/blobify
                                                                 hickory-to-html)
                                               headers (get-in item [:raw :headers])
-                                              from-address (get-in item [:raw :from :address])
                                               find-header (fn [k] (some-> (filter
                                                                           (fn [x]
                                                                             (= (some-> x first key string/lower-case) k))
@@ -866,7 +859,7 @@
                                                (assoc-in [:summary :title]
                                                          (format "[%s] %s" conference-name title)))
                                            item)))
-                                     (mercury-contents nil)])
+                                     (mercury-contents)])
                        :tags #{:sci}
                        :cron cron-daily}
 
@@ -959,7 +952,7 @@
    :snia-storage {:src (src/feed "http://sniablog.org/feed/atom/")
                   :tags #{:storage}
                   :proc (proc/make
-                         :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                         :post [(mercury-contents :keep-orig? true)])
                   :cron cron-daily}
 
    :katemats {:src (src/feed "http://katemats.com/feed/")
@@ -991,7 +984,7 @@
                                                                      ))]
                                       (assoc-in item [:summary :title] title-without)
                                       item))
-                                  (mercury-contents (:mercury creds) :keep-orig? true)])
+                                  (mercury-contents :keep-orig? true)])
                     :tags #{:tech}}
 
    :gatesnotes {:src (src/feed "https://www.gatesnotes.com/rss" :force-update? true)
@@ -1006,13 +999,13 @@
                                       date-str (-> date-elem first :content first)
                                       date (tf/parse (tf/formatter "MMMM d, yyyy ")  date-str)]
                                   (assoc-in item [:summary :ts] date)))
-                              (mercury-contents (:mercury creds) :keep-orig? true)])
+                              (mercury-contents :keep-orig? true)])
                 :cron cron-daily}
 
    :startup50 {:src (src/feed "http://startup50.com/feed/" :force-update? false)
                :tags #{:corporate}
                :proc (proc/make
-                      :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                      :post [(mercury-contents :keep-orig? true)])
                :cron cron-daily}
 
    :clearskydata {:src (src/feed "https://www.clearskydata.com/blog/rss.xml")
@@ -1073,7 +1066,7 @@
    :gruenderszene-de {:src (src/feed "https://www.gruenderszene.de/feed")
                       :options #{:mark-read-on-view}
                       :proc (proc/make
-                             :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                             :post [(mercury-contents :keep-orig? true)])
                       :tags #{:magazine :tech}
                       :cron cron-daily}
 
@@ -1090,7 +1083,7 @@
                                                fixed-url (string/replace url #"go\.theregister\.com/feed/" "")]
                                            (-> item
                                                (assoc-in [:entry :url] fixed-url))))
-                                       (mercury-contents (:mercury creds) :keep-orig? false)])
+                                       (mercury-contents :keep-orig? false)])
                          :options #{:mark-read-on-view}
                          :tags #{:storage :magazine}
                          :cron cron-daily}
@@ -1102,7 +1095,7 @@
 
    :infostor {:src (src/feed "http://www.infostor.com/index/rssfaq/rss_article_and_wp.noncurrentissue.articles.infostor.html?block" :force-update? false)
               :proc (proc/make
-                     :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                     :post [(mercury-contents :keep-orig? true)])
               :tags #{:storage :magazine}
               :cron cron-daily}
 
@@ -1152,7 +1145,7 @@
 
    :joyent {:src (src/feed "https://www.joyent.com/blog/feed")
             :proc (proc/make
-                   :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                   :post [(mercury-contents :keep-orig? true)])
             :tags #{:corporate}}
 
 
@@ -1185,13 +1178,13 @@
    :seriouseats-foodlab {:src (src/feed "https://feeds.feedburner.com/SeriousEats-thefoodlab"
                                         :force-update? false)
                          :proc (proc/make
-                                :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                                :post [(mercury-contents :keep-orig? true)])
                          :cron cron-daily
                          :tags #{:food}}
    :seriouseats-recipes {:src (src/feed "https://feeds.feedburner.com/seriouseats/recipes"
                                         :force-update? false)
                          :proc (proc/make
-                                :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                                :post [(mercury-contents :keep-orig? true)])
                          :cron cron-daily
                          :tags #{:food}}
 
@@ -1250,10 +1243,6 @@
                        :post [(proc/exchange [:entry :descriptions] [:entry :contents])])
                 :cron cron-daily}
 
-   ;; :krisk {:src (src/g+activity "+KristianKohntopp" (:google creds))
-   ;;         :tags #{:blog}
-   ;;         :cron cron-daily}
-
    :berlin-backyard-fleamarkets {:src (src/website "http://polly.sternenlaub.de/fleamarkets/list")
                                  :tags #{:berlin}
                                  :cron cron-daily}
@@ -1287,7 +1276,7 @@
    :wired {:src (src/feed "https://www.wired.com/feed")
            :options #{:mark-read-on-view}
            :proc (proc/make
-                  :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                  :post [(mercury-contents :keep-orig? true)])
            :tags #{:magazine}
            :cron cron-daily}
 
@@ -1406,7 +1395,7 @@
                                                         (>= index 0)
                                                         (update-in r [index :hick] conj item)
 
-                                                        :default
+                                                        :else
                                                         r)))
                                                   []))]
                                  ;; Note: html already absolutified / blobified / sanitized by fetcher!
@@ -1472,7 +1461,7 @@
               :cron cron-daily}
    :longform {:src (src/feed "https://longform.org/feed.rss")
               :proc (proc/make
-                     :pre [(mercury-contents nil)
+                     :pre [(mercury-contents)
                            (fn [item] (let [redirect-page (http/fetch (get-in item [:entry :url]))
                                            real-article-link (some-> (S/select
                                                                       (S/descendant
@@ -1493,7 +1482,7 @@
    :movieweb-reviews {:src (src/feed "https://movieweb.com/rss/movie-reviews/")
                       :options #{:mark-read-on-view}
                       :proc (proc/make
-                             :post [(mercury-contents (:mercury creds) :keep-orig? true)])
+                             :post [(mercury-contents :keep-orig? true)])
                       :tags #{:movies}
                       :cron cron-daily}
 

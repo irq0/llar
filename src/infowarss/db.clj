@@ -3,24 +3,19 @@
    [infowarss.core :refer [config *srcs*]]
    [infowarss.converter :as converter]
    [digest]
-   [clj-http.client :as http]
    [clj-time.core :as time]
-   [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
-   [taoensso.timbre.appenders.core :as appenders]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [clojure.java.jdbc :as j]
-   [clojure.java.io :as io]
    [mpg.core :as mpg]
    [clj-time.jdbc]
-   [byte-streams :refer [to-byte-buffer to-string]]
+   [byte-streams :refer [to-byte-buffer]]
    [cheshire.core :refer :all]
    [mount.core :refer [defstate]]
    [cheshire.generate :refer [add-encoder encode-str]])
 
-  (:import [java.sql SQLException]
-           [com.mchange.v2.c3p0 ComboPooledDataSource]))
+  (:import [com.mchange.v2.c3p0 ComboPooledDataSource]))
 
 (def ^:dynamic *db*
   (merge {:dbtype "postgresql"}
@@ -182,7 +177,6 @@
    (j/with-db-transaction [t *db*]
      (binding [*db* t]
        (let [db-src (get-or-create-source-for-doc doc)
-             entry (:entry doc)
              item (first
                    (j/insert! t :items
                               (doc-to-sql-row doc (:id db-src))))
@@ -208,7 +202,6 @@
    (j/with-db-transaction [t *db*]
      (binding [*db* t]
        (let [db-src (get-or-create-source-for-doc doc)
-             entry (:entry doc)
              ret (first
                   (j/update! t :items
                              (doc-to-sql-row doc (:id db-src))
@@ -294,11 +287,6 @@
                  {:row-fn (fn [row] [(keyword (:key row))]
                                     {:item-tags (apply hash-set
                                                        (map keyword (:item-tags row)))})})))
-
-;; faster version of
-(comment (-> (db/get-sources
-              (db/sources-merge-in-config)
-              (db/sources-merge-in-item-tags-with-count))))
 
 (defn new-get-sources []
   (into {}
@@ -566,7 +554,7 @@
    " "
    (cond with-data? +get-items-by-id-sql-join-with-data-where+
          with-preview-data? +get-items-by-id-sql-join-with-preview-data-where+
-         :default +get-items-by-id-sql-join-without-data-where+)
+         :else +get-items-by-id-sql-join-without-data-where+)
    " "
    extra-where
    ))
@@ -714,9 +702,6 @@
 (defn search
   "Search for query. postgres query format"
   ([query {:keys [with-source-key time-ago-period]}]
-   (let [ts (when time-ago-period (time/ago time-ago-period))
-         key-filter (when with-source-key (str "key = " with-source-key))
-         ]
      (j/query db [(log/spy (str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
                        " from search_index"
                        " where document @@ to_tsquery('english', ?)"
@@ -728,7 +713,7 @@
                          (when with-source-key (str "key = '" (name with-source-key) "'"))]
                         (remove nil?)
                         (string/join " and "))
-                       " order by rank desc")) query query])))
+                       " order by rank desc")) query query]))
   ([query]
    (j/query db ["select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query])))
 
@@ -758,7 +743,7 @@
 
 (defn recommendations
   "Find similar items for id"
-  [id])
+  [_])
   ;; compute cosine distance to all docs in db
 
 (defn saved-items-tf-idf []

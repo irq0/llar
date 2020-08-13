@@ -1,29 +1,22 @@
 (ns infowarss.fetch.document
   (:require
-   [infowarss.converter :as conv]
-   [infowarss.src :as src]
    [infowarss.fetch :as fetch]
    [infowarss.schema :as schema]
    [infowarss.persistency :as persistency]
-   [infowarss.converter :as converter]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
+   [infowarss.converter :as converter]
    [digest]
    [clj-http.client :as http]
    [hiccup.core :refer [html]]
-   [hickory.core :as hick]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [clojure.java.io :as io]
    [schema.core :as s]
-   [pantomime.mime :as pm]
    [pantomime.web :refer [mime-type-of]]
-   [pantomime.media :as mt]
    [pantomime.extract :as extract]
-   [clj-time.core :as time]
-   ))
+   [clj-time.core :as time]))
 
 ;;;; Document Fetcher
 ;;;; A Document is something like a pdf or docx. It needs some transformation

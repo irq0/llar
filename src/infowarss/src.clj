@@ -1,9 +1,8 @@
 (ns infowarss.src
   (:require [schema.core :as s]
             [clojure.java.io :as io]
-            [clojure.string :as string]
             [infowarss.schema :as schema]
-            [slingshot.slingshot :refer [throw+ try+]]
+            [slingshot.slingshot :refer [throw+]]
             [twitter.oauth :refer [make-oauth-creds]]
             [twitter.api.restful :as twitter-rest])
   (:import [twitter.oauth OauthCredentials]))

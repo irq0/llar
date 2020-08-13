@@ -1,22 +1,13 @@
 (ns infowarss.live
   (:require
    [infowarss.core :as core]
-   [infowarss.schema :as schema]
    [infowarss.postproc :as proc]
    [infowarss.persistency :as persistency]
    [infowarss.live.common :refer :all]
-   [infowarss.live.hackernews :as live-hackernews]
+   [clojure.core.async :as async]
    [mount.core :refer [defstate]]
-   [schema.core :as s]
-   [clj-time.core :as time]
-   [clj-time.coerce :as tc]
-   [clj-time.format :as tf]
-   [clojure.java.io :as io]
-   [clojure.core.async :refer [>!! <!!] :as async]
-   [clojure.set :refer [map-invert]]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [taoensso.timbre :as log])
-  (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))
+   [slingshot.slingshot :refer [try+]]
+   [taoensso.timbre :as log]))
 
 ;;;; Live source logic. Similar to update, but running continuously in background
 
@@ -27,14 +18,10 @@
 ;; showstories
 ;; askstories
 
-;; (defonce live-chans (atom {}))
-;; (defonce live-chan (async/chan))
-;; (defonce live-mix (async/mix live-chan))
-
 (declare live)
 
 (defn process [item]
-  (let [{:keys [src]} item
+  (let [{:keys [_]} item
         k (get-in item [:meta :source-key])
         feed (get core/*srcs* k)
         state (get-in live [:sources k :state])]
@@ -57,7 +44,7 @@
     (log/debug "Starting live processor")
     (loop []
       (let [[v ch] (async/alts!! [input-ch term-ch])]
-        (if (identical? ch input-ch)
+        (when (identical? ch input-ch)
           (when (some? v)
             (process v)
             (recur)))))

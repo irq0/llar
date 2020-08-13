@@ -1,37 +1,31 @@
 (ns infowarss.apis.reader
   (:require
-   [infowarss.src :as src]
    [infowarss.core :as core]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
    [infowarss.db :as db]
    [infowarss.persistency :as persistency]
-   [infowarss.sched :refer [get-sched-info]]
    [infowarss.blobstore :as blobstore]
    [infowarss.repl :refer [+current-fetch-preview+ current-clustered-saved-items]]
    [infowarss.http :refer [try-blobify-url!]]
    [infowarss.metrics :as metrics]
+   [infowarss.converter :as converter]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
    [clj-time.format :as tf]
-   [compojure.core :refer :all]
+   [compojure.core :refer [GET POST PUT DELETE context routes]]
    [compojure.route :as route]
    [compojure.coercions :refer [as-int]]
    [clojure.string :as string]
-   [ring.util.codec :refer [form-encode form-encode* FormEncodeable url-encode]]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [schema.core :as s]
+   [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
+   [slingshot.slingshot :refer [try+]]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
-   [hiccup.util :refer [escape-html]]
    [clojure.contrib.humanize :as human]
-   [clojure.set :as set]
-   [clojure.pprint :as pprint]
-   [iapetos.core :as prometheus]
-   [mount.core :as mount]))
+   [clojure.set :as set]))
 
 
 ;; NEXT
@@ -56,7 +50,7 @@
     (log/info "Reading state file. Backup in " backup)
     (io/copy (io/file (.getFile res)) backup)
     (try+
-     (infowarss.converter/read-edn-string (slurp res))
+     (converter/read-edn-string (slurp res))
      (catch java.lang.RuntimeException _
        (log/warn "Failed to read state file. Starting with clean state")
        {}))))
@@ -259,7 +253,7 @@
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
   [x]
   (let [{:keys [group-name group-item source-key mode
-                selected-sources items range-recent range-before]} x
+                selected-sources items]} x
         {:keys [id tags]} (first items)
 
         active-group (:group-name x)
@@ -515,10 +509,9 @@
 (defn source-list-item
   "Source Navigation List Item"
   [x prefix source active-key]
-  (let [{:keys [key id title item-tags]} source
+  (let [{:keys [key title item-tags]} source
         fltr (or (:filter x) :total)
         nitems (or (get item-tags fltr) 0)
-        show-num?  (pos? nitems)
         grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))
         pill [:span {:class "badge badge-pill float-right"}
               (when (pos? nitems) nitems)]
@@ -537,7 +530,7 @@
            [:span {:class "sidebar-heading-2"}
             (icon "fas fa-bookmark") "&nbsp;" nice-url]])
 
-         :default
+         :else
          [:span
           pill
           [:span {:class "sidebar-heading-2"} key]
@@ -611,8 +604,7 @@
   (let [item (first (:items x))
         selected-data (:data x)
         selected-content-type (:content-type x)
-        {:keys [id url title data ts author tags read saved entry
-                nwords names verbs urls top-words]} item
+        {:keys [id url data ts tags entry nwords]} item
         lang (if (#{"de" "en"} (:language entry))
                (:language entry)
                "en")]
@@ -681,10 +673,6 @@
         (get-html-content item :description "text/html")
         (get-html-content item selected-data selected-content-type))]]
       [:div {:id "minimap" :class "col-1 sticky-top"}]]]]
-
-
-
-
       ))
 
 
@@ -703,14 +691,14 @@
      (= k "text/plain")
      [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]
 
-     :default
+     :else
      [:span
       (str v) " (" (type v) ")"])])
 
 (defn map-to-tree
   "Convert nested map to semantic ui tree"
   [node]
-  (if (map? node)
+  (when (map? node)
     (let [nested-pred (fn [[k v]] (when (map? v) [k v]))
           nested (filter nested-pred node)
           rest (remove nested-pred node)]
@@ -744,7 +732,6 @@
   [str-url]
   (try+
    (let [url (io/as-url str-url)
-         proto (some-> url .getProtocol)
          site (some-> url .getHost)
          path (or (some-> url .getPath) "")
          path-seq (-> path (string/split #"/") next vec)
@@ -771,7 +758,7 @@
          [:span (icon "fab fa-facebook-f") "&nbsp;" (first path-seq)]
          (= (first path-seq) "events")
          [:span (icon "fab fa-facebook-f") "&nbsp;" "event"]
-         :default
+         :else
          [:span (icon "fab fa-facebook-f") "&nbsp;" (take-last 2 path-seq)])
 
        (string/includes? site "youtube")
@@ -789,7 +776,7 @@
          (str site "⋯")
          (str site "⋯" (human/truncate (last path-seq) 23)))
 
-       :default
+       :else
        url))
    (catch Object _
      (log/warn (:throwable &throw-context) "Encountered broken url: " str-url)
@@ -803,7 +790,6 @@
         scaled-to-one (if (= max-freq min-freq)
                         1
                         (/ (- freq min-freq) (- max-freq min-freq)))
-        scaled scaled-to-one
         size (Math/log (inc (* scaled-to-one 150)))]
     (nth +word-cloud-sizes+
          (-> size int (max 0) (min max-size)))))
@@ -814,15 +800,14 @@
   (let [url (io/as-url str-url)
         host (.getHost url)]
     (try+
-     (let [domain (com.google.common.net.InternetDomainName/from host)
-           site (.topPrivateDomain host)]
+     (let [site (.topPrivateDomain host)]
        (.name site))
      (catch Object _
        (str host)))))
 
 (defn short-page-headline
   [x]
-  (let [{:keys [mode source-key group-item group-name]} x
+  (let [{:keys [mode source-key group-item]} x
         current-item (first (:items x))]
     (cond
       (= mode :dump-item)
@@ -861,8 +846,8 @@
   "Main Item List - Word Cloud Style"
   [x link-prefix item]
   (let [{:keys [sources]} x
-        {:keys [id source-key title data ts author tags read saved
-                nwords names entry verbs url urls top-words]} item
+        {:keys [id source-key title ts author tags
+                nwords names entry url urls top-words]} item
         url-site (some-> url io/as-url .getHost)
         source (get sources (keyword source-key))
         options (:options source)
@@ -916,8 +901,9 @@
                                         (:comments-url entry))]
               [:a {:href comments-url} "(comments)"])
             " → " (human-host-identifier url)])
-         (when (and (string? url) (string? (:url source)) (not= (human-host-identifier url))
-                    (human-host-identifier (:url source)))
+         (when (and (string? url) (string? (:url source))
+                    (not= (human-host-identifier url)
+                          (human-host-identifier (:url source))))
            [:span " → " (human-host-identifier url)])])
 
 
@@ -999,7 +985,7 @@
 (defn headlines-list-items
   "Main Item List - Headlines Style"
   [x]
-  (let [{:keys [group-name group-item source-key selected-sources sources items]} x]
+  (let [{:keys [group-name group-item source-key sources items]} x]
     [:div {:id "headlines" :class "table-responsive"}
      [:table {:class "table table-borderless"}
       [:thead
@@ -1016,18 +1002,17 @@
                                        (name group-name)
                                        (name group-item)
                                        (name source-key))
-                   {:keys [id source-key title data ts author tags read saved
-                           nwords names entry verbs url urls top-words]} item
-                   source (get sources (keyword source-key))
-                   options (:options source)]]
+                   {:keys [id source-key title ts tags nwords url]} item
+                   source (get sources (keyword source-key))]]
          [:tr {:data-id id}
           [:td {:class "source"}
            source-key
            (when (= (:type item) :item-type/link)
              [:span "&nbsp;"
               " → " (human-host-identifier url)])
-           (when (and (string? url) (string? (:url source)) (not= (human-host-identifier url))
-                      (human-host-identifier (:url source)))
+           (when (and (string? url) (string? (:url source))
+                      (not= (human-host-identifier url)
+                            (human-host-identifier (:url source))))
              [:span " → " (human-host-identifier url)])]
 
           [:th {:class "title"}
@@ -1056,17 +1041,14 @@
 (defn gallery-list-items
   "Main Item List - Gallery Style"
   [x]
-  (let [{:keys [group-name group-item source-key selected-sources sources items]} x]
+  (let [{:keys [group-name group-item source-key sources items]} x]
     [:div {:class "card-columns" :id "gallery"}
      (for [item items
            :let [link-prefix (format "/reader/group/%s/%s/source/%s"
                                      (name group-name)
                                      (name group-item)
                                      (name source-key))
-                 {:keys [id source-key title data ts author tags read saved
-                         nwords names entry verbs url urls top-words]} item
-                 source (get sources (keyword source-key))
-                 options (:options source)]]
+                 {:keys [id source-key title  ts tags entry url]} item]]
        [:div {:class "card"}
         (let [image (or
                      (first (get-in entry [:entities :photos]))
@@ -1112,7 +1094,7 @@
 (defn main-list-items
   "Generate Mail Item List"
   [x]
-  (let [{:keys [group-name group-item source-key selected-sources items]} x]
+  (let [{:keys [group-name group-item source-key items]} x]
     [:div
      (for [item items
            :let [url (format "/reader/group/%s/%s/source/%s"
@@ -1131,7 +1113,7 @@
       (keyword? selected-style)
       selected-style
 
-      :default
+      :else
       :preview)))
 
 (defn list-items [x]
@@ -1215,14 +1197,14 @@
                                   {:with-source-keys [source-key]
                                    :with-type group-item}))
 
-      :default
+      :else
       [])))
 
 
 (defn get-active-group-sources
   "Return active sources, might hit database"
   [sources params]
-  (let [{:keys [mode group-name item-id group-item source-key]} params]
+  (let [{:keys [group-name group-item]} params]
     (cond
       (and (= group-name :default) (= group-item :all))
       (vals sources)
@@ -1236,7 +1218,7 @@
       (= group-name :type)
       (filter #(= (:type %) (keyword "item-type" (name group-item))) (vals sources))
 
-      :default
+      :else
       [])))
 
 (defn get-selected-sources
@@ -1262,7 +1244,7 @@
         body (metrics/with-prom-exec-time :render-download
                (cond (string? data) data
                      (instance? (Class/forName "[B") data) (java.io.ByteArrayInputStream. data)
-                     :default nil))]
+                     :else nil))]
 
     (if (some? data)
       {:status 200
@@ -1281,8 +1263,7 @@
    (reader-index {}))
   ([params]
    (log/debug "[INFOWARSS-UI]" params)
-   (let [{:keys [mode group-name group-item source-key]} params
-         ;; override filter for special groups like saved
+   (let [;; override filter for special groups like saved
          orig-fltr (:filter params)
          params (assoc params :filter
                        (if-let [override (get +filter-overrides+
@@ -1312,16 +1293,16 @@
                                :item-tags @item-tags
                                :filter orig-fltr
                                :range-recent (-> @items first (select-keys [:ts :id]))
-                               :range-before (-> @items last (select-keys [:ts :id]))})]
+                               :range-before (-> @items last (select-keys [:ts :id]))})
+         
+         nav-bar (nav-bar params)
+         group-nav (group-nav params)
+         main-view (main-view params)
+         source-nav (source-nav params)
+         title (short-page-headline params)
 
-     (let [nav-bar (nav-bar params)
-           group-nav (group-nav params)
-           main-view (main-view params)
-           source-nav (source-nav params)
-           title (short-page-headline params)
-
-           html (metrics/with-prom-exec-time
-                  :render-html
+         html (metrics/with-prom-exec-time
+                :render-html
                   (html
                    [:html {:lang "en"}
                     (html-header title (:mode params) (some-> params :items first))
@@ -1334,7 +1315,7 @@
                          main-view
                          source-nav]]]
                       (html-footer))]]))]
-       html))))
+       html)))
 
 (defmulti lab-view-handler :view)
 
@@ -1451,8 +1432,7 @@
    (reader-index {}))
   ([params]
    (log/debug "[INFOWARSS-UI]" params)
-   (let [{:keys [mode group-name group-item source-key]} params
-         ;; override filter for special groups like saved
+   (let [;; override filter for special groups like saved
          orig-fltr (:filter params)
          params (assoc params :filter
                        (if-let [override (get +filter-overrides+

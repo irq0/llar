@@ -36,17 +36,17 @@
 (defstate db-sched
   :start (sched/start!
           (sched/scheduler
-           {:refresh-search-index {:handler (fn [t] (log/info "Refreshing search index:"
+           {:refresh-search-index {:handler (fn [_] (log/info "Refreshing search index:"
                                                              (infowarss-db/refresh-search-index)))
                                    :schedule "0 42 3 * * * *"}
-            :update-clustered-saved-items {:handler (fn [t]
+            :update-clustered-saved-items {:handler (fn [_]
                                                       (log/info "Updating saved items cluster")
                                                       (reset!
                                                        infowarss-repl/current-clustered-saved-items
                                                        (infowarss-repl/cluster-saved)))
                                            :schedule "0 5 * * * * *"}
 
-            :refresh-idf {:handler (fn [t] (log/info "Refreshing search index:"
+            :refresh-idf {:handler (fn [_] (log/info "Refreshing search index:"
                                                     (infowarss-db/refresh-idf)))
                           :schedule "0 42 3 * * * *"}}))
   :stop (sched/stop! db-sched))
@@ -54,13 +54,13 @@
 (defstate sched
   :start (sched/start!
           (sched/scheduler
-           {:download-tagged-items {:handler (fn [t] (log/info "Downloaded tagged links:" 
+           {:download-tagged-items {:handler (fn [_] (log/info "Downloaded tagged links:" 
                                                               (infowarss-repl/download-tagged-stuff)))
                                     :schedule "0 0 */5 * * * *"}
-            :copy-wallpapers {:handler (fn [t] (log/info "New Wallpaper: "
+            :copy-wallpapers {:handler (fn [_] (log/info "New Wallpaper: "
                                                         (infowarss-repl/copy-wallpapers-to-home)))
                               :schedule "0 42 23 * * * *"}
-            :remove-unread {:handler (fn [t]
+            :remove-unread {:handler (fn [_]
                                        (infowarss-db/remove-unread-for-items-of-source-older-than
                                         [:golem :hn-top :thenewstack
                                          :hn-best :reddit-berlin
@@ -106,4 +106,4 @@
   :stop (sched/stop! feed-sched))
 
 (defn get-sched-info [k]
-  (some #(if (= (:name %) k) %) (sched/list-tasks feed-sched)))
+  (some #(when (= (:name %) k) %) (sched/list-tasks feed-sched)))

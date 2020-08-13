@@ -1,7 +1,5 @@
 (ns infowarss.fetch.reddit
   (:require
-   [infowarss.converter :as conv]
-   [infowarss.src :as src]
    [infowarss.fetch :as fetch]
    [infowarss.schema :as schema]
    [infowarss.persistency :as persistency]
@@ -11,11 +9,9 @@
    [digest]
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
-   [hickory.core :as hick]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.string :as string]
    [clojure.java.io :as io]
    [schema.core :as s]
    ))
@@ -52,7 +48,7 @@
                              :headers {:user-agent "java:infowarss:23: (by /u/irq0x00)"}})]
      (:body resp))
    (catch (contains? #{500 501 502 503 504} (get % :status))
-       {:keys [headers body status] :as orig}
+       {:keys [headers body status]}
      (log/errorf "Server Error (%s): %s %s" status headers body)
      (throw+ {:type ::server-error-retry-later}))
    (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))

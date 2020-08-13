@@ -6,7 +6,7 @@
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
-   [cheshire.generate :refer [add-encoder encode-map]]
+   [cheshire.generate :refer [add-encoder]]
    [pantomime.mime :as pm]
    [clojure.string :as string]))
 

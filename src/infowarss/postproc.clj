@@ -1,18 +1,11 @@
 (ns infowarss.postproc
   (:require
-   [infowarss.fetch :as fetch]
-   [infowarss.src :as src]
    [infowarss.schema :as schema]
    [schema.core :as s]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.set :refer [union intersection]]
-   [clojure.java.shell :as shell]
-   [postal.core :as postal]
-   [clojure.string :as string]
-   [clj-time.core :as time]
-   [infowarss.analysis :as analysis]
-   [taoensso.timbre.appenders.core :as appenders]))
+   [clojure.java.shell :as shell]))
 
 ;;;; Postprocessing and Filtering
 
@@ -87,13 +80,13 @@
 (def +highlight-words+
   #{"quobyte" "marcel lauhoff"})
 
-(defn all-items-process-first [item src state]
+(defn all-items-process-first [item _ state]
   (log/trace "All items processor (first)" (str item))
     (-> item
         (update-in [:meta :tags] conj :unread)
         (assoc-in [:meta :source-key] (:key state))))
 
-(defn all-items-process-last [item src state]
+(defn all-items-process-last [item _ _]
   (log/trace "All items processor (last)" (str item))
   (let [names-and-nouns (union (get-in item [:entry :nlp :names])
                                (get-in item [:entry :nlp :nouns]))
@@ -229,20 +222,6 @@
         (log/debugf "Filtered out: %s"
                     (str item)))
       processed)))
-    ;; (let [processed (some-> item
-    ;;                   (all-proc)
-    ;;                   (check-intermediate :all-proc)
-    ;;                   (per-feed-proc-pre)
-    ;;                   (check-intermediate-maybe-coll :per-feed-pre-processor)
-    ;;                   (apply-filter
-    ;;                     #(filter-item % src state))
-    ;;                   (check-intermediate :protocol-filter)
-    ;;                   (proto-feed-proc)
-    ;;                   (check-intermediate :protocol-processor)
-    ;;                   (apply-filter per-feed-filter)
-    ;;                   (check-intermediate :per-feed-filter)
-    ;;                   (per-feed-proc-post)
-    ;;                   (check-intermediate-maybe-coll :per-feed-post-processor))]
 
 (defn process [feed state items]
   (let [{:keys [src]} feed]

@@ -17,8 +17,7 @@
    [clojure.zip :as zip]
    [mount.core :refer [defstate]]
    [clojurewerkz.urly.core :as urly]
-   [clj-time.core :as time])
-  (:import [java.net URI URL]))
+   [clj-time.core :as time]))
 
 
 ;; Infowarss HTTP Fetch utility
@@ -32,7 +31,7 @@
 (defn resolve-user-agent [kw-or-s]
   (cond (string? kw-or-s) kw-or-s
         (keyword? kw-or-s) (get +http-user-agent+ kw-or-s)
-        :default (throw+ {:type ::invalid-user-agent
+        :else (throw+ {:type ::invalid-user-agent
                           :msg "Use string or keyword"
                           :offending-value kw-or-s
                           :offending-type (type kw-or-s)
@@ -99,7 +98,7 @@
                :url s} nil))))
 
 (defn parse-href [s]
-  (if-let [url (or (swallow-exceptions (parse-url s))
+  (when-let [url (or (swallow-exceptions (parse-url s))
                    (swallow-exceptions (parse-url (str "/" s))))]
     url))
 
@@ -114,7 +113,7 @@
       (urly/absolute? url)
       url
 
-      :default
+      :else
       (let [base-url (parse-url raw-base-url)]
         (cond
           (nil? base-url)
@@ -175,7 +174,7 @@
 
 (defn absolutify-links-in-hick [root base-url]
   (let [zipper (hick-z/hickory-zip root)
-        edit-tag (fn [tag type content attrs loc]
+        edit-tag (fn [tag _type _content attrs loc]
                    (try
                     (cond
                       (and (= tag :a) (string? (:href attrs)))
@@ -187,7 +186,7 @@
                                             (string? (:srcset attrs))))
                       (edit-img-tag base-url loc)
 
-                      :default
+                      :else
                       loc)
                     (catch Throwable th
                       (log/debug th "Absolutify error loc:"
@@ -246,7 +245,7 @@
     (loop [loc zipper]
       (if (zip/end? loc)
         (zip/root loc)
-        (let [{:keys [tag type content attrs]} (zip/node loc)]
+        (let [{:keys [tag type]} (zip/node loc)]
           (if (= type :element)
             (recur
              (zip/next (edit-tag tag loc)))
@@ -263,7 +262,7 @@
     (loop [loc zipper]
       (if (zip/end? loc)
         (zip/root loc)
-        (let [{:keys [tag type content attrs]} (zip/node loc)]
+        (let [{:keys [tag type attrs]} (zip/node loc)]
           (if (= type :element)
             (recur
              (zip/next
@@ -309,7 +308,7 @@
                                                (keyword (str "orig-" (name (get url-attribs tag))))
                                                (str (get attrs (get url-attribs tag)))
                                                :note "cleared by infowarss html sanitizer"}))))
-                :default
+                :else
                 loc)))
             (recur (zip/next loc))))))))
 

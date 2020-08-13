@@ -9,9 +9,8 @@
    [schema.core :as s]
    [clj-time.core :as time]
    [clj-time.coerce :as tc]
-   [clj-time.format :as tf]
    [clojure.java.io :as io]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [try+]]
    [clojure.core.async :refer [>!! <!!] :as async]
    [taoensso.timbre :as log]))
 

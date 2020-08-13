@@ -6,14 +6,11 @@
    [clj-http.client :as http2]
    [clj-time.coerce :as tc]
    [schema.core :as s]
-   [infowarss.schema :as schema]
    [pantomime.mime :as pm]
    [slingshot.slingshot :refer [throw+ try+]]
    [mount.core :refer [defstate]]
-   [clojurewerkz.urly.core :as urly]
    [nio2.core :as nio2]
-   [digest :as digest])
-  (:import [java.net URI URL]))
+   [digest :as digest]))
 
 
 (def +blob-store+ "/fast/infowarss/blobs")
@@ -81,31 +78,6 @@
     url-hash))
 
 
-(defn- create-url-index-entry-from-primary-fn
-  "Migration function - create secondary / url index entry for each url
-  in the primary index props file"
-  [content-file]
-  (let [content-hash (.getName content-file)
-        propsfile (io/as-file (str content-file ".props"))
-        props (conv/read-edn-string (slurp propsfile))
-        {:keys [orig-urls]} props
-        urls (->>
-              orig-urls
-              (filter #(contains? #{String java.net.URL} (type %)))
-              (map (fn [x] (java.net.URI. x)))
-              (into #{}))]
-    (when-not (= (count urls) (count orig-urls))
-      (log/warn "Found broken urls set:" orig-urls urls))
-    (doseq [url urls
-            :let [url-hash (digest/sha-256 (str url))
-                  dupe-file (blob-file +blob-store-dupes+
-                                       url-hash)]
-            :when (and
-                   (not= (.getPath url) "/")
-                   (not (.exists dupe-file)))]
-      (create-url-index-entry-for-url content-hash url))))
-
-
 (defn blob-store-file-seq
   "Return seq of blob store entry files - only data files not
   .props"
@@ -126,7 +98,6 @@
     (when (and (.exists link) (.exists link-props))
       (let [link-target (java.nio.file.Files/readSymbolicLink
                           (.toPath link))]
-;;        (log/debugf "BLOBSTORE: found \"%s\" in url index" url)
         (str (.getFileName link-target))))))
 
 (defn- setify-urls [x]
@@ -135,7 +106,7 @@
     (set? (first x)) (first x)
     (coll? x) (set x)
     (nil? x) #{}
-    :default x))
+    :else x))
 
 (defn client-error?
   [{:keys [status]}]

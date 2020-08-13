@@ -1,7 +1,5 @@
 (ns infowarss.live.firebase
   (:require
-   [clojure.java.io :as io]
-   [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.set :refer [map-invert]]
    [taoensso.timbre :as log])
   (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))

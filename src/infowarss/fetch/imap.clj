@@ -1,21 +1,16 @@
 (ns infowarss.fetch.imap
   (:require
-   [infowarss.converter :as conv]
-   [infowarss.src :as src]
    [infowarss.fetch :as fetch]
    [infowarss.schema :as schema]
    [infowarss.persistency :as persistency]
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
-   [clojure-mail.core :refer :all]
-   [clojure-mail.message :refer (read-message)]
-   [digest]
-   [hickory.core :as hick]
+   [clojure-mail.core :as mail-core]
+   [clojure-mail.message :as mail-message]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
-   [clojure.java.io :as io]
    [pantomime.media :as mt]
    [schema.core :as s])
   (:import
@@ -42,13 +37,13 @@
   (into {} (map (fn [b] [(try-get-base-type (:content-type b)) (:body b)]) (:body m))))
 
 (defn get-new-messages [uri {:keys [username password]}]
-  (let [p (as-properties {"mail.imap.starttls.enable" "true"
+  (let [p (mail-core/as-properties {"mail.imap.starttls.enable" "true"
                           "mail.imap.ssl.checkserveridentity" "true"})
         session (Session/getDefaultInstance p)
-        store (store (.getScheme uri) session (.getHost uri)
+        store (mail-core/store (.getScheme uri) session (.getHost uri)
                 username password)
         msgs (doall (map (fn [id]
-                           (let [msg (read-message id)]
+                           (let [msg (mail-message/read-message id)]
                              (if (nil? (:body msg))
                                (log/warn "Failed to parse mail body:" msg)
                                {:to (:id msg)
@@ -61,8 +56,8 @@
                                 :content-type (:content-type msg)
                                 :body (mail-body-to-contents msg)
                                 :headers (:headers msg)})))
-                           (unread-messages store (subs (.getPath uri) 1))))]
-    (close-store store)
+                           (mail-core/unread-messages store (subs (.getPath uri) 1))))]
+    (mail-core/close-store store)
     msgs))
 
 (extend-protocol postproc/ItemProcessor

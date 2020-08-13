@@ -6,21 +6,14 @@
    [infowarss.schema :as schema]
    [infowarss.converter :as conv]
    [infowarss.analysis :as analysis]
-   [twitter.api.restful :as twitter]
    [infowarss.persistency :refer [CouchItem]]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [try+]]
    [schema.core :as s]
    [taoensso.timbre :as log]
-   [clojure.java.io :as io]
-   [clojure.string :as string]
-   [clojure.zip :as zip]
-   [clj-time.format :as tf]
    [clj-http.client :as http-client]
-   [clj-http.cookies :as http-cookies]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
-   [clojurewerkz.urly.core :as urly]
-   [clj-time.core :as time]))
+   [clojurewerkz.urly.core :as urly]))
 
 (s/defrecord GenericWebsiteItem
     [meta :- schema/Metadata
@@ -36,7 +29,7 @@
   infowarss.src.GenericWebsite
   (fetch-source [src]
     (let [{:keys [url args]} src
-          {:keys [summary body raw hickory]} (http/fetch
+          {:keys [summary body hickory]} (http/fetch
                                               url :user-agent (:user-agent args))
           feed {:title "[website]"
                 :url ""
