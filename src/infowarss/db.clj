@@ -373,7 +373,7 @@
   (merge-with merge db-sources (get-sources-item-tags-with-count)))
 
 (defn get-items-by-tag [tag]
-  (j/query db ["select * from items where exist_inline(tags, ?)" (name tag)]))
+  (j/query db ["select key, title, author, items.type, tags, items.id, entry from items inner join sources on items.source_id = sources.id where exist_inline(tags, ?)" (name tag)]))
 
 (defn get-item-ids-by-tag [tag]
   (j/query db ["select id from items where exist_inline(tags, ?)" (name tag)]
@@ -639,6 +639,17 @@
                   :extra-where where-cond) (name source-key) limit])
     {:row-fn process-items-row}))
 
+(defn remove-unread-for-items-of-source-older-than [source-keys older-than-ts]
+  (let [source-ids (j/query db [(format "select id from sources where key in (%s)"
+                                        (->> source-keys
+                                             (map name)
+                                             (map #(str "'" % "'"))
+                                             (string/join ", ")))]
+                            {:row-fn :id})]
+    (j/execute! db [(log/spy (format "update items set tags = tags - 'unread'::text where source_id in (%s) and exist_inline(tags, 'unread') and ts <= ?"
+                         (->> source-ids (string/join ", ")) ))
+                 older-than-ts])))
+
 (defn get-items-recent
   "Get items sorted by timestamp - used by the reader gui"
   [{:keys [limit before with-tag with-type with-source-keys with-data? with-preview-data? simple-filter]
@@ -674,7 +685,7 @@
                                          (when (:ts before) (:ts before))
                                          (when (:id before) (:id before))])
                            {:row-fn process-items-row})]
-       (log/debugf "Got %d rows, requested %d" (count result) limit)
+       (log/debugf "Got %d rows, requested %s" (count result) limit)
        result)
 
      (catch org.postgresql.util.PSQLException _
@@ -685,10 +696,43 @@
                 :sql-state (.getSQLState (:throwable &throw-context))
                 :sql sql :args args})))))
 
+
+;; create materialized view search_index as SELECT items.id,
+;; items.title,
+;; items.ts,
+;; sources.key,
+;;     (((((setweight(to_tsvector(i1.lang::regconfig, items.title), 'A'::"char") || setweight(to_tsvector('simple'::regconfig, unaccent(items.author)), 'D'::"char")) || setweight(array_to_tsvector(items.nlp_nouns), 'B'::"char")) || setweight(array_to_tsvector(items.nlp_names), 'B'::"char")) || setweight(array_to_tsvector(items.nlp_verbs), 'C'::"char")) || setweight(array_to_tsvector(items.nlp_urls), 'D'::"char")) || setweight(array_to_tsvector(akeys(items.tags)), 'D'::"char") AS document
+;;    FROM sources
+;;      JOIN items ON sources.id = items.source_id,
+;;     LATERAL ( SELECT
+;;                 CASE items.entry ->> 'language'::text
+;;                     WHEN 'en'::text THEN 'english'::text
+;;                     WHEN 'de'::text THEN 'german'::text
+;;                     ELSE 'english'::text
+;;                 END AS lang) i1;
+
+
 (defn search
   "Search for query. postgres query format"
-  [query]
-  (j/query db ["select id, title, key, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query]))
+  ([query {:keys [with-source-key time-ago-period]}]
+   (let [ts (when time-ago-period (time/ago time-ago-period))
+         key-filter (when with-source-key (str "key = " with-source-key))
+         ]
+     (j/query db [(log/spy (str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
+                       " from search_index"
+                       " where document @@ to_tsquery('english', ?)"
+                       "  and "
+                       (->>
+                        ["1=1"
+                         (when time-ago-period
+                           (str "ts > " (j/sql-value (time/ago time-ago-period))))
+                         (when with-source-key (str "key = '" (name with-source-key) "'"))]
+                        (remove nil?)
+                        (string/join " and "))
+                       " order by rank desc")) query query])))
+  ([query]
+   (j/query db ["select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query])))
+
 
 (defn refresh-search-index []
   (j/execute! db ["refresh materialized view search_index"]))
@@ -706,12 +750,50 @@
                   "idf_top_words on (term_tf->0 = idf_top_words.term) "
                   "order by tf_idf asc") id]))
 
+;; TF = term frequence
+;; IDF inverse document frequency
+
+(defn top-idf [max]
+  (j/query db ["select term, ln from idf_top_words limit ?" max]))
+
 
 (defn recommendations
   "Find similar items for id"
   [id])
   ;; compute cosine distance to all docs in db
 
+(defn saved-items-tf-idf []
+  (rest (j/query db [(str "select "
+                    "id, "
+                    "json_agg(json_build_array(term_tf->>0 , "
+                    " (term_tf->>1)::float * idf_top_words.ln )) "
+                    " from "
+                    "(select id, jsonb_array_elements(nlp_top->'words') as term_tf "
+                    "from items "
+                    "where exist_inline(tags, 'saved') or (items.type = 'bookmark' and exist_inline(tags, 'unread')) ) as i "
+                    "inner join "
+                    "idf_top_words on (term_tf->0 = idf_top_words.term) "
+                    "group by id "
+                    )]
+           {:as-arrays? true
+            :row-fn (fn [[id term-tf-idf]]
+                      (assoc (into {} term-tf-idf) "item_id" (double id)))
+                      })))
 
-(defn cluster [])
-  ;; k means on all documents
+;; make adjustmens here to limit the number of words to use in k means
+
+(defn saved-items-tf-idf-terms []
+  (first (second (j/query db [(str "select array_agg(foo.term) from (select distinct "
+                                   "term_tf->>0 as term, "
+                                   "(term_tf->>1)::float * idf_top_words.ln as tf_idf "
+                                   " from "
+                                   "(select id, jsonb_array_elements(nlp_top->'words') as term_tf "
+                                   "from items "
+                                   "where exist_inline(tags, 'saved') or (items.type = 'bookmark') and exist_inline(tags, 'unread')) as i "
+                                   "inner join "
+                                   "idf_top_words on (term_tf->0 = idf_top_words.term) "
+                                   "where (term_tf->>1)::float > 1 and length(term_tf->>0) > 4 and not (term_tf->>0) like '%/%'"
+                                   ") as foo")]
+           {:as-arrays? true}))
+))
+

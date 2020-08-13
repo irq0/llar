@@ -111,11 +111,12 @@
         pos ((get pos-tagger lang) tokens)
 
         stopwords (get stopwords lang)
-        words (->> pos
-                   not-punctuation
-                   (map first)
-                   (remove non-word-string-filter)
-                   (map string/lower-case)
+        all-words (->> pos
+                       not-punctuation
+                       (map first)
+                       (remove non-word-string-filter)
+                       (map string/lower-case))
+        words (->> all-words
                    (remove stopwords))
         nouns (->> pos
                    nlp-filter/nouns
@@ -130,7 +131,7 @@
                    (map string/lower-case))]
     {:language lang
      :readability (readability-scores text-sanitized)
-     :nlp {:nwords (count words)
+     :nlp {:nwords (count all-words)
            :top {:words (->> words
                              token-frequencies
                              (sort-by val)

@@ -6,6 +6,7 @@
    [schema.core :as s]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
+   [clojure.set :refer [union intersection]]
    [clojure.java.shell :as shell]
    [postal.core :as postal]
    [clojure.string :as string]
@@ -67,54 +68,6 @@
 (declare process-feedless-item)
 
 
-(def +mercury-site-blacklist+
-  #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
-
-(defn replace-contents-with-mercury [creds item keep-orig?]
-  (let [url (get-in item [:entry :url])
-        src (src/mercury (str url))
-        mercu (process-feedless-item src (first (fetch/fetch-source src)))
-        html (if keep-orig?
-               (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
-                   "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
-               (get-in mercu [:entry :contents "text/html"]))
-        text (if keep-orig?
-               (str (get-in item [:entry :contents "text/plain"])
-                 "\n"
-                 (get-in mercu [:entry :contents "text/plain"]))
-               (get-in mercu [:entry :contents "text/plain"]))]
-    (-> item
-      (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
-      (assoc-in [:entry :contents "text/plain"] text)
-      (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
-      (assoc-in [:entry :contents "text/html"] html))))
-
-
-(defn mercury-contents
-  [creds & {:keys [keep-orig?]
-            :or {keep-orig? false}}]
-  (fn [item]
-    (let [site (some-> item :entry :url .getHost)
-          path (some-> item :entry :url .getPath)]
-      (cond
-        ;; images
-        (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
-          (re-find #"\.(jpg|jpeg|gif|png)$" path))
-        (update-in item [:entry :contents "text/html"]
-          str "<img src=\"" (get-in item [:entry :url]) "\"/>")
-
-        ;; blacklisted sites
-        (re-find +mercury-site-blacklist+ site)
-        item
-
-        ;; rest: replace with mercury
-        :else
-        (try+
-          (replace-contents-with-mercury creds item keep-orig?)
-          (catch [:type :infowarss.fetch.mercury/not-parsable] _
-            (log/errorf (str item) "Mercury Error. Not replacing content with mercury")
-            item))))))
-
 (def sa-to-bool
   {"Yes" true
    "No" false})
@@ -128,16 +81,29 @@
          :score (Float/parseFloat score)})
       "")))
 
+;; All item processors
+;; first = first in chain, last = last in chain
+
+(def +highlight-words+
+  #{"quobyte" "marcel lauhoff"})
+
+(defn all-items-process-first [item src state]
+  (log/trace "All items processor (first)" (str item))
+    (-> item
+        (update-in [:meta :tags] conj :unread)
+        (assoc-in [:meta :source-key] (:key state))))
+
+(defn all-items-process-last [item src state]
+  (log/trace "All items processor (last)" (str item))
+  (let [names-and-nouns (union (get-in item [:entry :nlp :names])
+                               (get-in item [:entry :nlp :nouns]))
+        highlight (> (count (intersection names-and-nouns +highlight-words+)) 0)]
+    (cond-> item highlight (update-in [:meta :tags] conj :highlight))))
+
 ;;; Item postprocessing protocol
 
 ;; The ItemProcessor protocol allows processing hooks
 ;; per item type
-
-(defn all-items-process [item src state]
-  (log/trace "All items processor" (str item))
-  (-> item
-    (update-in [:meta :tags] conj :unread)
-    (assoc-in [:meta :source-key] (:key state))))
 
 (defprotocol ItemProcessor
   (post-process-item [item src state] "Postprocess item")
@@ -171,17 +137,19 @@
   "Postprocess and filter item produced without a feed"
   [src item]
   (let [state {}
-        all-proc #(all-items-process % src state)
+        all-proc-first #(all-items-process-first % src state)
+        all-proc-last #(all-items-process-last % src state)
         proto-feed-proc (wrap-proc-fn item
                           #(post-process-item % src state))]
     (log/debugf "Processing feedless %s"
       (str item))
 
     (let [processed (some-> item
-                      (all-proc)
+                      (all-proc-first)
                       (apply-filter
                         #(filter-item % src state))
-                      (proto-feed-proc))]
+                      (proto-feed-proc)
+                      (all-proc-last))]
       (when (nil? processed)
         (log/debugf "Filtered out: %s"
           (str item)))
@@ -212,7 +180,8 @@
   "Postprocess and filter a single item"
   [feed state item]
   (let [{:keys [src]} feed
-        all-proc #(all-items-process % src state)
+        all-proc-first #(all-items-process-first % src state)
+        all-proc-last #(all-items-process-last % src state)
         per-feed-proc-pre (apply comp
                             (->> feed
                               :proc :pre
@@ -228,8 +197,8 @@
 
 
         pre-chain (fn [item] (some-> item
-                           (all-proc)
-                           (check-intermediate :all-proc)
+                           (all-proc-first)
+                           (check-intermediate :all-proc-first)
                            (per-feed-proc-pre)
                            (check-intermediate-maybe-coll :per-feed-pre-processor)))
 
@@ -242,7 +211,9 @@
                             (apply-filter per-feed-filter)
                             (check-intermediate :per-feed-filter)
                             (per-feed-proc-post)
-                            (check-intermediate :per-feed-post-processor)))]
+                            (check-intermediate :per-feed-post-processor)
+                            (all-proc-last)
+                            (check-intermediate :all-proc-last)))]
 
     (log/debugf "Processing %s"
       (str item))

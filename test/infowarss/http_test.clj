@@ -205,6 +205,11 @@
     (is (thrown+? [:type :infowarss.http/absolutify-impossible
                    :reason :infowarss.http/base-url-relative]
                   (uut/absolutify-url "/example.com" "/foo"))))
+  (testing "Path traversing should be resolved"
+    (is (= "https://example.com/baz"
+           (str (uut/absolutify-url "../../baz" "https://example.com/"))))
+    (is (= "https://example.com/baz"
+           (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar")))))
   (testing "broken urls should throw"
     (is (thrown+? [:type :infowarss.http/absolutify-impossible
                    :reason :infowarss.http/unparsable-url]

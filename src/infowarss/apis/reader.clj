@@ -9,7 +9,7 @@
    [infowarss.persistency :as persistency]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.blobstore :as blobstore]
-   [infowarss.repl :refer [+current-fetch-preview+]]
+   [infowarss.repl :refer [+current-fetch-preview+ current-clustered-saved-items]]
    [infowarss.http :refer [try-blobify-url!]]
    [infowarss.metrics :as metrics]
    [clojure.java.io :as io]
@@ -84,13 +84,80 @@
 
 (def +boring-url-regex+
   "Urls to remove from word coulds"
-  #"(googleusercontent\.com/[\w-]{20,})|cdn\.vox-cdn\.com|(png|jpe?g|gif)(\?.+)?$")
+  #"bit\.ly|googleusercontent\.com|cdn\.vox-cdn\.com|(png|jpe?g|gif)(\?.+)?$")
 
 (def +exposed-simple-filter+
   "Predifined items table filters. See db/simple-filter-to-sql"
   {nil ["all" "fas fa-asterisk"]
    :unread ["unread" "far fa-square"]
    :today ["today" "fas fa-calendar-day"]})
+
+(def +favorites+
+  [[:all :default]
+   [:saved :item-tags]
+   [:daily :item-tags]
+   [:highlight :item-tags]
+   [:blog :source-tag]
+   [:hackernews :source-tag]
+   [:tech :source-tag]
+   [:sci :source-tag]
+   [:bookmark :type]])
+
+(declare
+ main-list-items
+ gallery-list-items
+ headlines-list-items)
+
+(def +list-styles+
+  {nil {:name "Default"
+        :ico "far fa-circle"}
+   :preview {:name "Preview"
+             :ico "far fa-newspaper"
+             :fn #'main-list-items}
+   :headlines {:name "Headlines"
+               :ico "far fa-list-alt"
+               :fn #'headlines-list-items}
+   :gallery {:name "Gallery"
+             :ico "far fa-images"
+             :fn #'gallery-list-items}
+   })
+
+(def +list-style-hints+
+  {:storage :headlines
+   :shopping :headlines
+   :tweet :gallery})
+
+
+(def +filter-overrides+
+  {:saved :total})
+;; icons? see https://fontawesome.com/icons
+
+(def +tag-icons-without-buttons+
+  "Group list tags that have not icon in +tag-buttons+"
+  {:daily "fas fa-coffee"
+   :wallpaper "fas fa-tree"
+   :has-video "fas fa-film"
+   :has-spotify-playlist "fab fa-spotify"
+   :has-annotation "fas fa-pen"
+   :bookmark "fas fa-bookmark"
+   :all "fas fa-asterisk"
+   :berlin "fas fa-city"
+   :blog "fas fa-blog"
+   :comics "far fa-images"
+   :hackernews "fab fa-y-combinator"
+   :storage "fas fa-hdd"
+   :tech "fas fa-microchip"
+   :youtube-channel "fab fa-youtube"
+   :sci "fas fa-flask"
+   :gaming "fas fa-gamepad"
+   :music "fas fa-music"
+   :magazine "fas fa-newspaper"
+   :highlight "fas fa-sun"
+   })
+
+(def +tags-skip-group-list+
+  "Do not display in group list on the left side"
+  #{"ibc2018" "test" "unread" "personal" "music-mined"})
 
 (def +tag-buttons+
   "First-class tags show up in the tag bar"
@@ -100,15 +167,21 @@
    {:tag :boring
     :icon-set "far fa-trash-alt icon-is-set"
     :icon-unset "far fa-trash-alt"}
+   {:tag :download
+    :icon-set "fas fa-download icon-is-set"
+    :icon-unset "fas fa-download"}
    {:tag :unread
     :icon-unset "far fa-check-square icon-is-set"
     :icon-set "far fa-square"}
    {:tag :saved
-    :icon-set "fas fa-star  icon-is-set"
+    :icon-set "fas fa-star icon-is-set"
     :icon-unset "far fa-star"}
    {:tag :archive
     :icon-set "fas fa-archive icon-is-set"
     :icon-unset "fas fa-archive"}
+   {:tag :in-progress
+    :icon-set "fas fa-cog icon-is-set"
+    :icon-unset "fas fa-cog"}
    {:tag :book-recommendation
     :icon-set "fas fa-book  icon-is-set"
     :icon-unset "fas fa-book"}
@@ -134,18 +207,25 @@
   ([path params x]
    (let [params (into {}
                       (remove (fn [[k v]] (or (nil? k) (nil? v)))
-                              (merge (select-keys x [:filter :list-style]) params)))
+                              (merge (select-keys x [:filter :list-style :query :days-ago :with-source-key]) params)))
          query-string (when (some? params) (form-encode params))]
      (if (string/blank? query-string)
        (string/join "/" path)
        (str (string/join "/" path) "?" query-string)))))
 
-(defn html-header [title]
+(defn html-header [title mode item]
   [:head
    [:meta {:charset "utf-8"}]
    [:meta {:http-equiv "X-UA-Compatible" :content "IE=edge"}]
    [:meta {:name "viewport" :content "width=device-width, initial-scale=1, shrink-to-fit=no"}]
+   [:meta {:name "🖖-mode" :content mode}]
+   [:meta {:name "🖖-id" :content (:id item)}]
+   [:meta {:name "🖖-title" :content (:title item)}]
    [:title title]
+   [:link {:rel "apple-touch-icon" :sizes "180x180" :href "/static/img/apple-touch-icon.png"}]
+   [:link {:rel "icon" :type "image/png" :sizes "32x32" :href "/static/img/favicon-32x32.png"}]
+   [:link {:rel "icon" :type "image/png" :sizes "16x16" :href "/static/img/favicon-16x16.png"}]
+   [:link {:rel "manifest" :href "/static/img/site.webmanifest"}]
    [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
    [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
@@ -154,6 +234,8 @@
 
 (defn html-footer []
   [[:script {:src "/static/js/jquery.min.js"}]
+   [:script {:src "/static/js/hammer.min.js"}]
+   [:script {:src "/static/js/jquery.hammer.js"}]
    [:script {:src "/static/js/jquery.waypoints.min.js"}]
    [:script {:src "/static/js/popper.min.js"}]
    [:script {:src "/static/js/bootstrap.min.js"}]
@@ -243,7 +325,7 @@
       ;; previous:
       ;; "(╯°□°）╯︵ ┻━┻"
       [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path"}
-       (for [item [group-name group-item source-key]]
+       (for [item [group-item]]
          [:li {:class "breadcrumb-item"} (name item)])
        (when-not (= source-key :all)
          [:li {:class "breadcrumb-item"} (:title (first selected-sources))])
@@ -302,20 +384,25 @@
     [:li {:class "nav-item"}
      [:a {:class (str "nav-link" (when (= str-ks active) " active"))
           :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
-      (if-let [ico (get icons str-ks)]
-        [:span (icon ico) str-ks]
+      (if-let [ico (get icons (keyword str-ks))]
+        [:span (icon ico) "&nbsp;" str-ks]
         str-ks)]]))
 
 (defn group-nav
   "Group Navigation: Add URLs, Filters, Source Tags, Item Tags"
   [x]
   (let [active-group (:group-name x)
-        active-key (name (:group-item x))]
+        active-key (name (:group-item x))
+        icons (merge
+               (into {} (for [{:keys [tag icon-set]} +tag-buttons+]
+                          [tag (string/replace icon-set #"icon-is-set" "")]))
+               +tag-icons-without-buttons+)]
 
-    [:nav {:class "collapse col-md-3 col-lg-2 bg-light sidebar sidebar-left"
+    [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-left" " mode-" (name (:mode x)))
            :id "groupnav"}
      [:div {:class "sidebar-sticky" :id "left-nav"}
-      [:form {:class "nav flex-column form-inline"}
+      [:form {:class "nav flex-column form-inline"
+              :id "add-thing"}
        [:div {:class "input-group mb-1"}
         [:input {:type "text"
                  :class "form-control form-control-sm w-80"
@@ -347,60 +434,83 @@
       [:ul {:class "nav flex-column"}
        (for [[k [name ico]] +exposed-simple-filter+]
          [:li {:class "nav-item"}
-          [:a {:class (str "nav-link" (when (= (:filter x) k) " active"))
+          [:a {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
+                                                 (= (:filter x) k))
+                                                 " active"))
                :href (make-site-href [(:uri x)] {:filter k} x)}
            (icon ico) "&nbsp;" [:span name]]])]
 
-                   [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
-                                     "align-items-center px-3 mt-4 mb-1 text-muted")}
-                    [:span "List Style"]]
-                   [:ul {:class "nav flex-column" :id "view-style-select"}
-                    [:li {:class "nav-item"}
-                     [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style nil} x)}
-                      (icon "far fa-newspaper") "&nbsp;" "Default"]]
-                    [:li {:class "nav-item"}
-                     [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style :headlines} x)}
-                      (icon "far fa-list-alt") "&nbsp;" "Headlines"]]
-                    [:li {:class "nav-item"}
-                     [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style :gallery} x)}
-                      (icon "far fa-images") "&nbsp;" "Gallery"]]]
+      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                        "align-items-center px-3 mt-4 mb-1 text-muted")}
+       [:span "Favorites"]]
+      [:ul {:class "nav flex-column"}
+       (for [[key group] +favorites+]
+         [:li {:class "nav-item"}
+          [:a {:class (str "nav-link" (when (and
+                                             (= active-group group)
+                                             (= (keyword active-key) key)) " active"))
+               :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
+           (when-let [ico (get icons key)] [:span (icon ico) "&nbsp;"])
 
-                   [:br]
-                   [:ul {:class "nav flex-column"}
-                    [:li {:class "nav-item"}
-                     [:a {:class (str "nav-link" (when
-                                                     (and (= active-group :default)
-                                                          (= active-key :all)) " active"))
-                          :href (make-site-href ["/reader/group/default/all/source/all/items"] x)}
-                      "any"]]]
+           (name key)
+           ]])]
 
-                   ;; source types
-                   [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-                    [:span "type"]]
-                   [:ul {:class "nav flex-column"}
-                    (group-list x "/reader/group/type"
-                                (->> x :sources vals (map :type) (into (sorted-set)))
-                                (when (= active-group :type) active-key)
-                                nil)]
+      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                        "align-items-center px-3 mt-4 mb-1 text-muted")}
+       [:span "Lab"]]
+      [:ul {:class "nav flex-column"}
+         [:li {:class "nav-item"}
+          [:a {:class "nav-link"
+               :href (make-site-href ["/reader/lab/saved-overview"] x)}
+           (icon "fas fa-glass-whiskey") "&nbsp;" "Saved Overview"]]]
+      [:ul {:class "nav flex-column"}
+         [:li {:class "nav-item"}
+          [:a {:class "nav-link"
+               :href (make-site-href ["/reader/lab/dump-data-structure"] x)}
+           (icon "fas fa-glass-whiskey") "&nbsp;" "Data Structure"]]]
+      [:ul {:class "nav flex-column"}
+         [:li {:class "nav-item"}
+          [:a {:class "nav-link"
+               :href (make-site-href ["/reader/lab/search"] x)}
+           (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
 
-                   ;; item tags
-                   [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-                    [:span "item tags"]]
-                   [:ul {:class "nav flex-column"}
-                    (group-list x "/reader/group/item-tags"
-                                (->> x :item-tags (map first) sort)
-                                (when (= active-group :item-tags) active-key)
-                                (into {} (for [{:keys [tag icon-set]} +tag-buttons+]
-                                           [(name tag) (string/replace icon-set #"icon-is-set" "")])))]
 
-                   ;; source tags
-                   [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-                    [:span "source tags"]]
-                   [:ul {:class "nav flex-column"}
-                    (group-list x "/reader/group/source-tag"
-                                (->> (:sources x) vals (map :tags) (apply set/union) sort)
-                                (when (= active-group :source-tag) active-key)
-                                nil)]]]))
+      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                        "align-items-center px-3 mt-4 mb-1 text-muted")}
+       [:span "List Style"]]
+      [:ul {:class "nav flex-column" :id "view-style-select"}
+       (for [[key {:keys [name ico]}] +list-styles+]
+         [:li {:class "nav-item"}
+          [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style key} x)}
+           (icon ico) "&nbsp;" name]])]
+
+      ;; item tags
+      [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
+       [:span "item tags"]]
+      [:ul {:class "nav flex-column"}
+       (group-list x "/reader/group/item-tags"
+                   (->> x :item-tags (map first) (remove +tags-skip-group-list+) sort)
+                   (when (= active-group :item-tags) active-key)
+                   icons)]
+
+      ;; source tags
+      [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
+       [:span "source tags"]]
+      [:ul {:class "nav flex-column"}
+       (group-list x "/reader/group/source-tag"
+                   (->> (:sources x) vals (map :tags) (apply set/union) sort)
+                   (when (= active-group :source-tag) active-key)
+                   icons)]
+
+      ;; source types
+      [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
+       [:span "type"]]
+      [:ul {:class "nav flex-column"}
+       (group-list x "/reader/group/type"
+                   (->> x :sources vals (map :type) (into (sorted-set)))
+                   (when (= active-group :type) active-key)
+                   icons)]
+      ]]))
 
 (defn source-list-item
   "Source Navigation List Item"
@@ -409,20 +519,30 @@
         fltr (or (:filter x) :total)
         nitems (or (get item-tags fltr) 0)
         show-num?  (pos? nitems)
-        grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))]
+        grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))
+        pill [:span {:class "badge badge-pill float-right"}
+              (when (pos? nitems) nitems)]
+        ]
 
     [:li {:class (str "nav-item")}
      [:a {:class (str
                   (if grey-out? "nav-link nav-link-secondary" "nav-link")
                   (when (= key active-key) " active "))
           :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
-      [:span {:class "sidebar-heading-2"} key]
+      (cond
+         (= (:type source) :item-type/bookmark)
+         (let [bookmark-name (or (:name source) (:title source) (:key source))
+               nice-url (second (re-find #"(?:\[Bookmark: ([\w\.]+)\]|(.+))" bookmark-name))]
+           [:span pill
+           [:span {:class "sidebar-heading-2"}
+            (icon "fas fa-bookmark") "&nbsp;" nice-url]])
 
-      [:span {:class "badge badge-pill badge-secondary float-right"}
-       (when (pos? nitems) nitems)]
-
-      [:br]
-      [:span {:class "font-weight-italic"} title]]]))
+         :default
+         [:span
+          pill
+          [:span {:class "sidebar-heading-2"} key]
+          [:br]
+          [:span {:class "font-weight-italic"} (human/truncate title 30 "…")]])]]))
 
 (defn source-nav
   "Source Navigation: List Sources having the selected tag"
@@ -430,11 +550,11 @@
   (let [active-group (:group-name x)
         active-key (:group-item x)
         active-source (:source-key x)]
-    [:nav {:class "collapse col-md-3 col-lg-2 bg-light sidebar sidebar-right"
+    [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-right" " mode-" (name (:mode x)))
            :id "sourcenav"}
      [:div {:class "sidebar-sticky"}
       [:ul {:class "nav flex-column"}
-       (for [src (:active-sources x)]
+       (for [src (->> (:active-sources x) (sort-by :key) )]
          (source-list-item
           x
           (format "/reader/group/%s/%s/source"
@@ -496,11 +616,11 @@
         lang (if (#{"de" "en"} (:language entry))
                (:language entry)
                "en")]
-    [:div {:class "item-content"}
+    [:div {:class "item-content" :id "item-content"}
      [:div {:class "d-none"
             :id "item-meta"
             :data-id id}]
-     [:div {:class "item-content-nav"}
+     [:div {:class "item-content-nav sticky-top"}
       [:div {:class "btn-toolbar " :role "toolbar"}
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:class "btn"}
@@ -516,10 +636,15 @@
              :href url
              :role "button"
              :class "btn"}
-         (icon "fas fa-external-link-alt")]
+         "&nbsp;" (icon "fas fa-external-link-alt")]
         [:a {:class "btn"
              :href (make-site-href [id "dump"] x)}
-         "&nbsp;" (icon "fas fa-code")]]
+         "&nbsp;" (icon "fas fa-code")]
+        [:a {:class "btn"
+             :href (make-site-href [id "download"] {:data "content"
+                                                    :content-type "text/html"} x)}
+         "&nbsp;" (icon "fas fa-expand")]
+        ]
 
 
        ;; [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
@@ -547,12 +672,20 @@
                            :content-type content-type}
                           x)}
                (str (name descr) " - " content-type)]))]]]]]
-
-     [:div {:class "item-content-body hyphenate" :lang lang}
+    [:div {:id "item-content-body-container" :class "container"}
+     [:div {:class "row"}
+     [:div {:class "col-11"}
+      [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
       (if (and (= (-> x :active-sources first :type) :item-type/document)
                (nil? selected-data) (nil? selected-content-type))
         (get-html-content item :description "text/html")
-        (get-html-content item selected-data selected-content-type))]]))
+        (get-html-content item selected-data selected-content-type))]]
+      [:div {:id "minimap" :class "col-1 sticky-top"}]]]]
+
+
+
+
+      ))
 
 
 (defn list-entry-kv
@@ -629,6 +762,9 @@
          [:span (icon "fab fa-twitter") "&nbsp;" (first path-seq)]
          [:span (icon "fab fa-twitter") "&nbsp;" (first path-seq) "(status)"])
 
+       (string/includes? site "spotify")
+       [:span (icon "fab fa-spotify") "&nbsp;" path-last]
+
        (and (string/includes? site "facebook"))
        (cond
          (= path-len 1)
@@ -651,7 +787,7 @@
        (> (count str-url) 23)
        (if (re-find +boring-url-path-element-regex+ path-last)
          (str site "⋯")
-         (str site "⋯" (last path-seq)))
+         (str site "⋯" (human/truncate (last path-seq) 23)))
 
        :default
        url))
@@ -700,12 +836,34 @@
       (format "▤ %s/%s"
               (name group-item) (name source-key)))))
 
+
+;; todo - add number of images
+;; add number of nouns
+(defn reading-time-estimate [item]
+  (let [words-per-min 200
+        {:keys [nwords readability]} item
+        index (or
+               (:flesch-index readability)
+               51)
+        level (cond
+                (>= index 70) :easy
+                (> 70 index 50) :medium
+                (>= 50 index ) :hard)
+        factor (case level
+                       :easy 1
+                       :medium 1.5
+                       :hard 2)
+        estimate (* (/ nwords words-per-min) factor)]
+    {:estimate (int (Math/ceil estimate))
+     :difficulty level}))
+
 (defn main-list-item
   "Main Item List - Word Cloud Style"
   [x link-prefix item]
   (let [{:keys [sources]} x
         {:keys [id source-key title data ts author tags read saved
                 nwords names entry verbs url urls top-words]} item
+        url-site (some-> url io/as-url .getHost)
         source (get sources (keyword source-key))
         options (:options source)
         boring-filter (fn [word]
@@ -716,7 +874,9 @@
         words (take 50 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
         names (take 50 (filter boring-filter names))
         min-freq (second (last words))
-        max-freq (second (first words))]
+        max-freq (second (first words))
+        youtube-url (and (string? url)
+                         (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url))]
     [:div {:id (str "item-" id)
            :class (str "feed-item "
                        (string/join
@@ -736,9 +896,11 @@
        [:span " - "]
        [:span {:class "timestamp"} (human/datetime ts)]]
       (when (>= nwords 0)
+        (let [estimate (reading-time-estimate item)
+              human-time (:estimate estimate)]
         [:li {:class "list-inline-item"}
          [:a {:class "btn"}
-          "&nbsp;" (icon "far fa-file-word") nwords]])
+          "&nbsp;" (icon "far fa-file-word") "&nbsp;" human-time "&thinsp;" "min"]]))
       (when (contains? options :mark-read-on-view)
         [:li {:class "list-inline-item"}
          (icon "fas fa-glasses")])
@@ -765,7 +927,7 @@
          "&nbsp;"
          (icon "far fa-user") author])]
 
-     (when-let [vid (and (string? url) (re-find #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url))]
+     (when-let [vid youtube-url]
        (when (some? vid)
          (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
                hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
@@ -784,7 +946,7 @@
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]
        [:div {:class "item-preview"} [:img {:src twit-pic}]])
 
-     (when-let [image-url (:lead-image-url entry)]
+     (when-let [image-url (and (not youtube-url) (:lead-image-url entry))]
        [:div {:class "item-preview-small"} [:img {:src image-url}]])
 
      (when (contains? options :main-list-use-description)
@@ -803,6 +965,10 @@
                :class "text-white sz-b"} n]]))
       (html
        (for [[text all-text-urls] (->> urls
+                                       ;; controversial? remove urls pointing to same site
+                                       (remove (fn [str-url]
+                                                 (= (some-> str-url io/as-url .getHost)
+                                                    url-site)))
                                        (filter #(> (count %) 20))
                                        (take 20)
                                        (map (juxt awesome-url-text identity))
@@ -955,6 +1121,22 @@
                              (name source-key))]]
        (main-list-item x url item))]))
 
+(defn get-list-style [x]
+  (let [selected-style (:list-style x)
+        hinted-style (get +list-style-hints+ (:group-item x))]
+    (cond
+      (and (nil? selected-style) (keyword? hinted-style))
+      hinted-style
+
+      (keyword? selected-style)
+      selected-style
+
+      :default
+      :preview)))
+
+(defn list-items [x]
+  ((get-in +list-styles+ [(get-list-style x) :fn]) x))
+
 (defn main-view
   "Generate Main Items View, depending on selected style"
   [x]
@@ -964,11 +1146,9 @@
     (case (:mode x)
       :show-item (main-show-item x)
       :dump-item (dump-item x)
-      :list-items (case (:list-style x)
-                    :headlines (headlines-list-items x)
-                    :gallery (gallery-list-items x)
-                    (main-list-items x))
-      "Unkown mode")]])
+      :list-items (list-items x)
+      "Unkown mode")
+    ]])
 
 (defn get-items-for-current-view
   "Fetch current view items from database"
@@ -1102,6 +1282,14 @@
   ([params]
    (log/debug "[INFOWARSS-UI]" params)
    (let [{:keys [mode group-name group-item source-key]} params
+         ;; override filter for special groups like saved
+         orig-fltr (:filter params)
+         params (assoc params :filter
+                       (if-let [override (get +filter-overrides+
+                                              (:group-item params))]
+                         override
+                         orig-fltr))
+
          item-tags (future (metrics/with-prom-exec-time :tag-list
                              (doall (db/get-tag-stats))))
 
@@ -1122,6 +1310,7 @@
                                :selected-sources selected-sources
                                :items @items
                                :item-tags @item-tags
+                               :filter orig-fltr
                                :range-recent (-> @items first (select-keys [:ts :id]))
                                :range-before (-> @items last (select-keys [:ts :id]))})]
 
@@ -1135,7 +1324,7 @@
                   :render-html
                   (html
                    [:html {:lang "en"}
-                    (html-header title)
+                    (html-header title (:mode params) (some-> params :items first))
                     [:body
                      (concat
                       [nav-bar]
@@ -1147,19 +1336,177 @@
                       (html-footer))]]))]
        html))))
 
+(defmulti lab-view-handler :view)
+
+(defmethod lab-view-handler
+  :saved-overview
+  [x]
+  [:main {:role "main"
+          :class "col-xs-12 col-md-6 col-lg-8"}
+   [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+    [:h3 (str "Saved, Bookmarked Items (n=" (apply + (map count (vals @infowarss.repl/current-clustered-saved-items))) ")")]
+    [:div {:class "card-columns" :id "saved-items"}
+     (for [[group-name items] @current-clustered-saved-items]
+       [:div {:class "card"}
+        [:div
+         [:div {:class "card-body"}
+          [:h5 {:class "card-title"} group-name]
+          [:p {:class "card-text"}]]
+         [:ul {:class "list-group list-group-flush"}
+          (for [{:keys
+[id title]} items]
+            [:li {:class "list-group-item"}
+             [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+              title]])]]])]]])
+
+(defmethod lab-view-handler
+  :dump-data-structure
+  [x]
+  [:main {:role "main"
+          :class "col-xs-12 col-md-6 col-lg-8"}
+   [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+    [:h3 (str "Data Structure")]
+    (map-to-tree x)]])
+
+(defmethod lab-view-handler
+  :search
+  [x]
+  (let [query (get-in x [:request-params :query])
+        with-source-key (get-in x [:request-params :with-source-key])
+        days-ago (get-in x [:request-params :days-ago])
+        results (if (or with-source-key days-ago)
+                  (db/search query {:with-source-key with-source-key
+                                    :time-ago-period (time/days (some-> days-ago Integer/parseInt))})
+                  (db/search query))]
+    [:main {:role "main"
+            :class "col-xs-12 col-md-6 col-lg-8"}
+     [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+      [:h3 "Search"]
+      [:div
+       [:form {:action "/reader/lab/search" :method "get"}
+        [:div {:class "form-group row"}
+         [:label {:for "query" :class "col-sm-4 col-form-label"} "postgresql ts_query"]
+         [:div {:class "col-sm-8"}
+          [:input {:type "text" :class "form-control"
+                   :name "query" :id "query" :placeholder "fat & (rat | cat)"
+                   :value (or query "")}]]]
+        [:div {:class "form-group row"}
+         [:label {:for "query" :class "col-sm-4 col-form-label"} "Item fetch in the last:"]
+         (for [[name days] [["any" ""]
+                            ["7d" "7"]
+                            ["1y" "365"]]]
+           [:div {:class "form-check form-check-inline"}
+            [:input (assoc {:class "form-check-input"
+                            :type "radio"
+                            :name "days-ago"
+                            :id (str "days-ago-" name)
+                            :value days}
+                           :checked (= days-ago days))]
+            [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]
+        [:div {:class "form-group row"}
+         [:div {:class "col-sm-10"}
+          [:button {:type "submit" :class "btn btn-primary"} "Search"]]]]
+
+       [:h3 "Results"]
+       [:p [:td (count results)]]
+
+       [:p {:class "word-cloud"}
+        (let [freqs (->> (map :key results)
+                        frequencies
+                        (sort-by second)
+                        reverse)
+              min-freq (-> freqs last second)
+              max-freq (-> freqs first second)]
+          (log/info freqs min-freq max-freq)
+          (for [[word freq] freqs
+                :let [size (word-cloud-fontsize freq min-freq max-freq)]]
+            [:span {:class (str "word border text-white " size)}
+             [:a {:href (make-site-href ["/reader/lab/search"]
+                                        (merge x {:with-source-key word
+                                                  :query query
+                                                  :days-ago days-ago}))
+                  :class "text-white sz-b"} (str word " (" freq ")")]]))]
+
+       [:table {:class "table table-borderless"}
+        [:thead
+         [:tr
+          [:td "Rank"]
+          [:td "Title"]
+          [:td "Source"]]]
+        [:tbody
+         (for [{:keys [title key rank id]} results]
+
+           [:tr [:td (format "%.2f" rank)]
+
+            [:td [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+                  title]]
+
+            [:td [:a {:href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
+                  key]]
+            ])]]]]]))
+
+(defn reader-lab-index
+  "Reader Entrypoint"
+  ([]
+   (reader-index {}))
+  ([params]
+   (log/debug "[INFOWARSS-UI]" params)
+   (let [{:keys [mode group-name group-item source-key]} params
+         ;; override filter for special groups like saved
+         orig-fltr (:filter params)
+         params (assoc params :filter
+                       (if-let [override (get +filter-overrides+
+                                              (:group-item params))]
+                         override
+                         orig-fltr))
+
+         item-tags (future (metrics/with-prom-exec-time :tag-list
+                             (doall (db/get-tag-stats))))
+
+         ;; sources (metrics/with-prom-exec-time :compile-sources
+         ;;           (db/new-get-sources))
+
+         params (merge params {:sources {}
+                               :group-group :lab
+                               :group-key (:view params)
+                               :item-tags @item-tags
+                               :mode :lab
+                               :filter orig-fltr})]
+
+     (let [nav-bar (nav-bar params)
+           view (lab-view-handler params)
+           group-nav (group-nav params)
+           title (short-page-headline params)
+
+           html (metrics/with-prom-exec-time
+                  :render-html
+                  (html
+                   [:html {:lang "en"}
+                    (html-header title (:mode params) (some-> params :items first))
+                    [:body
+                     (concat
+                      [nav-bar]
+                      [[:div {:class "container-fluid"}
+                        [:div {:class "row"}
+                         group-nav
+                         view]]]
+                      (html-footer))]]))]
+       html))))
+
 (defn fetch-preview
   "Preview Mode Entrypoint"
   []
   (html
    [:html {:lang "en"}
-    (html-header "preview")
+    (html-header "preview" "preview" nil)
     [:body
-     [:main {:role "main"
-             :class "col-xs-12 col-md-6 col-lg-8"}
-      [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-       (for [item @+current-fetch-preview+]
-         (dump-item {:items [item]}))]]
-     (html-footer)]]))
+     (concat
+      [[:main {:role "main"
+               :class "col-xs-12 col-md-6 col-lg-8"}
+        [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+         (for [item @+current-fetch-preview+]
+           (dump-item {:items [item]}))]]]
+      (html-footer))]]))
 
 (defn add-thing
   "Bookmark / Document Add URL Entry Point"
@@ -1169,11 +1516,18 @@
    (let [state (assoc update/src-state-template :key key)
          items (fetch/fetch feed)
          processed (proc/process feed state items)
-         dbks (persistency/store-items! processed :overwrite? true)]
-     (str (first dbks)))
-   (catch Object e
-     (log/warn e "add-url failed. Probably broken url: " feed)
-     "fail")))
+         dbks (persistency/store-items! processed :overwrite? true)
+         item-id (first dbks)
+         item (first processed)]
+     {:status 200
+      :body {:item {:meta (:meta item)
+                    :id item-id
+                    :title (get-in item [:summary :title])}}})
+   (catch Throwable th
+     (log/warn th "add-url failed: " feed)
+     {:status 500
+      :body {:error (str th)}}
+     )))
 
 (defn reader-item-modify
   "Item Modification (e.g Set Tag) Entry Point"
@@ -1214,22 +1568,38 @@
 
     (POST "/bookmark/add"
           [url type :<< as-keyword]
-          (case type
-            :readability-bookmark (add-thing
-                                   (core/make-readability-bookmark-feed url)
-                                   :bookmark)
-            :raw-bookmark (add-thing
-                           (core/make-raw-bookmark-feed url)
-                           :bookmark)
-            :document (add-thing
-                       (core/make-doc-feed url)
-                       :document)))
+          (try
+            (case type
+              :readability-bookmark (add-thing
+                                     (core/make-readability-bookmark-feed url)
+                                     :bookmark)
+              :raw-bookmark (add-thing
+                             (core/make-raw-bookmark-feed url)
+                             :bookmark)
+              :document (add-thing
+                         (core/make-doc-feed url)
+                         :document))
+            (catch java.net.MalformedURLException ex
+              {:status 400
+               :body {:error (str "Malformed URL: " url)}})))
+
 
     (POST "/document/add"
           [url]
           (add-thing
            (core/make-doc-feed url)
            :document))
+
+    (GET "/lab/:view" [view :<< as-keyword]
+         (reader-lab-index {:uri (:uri req)
+                            :filter (as-keyword (get-in req [:params :filter]))
+                            :request-params (:params req)
+                            :group-name :default
+                            :group-item :all
+                            :source-key :all
+                            :view view
+                            :list-style (as-keyword (get-in req [:params :list-style]))}))
+
 
     (context
      "/group/:group-name/:group-item/source/:source-key"
@@ -1361,7 +1731,6 @@
     (GET "/annotations/:id" [id]
          (let [[item-id anno-entry-i]
                (map as-int (string/split id #"-"))]
-           (log/info id item-id anno-entry-i)
            (if-let [entry (get-in @annotations [item-id anno-entry-i])]
              {:status 200
               :body entry}

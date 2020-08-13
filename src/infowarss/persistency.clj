@@ -1,7 +1,6 @@
 (ns infowarss.persistency
   (:require
    [infowarss.db :as db]
-   [infowarss.fetch]
    [infowarss.converter :as conv]
    [digest]
    [clj-time.coerce :as tc]

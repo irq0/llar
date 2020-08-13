@@ -140,6 +140,11 @@
       urly/without-query-string-and-fragment
       (.mutatePath "")))
 
+(s/defn get-base-url-with-path :- (s/constrained clojurewerkz.urly.UrlLike urly/absolute? "Absolute URL")
+  [url :- clojurewerkz.urly.UrlLike]
+  (-> url
+      urly/without-query-string-and-fragment))
+
 (defn parse-img-srcset [str]
   (when (and (string? str) (not (string/blank? str)))
     (map #(string/split % #"\s")
@@ -170,22 +175,22 @@
 
 (defn absolutify-links-in-hick [root base-url]
   (let [zipper (hick-z/hickory-zip root)
-        edit-tag (fn [tag loc]
-                   (try+
+        edit-tag (fn [tag type content attrs loc]
+                   (try
                     (cond
-                      (and (= tag :a) (string? (get-in loc [:attrs :href])))
+                      (and (= tag :a) (string? (:href attrs)))
                       (zip/edit loc update-in
                                 [:attrs :href]
                                 #(str (absolutify-url % base-url)))
 
-                      (and (= tag :img) (or (string? (get-in loc [:attrs :src]))
-                                            (string? (get-in loc [:attrs :srcset]))))
+                      (and (= tag :img) (or (string? (:src attrs))
+                                            (string? (:srcset attrs))))
                       (edit-img-tag base-url loc)
 
                       :default
                       loc)
-                    (catch java.lang.Object e
-                      (log/debug e "Absolutify error loc:"
+                    (catch Throwable th
+                      (log/debug th "Absolutify error loc:"
                                  (merge {:base-url base-url}
                                         (select-keys (zip/node loc) [:tag :type :attrs])))
                       loc)))]
@@ -196,7 +201,7 @@
           (if (= type :element)
             (recur
              (zip/next
-              (edit-tag tag loc)))
+              (edit-tag tag type content attrs loc)))
             (recur (zip/next loc))))))))
 
 (defn try-blobify-url! [url]
@@ -209,7 +214,8 @@
        (let [content-hash (blobstore/add-from-url! url)
              blobstore-url (str "/blob/" content-hash)]
          blobstore-url)
-       (catch Object _
+       (catch Object e
+         (log/info e "blobify failed" url)
          (str url))))))
 
 (defn blobify-image [loc]
@@ -312,7 +318,7 @@
   [url & {:keys [user-agent]
           :or {user-agent :default}}]
   (let [url (parse-url url)
-        base-url (get-base-url url)]
+        base-url (get-base-url-with-path url)]
     (try+
      (let [response (http/get (str url)
                               {:headers {:user-agent (resolve-user-agent user-agent)}
@@ -346,6 +352,10 @@
          {:keys [headers body status]}
        (log/errorf "Client Error (%s): %s %s" status headers body)
        (throw+ {:type :client-error-retry-later}))
+
+     (catch java.net.UnknownHostException ex
+       (log/error ex "Host resolution error" url)
+       (throw+ {:type ::server-error-retry-later}))
 
      (catch Object _
        (log/error "Unexpected error: " (:throwable &throw-context) url)

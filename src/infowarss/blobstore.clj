@@ -11,13 +11,14 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [mount.core :refer [defstate]]
    [clojurewerkz.urly.core :as urly]
+   [nio2.core :as nio2]
    [digest :as digest])
   (:import [java.net URI URL]))
 
 
-(def +blob-store+ "/tank/scratch/infowarss-blobs")
-(def +blob-store-url-index+ "/tank/scratch/infowarss-blobs/url-index")
- (def +blob-store-dupes+ "/tank/scratch/infowarss-blobs/url-dupe-content-index")
+(def +blob-store+ "/fast/infowarss/blobs")
+(def +blob-store-url-index+ "/fast/infowarss/blobs/url-index")
+(def +blob-store-dupes+ "/fast/infowarss/url-dupe-content-index")
 
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
@@ -45,31 +46,38 @@
   "Create secondary url index entry: url -> hash"
   [content-hash :- s/Str
    url :- clojurewerkz.urly.UrlLike]
-  (let [file (blob-file +blob-store+ content-hash)
-        propsfile (io/as-file (str file ".props"))
+  (let [file-abs (blob-file +blob-store+ content-hash)
         url-hash (digest/sha-256 (str url))
-        empty-file-attributes (make-array java.nio.file.attribute.FileAttribute 0)
-        dupe-file (blob-file +blob-store-dupes+ url-hash)
-        link (blob-file +blob-store-url-index+ url-hash)
-        link-props (io/as-file (str link ".props"))]
-    (ensure-dir-hierarchy link)
+        dupe-file (-> (blob-file +blob-store-dupes+ url-hash) io/as-file .toPath)
+
+        link (-> (blob-file +blob-store-url-index+ url-hash) .toPath)
+        link-props (-> (str link ".props") io/as-file .toPath)
+
+        file (.relativize
+              (-> link
+                  .getParent)
+              (-> file-abs
+                  .toPath))
+        propsfile (-> (str file ".props") io/as-file .toPath)]
+
+    (nio2/create-dirs (.getParent link))
     (try+
-     (java.nio.file.Files/createSymbolicLink
-      (.toPath link-props)
-      (.toPath propsfile)
-      empty-file-attributes)
-     (java.nio.file.Files/createSymbolicLink
-      (.toPath link)
-      (.toPath file)
-      empty-file-attributes)
+     (nio2/create-sym-link link-props propsfile)
+     (nio2/create-sym-link link file)
      (catch java.nio.file.FileAlreadyExistsException e
-       (log/debug "Symlink already exists:" link-props link)
-       (log/trace "Current pri:" propsfile)
-       (log/trace "Link dst: " propsfile file
-                  (conv/read-edn-string (slurp link-props)))
-       (java.nio.file.Files/delete (.toPath link-props))
-       (ensure-dir-hierarchy dupe-file)
-       (spit dupe-file url)))
+       (log/debug "Symlink already exists" {:content-hash content-hash
+                                             :url-hash url-hash
+                                             :url url
+                                             :props-link link-props
+                                             :file-link link
+                                             :propsfile propsfile
+                                             :file file
+                                             :props (conv/read-edn-string (slurp (nio2/input-stream link-props)))
+
+                                             })
+       ;; (java.nio.file.Files/delete (.toPath link-props))
+       (nio2/create-dirs (.getParent dupe-file))
+       (spit (nio2/output-stream dupe-file) url)))
     url-hash))
 
 
@@ -121,6 +129,25 @@
 ;;        (log/debugf "BLOBSTORE: found \"%s\" in url index" url)
         (str (.getFileName link-target))))))
 
+(defn- setify-urls [x]
+  (cond
+    (set? x) x
+    (set? (first x)) (first x)
+    (coll? x) (set x)
+    (nil? x) #{}
+    :default x))
+
+(defn client-error?
+  [{:keys [status]}]
+  (when (number? status)
+    (<= 400 status 499)))
+
+(defn server-error?
+  [{:keys [status]}]
+  (when (number? status)
+    (<= 500 status 599)))
+
+
 (defn- download-and-add!
   "Downoad, hash, add to primary index - create secondary index entry"
   [url]
@@ -154,8 +181,9 @@
         (let [exists? (and (.exists propsfile)
                         (.exists file))
               props (if (.exists propsfile)
-                      (let [prev-probs (conv/read-edn-string (slurp propsfile))]
-                        {:orig-urls (conj (:orig-urls prev-probs) url)
+                      (let [prev-probs (conv/read-edn-string (slurp propsfile))
+                            prev-urls (setify-urls (:orig-urls prev-probs))]
+                        {:orig-urls (conj prev-urls url)
                          :hits (+ 1 (:hits prev-probs))
                          :mime-type mime})
                       {:orig-urls #{url}
@@ -167,11 +195,11 @@
           (spit propsfile (prn-str props))
           (create-url-index-entry-for-url content-hash url)))
       content-hash)
-    (catch http2/client-error?
+    (catch client-error?
         {:keys [headers body status]}
       (log/debug "BLOBSTORE Client Error (-> perm-fail):" status url)
       (throw+ {:type ::fetch-fail}))
-    (catch http2/server-error?
+    (catch server-error?
         {:keys [headers body status]}
       (log/debug "BLOBSTORE Server Error (-> temp-fail):" status url)
       (throw+ {:type ::fetch-fail}))
@@ -186,6 +214,9 @@
   [url :- clojurewerkz.urly.UrlLike]
   (or (find-in-url-index url)
     (download-and-add! url)))
+
+(defn get-local-filename [hash]
+  (blob-file +blob-store+ hash))
 
 (defn get-blob [hash]
   (let [file (blob-file +blob-store+ hash)

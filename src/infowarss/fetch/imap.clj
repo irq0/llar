@@ -60,16 +60,16 @@
                                 :date-received (:date-received msg)
                                 :content-type (:content-type msg)
                                 :body (mail-body-to-contents msg)
-                                :headers (:headers msg)}))
-                           (unread-messages store (subs (.getPath uri) 1)))))]
+                                :headers (:headers msg)})))
+                           (unread-messages store (subs (.getPath uri) 1))))]
     (close-store store)
     msgs))
 
 (extend-protocol postproc/ItemProcessor
   ImapItem
   (post-process-item [item src state]
-    (let [nlp (analysis/analyze-entry (:entry item))
-          (update item :entry merge (:entry item) nlp)]))
+    (let [nlp (analysis/analyze-entry (:entry item))]
+          (update item :entry merge (:entry item) nlp)))
   (filter-item [item src state] false))
 
 (extend-protocol persistency/CouchItem

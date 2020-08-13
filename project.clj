@@ -29,6 +29,7 @@
                  [digest "1.4.9"]
                  [table "0.5.0"]
                  [matchbox "0.0.9"]
+                 [nio2 "0.2.1"]
                  [io.forward/clojure-mail "1.0.8"]
                  [com.taoensso/timbre "4.10.0"]
                  [org.slf4j/log4j-over-slf4j "1.7.30"]
@@ -69,4 +70,5 @@
                  [clojurewerkz/urly "1.0.0"]
                  [com.mchange/c3p0 "0.9.5.2"]
                  [mvxcvi/puget "1.2.0"]
+                 [cc.artifice/clj-ml "0.8.5"]
                  [clj-commons/iapetos "0.1.9"]])

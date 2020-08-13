@@ -41,6 +41,10 @@
    [cider.nrepl :refer [cider-nrepl-handler]]
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.namespace.repl :refer [refresh]]
+   [pantomime.mime :as pm]
+   [clj-ml.clusterers :as ml-clusterers]
+   [clj-ml.data :as ml-data]
+   [clj-ml.filters :as ml-filters]
    [taoensso.timbre.appenders.core :as appenders]))
 
 ;;;; Namespace to interact with infowarss from the REPL
@@ -52,7 +56,7 @@
   (ns-resolve 'cider.nrepl 'cider-nrepl-handler))
 
 (defstate nrepl-server
-  :start (start-server :port 42005 :handler (nrepl-handler))
+  :start (start-server :port 42000 :handler (nrepl-handler))
   :stop (stop-server nrepl-server))
 
 (def +current-fetch-preview+ (atom nil))
@@ -131,27 +135,27 @@
                pre []
                filter (constantly false)
                skip-postproc false}}]
-  (try+
+  (try
     (let [fetched (fetch/fetch-source src)
           postproc (proc/make
-                     :post post
-                     :pre pre
-                     :filter filter)
+                    :post post
+                    :pre pre
+                    :filter filter)
           processed (cond->> fetched
                       limit (take limit)
                       (not skip-postproc) (proc/process {:src src
                                                          :proc postproc} {}))]
 
       (log/infof "Preview of %s: fetched: %s, limit: %s, after processing: %s"
-        (str src) (count fetched) limit (count processed))
+                 (str src) (count fetched) limit (count processed))
       (reset! +current-fetch-preview+ processed)
       {:info "Open http://localhost:8023/preview"
        :n (count processed)
        :limited-preview (map #(select-keys % [:summary :feed :meta :hash]) processed)})
 
-    (catch Object e
-      (log/error e "Error fetching " (str src))
-      (:message &throw-context))))
+    (catch Throwable th
+      (log/error th "Error fetching " (str src))
+      )))
 
 
 (comment
@@ -193,6 +197,98 @@
 )
 
 
+;; clustering
+
+;; (defn clustertest []
+;;   (let [terms (into #{} (db/saved-itesmtf-idf-terms))
+;;         items (db/saved-items-tf-idf)
+;;         ds (ml-data/make-sparse-dataset "saved-items"
+;;                                         terms
+;;                                         items)]
+;;     ds))
+
+(def current-clustered-saved-items (atom {}))
+
+(defn make-saved-dataset []
+  ;; must ensure that there are no '/' in terms - messes up keyword/name
+  (let [attributes (vec (conj (into #{} (db/saved-items-tf-idf-terms)) "item_id"))
+        term-tf-idf-maps (db/saved-items-tf-idf)
+        weka-attributes (map (fn [s]
+                               (let [new-attrib (weka.core.Attribute. s)]
+                                 (if (= s :item_id)
+                                   (.setWeight new-attrib 0.0)
+                                   (.setWeight new-attrib 1.0))
+                                 new-attrib
+                                                          ))
+                               attributes)
+        ds (weka.core.Instances. "saved-items" (java.util.ArrayList. weka-attributes)
+                                          (count term-tf-idf-maps))]
+        ;; ds (ml-data/make-dataset "saved-items" attributes (count term-tf-idf-maps))]
+    (doseq [m term-tf-idf-maps]
+      (let [inst (weka.core.SparseInstance. (count attributes))]
+        (.setDataset inst ds)
+        (doall (map-indexed (fn [i attrib]
+                              (try
+                                (.setValue inst i (or (get m attrib) 0.0))
+                                (catch Throwable th
+                                  (log/info th i attrib (get m attrib) (type (get m attrib)))
+                                  (throw th))))
+                            attributes))
+        (.setWeight inst 1.0)
+        (.add ds inst)))
+
+    ds))
+
+(comment
+  (def ds2 (ml-filters/make-apply-filter :remove-attributes {:attributes [:item_id]} ds)))
+
+
+(defn improvise-cluster-name [attributes centroid]
+  (let [take-this (nth (sort centroid) (- (count centroid) 5) )]
+    (string/join "+"
+                 (take 5
+               (remove nil?
+                       (map (fn [att val]
+                              (let [name (.name att)]
+                                (when (and (>= val take-this)
+                                           (not (re-find #"\W" name))
+                                           (not= "item_id" name)
+                                           )
+                                  name)))
+                            attributes
+                            centroid))))))
+
+(defn cluster-saved []
+  (let [ds (make-saved-dataset)
+        clst (ml-clusterers/make-clusterer :k-means {:number-clusters (int (/ (ml-data/dataset-count ds) 5))})]
+    (ml-clusterers/clusterer-build clst ds)
+    (let [ds-clst (ml-clusterers/clusterer-cluster clst ds)
+          centroids (:centroids (ml-clusterers/clusterer-info clst))
+          names (into {}
+                      (map (fn [[k cent]]
+                             [(keyword (str k))
+                              (if-let [human (improvise-cluster-name
+                                              (ml-data/dataset-attributes ds)
+                                              (-> cent
+                                                  ml-data/instance-to-vector))]
+                                human
+                                (keyword (str k))
+                               )])
+                           centroids))]
+      (log/info names)
+      (->> ds-clst
+           ml-data/dataset-as-maps
+           (map (fn [{:keys [item_id class]}]
+                  (let [id (int item_id)
+                        title (->
+                               (db/get-items-by-id [id])
+                               first
+                               :title)
+                        class-name (get names class)]
+                    {:title title
+                     :class class-name
+                     :id id})))
+           (group-by :class)))))
 
 ;; TODO mydealz
 
@@ -254,23 +350,33 @@
           :else
           (throw+ {:type :error :stderr err :stdout out :exit exit}))))
 
-(defn youtube-dl-video [url]
+(defn youtube-dl-video [url dest-dir]
   (let [{:keys [exit out err]} (shell/sh
-                                 "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
-                             "youtube-dl"
+                                 ;; "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
+                             "/home/seri/.local/bin/youtube-dl"
                              "--format" "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
                              "--recode-video" "mp4"
                              "--embed-subs"
                              "--embed-thumbnail"
+                             "--no-call-home"
+                             "--no-progress"
+                             "--no-continue"
+                             "--no-part"
+                             "--no-playlist"
+                             "--dump-json"
                              url
-                             :dir "/tank/scratch/youtube-dl")
-        youtube-err (second (re-find #"YouTube said: (.+)$ err"))]
-    (log/trace "Youtube-dl OUT: " out)
-    (log/trace "Youtube-dl ERR: " err)
+                             :dir dest-dir)
+        youtube-err (second (re-find #"YouTube said: (.+)$" err))]
     (if (zero? exit)
-      (let [[_ out-filename] (re-find #"Destination:\s(.+\.mp4)" out)]
-        out-filename)
-      (log/error "Youtube-dl error: " youtube-err))))
+      (let [j (json/parse-string out true)]
+        (log/info "Youtube-dl success: " (:_filename j))
+        (select-keys j [:_filename :id :uploader :title]))
+      (do
+        (log/error "Youtube-dl error: "
+                   exit
+                   out
+                   err)
+        (throw+ {:type :youtube-error :exit exit})))))
 
 
 (defn music-links []
@@ -305,6 +411,44 @@
       (catch Object e
         (log/error e "Unexpected error")))))
 
+(defn download-tagged-stuff []
+  (let [items (db/get-items-by-tag :download)]
+    (doall
+    (for [item items]
+      (let [url (get-in item [:entry :url])
+            dest-dir (str "/home/seri/Desktop/MEDIA/"
+                          (name (:key item)))]
+        (when (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)
+          (log/info "Downloading " url " to " dest-dir)
+          (-> (io/as-file dest-dir) .mkdirs)
+          (future
+            (try+
+             (let [filename (youtube-dl-video url dest-dir)]
+               (db/item-remove-tags (:id item) :download)
+               filename)
+             (catch [:type :youtube-error] {:keys [msg]}
+               (log/errorf "Miner failed for %s: %s" item msg))
+             (catch Object e
+               (log/error e "Unexpected error")))
+            )
+          ))))))
+
+(defn copy-wallpapers-to-home []
+  (doseq [[source destination]
+          (some->> (db/get-items-by-tag :wallpaper)
+                   (map (fn [item]
+                          (when-let [blob-url (get-in item [:entry :lead-image-url])]
+                            [(string/replace blob-url "/blob/" "")
+                             (:key item)])))
+                   (map (fn [[blob source-key]]
+                          (let [local-fn (infowarss.blobstore/get-local-filename blob)
+                                mime (pantomime.mime/mime-type-of local-fn)
+                                extension (pantomime.mime/extension-for-name mime)]
+                            [local-fn (str source-key "_" blob extension)]))))]
+    (let [dst-file (io/file "/home/seri/Pictures/wallpaper" destination)]
+      (when-not (.exists dst-file)
+        (io/copy source dst-file)
+        dst-file))))
 
 ;;; toying around with urban sports club
 

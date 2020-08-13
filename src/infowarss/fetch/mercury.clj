@@ -1,13 +1,12 @@
 (ns infowarss.fetch.mercury
   (:require
    [infowarss.converter :as conv]
-   [infowarss.src :as src]
-   [infowarss.fetch :as fetch]
+   [infowarss.fetch :as fetch :refer [FetchSource]]
+   [infowarss.postproc :refer [ItemProcessor]]
    [infowarss.schema :as schema]
-   [infowarss.persistency :as persistency]
-   [infowarss.postproc :as postproc]
+   [infowarss.persistency :refer [CouchItem]]
    [infowarss.analysis :as analysis]
-   [infowarss.http :refer [fetch absolutify-url absolutify-links-in-hick get-base-url blobify try-blobify-url!]]
+   [infowarss.http :refer [fetch absolutify-url absolutify-links-in-hick get-base-url-with-path blobify try-blobify-url! sanitize]]
    [clojurewerkz.urly.core :as urly]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
@@ -34,7 +33,7 @@
   (toString [item] (fetch/item-to-string item)))
 
 
-(extend-protocol postproc/ItemProcessor
+(extend-protocol ItemProcessor
   MercuryItem
   (post-process-item [item src state]
     (let [nlp (analysis/analyze-entry (:entry item))
@@ -52,7 +51,7 @@
 
   (filter-item [item src state] false))
 
-(extend-protocol persistency/CouchItem
+(extend-protocol CouchItem
   MercuryItem
   (to-couch [item]
     (-> item
@@ -72,7 +71,7 @@
                    :content-type :json
                    :headers {:x-api-key api-key}
                    :query-params {:url (str url)}})
-          base-url (get-base-url url)
+          base-url (get-base-url-with-path url)
           body (try+
                  (assoc (:body resp) :content
                    (-> resp
@@ -101,20 +100,22 @@
   (try+
    (let [url (urly/url-like url)
          {:keys [exit out err]} (shell/sh "/home/seri/opt/mercury-parser/cli.js" (str url))
-         base-url (get-base-url url)
+         base-url (get-base-url-with-path url)
          json (json/parse-string out true)]
      (if (zero? exit)
        (assoc json :content
-              (try+
+              (try
                (-> json
                    :content
                    hick/parse
                    hick/as-hickory
                    (absolutify-links-in-hick base-url)
+                   sanitize
                    blobify
                    hick-r/hickory-to-html)
-               (catch Object _
-                 (log/warn &throw-context "Mercury post processing failed. Using vanilla"))))
+               (catch Throwable th
+                 (log/warn th "Mercury post processing failed. Using vanilla")
+                 (log/debug (:content json)))))
        (do
          (log/error "Mercury Error: " url err)
          (throw+ {:type ::not-parsable}))))
@@ -123,24 +124,26 @@
      (throw+))))
 
 
-(extend-protocol fetch/FetchSource
+(extend-protocol FetchSource
   infowarss.src.MercuryWebParser
   (fetch-source [src]
     (let [url (urly/url-like (:url src))
-          base-url (get-base-url url)
+          base-url (get-base-url-with-path url)
           mercu (mercury-local url)
           pub-ts (or (tc/from-string (:date_published mercu)) (time/now))
           title (cond
                   (string? (:title mercu)) (:title mercu)
                   (vector? (:title mercu)) (first (:title mercu))
                   :else "")]
-
       [(->MercuryItem
         (fetch/make-meta src)
         {:ts pub-ts :title title}
         (fetch/make-item-hash (:content mercu))
-        {:url (absolutify-url (:url mercu) base-url)
-         :lead-image-url (try-blobify-url! (absolutify-url (:lead_image_url mercu) base-url))
+        {:url (absolutify-url (urly/url-like (:url mercu)) base-url)
+         :lead-image-url (some-> (:lead_image_url mercu)
+                                 urly/url-like
+                                 (absolutify-url base-url)
+                                 try-blobify-url!)
          :pub-ts pub-ts
          :title title
          :authors [(or (:author mercu) (:domain mercu))]

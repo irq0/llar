@@ -10,6 +10,7 @@
                                     absolutify-links-in-hick
                                     absolutify-url
                                     get-base-url
+                                    get-base-url-with-path
                                     blobify
                                     sanitize
                                     resolve-user-agent]]
@@ -184,23 +185,32 @@
   (let [extractor (or extractor default-selector-feed-extractor)]
     (if (some? selector)
       (let [tree (hick-s/select selector hickory)]
-        (extractor tree)))))
+        (try
+          (extractor tree)
+          (catch Throwable th
+            (log/warn th "Extractor crashed. Selected tree was:" tree)
+            (throw+ th)))
+
+        ))))
 
 (defn hick-select-extract-with-source [src k hickory fallback]
   (let [{:keys [selectors extractors]} src
         sel (get selectors k)
         ext (get extractors k)]
-    (try+
+    (try
       (let [selected (hick-select-extract sel ext hickory)]
         (when-not (and (some? sel) (some? selected))
           (log/debugf "Hickory selector %s for %s turned up nothing"
-            (str src) k))
+                      (str src) k))
         (or selected fallback))
-      (catch Object _
-        (log/warn (:throwable &throw-context) "Hick Extract failed :("
-          src k)
-        (throw+ {:type ::hickory-select-failed :src src :key k
-                 :selector sel :extractor ext})))))
+      (catch Throwable th
+        (log/warn th "Hick Extract failed :("
+                  src k)
+        (throw+ {:type ::hickory-select-failed
+                 :src src
+                 :key k
+                 :selector sel
+                 :extractor ext})))))
 
 
 (extend-protocol FetchSource
@@ -209,17 +219,18 @@
     (let [{:keys [url selectors extractors args]} src
           user-agent (:user-agent args)
           {:keys [summary hickory]} (fetch url :user-agent user-agent)
-          base-url (get-base-url (urly/url-like url))
+          base-url (get-base-url-with-path (urly/url-like url))
 
           meta (make-meta src)
           feed {:title (:title summary)
                 :url url
                 :feed-type "selector-feed"}
           item-extractor (or (:urls extractors)
-                             (fn [l] (map (fn [x] (-> x :attrs :href)) l)))
+                             (fn [l] (map (fn [x] (absolutify-url (-> x :attrs :href) base-url)) l)))
           item-urls (item-extractor (hick-s/select (:urls selectors) hickory))]
 
-      (log/debug (str src) " Parsed URLs: " (prn-str item-urls))
+      (log/debug (str src) " Parsed URLs: " {:base-url base-url
+                                             :urs (prn-str item-urls)})
       (when-not (coll? item-urls)
         (throw+ {:type ::selector-found-shit :extractor item-extractor :urls item-urls :selector (:urls selectors)}))
       (doall
@@ -227,31 +238,43 @@
              :let [item-url (absolutify-url raw-item-url base-url)
                    item (fetch item-url :user-agent user-agent)
                    {:keys [hickory summary]} item]]
-         (let [author (hick-select-extract-with-source src :author hickory nil)
-               title (hick-select-extract-with-source src :title hickory (:title summary))
-               pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
-               description (hick-select-extract-with-source src :description hickory nil)
-               sanitized (process-feed-html-contents base-url hickory)
-               content (or
-                        (and (some? (:content selectors))
-                             (first (hick-s/select (:content selectors) sanitized)))
-                        (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
-               content-html (hick-r/hickory-to-html content)]
-           (map->FeedItem
-            (-> item
-                (dissoc :meta :hash :hickory :summary :body)
-                (merge {:meta meta
-                        :feed feed
-                        :hash (make-item-hash title pub-ts item-url)
-                        :entry {:pub-ts pub-ts
-                                :url item-url
-                                :title title
-                                :authors author
-                                :descriptions {"text/plain" description}
-                                :contents {"text/html" content-html
-                                           "text/plain" (conv/html2text content-html)}}
-                        :summary {:title title
-                                  :ts pub-ts}})))))))))
+         (try
+           (let [author (hick-select-extract-with-source src :author hickory nil)
+                 title (hick-select-extract-with-source src :title hickory (:title summary))
+                 pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
+                 description (hick-select-extract-with-source src :description hickory nil)
+                 sanitized (process-feed-html-contents base-url hickory)
+                 content (or
+                          (and (some? (:content selectors))
+                               (first (hick-s/select (:content selectors) sanitized)))
+                          (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
+                 content-html (hick-r/hickory-to-html content)]
+             (map->FeedItem
+              (-> item
+                  (dissoc :meta :hash :hickory :summary :body)
+                  (merge {:meta meta
+                          :feed feed
+                          :hash (make-item-hash title pub-ts item-url)
+                          :entry {:pub-ts pub-ts
+                                  :url item-url
+                                  :title title
+                                  :authors author
+                                  :descriptions {"text/plain" description}
+                                  :contents {"text/html" content-html
+                                             "text/plain" (conv/html2text content-html)}}
+                          :summary {:title title
+                                    :ts pub-ts}}))))
+           (catch Throwable th
+             (log/warn th "SelectorFeed item processing failed. Skipping:"
+                       raw-item-url))
+
+           ))))))
+
+(defn- get-posts-url [json]
+  (let [field (get-in json [:routes (keyword "/wp/v2/posts") :_links :self])]
+    (cond
+      (string? field) field
+      (vector? field) (-> field first :href))))
 
 
 (extend-protocol FetchSource
@@ -262,10 +285,11 @@
                       (get-in src [:args :user-agent]))
           site (http/get wp-json-url
                          {:as :json
-                          :headers {:user-agent user-agent}})
-          posts-url (log/spy (get-in site [:body :routes (keyword "/wp/v2/posts") :_links :self]))
-          posts (-> (http/get posts-url {:headers {:user-agent user-agent}})
-                    :body (cheshire/parse-string true)) ]
+                          :headers {"User-Agent" user-agent}})
+          posts-url (get-posts-url (:body site))
+          posts (-> (http/get (log/spy posts-url) {:as :reader
+                                         :headers {:user-agent user-agent}})
+                    :body (cheshire/parse-string true))]
       (doall
        (for [post posts]
          (let [
@@ -276,14 +300,26 @@
                                    (http/get url
                                              {:as :json
                                               :headers {:user-agent user-agent}}))))
-                        (catch [:status 403] {:keys [body]}
-                          (log/debug "Strange, some wp json access blocked:" body)
+                        (catch (contains? #{403 404} (get % :status))
+                            {:keys [headers body status]}
+                          (log/debug "Could not fetch article's authors endpoint:"
+                                     headers body status (get-in post [:_links :self]))
                           [""]))
                url (urly/url-like (get post :link))
+               base-url (get-base-url url)
                title (get-in post [:title :rendered])
                pub-ts (some-> post :date_gmt tc/from-string)
                description (get-in post [:excerpt :rendered])
-               content-html (get-in post [:content :rendered])]
+               content-html (get-in post [:content :rendered])
+               sanitized-html (-> content-html
+                                  hick/parse
+                                  hick/as-hickory
+                                  (absolutify-links-in-hick base-url)
+                                  sanitize
+                                  blobify
+                                  (hick-r/hickory-to-html))
+               ]
+
            (map->FeedItem
             {:meta (make-meta src)
              :raw {:site (:body site)
@@ -297,8 +333,8 @@
                      :title title
                      :authors authors
                      :descriptions {"text/plain" description}
-                     :contents {"text/html" content-html
-                                "text/plain" (conv/html2text content-html)}}
+                     :contents {"text/html" sanitized-html
+                                "text/plain" (conv/html2text sanitized-html)}}
              :summary {:title title
                        :ts pub-ts}})))))))
 

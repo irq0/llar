@@ -5,6 +5,7 @@
    [infowarss.postproc :as proc]
    [infowarss.persistency :as persistency]
    [infowarss.live.common :refer :all]
+   [infowarss.live.hackernews :as live-hackernews]
    [mount.core :refer [defstate]]
    [schema.core :as s]
    [clj-time.core :as time]

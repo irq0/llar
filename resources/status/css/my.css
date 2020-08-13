@@ -1,10 +1,10 @@
 body {
-    font-family: 'Fira Sans';
+    font-family: 'IBM Plex Sans', "Fira Sans", sans-serif;
     font-weight: 400;
 }
 
 code, kbd, samp, pre, tt, var, textarea {
-    font-family: 'Fira Code';
+    font-family: 'IBM Plex Mono', "Fira Code", "Fira Mono", monospaced;
     font-weight: 400;
 }
 
@@ -41,6 +41,10 @@ div.navbar-toggler {
     font-size: 0.9rem;
 }
 
+div.item-content .orig-content {
+   font-weight: 300;
+}
+
 /* phone */
 @media (max-width: 768px) {
     div.item-content-body h1,h2,h3,h4 {
@@ -61,7 +65,7 @@ div.navbar-toggler {
     }
 
     div.item-content-body {
-	font-family: charter, serif;
+	font-family: "IBM Plex Serif", charter, serif;
 	font-size: 0.9rem;
 	text-align: justify;
 	line-height: 1.9;
@@ -75,13 +79,12 @@ div.navbar-toggler {
 /* tablet  */
 @media (min-width: 769px) and (max-width: 991px) {
     div.item-content-body {
-	font-family: charter, serif;
+	font-family: "IBM Plex Serif", charter, serif;
 	text-align: justify;
 	line-height: 1.9;
 	font-size: 13pt;
 	max-width: 60ch;
 	margin: auto;
-	padding-bottom: 1.5em;
     }
     div.item-content-body h1,h2,h3,h4 {
 	padding-top: 0.8em;
@@ -94,13 +97,12 @@ div.navbar-toggler {
 /* standard desktop */
 @media (min-width: 992px) and (max-width: 1700px) {
     div.item-content-body {
-	font-family: charter, serif;
+	font-family: "IBM Plex Serif", charter, serif;
 	text-align: justify;
 	line-height: 1.9;
 	font-size: 13pt;
 	max-width: 60ch;
 	margin: auto;
-	padding-bottom: 1.5em;
     }
     div.item-content-body h1,h2,h3,h4 {
 	padding-top: 0.8em;
@@ -113,7 +115,7 @@ div.navbar-toggler {
 /* large desktop */
 @media (min-width: 1700px) {
     div.item-content-body {
-	font-family: charter, serif;
+	font-family: "IBM Plex Serif", charter, serif;
 	text-align: justify;
 	line-height: 1.8;
 	font-size: 13pt;
@@ -142,7 +144,7 @@ div.item-content-body img {
     width: auto;
 }
 
-div.item-content-body blockquote {
+div.item-content-body blockquote,div.BigQuote {
     background: #f9f9f9;
     margin: 1.5em 10px;
     padding: 0.5em 10px;
@@ -221,6 +223,7 @@ sidebar {
 }
 
 
+@media (max-width: 768px) {
     .sidebar-right {
 	padding-top: .5rem;
 	z-index: 100;
@@ -243,7 +246,7 @@ sidebar {
 	overflow-y: auto;
 	width: 100%;
     }
-
+}
 /* tablet */
 @media (min-width: 500px) and (max-width: 800px) {
     .sidebar-right {
@@ -316,8 +319,14 @@ sidebar {
     #left-nav {
 
     }
-
 }
+
+.sidebar .nav-item span {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
 
 .sidebar .nav-link {
     font-size: 0.66em;
@@ -338,17 +347,9 @@ sidebar {
 
 .sidebar-heading-2 {
     font-size: 1em;
-/*    color: #A6ACAF;*/
     font-style: italic;
 }
 
-
-.sidebar .nav-link .feather {
-  margin-right: 4px;
-  color: #999;
-  width: 1.2em;
-  height: 1.2em;
-}
 
 .sidebar .nav-link-secondary .feather {
   margin-right: 4px;
@@ -374,16 +375,16 @@ sidebar {
 }
 
 
+
 .navbar-brand {
     font-size: 1rem;
     padding-top: 0.65rem;
     padding-bottom: 0.65rem;
 }
 
-.navbar {
-    align-items: stretch;
-}
-.navbar .path {
+#navbar .path {
+    height: 42px;
+    font-weight: 300;
     padding-bottom: 0.75rem;
     padding-top: 0.75rem;
   border-width: 0;
@@ -458,7 +459,11 @@ sidebar {
 
 
 .item-content-nav {
-    margin-bottom: 1em;
+    top: 43px;
+    padding-top: 0.5em;
+    height: 3em;
+    background: white;
+    font-weight: 300;
 }
 
 .feed-item a {
@@ -495,31 +500,33 @@ sidebar {
     white-space: nowrap;
 }
 
-main {
-    padding-top: 1em;
-}
-
 .viewport-pivot::before {
+    font-family: 'IBM Plex Mono';
     content: "↲";
     color: #aaa;
     font-size: 1rem;
     position: absolute;
     left: 1em;
+    font-size: 1.2em;
 }
 
 .viewport-bottom::before {
+    font-family: 'IBM Plex Mono';
     content: "⇣";
     color: #aaa;
     font-size: 1rem;
     position: absolute;
     left: 1em;
+    font-size: 1.2em;
 }
 
 .viewport-bottom[view=out]::before  {
+    font-family: 'IBM Plex Mono';
     content: "⇊";
     color: #aaa;
     position: absolute;
     left: 1em;
+    font-size: 1.2em;
 }
 
 #leaflet-map {
@@ -616,4 +623,51 @@ table tr.shown td.details-control:before {
 
 table.exception-chain tr {
     vertical-align: top;
+}
+
+#item-content-body-container {
+}
+
+#minimap {
+    top: calc(43px + 3.2em);
+    /*
+     * position: fixed;
+     * top: 55px;
+     */
+    height: calc(100vh - 48px);
+    background: -moz-element(#item-content-body) no-repeat center / contain;
+    filter: opacity(80%);
+}
+
+/*
+ * #minimap-range {
+ *   transform: translateY(-100%) rotate(90deg);
+ *   transform-origin: bottom left;
+ *   background-color: transparent;  /\* more style *\/
+ * }
+ * 
+ * #minimap-range::-moz-range-thumb {
+ *     background-color: dodgerblue; 
+ *   cursor: pointer; /\* more style *\/
+ * }
+ * 
+ * #minimap-range::-moz-range-track{
+ *   background-color: transparent;
+ * }
+ */
+
+@media (min-width: 800px) {
+
+    nav {
+	scrollbar-width: none;  /* Firefox */
+
+    }
+    
+#groupnav.mode-show-item, #sourcenav.mode-show-item {
+    filter: opacity(23%) blur(3px);
+}
+
+#groupnav.mode-show-item:hover, #sourcenav.mode-show-item:hover {
+    filter: none;
+}
 }

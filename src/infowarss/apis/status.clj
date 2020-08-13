@@ -2,6 +2,7 @@
   (:require
    [infowarss.core :as core]
    [infowarss.update :as update]
+   [infowarss.live :as live]
    [infowarss.db :as db]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.metrics :as metrics]
@@ -52,12 +53,27 @@
            (html-footer))]]))
 
 (defn- get-state [k]
-  (if (instance? clojure.lang.Atom (get @update/state k))
-    @(get @update/state k) (get @update/state k)))
+  (cond
+    (contains? @update/state k)
+    (get @update/state k)
 
+    (contains? (:sources live/live) k)
+    @(get-in (:sources live/live) [:hn-show :state])
+
+    :default
+    nil))
+
+(defn- pprint-html [x]
+  [:pre {:class "clj-pprint"}
+   (puget/pprint-str
+    x
+    {:width 60
+     :sort-keys true
+     :print-color true
+     :color-markup :html-inline})])
 
 (defn html-exception-chain [th]
-  [:table
+  [:table {:class "exception-chain"}
    [:thread
     [:tr
      [:th "Type"]
@@ -66,16 +82,9 @@
    [:tbody
     (for [ex (reverse (:via th))]
       [:tr
-       [:td [:pre (puget/pprint-str (:type ex))]]
+       [:td (pprint-html (:type ex))]
        [:td (:message ex)]
-       [:td [:pre {:class "clj-pprint"}
-             (puget/pprint-str
-              (:data ex)
-              {:width 60
-               :sort-keys true
-               :print-color true
-               :color-markup :html-inline}
-              )]]])]])
+       [:td (pprint-html (:data ex))]])]])
 
 (defn html-stack-trace [th]
   [:pre
@@ -96,8 +105,8 @@
       [:th "Status"]
       [:th "Source"]
       [:th "Sched"]
-      [:th "Last Successful Fetch"]
-      [:th "Last Attempt"]
+      [:th "Last Success / Update"]
+      [:th "Last Attempt / Start"]
       [:th "Last Exception"]]]
     [:tbody
      (for [[k src] core/*srcs*]
@@ -109,23 +118,29 @@
                      (or (= :temp-fail status) (nil? sched)) "table-warning"
                      :default "")
                :data-child-value
-               (when-let [th (some-> (get-in state [:last-exception :throwable])
-                                     Throwable->map)]
-                 (html
-                  [:h5 "Exception Details"]
-                  [:h6 "Chain"]
-                  (html-exception-chain th)
-                  [:h6 "Stack Trace"]
-                  (html-stack-trace th)
-                  ))}
+               (html
+                [:div
+                 [:h5 "State Structure"]
+                 (pprint-html state)]
+                (when-let [th (some-> (get-in state [:last-exception :throwable])
+                                      Throwable->map)]
+                  [:div
+                   [:h5 "Exception Details"]
+                   [:h6 "Chain"]
+                   (html-exception-chain th)
+                   [:h6 "Stack Trace"]
+                   (html-stack-trace th)]))
+               }
           [:td {:class "details-control"}]
           [:td {:class "col-xs-1"} k]
-          [:td {:class "col-xs-1"} (:status state)]
+          [:td {:class "col-xs-1"} status]
           [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
            (str (:src src))]
           [:td {:class "col-xs-1"} (or sched [:emph "No sched"])]
-          [:td {:class "col-xs-1"} (:last-successful-fetch-ts state)]
-          [:td {:class "col-xs-1"} (:last-attempt-ts state)]
+          [:td {:class "col-xs-1"} (or (:last-successful-fetch-ts state)
+                                       (:last-update-ts state))]
+          [:td {:class "col-xs-1"} (or (:last-attempt-ts state)
+                                       (:start-ts state))]
           [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
            (get-in state [:last-exception :object :type])]
 
@@ -158,9 +173,9 @@
             ["Runtime Used" (human/filesize
                              (- (.totalMemory (Runtime/getRuntime))
                                 (.freeMemory (Runtime/getRuntime))))]
-            ["*srcs*" (mm/measure core/*srcs*)]
-            ["reader annotations" (mm/measure reader/annotations)]
-            ["domain blacklist" (mm/measure infowarss-http/domain-blacklist)]
+            ;; ["*srcs*" (mm/measure core/*srcs*)]
+            ;; ["reader annotations" (mm/measure reader/annotations)]
+            ;; ["domain blacklist" (mm/measure infowarss-http/domain-blacklist)]
             ]]
        [:tr
         [:td name]
