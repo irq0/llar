@@ -4,7 +4,7 @@
    [infowarss.core :refer [*srcs*]]
    [infowarss.update :refer [update!]]
    [infowarss.db :as infowarss-db]
-   [infowarss.repl :as infowarss-repl]
+   [infowarss.lab :as infowarss-lab]
    [hara.io.scheduler :as sched]
    [taoensso.timbre :as log]
    [mount.core :refer [defstate]]))
@@ -39,8 +39,8 @@
             :update-clustered-saved-items {:handler (fn [_]
                                                       (log/info "Updating saved items cluster")
                                                       (reset!
-                                                       infowarss-repl/current-clustered-saved-items
-                                                       (infowarss-repl/cluster-saved)))
+                                                       infowarss-lab/current-clustered-saved-items
+                                                       (infowarss-lab/cluster-saved)))
                                            :schedule "0 5 * * * * *"}
 
             :refresh-idf {:handler (fn [_] (log/info "Refreshing search index:"
@@ -52,10 +52,10 @@
   :start (sched/start!
           (sched/scheduler
            {:download-tagged-items {:handler (fn [_] (log/info "Downloaded tagged links:"
-                                                               (infowarss-repl/download-tagged-stuff)))
+                                                               (infowarss-lab/download-tagged-stuff)))
                                     :schedule "0 0 */5 * * * *"}
             :copy-wallpapers {:handler (fn [_] (log/info "New Wallpaper: "
-                                                         (infowarss-repl/copy-wallpapers-to-home)))
+                                                         (infowarss-lab/copy-wallpapers-to-home)))
                               :schedule "0 42 23 * * * *"}
             :remove-unread {:handler (fn [_]
                                        (infowarss-db/remove-unread-for-items-of-source-older-than

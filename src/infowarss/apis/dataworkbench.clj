@@ -9,7 +9,7 @@
    [infowarss.persistency :as persistency]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.blobstore :as blobstore]
-   [infowarss.repl :refer [+current-fetch-preview+]]
+   [infowarss.lab :as lab]
    [clj-memory-meter.core :as mm]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
@@ -88,7 +88,7 @@
 
 (def datasets
   {:usc-l (fn []
-            (let [venues (-> (infowarss.repl/get-usc-venues)
+            (let [venues (-> (lab/get-usc-venues)
                              :data :venues)
                   l-above (->> venues
                                (filter #(= 3 (apply min (:planTypeIds %)))))]

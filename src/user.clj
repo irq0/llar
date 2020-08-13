@@ -18,7 +18,7 @@
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
    [infowarss.logging :refer [with-logging-status]]
-   [infowarss.repl :refer :all]
+   [infowarss.lab :as lab]
    [clj-http.client :as http-client]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-time.core :as time]

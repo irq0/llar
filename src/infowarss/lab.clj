@@ -1,4 +1,4 @@
-(ns infowarss.repl
+(ns infowarss.lab
   (:require
    [infowarss.core :as core]
    [infowarss.db :as db]
@@ -24,14 +24,6 @@
 ;;;; Namespace to interact with infowarss from the REPL
 
 (s/set-fn-validation! true)
-
-(defn nrepl-handler []
-  (require 'cider.nrepl)
-  (ns-resolve 'cider.nrepl 'cider-nrepl-handler))
-
-(defstate nrepl-server
-  :start (start-server :port 42000 :handler (nrepl-handler))
-  :stop (stop-server nrepl-server))
 
 (def +current-fetch-preview+ (atom nil))
 

@@ -7,7 +7,7 @@
    [infowarss.db :as db]
    [infowarss.persistency :as persistency]
    [infowarss.blobstore :as blobstore]
-   [infowarss.repl :refer [+current-fetch-preview+ current-clustered-saved-items]]
+   [infowarss.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
    [infowarss.http :refer [try-blobify-url!]]
    [infowarss.metrics :as metrics]
    [infowarss.converter :as converter]
@@ -1305,7 +1305,7 @@
   [:main {:role "main"
           :class "col-xs-12 col-md-6 col-lg-8"}
    [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-    [:h3 (str "Saved, Bookmarked Items (n=" (apply + (map count (vals @infowarss.repl/current-clustered-saved-items))) ")")]
+    [:h3 (str "Saved, Bookmarked Items (n=" (apply + (map count (vals @current-clustered-saved-items))) ")")]
     [:div {:class "card-columns" :id "saved-items"}
      (for [[group-name items] @current-clustered-saved-items]
        [:div {:class "card"}
