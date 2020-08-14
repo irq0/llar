@@ -224,27 +224,34 @@ sidebar {
 
 
 @media (max-width: 768px) {
+    nav {
+	z-index: 10000;
+    }
     .sidebar-right {
 	padding-top: .5rem;
-	z-index: 100;
 	position: fixed;
-	height: calc(100vh - 48px);
 	overflow-x: hidden;
 	overflow-y: auto;
 	width: 100%;
 	right: 0px;
+	background: white;
+	height: calc(100vh - 8em);
+	top: 8em;
+	bottom: 0;
     }
     main {
 	overflow-x: hidden;
     }
     .sidebar-left {
 	padding-top: .5rem;
-	z-index: 100;
 	position: fixed;
-	height: calc(100vh - 48px);
 	overflow-x: hidden;
 	overflow-y: auto;
 	width: 100%;
+	background: white;
+	height: calc(100vh - 8em);
+	top: 8em;
+	bottom: 0;
     }
 }
 /* tablet */
@@ -458,14 +465,6 @@ sidebar {
 }
 
 
-.item-content-nav {
-    top: 43px;
-    padding-top: 0.5em;
-    height: 3em;
-    background: white;
-    font-weight: 300;
-}
-
 .feed-item a {
     color: #000;
 }
@@ -628,16 +627,6 @@ table.exception-chain tr {
 #item-content-body-container {
 }
 
-#minimap {
-    top: calc(43px + 3.2em);
-    /*
-     * position: fixed;
-     * top: 55px;
-     */
-    height: calc(100vh - 48px);
-    background: -moz-element(#item-content-body) no-repeat center / contain;
-    filter: opacity(80%);
-}
 
 /*
  * #minimap-range {
@@ -656,7 +645,36 @@ table.exception-chain tr {
  * }
  */
 
+/* phone */
+@media (max-width: 768px) {
+    #minimap {
+	display: none;
+
+
+    }
+
+}
 @media (min-width: 800px) {
+    
+.item-content-nav {
+    top: 43px;
+    padding-top: 0.5em;
+    height: 3em;
+    background: white;
+    font-weight: 300;
+    position: sticky;
+}
+
+#minimap {
+    top: calc(43px + 3.2em);
+    /*
+     * position: fixed;
+     * top: 55px;
+     */
+    height: calc(100vh - 48px);
+    background: -moz-element(#item-content-body) no-repeat center / contain;
+    filter: opacity(80%);
+}
 
     nav {
 	scrollbar-width: none;  /* Firefox */
