@@ -19,9 +19,9 @@
    [clojure.contrib.humanize :as human]
    [infowarss.postproc :as proc]
    [clojure.string :as string]
-   [clojurewerkz.urly.core :as urly]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
+   [org.bovinegenius [exploding-fish :as uri]]
    [hara.time.joda]))
 
 ;;;; Core configuration and data structures
@@ -87,8 +87,8 @@
   [& {:keys [keep-orig?]
       :or {keep-orig? false}}]
   (fn [item]
-    (let [site (some-> item :entry :url .getHost)
-          path (some-> item :entry :url .getPath)]
+    (let [site (some-> item :entry :url uri/host)
+          path (some-> item :entry :url uri/path)]
       (cond
         ;; images
         (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
@@ -108,14 +108,6 @@
            (log/errorf (str item) "Mercury Error. Not replacing content with mercury")
            item))))))
 
-(defn human-host-identifier [url]
-  (let [host (.getHost url)]
-    (try+
-     (let [site (.topPrivateDomain host)]
-       (.name site))
-     (catch Object _
-       (str host)))))
-
 (defn make-readability-bookmark-feed [url]
   (let [src (src/mercury url)]
     {:src src
@@ -124,8 +116,8 @@
             :post [(fn [item]
                      (let [summary (bookmark-html item)
                            html (get-in item [:entry :contents "text/html"])
-                           url (some-> item :entry :url urly/url-like)
-                           site (human-host-identifier url)]
+                           url (some-> item :entry :url uri/uri)
+                           site (http/human-host-identifier url)]
                        (-> item
                            (assoc-in [:entry :contents "text/html"]
                                      (str summary "\n\n\n" html))
@@ -147,8 +139,8 @@
             :post [(fn [item]
                      (let [summary (bookmark-html item)
                            html (get-in item [:entry :contents "text/html"])
-                           url (some-> item :entry :url urly/url-like)
-                           site (human-host-identifier url)]
+                           url (some-> item :entry :url uri/uri)
+                           site (http/human-host-identifier url)]
                        (-> item
                            (assoc-in [:entry :contents "text/html"]
                                      (str summary "\n\n\n" html))
@@ -171,7 +163,7 @@
 
 (defn make-hacker-news-filter [min-score min-score-match]
   (fn [item]
-    (let [site (some-> item :entry :url .getHost)
+    (let [site (some-> item :entry :url uri/host)
           score (get-in item [:entry :score])
           title (some-> (get-in item [:summary :title]) string/lower-case)
           type (get-in item [:entry :type])]
@@ -200,8 +192,8 @@
              (let [score (get-in item [:entry :score])]
                (< score min-score)))
    :post [(fn [item]
-            (let [site (some-> item :entry :url .getHost)
-                  path (some-> item :entry :url .getPath)]
+            (let [site (some-> item :entry :url uri/host)
+                  path (some-> item :entry :url uri/path)]
               (cond
                 (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
                     (re-find #"\.(jpg|jpeg|gif|png)$" path))
@@ -1446,7 +1438,7 @@
                                                                         (S/class "post__link"))
                                                                        (:hickory redirect-page))
                                                                       first :attrs :href)]
-                                        (assoc-in item [:entry :url] (urly/url-like real-article-link))))])
+                                        (assoc-in item [:entry :url] (uri/uri real-article-link))))])
               :tags #{:magazine}
               :options #{:main-list-use-description}
               :cron cron-daily}

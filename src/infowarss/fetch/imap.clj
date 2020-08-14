@@ -6,6 +6,7 @@
    [infowarss.postproc :as postproc]
    [infowarss.analysis :as analysis]
    [clojure-mail.core :as mail-core]
+   [org.bovinegenius [exploding-fish :as uri]]
    [clojure-mail.message :as mail-message]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
@@ -38,7 +39,7 @@
   (let [p (mail-core/as-properties {"mail.imap.starttls.enable" "true"
                                     "mail.imap.ssl.checkserveridentity" "true"})
         session (Session/getDefaultInstance p)
-        store (mail-core/store (.getScheme uri) session (.getHost uri)
+        store (mail-core/store (uri/scheme uri) session (uri/host uri)
                                username password)
         msgs (doall (map (fn [id]
                            (let [msg (mail-message/read-message id)]
@@ -54,7 +55,7 @@
                                 :content-type (:content-type msg)
                                 :body (mail-body-to-contents msg)
                                 :headers (:headers msg)})))
-                         (mail-core/unread-messages store (subs (.getPath uri) 1))))]
+                         (mail-core/unread-messages store (subs (uri/path uri) 1))))]
     (mail-core/close-store store)
     msgs))
 
@@ -79,7 +80,7 @@
 (extend-protocol fetch/FetchSource
   infowarss.src.ImapMailbox
   (fetch-source [src]
-    (for [m (get-new-messages (:uri src) (:creds src))]
+    (for [m (get-new-messages (uri/uri (:uri src)) (:creds src))]
       (->ImapItem
        (fetch/make-meta src)
        {:ts (mail-ts m) :title (:subject m)}

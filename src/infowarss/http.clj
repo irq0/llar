@@ -12,11 +12,10 @@
    [hickory.render :as hick-r]
    [hickory.zip :as hick-z]
    [taoensso.timbre :as log]
-   [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.zip :as zip]
    [mount.core :refer [defstate]]
-   [clojurewerkz.urly.core :as urly]
+   [org.bovinegenius [exploding-fish :as uri]]
    [clj-time.core :as time]))
 
 
@@ -85,12 +84,30 @@
 
 (def unparsable-urls (atom []))
 
+(defn human-host-identifier [url]
+  (let [host (uri/host url)]
+    (try+
+     (let [guava-host (com.google.common.net.InternetDomainName/from host)
+           site (.topPrivateDomain guava-host)]
+       (.name site))
+     (catch Object _
+       (str host)))))
+
+(defn sensible-uri-or-nil [uri]
+  (when (and (uri/scheme uri) (uri/host uri)) uri))
+
+(defn remove-url-garbage [uri]
+  (cond-> uri
+    (:path uri)
+    (uri/path
+     (string/replace (uri/path uri) #"[^a-zA-Z0-9\.-_~!&'\(\)*+,;=:@/]" ""))))
+
 (defn parse-url [s]
-  (if-let [url (or (swallow-exceptions (urly/url-like s))
-                   (swallow-exceptions (urly/url-like
-                                        (second (re-find url-regex s))))
-                   (swallow-exceptions (urly/url-like (io/as-url s))))]
-    url
+  (if-let [url (or (sensible-uri-or-nil (uri/uri s))
+                   (sensible-uri-or-nil (uri/uri
+                                         (second (re-find url-regex s))))
+                   (uri/uri s))]
+    (remove-url-garbage url)
     (do
       (swap! unparsable-urls conj s)
       (throw+ {:type ::absolutify-impossible
@@ -106,14 +123,8 @@
   [raw-href :- (s/cond-pre schema/NotEmptyStr schema/URLType)
    raw-base-url :- (s/maybe (s/cond-pre s/Str schema/URLType))]
   (let [url (parse-href raw-href)]
-    (cond
-      (and (nil? url) (string? raw-href) (string/starts-with? raw-href "mailto:"))
-      (io/as-url raw-href)
-
-      (urly/absolute? url)
+    (if (uri/absolute? url)
       url
-
-      :else
       (let [base-url (parse-url raw-base-url)]
         (cond
           (nil? base-url)
@@ -123,26 +134,25 @@
                    :url url :base-url base-url
                    :msg "relative url requires absolute base-url"})
 
-          (urly/relative? base-url)
+          (not (uri/absolute? base-url))
           (throw+ {:type ::absolutify-impossible
                    :reason ::base-url-relative
                    :raw-href raw-href :raw-base-url raw-base-url
                    :url url :base-url base-url
                    :msg "base-url must be absolute"})
 
-          (and (urly/relative? url) (urly/absolute? base-url))
-          (urly/url-like (urly/absolutize (str url) base-url)))))))
+          :else
+          (uri/uri (uri/resolve-uri base-url (str url))))))))
 
-(s/defn get-base-url :- (s/constrained clojurewerkz.urly.UrlLike urly/absolute? "Absolute URL")
-  [url :- clojurewerkz.urly.UrlLike]
-  (-> url
-      urly/without-query-string-and-fragment
-      (.mutatePath "")))
+(s/defn get-base-url :- (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier uri/absolute? "Absolute URL")
+  [url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
+  (uri/path url nil))
 
-(s/defn get-base-url-with-path :- (s/constrained clojurewerkz.urly.UrlLike urly/absolute? "Absolute URL")
-  [url :- clojurewerkz.urly.UrlLike]
+(s/defn get-base-url-with-path :- (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier uri/absolute? "Absolute URL")
+  [url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
   (-> url
-      urly/without-query-string-and-fragment))
+      (uri/query nil)
+      (uri/fragment nil)))
 
 (defn parse-img-srcset [str]
   (when (and (string? str) (not (string/blank? str)))
@@ -206,8 +216,8 @@
 (defn try-blobify-url! [url]
   (let [url (parse-url url)]
     (if (or (nil? url)
-            (= (urly/path-of url) "/")
-            (= (urly/path-of url) "/#"))
+            (= (uri/path url) "/")
+            (= (uri/path url) "/#"))
       (str url)
       (try+
        (let [content-hash (blobstore/add-from-url! url)
@@ -294,7 +304,7 @@
                 (and (contains? #{:a :img} tag)
                      (try+
                       (let [url (parse-url (get attrs (get url-attribs tag)))
-                            host (urly/host-of url)
+                            host (uri/host url)
                             in-blacklist (contains? @domain-blacklist host)]
                         in-blacklist)
                       (catch Object _

@@ -66,12 +66,12 @@
   (sql-value [kw]
     (kw->pgenum kw)))
 
-(extend-type clojurewerkz.urly.UrlLike
+(extend-type org.bovinegenius.exploding_fish.UniformResourceIdentifier
   clojure.java.jdbc/ISQLValue
-  (sql-value [urly]
-    (str urly)))
+  (sql-value [url]
+    (str url)))
 
-(add-encoder clojurewerkz.urly.UrlLike encode-str)
+(add-encoder org.bovinegenius.exploding_fish.UniformResourceIdentifier encode-str)
 
 (def +schema-enums+
   "A set of all PostgreSQL enums in schema.sql. Used to convert

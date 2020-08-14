@@ -3,14 +3,11 @@
    [infowarss.http :as uut]
    [hickory.select :as s]
    [clojure.test :refer :all]
+   [org.bovinegenius [exploding-fish :as uri]]
    [clojure.set :refer [union intersection]]
    [clojure.string :as string]
-   [clojurewerkz.urly.core :as urly]
    [slingshot.test :refer :all]
    [mount.core :as mount]))
-
-
-
 
 (def hick
   {:type :document,
@@ -187,7 +184,7 @@
   (testing
       "Half kaputt, but quirks-mode parsable"
 
-    (is (= "http://www.google.com/search?hl=en&q=2%5E20+*+2%5E12+bytes+in+GB"
+    (is (= "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB"
            (str (uut/absolutify-url "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB" nil))))
     (is (= "https://example.com/3/extending/extending.html"
            (str (uut/absolutify-url "https://example.com/3/extending/extending.html\"" nil))))
@@ -196,7 +193,7 @@
   (testing
       "Absolute urls"
     (is
-     (= "http://example.com/" (str (uut/absolutify-url "http://example.com"
+     (= "http://example.com" (str (uut/absolutify-url "http://example.com"
                                                        "http://some-other-base-url.com")))
      "Absolute urls are returned as is regardless of base url"))
   (testing "Meaningless input should throw"
@@ -207,16 +204,5 @@
                   (uut/absolutify-url "/example.com" "/foo"))))
   (testing "Path traversing should be resolved"
     (is (= "https://example.com/baz"
-           (str (uut/absolutify-url "../../baz" "https://example.com/"))))
-    (is (= "https://example.com/baz"
-           (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar")))))
-  (testing "broken urls should throw"
-    (is (thrown+? [:type :infowarss.http/absolutify-impossible
-                   :reason :infowarss.http/unparsable-url]
-                  (uut/absolutify-url "<?= $page->url() ?>" "http://example.com")))
-    (is (thrown+? [:type :infowarss.http/absolutify-impossible
-                   :reason :infowarss.http/unparsable-url]
-                  (uut/absolutify-url "<?= $page->url() ?>" "http://example.com"))))
-
-
+           (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar/")))))
   )

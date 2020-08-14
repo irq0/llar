@@ -18,8 +18,8 @@
             [infowarss.schema :as schema]
             [infowarss.converter :as conv]
             [schema.core :as s]
+            [org.bovinegenius [exploding-fish :as uri]]
             [slingshot.slingshot :refer [throw+ try+]]
-            [clojurewerkz.urly.core :as urly]
             [taoensso.timbre :as log]
             [hickory.core :as hick]
             [hickory.select :as hick-s]
@@ -107,7 +107,7 @@
 (extend-protocol FetchSource
   infowarss.src.Feed
   (fetch-source [src]
-    (let [url (urly/url-like (:url src))
+    (let [url (uri/uri (:url src))
           base-url (get-base-url url)
           http-item (fetch url :user-agent (get-in src [:args :user-agent]))
           res (try+
@@ -118,7 +118,7 @@
           raw-feed-url (:link res)
           feed-url (if (nil? raw-feed-url)
                      url
-                     (absolutify-url (urly/url-like raw-feed-url) base-url))
+                     (absolutify-url (uri/uri raw-feed-url) base-url))
 
           feed {:title (-> res :title)
                 :language (-> res :language)
@@ -131,8 +131,8 @@
         (let [timestamp (extract-feed-timestamp re http-item)
               authors (extract-feed-authors (:authors re))
               in-feed-contents (extract-feed-content (:contents re))
-              contents-url (-> re :link urly/url-like)
-              contents-base-url (if (urly/absolute? contents-url)
+              contents-url (-> re :link uri/uri)
+              contents-base-url (if (uri/absolute? contents-url)
                                   (get-base-url contents-url)
                                   base-url)
               contents-url (absolutify-url contents-url contents-base-url)
@@ -203,7 +203,7 @@
     (let [{:keys [url selectors extractors args]} src
           user-agent (:user-agent args)
           {:keys [summary hickory]} (fetch url :user-agent user-agent)
-          base-url (get-base-url-with-path (urly/url-like url))
+          base-url (get-base-url-with-path (uri/uri url))
 
           meta (make-meta src)
           feed {:title (:title summary)
@@ -285,7 +285,7 @@
                           (log/debug "Could not fetch article's authors endpoint:"
                                      headers body status (get-in post [:_links :self]))
                           [""]))
-               url (urly/url-like (get post :link))
+               url (uri/uri (get post :link))
                base-url (get-base-url url)
                title (get-in post [:title :rendered])
                pub-ts (some-> post :date_gmt tc/from-string)

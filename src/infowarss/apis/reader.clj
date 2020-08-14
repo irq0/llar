@@ -8,7 +8,8 @@
    [infowarss.persistency :as persistency]
    [infowarss.blobstore :as blobstore]
    [infowarss.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
-   [infowarss.http :refer [try-blobify-url!]]
+   [org.bovinegenius [exploding-fish :as uri]]
+   [infowarss.http :refer [try-blobify-url! human-host-identifier]]
    [infowarss.metrics :as metrics]
    [infowarss.converter :as converter]
    [clojure.java.io :as io]
@@ -719,8 +720,8 @@
   [str-url]
   (try+
    (let [url (io/as-url str-url)
-         site (some-> url .getHost)
-         path (or (some-> url .getPath) "")
+         site (some-> url uri/host)
+         path (or (some-> url uri/path) "")
          path-seq (-> path (string/split #"/") next vec)
          path-len (count path-seq)
          path-last (or (last path-seq) "")]
@@ -780,17 +781,6 @@
     (nth +word-cloud-sizes+
          (-> size int (max 0) (min max-size)))))
 
-(defn human-host-identifier
-  "Helper: Get hostname identifer from URL"
-  [str-url]
-  (let [url (io/as-url str-url)
-        host (.getHost url)]
-    (try+
-     (let [site (.topPrivateDomain host)]
-       (.name site))
-     (catch Object _
-       (str host)))))
-
 (defn short-page-headline
   [x]
   (let [{:keys [mode source-key group-item]} x
@@ -836,7 +826,7 @@
   (let [{:keys [sources]} x
         {:keys [id source-key title ts author tags
                 nwords names entry url urls top-words]} item
-        url-site (some-> url io/as-url .getHost)
+        url-site (some-> url uri/uri uri/host)
         source (get sources (keyword source-key))
         options (:options source)
         boring-filter (fn [word]
@@ -937,7 +927,7 @@
        (for [[text all-text-urls] (->> urls
                                        ;; controversial? remove urls pointing to same site
                                        (remove (fn [str-url]
-                                                 (= (some-> str-url io/as-url .getHost)
+                                                 (= (some-> str-url uri/uri uri/host)
                                                     url-site)))
                                        (filter #(> (count %) 20))
                                        (take 20)

@@ -58,7 +58,7 @@
   {:url URLStr})
 
 (defschema URLType
-  (s/cond-pre java.net.URL java.net.URI clojurewerkz.urly.UrlLike))
+  (s/cond-pre java.net.URL java.net.URI org.bovinegenius.exploding_fish.UniformResourceIdentifier))
 
 ;;; *Items
 

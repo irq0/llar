@@ -18,6 +18,7 @@
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
    [infowarss.logging :refer [with-logging-status]]
+   [org.bovinegenius [exploding-fish :as uri]]
    [infowarss.lab :as lab]
    [clj-http.client :as http-client]
    [slingshot.slingshot :refer [throw+ try+]]

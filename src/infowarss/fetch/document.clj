@@ -12,6 +12,7 @@
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [clojure.string :as string]
+   [org.bovinegenius [exploding-fish :as uri]]
    [clojure.java.io :as io]
    [schema.core :as s]
    [pantomime.web :refer [mime-type-of]]
@@ -89,7 +90,7 @@
             meta (extract/parse data)
             ts (or (some-> (:creation-date meta) tc/from-string)
                    (time/now))
-            title (or (first (:title meta)) (some-> (:url src) .getPath io/as-file .getName))]
+            title (or (first (:title meta)) (some-> (:url src) uri/uri uri/path io/as-file .getName))]
 
         [(->DocumentItem
           (fetch/make-meta src)

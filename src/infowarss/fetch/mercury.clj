@@ -7,7 +7,7 @@
    [infowarss.persistency :refer [CouchItem]]
    [infowarss.analysis :as analysis]
    [infowarss.http :refer [absolutify-url absolutify-links-in-hick get-base-url-with-path blobify try-blobify-url! sanitize]]
-   [clojurewerkz.urly.core :as urly]
+   [org.bovinegenius [exploding-fish :as uri]]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]
@@ -58,7 +58,8 @@
   [url :- schema/URLType
    api-key :- s/Str]
   (try+
-   (let [url (urly/url-like url)
+   (let [url (uri/uri url)
+
          resp (http/get "https://mercury.postlight.com/parser"
                         {:accept :json
                          :as :json
@@ -91,7 +92,7 @@
 (s/defn mercury-local
   [url :- schema/URLType]
   (try+
-   (let [url (urly/url-like url)
+   (let [url (uri/uri)
          {:keys [exit out err]} (shell/sh "/home/seri/opt/mercury-parser/cli.js" (str url))
          base-url (get-base-url-with-path url)
          json (json/parse-string out true)]
@@ -119,7 +120,7 @@
 (extend-protocol FetchSource
   infowarss.src.MercuryWebParser
   (fetch-source [src]
-    (let [url (urly/url-like (:url src))
+    (let [url (uri/uri (:url src))
           base-url (get-base-url-with-path url)
           mercu (mercury-local url)
           pub-ts (or (tc/from-string (:date_published mercu)) (time/now))
@@ -131,9 +132,9 @@
         (fetch/make-meta src)
         {:ts pub-ts :title title}
         (fetch/make-item-hash (:content mercu))
-        {:url (absolutify-url (urly/url-like (:url mercu)) base-url)
+        {:url (absolutify-url (uri/uri (:url mercu)) base-url)
          :lead-image-url (some-> (:lead_image_url mercu)
-                                 urly/url-like
+                                 uri/uri
                                  (absolutify-url base-url)
                                  try-blobify-url!)
          :pub-ts pub-ts

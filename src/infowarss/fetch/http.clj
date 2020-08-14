@@ -13,7 +13,7 @@
    [clj-http.client :as http-client]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
-   [clojurewerkz.urly.core :as urly]))
+   [org.bovinegenius [exploding-fish :as uri]]))
 
 (s/defrecord GenericWebsiteItem
              [meta :- schema/Metadata
@@ -53,7 +53,7 @@
   infowarss.src.PaywalledWebsite
   (fetch-source [src]
     (let [{:keys [url cookie-getter args]} src
-          url (urly/url-like url)
+          url (uri/uri url)
           base-url (http/get-base-url url)
           cookie-jar (cookie-getter)]
       (try+

@@ -9,6 +9,7 @@
    [pantomime.mime :as pm]
    [slingshot.slingshot :refer [throw+ try+]]
    [mount.core :refer [defstate]]
+   [org.bovinegenius [exploding-fish :as uri]]
    [nio2.core :as nio2]
    [digest :as digest]))
 
@@ -41,7 +42,7 @@
 (s/defn create-url-index-entry-for-url :- s/Str
   "Create secondary url index entry: url -> hash"
   [content-hash :- s/Str
-   url :- clojurewerkz.urly.UrlLike]
+   url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
   (let [file-abs (blob-file +blob-store+ content-hash)
         url-hash (digest/sha-256 (str url))
         dupe-file (-> (blob-file +blob-store-dupes+ url-hash) io/as-file .toPath)
@@ -139,7 +140,7 @@
 
 ;;      (log/debugf "BLOBSTORE STORE %s -> %s (%s) LOCK %s FILE %s SIZE %s"
         ;; url content-hash mime lock-key file (count body))
-     (when (= (.getPath url) "/")
+     (when (= (uri/path url) "/")
        (log/warn "BLOBSTORE Broken url?" url)
        (throw+ {:type ::perm-fail :url url}))
 
@@ -177,7 +178,7 @@
      (throw+ {:type ::undefined-error :url url}))))
 
 (s/defn add-from-url! :- s/Str
-  [url :- clojurewerkz.urly.UrlLike]
+  [url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
   (or (find-in-url-index url)
       (download-and-add! url)))
 

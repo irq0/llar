@@ -4,7 +4,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clj-time.format :as tf]
-   [clojurewerkz.urly.core :as urly]
+   [org.bovinegenius [exploding-fish :as uri]]
    [pantomime.mime :as pm]
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
@@ -118,7 +118,7 @@
   (.write w (str v))
   (.write w "\""))
 
-(defmethod print-method clojurewerkz.urly.UrlLike
+(defmethod print-method org.bovinegenius.exploding_fish.Uri
   [v ^java.io.Writer w]
   (.write w "#url \"")
   (.write w (str v))
@@ -140,8 +140,8 @@
 (defn read-edn-string [s]
   (edn/read-string
    {:readers {'datetime tc/from-string
-              'url urly/url-like
-              'uri urly/url-like
+              'url uri/uri
+              'uri uri/uri 
               'atom (fn [x] (atom x))
               'error (fn [_] nil)  ; Throw away error details
               'object (fn [_] (Object.))}

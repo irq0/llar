@@ -58,7 +58,7 @@
                  [clojure-humanize "0.2.2"]
                  [clj-time "0.15.2"]
                  [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
-                 [clojurewerkz/urly "1.0.0"]
+                 [org.bovinegenius/exploding-fish "0.3.6"]
                  [com.mchange/c3p0 "0.9.5.2"]
                  [mvxcvi/puget "1.2.0"]
                  [cc.artifice/clj-ml "0.8.5"]
