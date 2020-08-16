@@ -9,6 +9,7 @@
    [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [clojure.edn :as edn]
+   [puget.printer :as puget]
    [clojure.java.shell :as shell]))
 
 (def +html-to-text-tools+
@@ -100,54 +101,68 @@
       (throw+ {:type ::thumbnail-creation-failed :exit exit :out out :err err}))
     {"image/png" out}))
 
-(defmethod print-method org.joda.time.DateTime
-  [v ^java.io.Writer w]
-  (.write w "#datetime \"")
-  (.write w (tc/to-string v))
-  (.write w "\""))
+;; propsfile: blobstore metadata
 
-(defmethod print-method java.net.URL
-  [v ^java.io.Writer w]
-  (.write w "#url \"")
-  (.write w (str v))
-  (.write w "\""))
+(def +propsfile-handlers+
+  {org.bovinegenius.exploding_fish.Uri
+   (puget/tagged-handler
+    'org.irq0.🖖/url str)})
 
-(defmethod print-method java.net.URI
-  [v ^java.io.Writer w]
-  (.write w "#url \"")
-  (.write w (str v))
-  (.write w "\""))
+(defn print-propsfile [props]
+  (puget/pprint-str props {:print-handlers +propsfile-handlers+
+                           :print-fallback :error}))
 
-(defmethod print-method org.bovinegenius.exploding_fish.Uri
-  [v ^java.io.Writer w]
-  (.write w "#url \"")
-  (.write w (str v))
-  (.write w "\""))
-
-(defmethod print-method clojure.lang.Atom
-  [v ^java.io.Writer w]
-  (.write w "#atom ")
-  (.write w (prn-str @v)))
-
-(defmethod print-method java.lang.Object
-  [v ^java.io.Writer w]
-  (.write w "#object \"")
-  (.write w (str v))
-  (.write w "\""))
-
-(defrecord TaggedValue [tag value])
-
-(defn read-edn-string [s]
+(defn read-edn-propsfile [s]
   (edn/read-string
-   {:readers {'datetime tc/from-string
-              'url uri/uri
-              'uri uri/uri 
-              'atom (fn [x] (atom x))
-              'error (fn [_] nil)  ; Throw away error details
-              'object (fn [_] (Object.))}
-    :default ->TaggedValue}
+   {:readers {'org.irq0.🖖/datetime tc/from-string
+              'org.irq0.🖖/url uri/uri
+              'org.irq0.🖖/atom (fn [x] (atom x))}}
    s))
 
+;; reader annotations data store
+
+(defn print-annotations [props]
+  (puget/pprint-str props {:print-fallback :error}))
+
+(defn read-edn-annotations [s]
+  (edn/read-string s))
+
+(def +state-handlers+
+  {org.joda.time.DateTime
+   (puget/tagged-handler
+    'org.irq0.🖖/datetime tc/to-string)})
+
+;; feed fetch state
+
+(def +state-handlers+
+  {org.joda.time.DateTime
+   (puget/tagged-handler
+    'org.irq0.🖖/datetime
+    tc/to-string)
+
+   clojure.lang.Atom
+   (puget/tagged-handler
+    'org.irq0.🖖/atom
+    (fn [value] (puget/pprint-str @value)))
+
+   org.bovinegenius.exploding_fish.Uri
+   (puget/tagged-handler 
+    'org.irq0.🖖/url str)})
+
+(defn print-state [state]
+  (puget/pprint-str state {:print-handlers +state-handlers+
+                           :print-fallback :error}))
+
+(defrecord GenericTaggedValue [tag value])
+
+(defn read-edn-state [s]
+  (edn/read-string
+   {:readers {'org.irq0.🖖/datetime tc/from-string
+              'org.irq0.🖖/url uri/uri
+              'org.irq0.🖖/atom (fn [x] (atom x))}
+    :default ->GenericTaggedValue}
+   s))
+  
 (defn to-fever-timestamp
   "Convert clj-time time object to fever unix timestamp"
   [time]

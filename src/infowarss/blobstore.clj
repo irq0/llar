@@ -39,6 +39,16 @@
       io/as-file
       .mkdirs))
 
+(defn- read-propsfile [filename]
+  (let [content (slurp filename)]
+    (try+
+     (conv/read-edn-propsfile content)
+     (catch Object _
+       (throw+ {:type ::props-read-error
+                :filename filename
+                :content content})))))
+
+
 (s/defn create-url-index-entry-for-url :- s/Str
   "Create secondary url index entry: url -> hash"
   [content-hash :- s/Str
@@ -69,7 +79,7 @@
                                             :file-link link
                                             :propsfile propsfile
                                             :file file
-                                            :props (conv/read-edn-string (slurp (nio2/input-stream link-props)))})
+                                            :props (conv/read-edn-propsfile (slurp (nio2/input-stream link-props)))})
        ;; (java.nio.file.Files/delete (.toPath link-props))
 
 
@@ -149,7 +159,7 @@
        (let [exists? (and (.exists propsfile)
                           (.exists file))
              props (if (.exists propsfile)
-                     (let [prev-probs (conv/read-edn-string (slurp propsfile))
+                     (let [prev-probs (read-propsfile propsfile)
                            prev-urls (setify-urls (:orig-urls prev-probs))]
                        {:orig-urls (conj prev-urls url)
                         :hits (+ 1 (:hits prev-probs))
@@ -160,7 +170,7 @@
          (when-not exists?
            (with-open [o (io/output-stream file)]
              (.write o body)))
-         (spit propsfile (prn-str props))
+         (spit propsfile (conv/print-propsfile props))
          (create-url-index-entry-for-url content-hash url)))
      content-hash)
    (catch client-error?
@@ -189,7 +199,7 @@
   (let [file (blob-file +blob-store+ hash)
         size (.length file)
         propsfile (str file ".props")
-        props (conv/read-edn-string (slurp propsfile))
+        props (read-propsfile propsfile)
         blob (-> props
                  (assoc :hash hash)
                  (assoc :file file)

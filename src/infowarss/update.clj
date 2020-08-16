@@ -19,17 +19,17 @@
 (defn startup-read-state []
   (let [res (io/resource "state.edn")
         backup (io/file (str "/tmp/infowarss_state.edn." (tc/to-string (time/now))))]
-    (log/info "Reading state file. Backup in " backup)
+    (log/info "Reading feed state file. Creating backup in " backup)
     (io/copy (io/file (.getFile res)) backup)
     (try+
-     (converter/read-edn-string (slurp res))
+     (converter/read-edn-state (slurp res))
      (catch java.lang.RuntimeException _
        (log/warn "Failed to read state file. Starting with clean state")
        {}))))
 
 (defstate state
   :start (atom (startup-read-state))
-  :stop (spit (io/resource "state.edn") (prn-str @state)))
+  :stop (spit (io/resource "state.edn") (converter/print-state @state)))
 
 (defn get-current-state []
   (into {}
@@ -49,7 +49,6 @@
    :last-attempt-ts nil
    :forced-update? false
    :status :new
-   :update-lock (Object.)
    :last-exception nil
    :retry-count 0})
 
@@ -172,7 +171,7 @@
     (swap! state assoc k (assoc src-state-template :key k)))
 
     ;; don't update the same feed in parallel
-  (locking (get-in @state [k :update-lock])
+  (locking (get @state k)
     ;; push force update flag into state to make it accessible to ItemProcessor
     (swap! state update k assoc :forced-update? force)
 

@@ -11,11 +11,14 @@
    [clj-time.core :as time]
    [taoensso.timbre :as log]
    [clojure.java.io :as io]
+   [clj-time.coerce :as tc]
    [clojure.string :as string]
    [schema.core :as s]
    [cheshire.core :as json]
+   [org.bovinegenius [exploding-fish :as uri]]
    [clojure.java.shell :as shell]
    [mount.core :refer [defstate]]
+   [clojure.edn :as edn]
    [nrepl.server :refer [start-server stop-server]]
    [pantomime.mime :as pm]
    [clj-ml.clusterers :as ml-clusterers]
@@ -338,3 +341,30 @@
        (remove #(some (partial = "Massage") (map :name (:categories %))))
        (map #(merge (select-keys % [:district :name :location])
                     {:categories (string/join ", " (map :name (:categories %)))}))))
+
+
+;; migrate prop files to new format
+
+;; fix all the prop files
+(defn old-read-edn-string [s]
+  (edn/read-string
+   {:readers {'datetime tc/from-string
+              'url uri/uri
+              'uri uri/uri 
+              'atom (fn [x] (atom x))
+              'error (fn [_] nil)  ; Throw away error details
+              'object (fn [_] (Object.))}
+    :default infowarss.converter/->TaggedValue}
+   s))
+
+(defn prop-fix [filename]
+  (let [content (slurp filename)
+        no-set (-> content
+                   (string/replace #"#\{" "[")
+                   (string/replace #"}," "]"))
+        parsed (old-read-edn-string no-set)]
+    (-> parsed
+        (assoc :orig-urls (into #{} (:orig-urls parsed))))))
+
+(comment
+  (filter #(string/ends-with? % ".props") (file-seq  (io/file "/fast/infowarss/blobs/")))

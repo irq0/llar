@@ -49,17 +49,17 @@
 (defn- startup-read-state []
   (let [res (io/resource "annotations.edn")
         backup (io/file (str "/tmp/infowarss_annotations.edn." (tc/to-string (time/now))))]
-    (log/info "Reading state file. Backup in " backup)
+    (log/info "Reading annotations file. Creating backup in " backup)
     (io/copy (io/file (.getFile res)) backup)
     (try+
-     (converter/read-edn-string (slurp res))
+     (converter/read-edn-annotations (slurp res))
      (catch java.lang.RuntimeException _
        (log/warn "Failed to read state file. Starting with clean state")
        {}))))
 
 (defstate annotations
   :start (atom (startup-read-state))
-  :stop (spit (io/resource "annotations.edn") (prn-str @annotations)))
+  :stop (spit (io/resource "annotations.edn") (converter/print-annotations @annotations)))
 
 (def +max-items+
   "Number of items in item list. All fetched at once."
