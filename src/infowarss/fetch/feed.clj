@@ -27,8 +27,7 @@
             [clj-rome.reader :as rome]
             [clj-http.client :as http]
             [cheshire.core :as cheshire]
-            [clj-time.core :as time]
-            [clj-time.coerce :as tc]))
+            [java-time :as time]))
 
 (s/defrecord FeedItem
              [meta :- schema/Metadata
@@ -73,11 +72,14 @@
       "text/html" (assoc by-type "text/plain" (conv/html2text (get by-type "text/html")))
       (assoc by-type "text/plain" (first (vals by-type))))))
 
+(defn- feed-date-to-zoned-date-time [x]
+  (time/zoned-date-time x (time/zone-id "UTC")))
+
 (defn- extract-feed-timestamp
   "Extract feed entry timestamp"
   [e http]
-  (or (some-> e :published-date tc/from-date)
-      (some-> e :updated-date tc/from-date)
+  (or (some-> e :published-date)
+      (some-> e :updated-date) 
       (get-in http [:meta :fetch-ts])))
 
 (defn http-get-feed-content [url]
@@ -125,7 +127,7 @@
                 :url feed-url
                 :descriptions {"text/plain" (-> res :description)}
                 :encoding (-> res :encoding)
-                :pub-ts (some->> res :published-date tc/from-date)
+                :pub-ts (some->> res :published-date feed-date-to-zoned-date-time)
                 :feed-type (-> res :feed-type)}]
       (for [re (:entries res)]
         (let [timestamp (extract-feed-timestamp re http-item)
@@ -143,8 +145,8 @@
                          (process-feed-html-contents contents-base-url in-feed-contents))
               descriptions (process-feed-html-contents contents-base-url
                                                        (extract-feed-description (:description re)))
-              base-entry {:updated-ts (some-> re :updated-date tc/from-date)
-                          :pub-ts (some-> re :published-date tc/from-date)
+              base-entry {:updated-ts (some-> re :updated-date feed-date-to-zoned-date-time)
+                          :pub-ts (some-> re :published-date feed-date-to-zoned-date-time)
                           :url contents-url
                           :categories (some->> re :categories
                                                (map :name) (remove nil?))
@@ -258,6 +260,13 @@
       (string? field) field
       (vector? field) (-> field first :href))))
 
+(defn- parse-utc-without-timezone [ts]
+  (time/zoned-date-time
+   (time/local-date-time
+    (time/formatter :iso-date-time)
+    ts)
+   (time/zone-id "UTC")))
+
 (extend-protocol FetchSource
   infowarss.src.WordpressJsonFeed
   (fetch-source [src]
@@ -288,7 +297,7 @@
                url (uri/uri (get post :link))
                base-url (get-base-url url)
                title (get-in post [:title :rendered])
-               pub-ts (some-> post :date_gmt tc/from-string)
+               pub-ts (some-> post :date_gmt parse-utc-without-timezone)
                description (get-in post [:excerpt :rendered])
                content-html (get-in post [:content :rendered])
                sanitized-html (-> content-html

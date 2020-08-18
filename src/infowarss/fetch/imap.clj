@@ -8,11 +8,11 @@
    [clojure-mail.core :as mail-core]
    [org.bovinegenius [exploding-fish :as uri]]
    [clojure-mail.message :as mail-message]
-   [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
    [pantomime.media :as mt]
+   [java-time :as time]
    [schema.core :as s])
   (:import
    [javax.mail Session]))
@@ -74,8 +74,9 @@
         (assoc :type :mail))))
 
 (defn mail-ts [m]
-  (tc/from-date (or (:date-sent m)
-                    (:date-received m))))
+  (time/zoned-date-time (time/formatter :iso-zoned-date-time)
+                        (or (:date-sent m)
+                            (:date-received m))))
 
 (extend-protocol fetch/FetchSource
   infowarss.src.ImapMailbox

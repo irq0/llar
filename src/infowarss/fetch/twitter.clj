@@ -8,7 +8,7 @@
             [twitter.api.restful :as twitter]
             [schema.core :as s]
             [clojure.java.io :as io]
-            [clj-time.format :as tf]))
+            [java-time :as time]))
 
 (s/defrecord TweetItem
              [meta :- schema/Metadata
@@ -21,7 +21,7 @@
 
 (defn- parse-twitter-ts [ts]
   (when-not (nil? ts)
-    (tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy") ts)))
+    (time/zoned-date-time (time/formatter "EEE MMM dd HH:mm:ss Z yyyy") ts)))
 
 (defn- tweet-title [s]
   (let [s (or s "")

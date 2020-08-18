@@ -2,7 +2,7 @@
   (:require [schema.core :as s :refer [defschema]]
             [clojure.test :refer [function?]]
             [clojure.string :as string]
-            [clj-time.format :as tf]
+            [java-time :as time]
             [clojure.java.io :as io]))
 
 ;;;; Schemas - Both for internal and external data
@@ -37,7 +37,7 @@
 
 (defschema TwitterTimestamp
   (s/constrained s/Str
-                 (partial tf/parse (tf/formatter "EEE MMM dd HH:mm:ss Z yyyy"))))
+                 (partial time/zoned-date-time (time/formatter "EEE MMM dd HH:mm:ss Z yyyy"))))
 
 (defschema URLStr
   (s/constrained s/Str io/as-url))
@@ -69,14 +69,14 @@
    :source-key s/Keyword
    :app s/Str
    :ns s/Str
-   :fetch-ts org.joda.time.DateTime
+   :fetch-ts java.time.ZonedDateTime
    :tags KwSet
    (s/optional-key :view-hints) {:html s/Keyword}
    :version PosInt})
 
 (defschema Summary
   "Summary data about an item"
-  {:ts org.joda.time.DateTime
+  {:ts java.time.ZonedDateTime
    :title s/Str})
 
 ;;; clj-http responses
@@ -103,9 +103,9 @@
 ;;; Feed Items
 
 (defschema FeedEntry
-  {:url (s/maybe URLType)
-   :updated-ts (s/maybe org.joda.time.DateTime)
-   :pub-ts (s/maybe org.joda.time.DateTime)
+  {:url (s/maybe URL)
+   :updated-ts (s/maybe java.time.ZonedDateTime)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
    :title s/Str
    :authors [s/Str]
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
@@ -118,8 +118,8 @@
    :url (s/maybe URLType)
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
    :encoding (s/maybe s/Str)
-   :pub-ts (s/maybe org.joda.time.DateTime)
-   :updated-ts (s/maybe org.joda.time.DateTime)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
+   :updated-ts (s/maybe java.time.ZonedDateTime)
    :feed-type s/Str})
 
 ;;; Mercury Parser
@@ -152,7 +152,7 @@
   {:url (s/maybe URLType)
    :title s/Str
    :authors [s/Str]
-   :pub-ts (s/maybe org.joda.time.DateTime)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
    :npages s/Int
    :orig-mime-type NotEmptyStr
    :orig-size s/Int
@@ -166,8 +166,8 @@
   {:title s/Str
    :id s/Str
    :authors [s/Str]
-   :received-ts (s/maybe org.joda.time.DateTime)
-   :sent-ts (s/maybe org.joda.time.DateTime)
+   :received-ts (s/maybe java.time.ZonedDateTime)
+   :sent-ts (s/maybe java.time.ZonedDateTime)
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
@@ -309,7 +309,7 @@
 
 (defschema TweetEntry
   {:url (s/maybe URLType)
-   :pub-ts (s/maybe org.joda.time.DateTime)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
    :score {:favs PosInt
            :retweets PosInt}
    :language s/Str
@@ -328,7 +328,7 @@
   {:score PosInt
    :author s/Str
    :id PosInt
-   :pub-ts (s/maybe org.joda.time.DateTime)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
    :title s/Str
    :type s/Keyword
    :url (s/maybe URLType) ;; something

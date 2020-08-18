@@ -4,7 +4,7 @@
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-http.client :as http2]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [schema.core :as s]
    [pantomime.mime :as pm]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -205,6 +205,6 @@
                  (assoc :file file)
                  (assoc :size size)
                  (assoc :data (io/input-stream file))
-                 (assoc :created (tc/from-long (.lastModified file))))]
+                 (assoc :created (time/zoned-date-time (time/instant (.lastModified file)) "UTC")))]
     ;; (log/debug "BLOBSTORE GET: " blob)
     blob))

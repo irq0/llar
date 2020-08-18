@@ -3,7 +3,7 @@
    [infowarss.db :as db]
    [infowarss.converter :as conv]
    [digest]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.generate :refer [add-encoder]]
@@ -16,9 +16,9 @@
 ;;; Extra cheshire encoders
 
 
-(add-encoder org.joda.time.DateTime
+(add-encoder java.time.ZonedDateTime
              (fn [dt jg]
-               (.writeString jg (tc/to-string dt))))
+               (.writeString jg (time/format :iso-zoned-date-time dt))))
 
 (add-encoder java.net.URL
              (fn [dt jg]

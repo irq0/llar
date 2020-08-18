@@ -5,20 +5,18 @@
    [infowarss.persistency :refer [store-items!]]
    [infowarss.postproc :as proc]
    [infowarss.converter :as converter]
-   [clj-time.core :as time]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
    [mount.core :refer [defstate]]
    [clojure.java.io :as io]
-   [hara.time.joda]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
 
 (defn startup-read-state []
   (let [res (io/resource "state.edn")
-        backup (io/file (str "/tmp/infowarss_state.edn." (tc/to-string (time/now))))]
+        backup (io/file (str "/tmp/infowarss_state.edn." (time/format :iso-instant (time/zoned-date-time))))]
     (log/info "Reading feed state file. Creating backup in " backup)
     (io/copy (io/file (.getFile res)) backup)
     (try+
@@ -61,7 +59,7 @@
 
   (let [feed (get *srcs* k)
         state (get @state k)
-        now (time/now)
+        now (time/zoned-date-time)
         {:keys [src]} feed]
     (try+
      (let [fetched (try+

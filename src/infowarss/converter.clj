@@ -3,10 +3,9 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [clojure.string :as string]
-   [clj-time.format :as tf]
    [org.bovinegenius [exploding-fish :as uri]]
    [pantomime.mime :as pm]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [clojure.edn :as edn]
    [puget.printer :as puget]
@@ -114,7 +113,7 @@
 
 (defn read-edn-propsfile [s]
   (edn/read-string
-   {:readers {'org.irq0.🖖/datetime tc/from-string
+   {:readers {'org.irq0.🖖/datetime #(time/zoned-date-time (time/formatter :iso-zoned-date-time) %)
               'org.irq0.🖖/url uri/uri
               'org.irq0.🖖/atom (fn [x] (atom x))}}
    s))
@@ -127,18 +126,13 @@
 (defn read-edn-annotations [s]
   (edn/read-string s))
 
-(def +state-handlers+
-  {org.joda.time.DateTime
-   (puget/tagged-handler
-    'org.irq0.🖖/datetime tc/to-string)})
-
 ;; feed fetch state
 
 (def +state-handlers+
-  {org.joda.time.DateTime
+  {java.time.ZonedDateTime
    (puget/tagged-handler
     'org.irq0.🖖/datetime
-    tc/to-string)
+    #(time/format :iso-zoned-date-time %))
 
    clojure.lang.Atom
    (puget/tagged-handler
@@ -157,24 +151,12 @@
 
 (defn read-edn-state [s]
   (edn/read-string
-   {:readers {'org.irq0.🖖/datetime tc/from-string
+   {:readers {'org.irq0.🖖/datetime #(time/zoned-date-time (time/formatter :iso-zoned-date-time) %)
               'org.irq0.🖖/url uri/uri
               'org.irq0.🖖/atom (fn [x] (atom x))}
     :default ->GenericTaggedValue}
    s))
   
-(defn to-fever-timestamp
-  "Convert clj-time time object to fever unix timestamp"
-  [time]
-  (try+
-   (-> time
-       tc/to-long
-       (/ 1000)
-       (.longValue)
-       (max 0))
-   (catch Object _
-     0)))
-
 (defn parse-http-ts [ts]
   (when-not (nil? ts)
-    (tf/parse (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z") ts)))
+    (time/zoned-date-time (time/formatter :rfc-1123-date-time)  ts)))

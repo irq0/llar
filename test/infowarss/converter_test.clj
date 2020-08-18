@@ -5,7 +5,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [clojure.set :refer [union intersection]]
    [clojure.string :as string]
-   [clj-time.core :as time]
+   [java-time :as time]
    [slingshot.test :refer :all]
    [mount.core :as mount]))
 
@@ -21,14 +21,14 @@
    "regular ok source"
     (is (= {:ok
             {:key :ok,
-             :last-successful-fetch-ts (time/date-time 2020 8 16 12 42 23 23)
-             :last-attempt-ts (time/date-time 2020 8 16 12 42 23 23)
+             :last-successful-fetch-ts (time/zoned-date-time 2020 8 16 12 42 23 0 "Z")
+             :last-attempt-ts (time/zoned-date-time 2020 8 16 12 42 23 0 "Z")
              :forced-update? nil,
              :status :ok,
              :last-exception nil,
              :retry-count 0}}
            (uut/read-edn-state
-            "{:ok {:key :ok, :last-successful-fetch-ts #org.irq0.🖖/datetime \"2020-08-16T12:42:23.023Z\", :last-attempt-ts #org.irq0.🖖/datetime \"2020-08-16T12:42:23.023Z\", :forced-update? nil, :status :ok, :last-exception nil, :retry-count 0}}\n")))))
+            "{:ok {:key :ok, :last-successful-fetch-ts #org.irq0.🖖/datetime \"2020-08-16T12:42:23.0Z\", :last-attempt-ts #org.irq0.🖖/datetime \"2020-08-16T12:42:23.0Z\", :forced-update? nil, :status :ok, :last-exception nil, :retry-count 0}}\n")))))
 
 (deftest read-what-you-print
   (testing "propsfile"
@@ -71,8 +71,8 @@
   (testing "state"
     (let [state {:ok
                  {:key :ok,
-                  :last-successful-fetch-ts (time/date-time 2020 8 16 12 42 23 23)
-                  :last-attempt-ts (time/date-time 2020 8 16 12 42 23 23)
+                  :last-successful-fetch-ts (time/zoned-date-time 2020 8 16 12 42 23 23)
+                  :last-attempt-ts (time/zoned-date-time 2020 8 16 12 42 23 23)
                   :forced-update? nil,
                   :status :ok,
                   :last-exception nil,

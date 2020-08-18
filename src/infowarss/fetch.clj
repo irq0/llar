@@ -2,8 +2,7 @@
   (:require
    [infowarss.schema :as schema]
    [digest]
-   [clj-time.core :as time]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [clojure.string :as string]
    [schema.core :as s]))
@@ -18,7 +17,7 @@
           (.getSimpleName (class item))
           (str (get-in item [:meta :source]))
           (if-not (nil? (get-in item [:summary :ts]))
-            (tc/to-string (get-in item [:summary :ts]))
+            (time/format (get-in item [:summary :ts]))
             "?")
           (str (get-in item [:summary :title]))))
 
@@ -37,7 +36,7 @@
    :source-key :unkown  ; get added later by postprocessing
    :app "infowarss"
    :ns (str *ns*)
-   :fetch-ts (time/now)
+   :fetch-ts (time/zoned-date-time)
    :tags #{}
    :version 2})
 

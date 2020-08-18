@@ -1,7 +1,7 @@
 (ns infowarss.sched
   (:require
-   [clj-time.core :as time]
    [infowarss.core :refer [*srcs*]]
+   [java-time :as time]
    [infowarss.update :refer [update!]]
    [infowarss.db :as infowarss-db]
    [infowarss.lab :as infowarss-lab]
@@ -24,7 +24,7 @@
   (sched/scheduler
    (make-sched-from-feeds *srcs*)
    {}
-   {:clock {:type "org.joda.time.DateTime"
+   {:clock {:type "java.time.ZonedDateTime"
             :timezone "Europe/Berlin"
             :interval 2}}))
 
@@ -80,17 +80,17 @@
                                          :reddit-postrock
                                          :reddit-ifyoulikeblank
                                          :reddit-berlin]
-                                        (time/minus (time/now) (time/weeks 4)))
+                                        (time/minus (time/zoned-date-time) (time/weeks 4)))
                                        (infowarss-db/remove-unread-for-items-of-source-older-than
                                         [:mydealz-hot :screenrant :wired :theverge :vox :kottke
                                          :vice :humblebundle]
-                                        (time/minus (time/now) (time/weeks 1)))
+                                        (time/minus (time/zoned-date-time) (time/weeks 1)))
                                        (infowarss-db/remove-unread-for-items-of-source-older-than
                                         [:weekly-programming-digest :oreilly-fourshortlinks
                                          :nasa-image-of-the-day :atlantic-best-of
                                          :reddit-dataisbeautiful
                                          :reddit-europe]
-                                        (time/minus (time/now) (time/weeks 2))))
+                                        (time/minus (time/zoned-date-time) (time/weeks 2))))
                             :schedule "0 42 23 * * * *"}}))
 
   :stop (sched/stop! sched))

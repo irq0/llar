@@ -12,8 +12,7 @@
    [hickory.render :as hick-r]
    [digest]
    [clj-http.client :as http]
-   [clj-time.core :as time]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [schema.core :as s]
@@ -123,7 +122,9 @@
     (let [url (uri/uri (:url src))
           base-url (get-base-url-with-path url)
           mercu (mercury-local url)
-          pub-ts (or (tc/from-string (:date_published mercu)) (time/now))
+          pub-ts (or (when (string? (:date_published mercu)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
+                                                              (:date_published mercu)))
+                     (time/zoned-date-time))
           title (cond
                   (string? (:title mercu)) (:title mercu)
                   (vector? (:title mercu)) (first (:title mercu))

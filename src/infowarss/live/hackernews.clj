@@ -7,9 +7,8 @@
    [infowarss.live.firebase :refer :all]
    [hiccup.core :refer [html]]
    [schema.core :as s]
-   [clj-time.core :as time]
-   [clj-time.coerce :as tc]
    [clojure.java.io :as io]
+   [java-time :as time]
    [slingshot.slingshot :refer [try+]]
    [clojure.core.async :refer [>!! <!!] :as async]
    [taoensso.timbre :as log]))
@@ -25,7 +24,7 @@
           (.getSimpleName (class item))
           (str (get-in item [:meta :source]))
           (if-not (nil? (get-in item [:summary :ts]))
-            (tc/to-string (get-in item [:summary :ts]))
+            (time/format :iso-instant (get-in item [:summary :ts]))
             "?")
           (str (get-in item [:summary :title]))
           (str (get-in item [:entry :id]))))
@@ -65,7 +64,7 @@
    [:div {:class "summary"}
     [:ul
      [:li [:span {:class "key"} "Score: "] (get item "score")]
-     [:li [:span {:class "key"} "Time: "] (tc/to-string (tc/from-long (* 1000 (get item "time"))))]
+     [:li [:span {:class "key"} "Time: "]  (time/format (time/instant (* 1000 (get item "time"))))]
      [:li [:span {:class "key"} "Type: "] (get item "type")]]]
    [:div {:class "links"}
     [:ul
@@ -80,7 +79,7 @@
     {:score (get item "score")
      :author (get item "by")
      :id (get item "id")
-     :pub-ts (tc/from-long (* 1000 (get item "time")))
+     :pub-ts (time/zoned-date-time (time/instant (* 1000 (get item "time"))) (time/zone-id "UTC"))
      :title (get item "title")
      :type (keyword (get item "type"))
      :url (if (some? (get item "url"))
@@ -148,11 +147,11 @@
                                                    (time/plus (get @state :last-update-ts)
                                                               (time/seconds (or (get-in src [:args :throttle-secs]) 60))))]
                               (if (or (nil? next-update-ok)
-                                      (time/after? (time/now) next-update-ok))
+                                      (time/after? (time/zoned-date-time) next-update-ok))
                                 (do
                                   (log/debugf "HackerNews feed %s update (last: %s): %s items"
                                               story-feed (get @state :last-update-ts) (count ids))
-                                  (swap! state assoc :last-update-ts (time/now))
+                                  (swap! state assoc :last-update-ts (time/zoned-date-time))
                                   (doseq [id ids]
                                     (async/put! resolve-chan id)))
                                 (log/debugf "HackerNews feed %s update skipped (last: %s, next: %s)"
@@ -167,7 +166,7 @@
                                          :resolve-term-chan resolve-term-chan
                                          :resolve-chan resolve-chan
                                          :story-ref ref}
-                              :start-ts (time/now)
+                              :start-ts (time/zoned-date-time)
                               :status :running}))
         @state)))
 

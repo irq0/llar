@@ -1,9 +1,8 @@
 (ns infowarss.live.common
   (:require
    [infowarss.schema :as schema]
-   [clj-time.coerce :as tc]
    [schema.core :as s]
-   [clj-time.core :as time]))
+   [java-time :as time]))
 
 (def state-template
   "New sources start with this template"
@@ -18,7 +17,7 @@
           (.getSimpleName (class item))
           (str (get-in item [:meta :source]))
           (if-not (nil? (get-in item [:summary :ts]))
-            (tc/to-string (get-in item [:summary :ts]))
+            (time/format :iso-instant (get-in item [:summary :ts]))
             "?")
           (str (get-in item [:summary :title]))))
 
@@ -40,6 +39,6 @@
     :source-key (:key state)
     :app "infowarss"
     :ns (str *ns*)
-    :fetch-ts (time/now)
+    :fetch-ts (time/zoned-date-time)
     :tags #{}
     :version 2}))

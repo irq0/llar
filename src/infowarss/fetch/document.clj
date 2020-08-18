@@ -9,7 +9,6 @@
    [digest]
    [clj-http.client :as http]
    [hiccup.core :refer [html]]
-   [clj-time.coerce :as tc]
    [taoensso.timbre :as log]
    [clojure.string :as string]
    [org.bovinegenius [exploding-fish :as uri]]
@@ -17,7 +16,7 @@
    [schema.core :as s]
    [pantomime.web :refer [mime-type-of]]
    [pantomime.extract :as extract]
-   [clj-time.core :as time]))
+   [java-time :as time]))
 
 ;;;; Document Fetcher
 ;;;; A Document is something like a pdf or docx. It needs some transformation
@@ -39,7 +38,7 @@
      [:li [:span {:class "key"} "URL: "]
       [:a {:href (get-in i [:entry :url])} (get-in i [:entry :url])]]
      [:li [:span {:class "key"} "Authors: "] (string/join ", " (get-in i [:entry :authors]))]
-     [:li [:span {:class "key"} "Published: "] (tc/to-string (get-in i [:summary :ts]))]
+     [:li [:span {:class "key"} "Published: "] (time/format (get-in i [:summary :ts]))]
      [:li [:span {:class "key"} "Mime Type (orig): "] (get-in i [:entry :orig-mime-type])]
      [:li [:span {:class "key"} "Mime Types Stored: "]
       (string/join ", " (keys (get-in i [:entry :contents])))]
@@ -88,18 +87,18 @@
       (let [html (converter/convert-to-html data :mime-type mime-type)
             thumb (converter/thumbnail data)
             meta (extract/parse data)
-            ts (or (some-> (:creation-date meta) tc/from-string)
-                   (time/now))
+            ts (or (some->> (:creation-date meta) (time/zoned-date-time (time/formatter :iso-zoned-date-time)))
+                   (time/zoned-date-time))
             title (or (first (:title meta)) (some-> (:url src) uri/uri uri/path io/as-file .getName))]
 
         [(->DocumentItem
           (fetch/make-meta src)
           {:ts ts :title title}
           (fetch/make-item-hash (str (:url src)) (:text meta))
-          {:url (io/as-url (:url src))
+          {:url (uri/uri (:url src))
            :title title
            :authors  [(:author meta)]
-           :pub-ts (some-> (:creation-date meta) tc/from-string)
+           :pub-ts (some->> (:creation-date meta) (time/zoned-date-time (time/formatter :iso-zoned-date-time)))  
            :npages (first (:xmptpg/npages meta))
            :orig-mime-type mime-type
            :orig-size (count data)

@@ -9,7 +9,7 @@
    [digest]
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
-   [clj-time.coerce :as tc]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
@@ -58,9 +58,9 @@
      (log/error "Unexpected error: " (:throwable &throw-context))
      (throw+ {:type ::unexpected-error}))))
 
-(defn reddit-ts-to-joda [t]
+(defn reddit-ts-to-zoned-date-time [t]
   (when (number? t)
-    (tc/from-long (* 1000 (long t)))))
+    (time/zoned-date-time (time/instant (* 1000 (long t))) (time/zone-id "UTC"))))    
 
 (defn reddit-html-summary [c]
   (html
@@ -70,7 +70,7 @@
      (when (some? (:subreddit_name_prefixed c))
        [:li [:spam {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
      [:li [:span {:class "key"} "Score: "] (:score c)]
-     [:li [:span {:class "key"} "Time: "] (reddit-ts-to-joda (:created_utc c))]
+     [:li [:span {:class "key"} "Time: "] (reddit-ts-to-zoned-date-time (:created_utc c))]
      [:li [:a {:href (:url c)} "URL"]]
      [:li [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]
    [:p {:style "white-space: pre-line"} (:selftext c)]))
@@ -79,7 +79,7 @@
   {:url (infowarss-http/absolutify-url (:url c) "https://www.reddit.com")
    :comments-url (io/as-url (str "https://www.reddit.com" (:permalink c)))
    :thumbnail (:thumbnail c)
-   :pub-ts (reddit-ts-to-joda (:created_utc c))
+   :pub-ts (reddit-ts-to-zoned-date-time (:created_utc c))
    :title (:title c)
    :authors [(:author c)]
    :id (:id c)
@@ -97,7 +97,7 @@
             :let [item (:data child)]]
         (->RedditItem
          (fetch/make-meta src)
-         {:ts (reddit-ts-to-joda (:created_utc item)) :title (:title item)}
+         {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}
 ;          (fetch/make-item-hash (:title item) (:selftext item))
          (fetch/make-item-hash (:id item))
          (make-reddit-entry item))))))

@@ -3,13 +3,12 @@
    [infowarss.core :refer [config *srcs*]]
    [infowarss.converter :as converter]
    [digest]
-   [clj-time.core :as time]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [clojure.java.jdbc :as j]
    [mpg.core :as mpg]
-   [clj-time.jdbc]
    [byte-streams :refer [to-byte-buffer]]
    [cheshire.core :refer :all]
    [mount.core :refer [defstate]]
@@ -21,9 +20,7 @@
   (merge {:dbtype "postgresql"}
          (:postgresql config)))
 
-(mpg/patch {:default-map :hstore
-            :datetime false
-            :date false})
+(mpg/patch {:default-map :hstore})
 
 (defmacro with-log-exec-time [& body]
   `(let [start# (java.lang.System/nanoTime)
@@ -34,24 +31,13 @@
      (log/debugf "%s: %.2fms" (quote ~@body) (float elasped-sec#))
      result#))
 
-(defn pool
-  [spec]
-  (let [cpds (doto (ComboPooledDataSource.)
-               (.setDriverClass "org.postgresql.Driver")
-               (.setJdbcUrl (str "jdbc:postgresql://" (:host spec) "/" (:dbname spec)))
-               (.setUser (:user spec))
-               (.setPassword (:password spec))
-               (.setMinPoolSize 10)
-               (.setAcquireIncrement 5)
-               (.setMaxPoolSize 23)
-               ;; expire excess connections after 30 minutes of inactivity:
-               (.setMaxIdleTimeExcessConnections (* 30 60))
-               ;; expire connections after 3 hours of inactivity:
-               (.setMaxIdleTime (* 3 60 60)))]
-    {:datasource cpds}))
-
 (defstate db
-  :start (pool (:postgresql config)))
+  :start {:datasource (hikari/make-datasource config)})
+
+(defn check-connectivity []
+  (log/infof "Database ready. %s items, %s sources"
+             (:count (first (j/query db ["select count(*) from items"])))
+             (:count (first (j/query db ["select count(*) from sources"])))))
 
 (defn kw->pgenum [kw]
   (let [type (some-> (namespace kw)
@@ -70,6 +56,15 @@
   clojure.java.jdbc/ISQLValue
   (sql-value [url]
     (str url)))
+;; (extend-protocol j/ISQLValue
+;;   java.time.ZonedDateTime
+;;   (sql-value [v]
+;;     (time/sql-timestamp v)))
+
+;; (extend-protocol j/IResultSetReadColumn
+;;   java.sql.Timestamp
+;;   (result-set-read-column [col _ _]
+;;     (tc/from-sql-time col)))
 
 (add-encoder org.bovinegenius.exploding_fish.UniformResourceIdentifier encode-str)
 
@@ -85,6 +80,25 @@
       (if (contains? +schema-enums+ type)
         (keyword (string/replace type "_" "-") val)
         val))))
+
+(defn bytea-hex-to-byte-array [bytea]
+  (byte-array
+   (map (fn [[a b]] (Integer/parseInt (str a b) 16))
+        (drop 1 (partition 2 bytea)))))
+
+(defn to-fever-timestamp
+  "Convert time object to fever unix timestamp"
+  [time]
+  (try+
+   (-> time
+       time/to-millis-from-epoch
+       (/ 1000)
+       (.longValue)
+       (max 0))
+   (catch Object _
+     0)))
+
+
 
 (defmacro defquery [name sql & opts]
   `(def ~name
@@ -103,7 +117,7 @@
     (first (j/insert! db :sources
                       {:name (-> meta :source-name)
                        :key (-> meta :source-key name)
-                       :created_ts (time/now)
+                       :created_ts (time/zoned-date-time)
                        :type (keyword "item_type" (name (:type doc)))
                        :data (select-keys
                               feed [:feed-type :language :title :url])}))))
@@ -155,7 +169,7 @@
   (let [entry (:entry doc)]
     {:hash (:hash doc)
      :source_id source-id
-     :ts (or (get-in doc [:summary :ts]) (time/date-time 0))
+     :ts (or (get-in doc [:summary :ts]) (time/zoned-date-time 0))
      :title (get-in doc [:summary :title])
      :author (string/join "," (get-in doc [:entry :authors]))
      :type (keyword "item_type" (name (:type doc)))
@@ -437,7 +451,7 @@
               (map (fn [[k v]]
                      [k (apply merge (map second v))]))
               (into {})))
-      (update :created_on_time converter/to-fever-timestamp)
+      (update :created_on_time to-fever-timestamp)
       (update :url str)
       (dissoc :data_types :mime_types :text)))
 
@@ -696,7 +710,8 @@
                               (->>
                                ["1=1"
                                 (when time-ago-period
-                                  (str "ts > " (j/sql-value (time/ago time-ago-period))))
+                                  (str "ts > " (j/sql-value
+                                                (time/minus (time/zoned-date-time) time-ago-period))))
                                 (when with-source-key (str "key = '" (name with-source-key) "'"))]
                                (remove nil?)
                                (string/join " and "))

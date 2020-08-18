@@ -14,9 +14,7 @@
    [infowarss.converter :as converter]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
-   [clj-time.core :as time]
-   [clj-time.coerce :as tc]
-   [clj-time.format :as tf]
+   [java-time :as time]
    [compojure.core :refer [GET POST PUT DELETE context routes]]
    [compojure.route :as route]
    [compojure.coercions :refer [as-int]]
@@ -45,10 +43,19 @@
 
 ;; State: annotations live in memory
 
+(defn- human-datetime-ago [ts]
+  (let [raw-duration (time/duration ts (time/zoned-date-time))
+        duration (-> raw-duration
+                     (.minusNanos (.getNano raw-duration)))
+        
+        period (time/period (time/local-date ts) (time/local-date))]
+    (if (> (.toDays duration) 7)
+      (subs (string/lower-case (str period)) 1)
+      (subs (string/lower-case (str duration)) 2))))
 
 (defn- startup-read-state []
   (let [res (io/resource "annotations.edn")
-        backup (io/file (str "/tmp/infowarss_annotations.edn." (tc/to-string (time/now))))]
+        backup (io/file (str "/tmp/infowarss_annotations.edn." (time/format :iso-instant (time/zoned-date-time))))]
     (log/info "Reading annotations file. Creating backup in " backup)
     (io/copy (io/file (.getFile res)) backup)
     (try+
@@ -613,7 +620,7 @@
          [:div {:class "btn-group btn-group-sm" :role "group"}
           [:a {:class "btn"}
            "&nbsp;&nbsp;"
-           (icon "far fa-calendar") (human/datetime ts)]])
+           (icon "far fa-calendar") (human-datetime-ago ts)]])
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:target "_blank"
              :href url
@@ -855,9 +862,9 @@
       [:li {:class "list-inline-item"}
        (icon "far fa-calendar")
        "&nbsp;"
-       [:span {:class "timestamp"} ts]
+       [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
        [:span " - "]
-       [:span {:class "timestamp"} (human/datetime ts)]]
+       [:span {:class "timestamp"} (human-datetime-ago ts)]]
       (when (>= nwords 0)
         (let [estimate (reading-time-estimate item)
               human-time (:estimate estimate)]
@@ -1000,7 +1007,7 @@
            [:ul {:class "list-inline"}
             [:li {:class "list-inline-item"}
              "&nbsp;"
-             [:span {:class "timestamp"} (human/datetime ts)]]]]
+             [:span {:class "timestamp"} (human-datetime-ago ts)]]]]
 
           [:td {:class "toolbox"}
            (concat
@@ -1054,7 +1061,7 @@
                 title)]
              [:p {:class "card-text"}]
              [:p {:class= "card-text"} [:small {:class "text-muted"} source-key]]
-             [:p {:class= "card-text"} [:small {:class "text-muted"} (human/datetime ts)]]
+             [:p {:class= "card-text"} [:small {:class "text-muted"} (human-datetime-ago ts)]]
              [:p {:class "card-text toolbox"}
               (concat
                [[:a {:class "btn" :href url}
@@ -1493,7 +1500,8 @@
 (defn as-ts
   "Compojure Helper: Parse string into timestamp"
   [s]
-  (tc/from-string s))
+  (when-not (nil? s)
+    (time/zoned-date-time (time/formatter :iso-date-time) s)))
 
 (defn as-url
   "Compojure Helper: Parse string into URL"
@@ -1649,8 +1657,8 @@
         {:status 200
          :headers {"Content-Type" (:mime-type blob)
                    "Etag" h
-                   "Last-Modified" (tf/unparse
-                                    (tf/formatter "EEE, dd MMM yyyy HH:mm:ss z")
+                   "Last-Modified" (time/format
+                                    (time/formatter "EEE, dd MMM yyyy HH:mm:ss z")
                                     (:created blob))}
          :body (:data blob)})
       (catch Object e

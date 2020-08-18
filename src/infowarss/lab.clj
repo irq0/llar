@@ -8,7 +8,7 @@
    [infowarss.blobstore :as blobstore]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
-   [clj-time.core :as time]
+   [java-time :as time]
    [taoensso.timbre :as log]
    [clojure.java.io :as io]
    [clj-time.coerce :as tc]
@@ -29,69 +29,6 @@
 (s/set-fn-validation! true)
 
 (def +current-fetch-preview+ (atom nil))
-
-(defn format-interval [period]
-  (let [formatter (some-> (org.joda.time.format.PeriodFormatterBuilder.)
-                          .printZeroNever
-                          .appendDays
-                          (.appendSuffix "d")
-                          .appendHours
-                          (.appendSuffix "h")
-                          .appendMinutes
-                          (.appendSuffix "m")
-                          .printZeroAlways
-                          .appendSeconds
-                          (.appendSuffix "s")
-                          .toFormatter)]
-    (.print formatter period)))
-
-(defn period-since-now [ts]
-  (.toPeriod (time/interval ts (time/now))))
-
-(defn since-now-str [ts]
-  (some-> ts
-          period-since-now
-          format-interval
-          (str " ago")))
-
-(defn- get-state [k]
-  (if (instance? clojure.lang.Atom (get @update/state k))
-    @(get @update/state k) (get @update/state k)))
-
-(defn- human-src
-  "Extract interesting informations from source data structure"
-  [[k v]]
-  (let [state (get-state k)
-        base (cond->
-              {:key k
-               :name (str (get v :src))
-               :status (:status state)}
-               (instance? org.joda.time.DateTime (:last-update-ts state)) ; live feeds have a last update
-               (assoc :last-update (since-now-str (:last-update-ts state)))
-               (instance? org.joda.time.DateTime (:last-attempt-ts state)) ; others have last success / attempt
-               (assoc :last-attempt (since-now-str (:last-attempt-ts state)))
-               (instance? org.joda.time.DateTime (:last-successful-fetch-ts state))
-               (assoc :last-success (since-now-str (:last-successful-fetch-ts state))))]
-
-    (if (#{:perm-fail :temp-fail} (:status base))
-      (let [exception (:last-exception state)]
-        (assoc base :last-exception-msg (:message exception)))
-      base)))
-
-(defn sources
-  "Return list of sources for human consumption"
-  [& {:keys [by-state]}]
-  (let [srcs (cond->> core/*srcs*
-               (keyword? by-state) (filter (fn [[k _]] (= (:status (get-state k)) by-state))))]
-    (map human-src srcs)))
-
-(defn failed-sources
-  "Return list of sources for human consumption"
-  []
-  (concat
-   (sources :by-state :temp-fail)
-   (sources :by-state :perm-fail)
-   (sources :by-state :failed)))
 
 ;;; Preview - Try out filters, processing, fetch
 
