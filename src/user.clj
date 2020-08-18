@@ -6,7 +6,7 @@
    [infowarss.config :as config]
    [infowarss.persistency :as persistency]
    [infowarss.db :as db]
-   [infowarss.update :as update :refer [update! update-all! update-matching!]]
+   [infowarss.update :as update :refer [update! update-all! update-matching! update-tagged!]]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
    [infowarss.fetch :as fetch]

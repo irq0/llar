@@ -210,15 +210,20 @@
         new-status)
       cur-status)))
 
+(defn updateable-sources []
+  (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) config/*srcs*)))
+
 (defn update-all! [& args]
   (doall
-   (for [[k v] (shuffle (vec config/*srcs*))
-         :when (satisfies? fetch/FetchSource (:src v))]
-     (apply update! k args))))
+   (pmap #(apply update! (key %) args)) (updateable-sources)))
 
 (defn update-matching! [re & args]
   (doall
-   (for [[k v] config/*srcs*
-         :when (and (satisfies? fetch/FetchSource (:src v))
-                    (re-find re (name k)))]
-     (apply update! k args))))
+   (pmap #(apply update! (key %) args)
+         (filter #(re-find re (name (key %))) (updateable-sources)))))
+
+(defn update-tagged! [tag & args]
+  (doall
+   (pmap #(apply update! (key %) args)
+         (filter #(contains? (:tags (val %)) tag) (updateable-sources)))))
+
