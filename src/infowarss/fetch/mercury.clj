@@ -54,7 +54,7 @@
         (assoc :type :bookmark))))
 
 (s/defn mercury-get
-  [url :- schema/URLType
+  [url :- schema/URL
    api-key :- s/Str]
   (try+
    (let [url (uri/uri url)
@@ -89,13 +89,13 @@
      (throw+))))
 
 (s/defn mercury-local
-  [url :- schema/URLType]
+  [url :- schema/URL]
   (try+
-   (let [url (uri/uri)
+   (let [url (uri/uri url)
          {:keys [exit out err]} (shell/sh "/home/seri/opt/mercury-parser/cli.js" (str url))
          base-url (get-base-url-with-path url)
          json (json/parse-string out true)]
-     (if (zero? exit)
+     (if (and (zero? exit) (not (:failed json)))
        (assoc json :content
               (try
                 (-> json
@@ -107,11 +107,18 @@
                     blobify
                     hick-r/hickory-to-html)
                 (catch Throwable th
-                  (log/warn th "Mercury post processing failed. Using vanilla")
-                  (log/debug (:content json)))))
+                  (log/warn th "Mercury local post processing failed. Using vanilla. Url:" url)
+                  (log/debug {:content json
+                              :url url
+                              :mercury {:out out
+                                        :err err
+                                        :exit exit}
+                              :json json}))))
        (do
-         (log/error "Mercury Error: " url err)
-         (throw+ {:type ::not-parsable}))))
+         (log/error "Mercury Error: " url err json out)
+         (throw+ {:type ::not-parsable
+                  :url url
+                  :message (:message json)}))))
    (catch Object _
      (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
      (throw+))))

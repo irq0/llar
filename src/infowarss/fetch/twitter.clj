@@ -7,7 +7,7 @@
             [infowarss.http :refer [try-blobify-url!]]
             [twitter.api.restful :as twitter]
             [schema.core :as s]
-            [clojure.java.io :as io]
+            [org.bovinegenius [exploding-fish :as uri]]
             [java-time :as time]))
 
 (s/defrecord TweetItem
@@ -111,7 +111,7 @@
         text (or (get tweet :full_text) (get tweet :text))
         entities (get tweet :entities)]
 
-    {:url (io/as-url (format "https://twitter.com/%s/status/%s"
+    {:url (uri/uri (format "https://twitter.com/%s/status/%s"
                              user id))
      :pub-ts (parse-twitter-ts (get tweet :created_at))
      :score {:favs (get tweet :favorite_count)

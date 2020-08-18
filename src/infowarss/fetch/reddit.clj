@@ -12,7 +12,7 @@
    [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.java.io :as io]
+   [org.bovinegenius [exploding-fish :as uri]]
    [schema.core :as s]))
 
 (s/defrecord RedditItem
@@ -77,7 +77,7 @@
 
 (defn make-reddit-entry [c]
   {:url (infowarss-http/absolutify-url (:url c) "https://www.reddit.com")
-   :comments-url (io/as-url (str "https://www.reddit.com" (:permalink c)))
+   :comments-url (uri/uri (str "https://www.reddit.com" (:permalink c)))
    :thumbnail (:thumbnail c)
    :pub-ts (reddit-ts-to-zoned-date-time (:created_utc c))
    :title (:title c)

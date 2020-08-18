@@ -9,7 +9,7 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
    [mount.core :refer [defstate]]
-   [clojure.java.io :as io]
+   [clojure.java.io :as io]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.

@@ -216,15 +216,22 @@
           item-urls (item-extractor (hick-s/select (:urls selectors) hickory))]
 
       (log/debug (str src) " Parsed URLs: " {:base-url base-url
-                                             :urs (prn-str item-urls)})
+                                             :urls item-urls})
       (when-not (coll? item-urls)
-        (throw+ {:type ::selector-found-shit :extractor item-extractor :urls item-urls :selector (:urls selectors)}))
+        (throw+ {:type ::selector-found-shit
+                 :extractor item-extractor
+                 :urls item-urls
+                 :selector (:urls selectors)}))
       (doall
        (for [raw-item-url item-urls
-             :let [item-url (absolutify-url raw-item-url base-url)
+             :let [base-url (get-base-url-with-path raw-item-url)
+                   item-url (absolutify-url raw-item-url base-url)
                    item (fetch item-url :user-agent user-agent)
                    {:keys [hickory summary]} item]]
+         
          (try
+           (log/debug (str src) " Fetching: " {:base-url base-url
+                                           :item-url item-url})
            (let [author (hick-select-extract-with-source src :author hickory nil)
                  title (hick-select-extract-with-source src :title hickory (:title summary))
                  pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
@@ -277,9 +284,9 @@
                          {:as :json
                           :headers {"User-Agent" user-agent}})
           posts-url (get-posts-url (:body site))
-          posts (-> (http/get (log/spy posts-url) {:as :reader
+          posts (-> (http/get posts-url {:as :reader
                                                    :headers {:user-agent user-agent}})
-                    :body (cheshire/parse-string true))]
+                    :body (cheshire/parse-stream true))]
       (doall
        (for [post posts]
          (let [authors (try+

@@ -1,8 +1,8 @@
 (ns infowarss.src
   (:require [schema.core :as s]
-            [clojure.java.io :as io]
             [infowarss.schema :as schema]
             [slingshot.slingshot :refer [throw+]]
+            [org.bovinegenius [exploding-fish :as uri]]
             [twitter.oauth :refer [make-oauth-creds]]
             [twitter.api.restful :as twitter-rest])
   (:import [twitter.oauth OauthCredentials]))
@@ -21,7 +21,7 @@
    :force-update? false})
 
 (s/defrecord GenericWebsite
-             [url :- java.net.URL
+             [url :- schema/URL
               args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
 
   Object
@@ -30,10 +30,10 @@
 (defn website
   [url
    & {:keys [user-agent] :as args}]
-  (GenericWebsite. (io/as-url url) (merge +http-default-args+ args)))
+  (GenericWebsite. (uri/uri url) (merge +http-default-args+ args)))
 
 (s/defrecord PaywalledWebsite
-             [url :- java.net.URL
+             [url :- schema/URL
               cookie-getter :- s/Any
               args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
   Object
@@ -43,12 +43,12 @@
   [url
    cookie-getter
    & {:keys [user-agent] :as args}]
-  (PaywalledWebsite. (io/as-url url) cookie-getter (merge +http-default-args+ args)))
+  (PaywalledWebsite. (uri/uri url) cookie-getter (merge +http-default-args+ args)))
 
 ;;; Feed
 
 (s/defrecord Feed
-             [url :- java.net.URL
+             [url :- schema/URL
               args :- {:deep? s/Bool
                        :force-update? s/Bool
                        :user-agent (s/cond-pre s/Str s/Keyword)}]
@@ -59,10 +59,10 @@
   [url
    & {:keys [deep? force-update? user-agent]
       :as args}]
-  (->Feed (io/as-url url) (merge +feed-default-args+ args)))
+  (->Feed (uri/uri url) (merge +feed-default-args+ args)))
 
 (s/defrecord SelectorFeed
-             [url :- java.net.URL
+             [url :- schema/URL
               selectors :- {:urls s/Any
                             :ts s/Any
                             :author s/Any
@@ -80,10 +80,10 @@
 (defn selector-feed
   [url selectors extractors & {:keys [user-agent]
                                :as args}]
-  (->SelectorFeed (io/as-url url) selectors extractors (merge +http-default-args+ args)))
+  (->SelectorFeed (uri/uri url) selectors extractors (merge +http-default-args+ args)))
 
 (s/defrecord WordpressJsonFeed
-             [url :- java.net.URL
+             [url :- schema/URL
               args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
   Object
   (toString [src] (str "[WpJsonFeed: " (:url src) "]")))
@@ -92,7 +92,7 @@
   [url
    & {:keys [user-agent]
       :as args}]
-  (->WordpressJsonFeed (io/as-url url) (merge +http-default-args+ args)))
+  (->WordpressJsonFeed (uri/uri url) (merge +http-default-args+ args)))
 
 (def TwitterCreds
   {:app-key schema/NotEmptyStr
@@ -102,7 +102,7 @@
 
 (s/defrecord TwitterSearch
              [query :- schema/NotEmptyStr
-              url :- java.net.URL
+              url :- schema/URL
               oauth-creds :- OauthCredentials]
   Object
   (toString [src] (str "[TwitterSearch: " (:query src) "]")))
@@ -113,7 +113,7 @@
    oauth-creds :- TwitterCreds]
   (->TwitterSearch
    query
-   (io/as-url (str "https://twitter.com/search?q=" query))
+   (uri/uri (str "https://twitter.com/search?q=" query))
    (make-oauth-creds
     (:app-key oauth-creds)
     (:app-secret oauth-creds)
@@ -123,7 +123,7 @@
 (s/defrecord TwitterApi
              [api-fn :- schema/Func
               params :- s/Any
-              url :- java.net.URL
+              url :- schema/URL
               oauth-creds :- OauthCredentials]
   Object
   (toString [src] (format "[TwitterApi/%s: %s]" api-fn params)))
@@ -133,7 +133,7 @@
   (->TwitterApi
    twitter-rest/statuses-home-timeline
    {:count 200}
-   (io/as-url (str "https://twitter.com/irq0"))
+   (uri/uri (str "https://twitter.com/irq0"))
    (make-oauth-creds
     (:app-key oauth-creds)
     (:app-secret oauth-creds)
@@ -141,7 +141,7 @@
     (:user-token-secret oauth-creds))))
 
 (s/defrecord MercuryWebParser
-             [url :- java.net.URL]
+             [url :- schema/URL]
   Object
   (toString [src] (str "[MercuryWebParser: " (:url src) "]")))
 
@@ -149,17 +149,17 @@
   "Fetch URL using Mercury Web Parser API"
   [url :- schema/NotEmptyStr]
   (->MercuryWebParser
-   (io/as-url url)))
+   (uri/uri url)))
 
 (s/defrecord Document
-             [url :- java.net.URL]
+             [url :- schema/URL]
   Object
   (toString [src] (str "[Document: " (:url src) "]")))
 
 (s/defn doc :- Document
   "Fetch URL and process as document"
   [url :- schema/NotEmptyStr]
-  (->Document (io/as-url url)))
+  (->Document (uri/uri url)))
 
 (s/defrecord Reddit
              [subreddit :- schema/NotEmptyStr
@@ -179,7 +179,7 @@
      (name feed))))
 
 (s/defrecord ImapMailbox
-             [uri :- java.net.URI
+             [uri :- schema/URL
               creds :- {:username schema/NotEmptyStr
                         :password schema/NotEmptyStr}]
   Object
@@ -191,10 +191,10 @@
    creds :- {:username schema/NotEmptyStr
              :password schema/NotEmptyStr}]
 
-  (let [uri (java.net.URI/create uri-str)]
-    (when-not (#{"imap" "imaps"} (.getScheme uri))
+  (let [uri (uri/uri uri-str)]
+    (when-not (#{"imap" "imaps"} (uri/scheme uri))
       (throw+ {:type ::invalid-protocol :uri uri}))
-    (when (some? (.getQuery uri))
+    (when (some? (uri/query uri))
       (throw+ {:type ::query-string-unsupported :uri uri}))
     (->ImapMailbox
      uri

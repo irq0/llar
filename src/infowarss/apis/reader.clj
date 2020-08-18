@@ -726,7 +726,7 @@
   "Helper: Make URL Text from URL, enriched with with Icons, etc."
   [str-url]
   (try+
-   (let [url (io/as-url str-url)
+   (let [url (uri/uri str-url)
          site (some-> url uri/host)
          path (or (some-> url uri/path) "")
          path-seq (-> path (string/split #"/") next vec)
@@ -1506,7 +1506,7 @@
 (defn as-url
   "Compojure Helper: Parse string into URL"
   [s]
-  (io/as-url s))
+  (uri/uri s))
 
 (def app
   "Compojure Routes"

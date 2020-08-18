@@ -1,5 +1,6 @@
 (ns infowarss.schema
   (:require [schema.core :as s :refer [defschema]]
+            [org.bovinegenius [exploding-fish :as uri]]
             [clojure.test :refer [function?]]
             [clojure.string :as string]
             [java-time :as time]
@@ -57,8 +58,23 @@
 (defschema HttpSource
   {:url URLStr})
 
-(defschema URLType
-  (s/cond-pre java.net.URL java.net.URI org.bovinegenius.exploding_fish.UniformResourceIdentifier))
+(defschema URLWithAbsPath
+  (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
+                 #(and (uri/scheme %)
+                       (uri/host %)
+                       (uri/absolute-path? %))))
+
+(defschema URL
+  (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
+                 #(and (uri/scheme %)
+                       (uri/host %)
+                       (or (nil? (uri/path %))
+                           (uri/absolute-path? %)))))
+
+(defschema URLRelaxed
+  (s/cond-pre
+   org.bovinegenius.exploding_fish.UniformResourceIdentifier))
+
 
 ;;; *Items
 
@@ -115,7 +131,7 @@
 (defschema Feed
   {:title s/Str
    :language (s/maybe s/Str)
-   :url (s/maybe URLType)
+   :url (s/maybe URL)
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}
    :encoding (s/maybe s/Str)
    :pub-ts (s/maybe java.time.ZonedDateTime)
@@ -124,10 +140,10 @@
 
 ;;; Mercury Parser
 (defschema MercuryEntry
-  {:url (s/maybe URLType)
-   :lead-image-url (s/maybe URLType)
-   :next-page-url (s/maybe URLType)
-   :pub-ts (s/maybe org.joda.time.DateTime)
+  {:url (s/maybe URL)
+   :lead-image-url (s/maybe URL)
+   :next-page-url (s/maybe URL)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
    :title s/Str
    :authors [s/Str]
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
@@ -137,9 +153,9 @@
 ;;; Reddit
 
 (defschema RedditEntry
-  {:url (s/maybe URLType)
-   :thumbnail (s/maybe URLType)
-   :pub-ts (s/maybe org.joda.time.DateTime)
+  {:url (s/maybe URL)
+   :thumbnail (s/maybe URL)
+   :pub-ts (s/maybe java.time.ZonedDateTime)
    :title s/Str
    :authors [s/Str]
    :id NotEmptyStr
@@ -149,7 +165,7 @@
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
 (defschema DocumentEntry
-  {:url (s/maybe URLType)
+  {:url (s/maybe URL)
    :title s/Str
    :authors [s/Str]
    :pub-ts (s/maybe java.time.ZonedDateTime)
@@ -184,26 +200,26 @@
    :text s/Str})
 
 (defschema TweetEntityMedia
-  {:display_url URLStr
-   :expanded_url URLStr
+  {:display_url URL
+   :expanded_url URL
    :id PosInt
    :id_str s/Str
    :indices TweetEntityIndices
-   :media_url URLStr
-   :media_url_https URLStr
+   :media_url URL
+   :media_url_https URL
    :sizes s/Any
    (s/optional-key :source_user_id) PosInt
    (s/optional-key :source_user_id_str) s/Str
    (s/optional-key :source_status_id) PosInt
    (s/optional-key :source_status_id_str) s/Str
    :type s/Str
-   :url URLStr})
+   :url URL})
 
 (defschema TweetEntityUrls
-  {:display_url URLStr
-   :expanded_url URLStr
+  {:display_url URL
+   :expanded_url URL
    :indices TweetEntityIndices
-   :url URLStr})
+   :url URL})
 
 (defschema TweetEntityUserMentions
   {:id PosInt
@@ -241,12 +257,12 @@
    :name s/Str
    :notifications (s/maybe s/Bool)
    (s/optional-key :profile_background_color) s/Str
-   (s/optional-key :profile_background_image_url) URLStr
-   (s/optional-key :profile_background_image_url_https) URLStr
+   (s/optional-key :profile_background_image_url) URL
+   (s/optional-key :profile_background_image_url_https) URL
    (s/optional-key :profile_background_tile) s/Any
-   (s/optional-key :profile_banner_url) URLStr
-   (s/optional-key :profile_image_url) URLStr
-   (s/optional-key :profile_image_url_https) URLStr
+   (s/optional-key :profile_banner_url) URL
+   (s/optional-key :profile_image_url) URL
+   (s/optional-key :profile_image_url_https) URL
    (s/optional-key :profile_link_color) s/Str
    (s/optional-key :profile_sidebar_border_color) s/Str
    (s/optional-key :profile_sidebar_fill_color) s/Str
@@ -257,7 +273,7 @@
    (s/optional-key :status) s/Any
    :statuses_count PosInt
    :time_zone (s/maybe s/Str)
-   :url (s/maybe URLStr)
+   :url (s/maybe URL)
    :utc_offset (s/maybe s/Int)
    :verified s/Bool
    (s/optional-key :withheld_in_countries) s/Str
@@ -308,7 +324,7 @@
 ;;; Tweet Items
 
 (defschema TweetEntry
-  {:url (s/maybe URLType)
+  {:url (s/maybe URL)
    :pub-ts (s/maybe java.time.ZonedDateTime)
    :score {:favs PosInt
            :retweets PosInt}
@@ -317,7 +333,7 @@
    :type (s/enum :retweet :reply :tweet)
    :entities {:hashtags [s/Str]
               :user_mentions [s/Str]
-              :photos [URLType]}
+              :photos [URL]}
    :authors [s/Str]
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
@@ -331,8 +347,8 @@
    :pub-ts (s/maybe java.time.ZonedDateTime)
    :title s/Str
    :type s/Keyword
-   :url (s/maybe URLType) ;; something
-   :hn-url (s/maybe URLType) ;; https://news.ycombinator.com/item?id=
+   :url (s/maybe URL) ;; something
+   :hn-url (s/maybe URL) ;; https://news.ycombinator.com/item?id=
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
 

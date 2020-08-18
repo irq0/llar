@@ -52,10 +52,16 @@
   (sql-value [kw]
     (kw->pgenum kw)))
 
-(extend-type org.bovinegenius.exploding_fish.UniformResourceIdentifier
-  clojure.java.jdbc/ISQLValue
+(extend-protocol j/ISQLValue
+  org.bovinegenius.exploding_fish.Uri
   (sql-value [url]
     (str url)))
+  
+(extend-protocol j/ISQLValue
+  org.bovinegenius.exploding_fish.UniformResourceIdentifier
+  (sql-value [url]
+    (str url)))
+
 ;; (extend-protocol j/ISQLValue
 ;;   java.time.ZonedDateTime
 ;;   (sql-value [v]
@@ -66,7 +72,7 @@
 ;;   (result-set-read-column [col _ _]
 ;;     (tc/from-sql-time col)))
 
-(add-encoder org.bovinegenius.exploding_fish.UniformResourceIdentifier encode-str)
+(json/add-encoder org.bovinegenius.exploding_fish.Uri encode-str)
 
 (def +schema-enums+
   "A set of all PostgreSQL enums in schema.sql. Used to convert

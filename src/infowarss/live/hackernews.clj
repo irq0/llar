@@ -7,8 +7,8 @@
    [infowarss.live.firebase :refer :all]
    [hiccup.core :refer [html]]
    [schema.core :as s]
-   [clojure.java.io :as io]
    [java-time :as time]
+   [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.slingshot :refer [try+]]
    [clojure.core.async :refer [>!! <!!] :as async]
    [taoensso.timbre :as log]))
@@ -75,7 +75,7 @@
        (str "https://news.ycombinator.com/item?id=" (get item "id"))]]]]))
 
 (defn make-hn-entry [item]
-  (let [hn-url (io/as-url (str "https://news.ycombinator.com/item?id=" (get item "id")))]
+  (let [hn-url (uri/uri (str "https://news.ycombinator.com/item?id=" (get item "id")))]
     {:score (get item "score")
      :author (get item "by")
      :id (get item "id")
@@ -83,7 +83,7 @@
      :title (get item "title")
      :type (keyword (get item "type"))
      :url (if (some? (get item "url"))
-            (io/as-url (get item "url"))
+            (uri/uri (get item "url"))
             hn-url)
      :hn-url hn-url
      :contents {"text/plain" (str (get item "title") "\n"  (get item "text"))

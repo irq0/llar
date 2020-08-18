@@ -20,13 +20,10 @@
              (fn [dt jg]
                (.writeString jg (time/format :iso-zoned-date-time dt))))
 
-(add-encoder java.net.URL
+(add-encoder org.bovinegenius.exploding_fish.UniformResourceIdentifier
              (fn [dt jg]
                (.writeString jg (str dt))))
-
-(add-encoder java.net.URI
-             (fn [dt jg]
-               (.writeString jg (str dt))))
+             
 
 ;;; Item -> Persistency abstraction
 ;;; Split into two parts:

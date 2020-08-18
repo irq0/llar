@@ -128,10 +128,10 @@
         "\n"
         {:type :element, :attrs nil, :tag :p, :content nil}]}]}]})
 
-(def testing-domain-blacklist #{"blacklisted.example.com"})
+(def testing-domain-blocklist #{"blacklisted.example.com"})
 
 (defn start-testing-http-state [f]
-  (mount/start-with {#'infowarss.http/domain-blacklist (atom testing-domain-blacklist)})
+  (mount/start-with {#'infowarss.http/domain-blocklist (atom testing-domain-blocklist)})
   (f))
 
 (use-fixtures :once start-testing-http-state)
@@ -175,12 +175,21 @@
 
 (deftest absolutify-url
   (testing
-      "OK combinations / urls"
+      "Basics"
     (are [x y] (= (str x) (str y))
+      "https://example.com/baz/foo.txt" (uut/absolutify-url "foo.txt" "https://example.com/baz/")
+      "https://example.com/foo.txt" (uut/absolutify-url "/foo.txt" "https://example.com/baz/")
+      "https://example.com/foo/" (uut/absolutify-url "/foo/" "https://example.com/baz/")
+      "https://example.com/foo" (uut/absolutify-url "/foo" "https://example.com/baz/")
       "http://example.com/foo" (uut/absolutify-url "http://example.com/foo" "")
       "http://example.com/foo" (uut/absolutify-url "http://example.com/foo" nil)
+
+      "http://example.com/?ts=foobar" (uut/absolutify-url "?ts=foobar" "http://example.com")
+      "http://example.com/#foobar" (uut/absolutify-url "/#foobar" "http://example.com")
+
       "http://example.com/foo" (uut/absolutify-url "/foo" "http://example.com")
       "http://example.com/foo/bar" (uut/absolutify-url "/foo/bar" "http://example.com")))
+  
   (testing
       "Half kaputt, but quirks-mode parsable"
 
@@ -193,7 +202,7 @@
   (testing
       "Absolute urls"
     (is
-     (= "http://example.com" (str (uut/absolutify-url "http://example.com"
+     (= "http://example.com/" (str (uut/absolutify-url "http://example.com"
                                                        "http://some-other-base-url.com")))
      "Absolute urls are returned as is regardless of base url"))
   (testing "Meaningless input should throw"
@@ -202,6 +211,20 @@
     (is (thrown+? [:type :infowarss.http/absolutify-impossible
                    :reason :infowarss.http/base-url-relative]
                   (uut/absolutify-url "/example.com" "/foo"))))
+  (testing "all urls should have a path"
+    (is (= "/"
+           (uri/path (uut/absolutify-url "https://example.com" nil)))))
+
+  (testing "don't mess with filenames"
+    (is (= "https://example.com/baz/foo.txt"
+         (str (uut/absolutify-url "foo.txt" "https://example.com/baz/")))))
+
+  (testing "path traversing should top at top level (quirk)"
+    (is (= "https://example.com/foo/bar"
+           (str (uut/absolutify-url "../../../foo/bar" "https://example.com/first/second/"))))
+    (is (= "https://example.com/foo/bar/"
+           (str (uut/absolutify-url "../../../foo/bar/" "https://example.com/first/second/")))))
+
   (testing "Path traversing should be resolved"
     (is (= "https://example.com/baz"
            (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar/")))))
