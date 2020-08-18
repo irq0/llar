@@ -1,6 +1,6 @@
-(ns infowarss.apis.reader
+(ns infosawarss.apis.reader
   (:require
-   [infowarss.core :as core]
+   [infowarss.config :as config]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
@@ -20,7 +20,7 @@
    [compojure.coercions :refer [as-int]]
    [clojure.string :as string]
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
-   [slingshot.slingshot :refer [try+]]
+   [slingshot.slingshot :refer [try+ throw+]]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
    [clojure.contrib.humanize :as human]
@@ -1080,7 +1080,15 @@
                              (name group-name)
                              (name group-item)
                              (name source-key))]]
-       (main-list-item x url item))]))
+       (try+
+        (main-list-item x url item)
+        (catch Object _
+          (throw+ {:type ::item-render-error
+                   :group-name group-name
+                   :group-item group-item
+                   :source-key source-key
+                   :item item
+                   :url url}))))]))
 
 (defn get-list-style [x]
   (let [selected-style (:list-style x)
@@ -1187,7 +1195,7 @@
       (vals sources)
 
       (= group-name :item-tags)
-      (db/new-get-sources-item-tags-counts group-item (:filter params))
+      (db/new-get-sources-item-tags-counts group-item (:filter params) config/*srcs*)
 
       (= group-name :source-tag)
       (filter #(contains? (:tags %) group-item) (vals sources))
@@ -1252,7 +1260,7 @@
                              (doall (db/get-tag-stats))))
 
          sources (metrics/with-prom-exec-time :compile-sources
-                   (db/new-get-sources))
+                   (db/new-get-sources config/*srcs*))
          items (future (metrics/with-prom-exec-time :items-current-view
                          (get-items-for-current-view sources params)))
          ;; right sidebar
@@ -1526,13 +1534,13 @@
        (try
          (case type
            :readability-bookmark (add-thing
-                                  (core/make-readability-bookmark-feed url)
+                                  (config/make-readability-bookmark-feed url)
                                   :bookmark)
            :raw-bookmark (add-thing
-                          (core/make-raw-bookmark-feed url)
+                          (config/make-raw-bookmark-feed url)
                           :bookmark)
            :document (add-thing
-                      (core/make-doc-feed url)
+                      (config/make-doc-feed url)
                       :document))
          (catch java.net.MalformedURLException ex
            {:status 400
@@ -1541,7 +1549,7 @@
      (POST "/document/add"
        [url]
        (add-thing
-        (core/make-doc-feed url)
+        (config/make-doc-feed url)
         :document))
 
      (GET "/lab/:view" [view :<< as-keyword]

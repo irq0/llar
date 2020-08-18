@@ -1,6 +1,6 @@
 (ns infowarss.live
   (:require
-   [infowarss.core :as core]
+   [infowarss.config :as config]
    [infowarss.postproc :as proc]
    [infowarss.persistency :as persistency]
    [infowarss.live.common :refer :all]
@@ -23,7 +23,7 @@
 (defn process [item]
   (let [{:keys [_]} item
         k (get-in item [:meta :source-key])
-        feed (get core/*srcs* k)
+        feed (get config/*srcs* k)
         state (get-in live [:sources k :state])]
 
     (when (or (= k :unknown) (nil? k) (nil? @state))
@@ -37,7 +37,7 @@
 
      (catch Object e
        (log/error e "Live: Exception in process - persist run")
-       (log/spy (:entry item))))))
+       (:entry item)))))
 
 (defn processor [input-ch term-ch]
   (async/thread
@@ -52,7 +52,7 @@
 
 (defn live-feeds []
   (into {}
-        (for [[k feed] core/*srcs*
+        (for [[k feed] config/*srcs*
               :when (satisfies? LiveSource (:src feed))]
           [k feed])))
 

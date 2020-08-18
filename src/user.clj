@@ -1,16 +1,14 @@
 (ns user
   (:require
-   [mount.core :as mount]
    [clojure.tools.namespace.repl :as tn]
    [infowarss.http :as http :refer [fetch]]
-   [infowarss.core :as core :refer [*srcs* config]]
-   [infowarss.persistency :as persistency :refer [store-items!]]
+   [infowarss.core :as core]
+   [infowarss.config :as config]
+   [infowarss.persistency :as persistency]
    [infowarss.db :as db]
-   [infowarss.update :refer :all]
+   [infowarss.update :as update :refer [update! update-all! update-matching!]]
    [infowarss.webapp :as webapp]
    [infowarss.src :as src]
-   [hickory.select :as S]
-   [hickory.render :refer [hickory-to-html]]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.live :as live]
@@ -18,56 +16,23 @@
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
    [infowarss.logging :refer [with-logging-status]]
+   [infowarss.apis.reader :as reader]
+   [infowarss.blobstore :as blobstore]
    [org.bovinegenius [exploding-fish :as uri]]
    [infowarss.lab :as lab]
    [clj-http.client :as http-client]
    [slingshot.slingshot :refer [throw+ try+]]
    [java-time :as time]
    [java-time.repl :as t]
+   [clojure.edn :as edn]
    [taoensso.timbre :as log]
    [table.core :refer [table]]
    [clojure.java.io :as io]
+   [hickory.select :as S]
    [clojure.string :as string]
-   [infowarss.fetch.twitter]
    [postal.core :as postal]
    [schema.core :as s]
    [cheshire.core :as json]
-   [twitter.oauth :as twitter-oauth]
-   [twitter.api.restful :as twitter]
    [clojure.java.shell :as shell]
-   [opennlp.nlp :as nlp]
    [clojure.core.async :refer [>!! <!!] :as async]))
 
-(mount/in-clj-mode)
-
-
-(defn start []
-  (with-logging-status)
-  (mount/start))
-
-
-(defn stop []
-  (mount/stop))
-
-(defn refresh []
-  (stop)
-  (tn/refresh))
-
-(defn refresh-all []
-  (stop)
-  (tn/refresh-all))
-
-
-(defn go []
-  (start)
-  :ready)
-
-(defn reset []
-  (stop)
-  (tn/refresh :after 'user/go))
-
-
-
-(defn -main [& args]
-  (refresh)
-  (start))

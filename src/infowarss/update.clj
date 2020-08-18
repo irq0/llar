@@ -1,11 +1,12 @@
 (ns infowarss.update
   (:require
-   [infowarss.core :refer [*srcs* config]]
+   [infowarss.config :as config]
    [infowarss.fetch :as fetch]
    [infowarss.persistency :refer [store-items!]]
    [infowarss.postproc :as proc]
    [infowarss.converter :as converter]
    [java-time :as time]
+   [clojure.edn :as edn]
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
    [mount.core :refer [defstate]]
@@ -13,6 +14,8 @@
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
+
+(def config (edn/read-string (slurp (io/resource "config.edn"))))
 
 (defn startup-read-state []
   (let [res (io/resource "state.edn")
@@ -57,7 +60,7 @@
              skip-store false
              overwrite? false}}]
 
-  (let [feed (get *srcs* k)
+  (let [feed (get config/*srcs* k)
         state (get @state k)
         now (time/zoned-date-time)
         {:keys [src]} feed]
@@ -149,7 +152,7 @@
 (defn reset-all-failed!
   "Reset all feed states to :new"
   []
-  (doseq [[k v] *srcs*]
+  (doseq [[k v] config/*srcs*]
     (set-status! k :new)))
 
 ;;; Update API
@@ -159,63 +162,63 @@
   [k & {:keys [force]
         :as args}]
 
-  (when (nil? (get *srcs* k))
-    (throw+ {:type ::unknown-source-key :key k :known-keys (keys *srcs*)}))
+  (when (nil? (get config/*srcs* k))
+    (throw+ {:type ::unknown-source-key :key k :known-keys (keys config/*srcs*)}))
 
-  (when-not (satisfies? fetch/FetchSource (get-in *srcs* [k :src]))
-    (throw+ {:type ::source-not-fetchable :key k}))
+  (when-not (satisfies? fetch/FetchSource (get-in config/*srcs* [k :src]))
+    (throw+ {:type ::source-not-fetchable
+             :key k
+             :src (get-in config/*srcs* [k :src])
+             :src-type (type (get-in config/*srcs* [k :src]))}))
 
   (when-not (contains? @state k)
     (swap! state assoc k (assoc src-state-template :key k)))
 
     ;; don't update the same feed in parallel
-  (locking (get @state k)
     ;; push force update flag into state to make it accessible to ItemProcessor
-    (swap! state update k assoc :forced-update? force)
+  (swap! state update k assoc :forced-update? force)
+  (let [cur-state (get @state k)
+        cur-status (:status cur-state)]
+    (condp = cur-status
+      :new
+      (log/debug "Updating new feed: " k)
+      :ok
+      (log/debug "Updating working feed: " k)
+      :temp-fail
+      (log/debug "Temporary failing feed %d/%d: %s"
+                 (:retry-count cur-state) (:update-max-retires config) k)
+      :perm-fail
+      (log/debug "Skipping perm fail feed: " k)
+      (log/debugf "Unknown status \"%s\": %s" cur-status k))
 
-    (let [cur-state (get @state k)
-          cur-status (:status cur-state)]
+    (when force
+      (log/debugf "Force updating %s feed %s" cur-status k))
 
-      (condp = cur-status
-        :new
-        (log/debug "Updating new feed: " k)
-        :ok
-        (log/debug "Updating working feed: " k)
-        :temp-fail
-        (log/debug "Temporary failing feed %d/%d: %s"
-                   (:retry-count cur-state) (:update-max-retires config) k)
-        :perm-fail
-        (log/debug "Skipping perm fail feed: " k)
-        (log/debugf "Unknown status \"%s\": %s" cur-status k))
-
-      (when force
-        (log/debugf "Force updating %s feed %s" cur-status k))
-
-      (if (or
-           force
-           (#{:ok :new} cur-status)
-           (and
-            (= cur-status :temp-fail)
-            (< (:retry-count cur-state) (:update-max-retires config))))
-        (let [kw-args (mapcat identity (dissoc args :force))
-              new-state (apply update-feed! k kw-args)
-              new-status (:status new-state)]
-          (log/debugf "[%s] State: %s -> %s " k
-                      cur-status new-status)
-          (swap! state (fn [current]
-                         (assoc current k new-state)))
-          new-status)
-        cur-status))))
+    (if (or
+         force
+         (#{:ok :new} cur-status)
+         (and
+          (= cur-status :temp-fail)
+          (< (:retry-count cur-state) (:update-max-retires config))))
+      (let [kw-args (mapcat identity (dissoc args :force))
+            new-state (apply update-feed! k kw-args)
+            new-status (:status new-state)]
+        (log/debugf "[%s] State: %s -> %s " k
+                    cur-status new-status)
+        (swap! state (fn [current]
+                       (assoc current k new-state)))
+        new-status)
+      cur-status)))
 
 (defn update-all! [& args]
   (doall
-   (for [[k v] (shuffle (vec *srcs*))
+   (for [[k v] (shuffle (vec config/*srcs*))
          :when (satisfies? fetch/FetchSource (:src v))]
      (apply update! k args))))
 
 (defn update-matching! [re & args]
   (doall
-   (for [[k v] *srcs*
+   (for [[k v] config/*srcs*
          :when (and (satisfies? fetch/FetchSource (:src v))
                     (re-find re (name k)))]
      (apply update! k args))))

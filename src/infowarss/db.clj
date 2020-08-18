@@ -1,7 +1,5 @@
 (ns infowarss.db
   (:require
-   [infowarss.core :refer [config *srcs*]]
-   [infowarss.converter :as converter]
    [digest]
    [java-time :as time]
    [taoensso.timbre :as log]
@@ -9,16 +7,19 @@
    [clojure.string :as string]
    [clojure.java.jdbc :as j]
    [mpg.core :as mpg]
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
    [byte-streams :refer [to-byte-buffer]]
    [cheshire.core :refer :all]
    [mount.core :refer [defstate]]
-   [cheshire.generate :refer [add-encoder encode-str]])
+   [org.bovinegenius [exploding-fish :as uri]]
+   [hikari-cp.core :as hikari]
+   [cheshire.generate :as json :refer [encode-str]]))
 
-  (:import [com.mchange.v2.c3p0 ComboPooledDataSource]))
+(def config (:postgresql (edn/read-string (slurp (io/resource "config.edn")))))
 
 (def ^:dynamic *db*
-  (merge {:dbtype "postgresql"}
-         (:postgresql config)))
+  (merge {:dbtype "postgresql"} config))
 
 (mpg/patch {:default-map :hstore})
 
@@ -47,8 +48,8 @@
       (.setType type)
       (.setValue value))))
 
-(extend-type clojure.lang.Keyword
-  clojure.java.jdbc/ISQLValue
+(extend-protocol j/ISQLValue
+  clojure.lang.Keyword
   (sql-value [kw]
     (kw->pgenum kw)))
 
@@ -192,14 +193,14 @@
 
 (defn add-document [doc]
   (try+
-   (j/with-db-transaction [t *db*]
+   (j/with-db-transaction [t db]
      (binding [*db* t]
        (let [db-src (get-or-create-source-for-doc doc)
              item (first
                    (j/insert! t :items
                               (doc-to-sql-row doc (:id db-src))))
 
-             item-data-rows (log/spy (make-item-data-rows (:id item) doc))]
+             item-data-rows (make-item-data-rows (:id item) doc)]
          (when (seq item-data-rows)
            (j/insert-multi! t :item_data
                             [:item_id :mime_type :text :data :type]
@@ -217,7 +218,7 @@
 
 (defn inplace-update-document [doc]
   (try+
-   (j/with-db-transaction [t *db*]
+   (j/with-db-transaction [t db]
      (binding [*db* t]
        (let [db-src (get-or-create-source-for-doc doc)
              ret (first
@@ -301,7 +302,7 @@
                             {:item-tags (apply hash-set
                                                (map keyword (:item-tags row)))})})))
 
-(defn new-get-sources []
+(defn new-get-sources [config-sources]
   (into {}
         (j/query db [(str "SELECT name, key, created_ts, id, type, "
                           "  data->':title' as title "
@@ -311,7 +312,7 @@
                               [key
                                (-> row
                                    (assoc :key key)
-                                   (merge (get *srcs* key)))]))})))
+                                   (merge (get config-sources key)))]))})))
 
 (defn new-merge-in-tags-counts [sources]
   (pmap (fn [source]
@@ -342,7 +343,7 @@
                                        :total total})})))
         sources))
 
-(defn new-get-sources-item-tags-counts [item-tag simple-filter]
+(defn new-get-sources-item-tags-counts [item-tag simple-filter config-sources]
   (j/query db [(str "SELECT DISTINCT ON (key) key, "
                     "  name as title, key, created_ts, sources.id, sources.type "
                     "FROM sources "
@@ -354,7 +355,7 @@
                       (let [key (keyword (:key row))]
                         (-> row
                             (assoc :key key)
-                            (merge (get *srcs* key)))))}))
+                            (merge (get config-sources key)))))}))
 
 (defn get-sources-item-tags-with-count []
   (into {}
@@ -362,8 +363,8 @@
                  {:row-fn (fn [{:keys [key item-tags]}]
                             [(keyword key) {:item-tags item-tags}])})))
 
-(defn sources-merge-in-config [db-sources]
-  (merge-with into db-sources *srcs*))
+(defn sources-merge-in-config [db-sources config-sources]
+  (merge-with into db-sources config-sources))
 
 (defn sources-merge-in-item-tags [db-sources]
   (merge-with merge db-sources (get-sources-item-tags)))
@@ -432,7 +433,7 @@
         (assoc :data
                (->>
                 (map (fn [t m text bin]
-                       [t {m (or text (converter/bytea-hex-to-byte-array bin))}])
+                       [t {m (or text (bytea-hex-to-byte-array bin))}])
                      (map keyword (:data_types row))
                      (:mime_types row)
                      (:text row)
@@ -640,8 +641,8 @@
                                              (map #(str "'" % "'"))
                                              (string/join ", ")))]
                             {:row-fn :id})]
-    (j/execute! db [(log/spy (format "update items set tags = tags - 'unread'::text where source_id in (%s) and exist_inline(tags, 'unread') and ts <= ?"
-                                     (->> source-ids (string/join ", "))))
+    (j/execute! db [(format "update items set tags = tags - 'unread'::text where source_id in (%s) and exist_inline(tags, 'unread') and ts <= ?"
+                                     (->> source-ids (string/join ", ")))
                     older-than-ts])))
 
 (defn get-items-recent
@@ -709,7 +710,7 @@
 (defn search
   "Search for query. postgres query format"
   ([query {:keys [with-source-key time-ago-period]}]
-   (j/query db [(log/spy (str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
+   (j/query db [(str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
                               " from search_index"
                               " where document @@ to_tsquery('english', ?)"
                               "  and "
@@ -721,7 +722,7 @@
                                 (when with-source-key (str "key = '" (name with-source-key) "'"))]
                                (remove nil?)
                                (string/join " and "))
-                              " order by rank desc")) query query]))
+                              " order by rank desc") query query]))
   ([query]
    (j/query db ["select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query])))
 

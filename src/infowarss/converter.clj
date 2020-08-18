@@ -23,8 +23,6 @@
   (let [cmdline (concat (get +html-to-text-tools+ tool) [:in html])
         {:keys [exit out]}
         (apply shell/sh cmdline)]
-;;        (shell/sh "pandoc" "-f" "html" "-t" "plain" "--reference-links" :in html)]
-        ;; (shell/sh "w3m" "-T" "text/html" "-dump" :in html)]
     (if (zero? exit)
       out
       "")))
@@ -57,11 +55,6 @@
     (format "data:text/plain;%s" (java.net.URLEncoder/encode data "UTF-8"))
     (format "data:%s;base64,%s"
             mime-type (java.net.URLEncoder/encode (base64-encode data) "ASCII"))))
-
-(defn bytea-hex-to-byte-array [bytea]
-  (byte-array
-   (map (fn [[a b]] (Integer/parseInt (str a b) 16))
-        (drop 1 (partition 2 bytea)))))
 
 (defn get-mimetype
   [data & {:keys [mime-type]}]
@@ -108,8 +101,8 @@
     'org.irq0.🖖/url str)})
 
 (defn print-propsfile [props]
-  (puget/pprint-str props {:print-handlers +propsfile-handlers+
-                           :print-fallback :error}))
+  (puget/render-str (puget/canonical-printer +propsfile-handlers+)
+                    props))
 
 (defn read-edn-propsfile [s]
   (edn/read-string
@@ -121,7 +114,7 @@
 ;; reader annotations data store
 
 (defn print-annotations [props]
-  (puget/pprint-str props {:print-fallback :error}))
+  (puget/render-str (puget/canonical-printer) props))
 
 (defn read-edn-annotations [s]
   (edn/read-string s))
@@ -144,8 +137,8 @@
     'org.irq0.🖖/url str)})
 
 (defn print-state [state]
-  (puget/pprint-str state {:print-handlers +state-handlers+
-                           :print-fallback :error}))
+  (puget/render-str (puget/canonical-printer +state-handlers+)
+                    state))
 
 (defrecord GenericTaggedValue [tag value])
 
@@ -153,8 +146,7 @@
   (edn/read-string
    {:readers {'org.irq0.🖖/datetime #(time/zoned-date-time (time/formatter :iso-zoned-date-time) %)
               'org.irq0.🖖/url uri/uri
-              'org.irq0.🖖/atom (fn [x] (atom x))}
-    :default ->GenericTaggedValue}
+              'org.irq0.🖖/atom (fn [x] (atom x))}}
    s))
   
 (defn parse-http-ts [ts]

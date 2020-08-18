@@ -99,7 +99,8 @@
   (if-let [html (get-in contents ["text/html"])]
     (assoc contents "text/html"
            (-> html
-               hick/parse hick/as-hickory
+               hick/parse
+               hick/as-hickory
                (absolutify-links-in-hick base-url)
                sanitize
                blobify

@@ -1,6 +1,6 @@
 (ns infowarss.apis.status
   (:require
-   [infowarss.core :as core]
+   [infowarss.config :as config]
    [infowarss.update :as update]
    [infowarss.live :as live]
    [infowarss.db :as db]
@@ -98,7 +98,7 @@
       [:th "Last Attempt / Start"]
       [:th "Last Exception"]]]
     [:tbody
-     (for [[k src] core/*srcs*]
+     (for [[k src] config/*srcs*]
        (let [state (get-state k)
              status (:status state)
              sched (:schedule (get-sched-info k))]

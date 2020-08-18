@@ -4,6 +4,7 @@
             [infowarss.persistency :refer [CouchItem]]
             [infowarss.schema :as schema]
             [infowarss.analysis :as analysis]
+            [taoensso.timbre :as log]
             [infowarss.http :refer [try-blobify-url!]]
             [twitter.api.restful :as twitter]
             [schema.core :as s]
@@ -161,7 +162,8 @@
           resp (api-fn
                 :oauth-creds oauth-creds
                 :params params)
-          tweets (get-in resp [:body :statuses])]
+          tweets (:body resp)]
+      (log/info tweets)
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]

@@ -1,7 +1,7 @@
 (ns infowarss.sched
   (:require
-   [infowarss.core :refer [*srcs*]]
    [java-time :as time]
+   [infowarss.config :as config]
    [infowarss.update :refer [update!]]
    [infowarss.db :as infowarss-db]
    [infowarss.lab :as infowarss-lab]
@@ -22,7 +22,7 @@
 (defn make-feed-sched
   []
   (sched/scheduler
-   (make-sched-from-feeds *srcs*)
+   (make-sched-from-feeds config/*srcs*)
    {}
    {:clock {:type "java.time.ZonedDateTime"
             :timezone "Europe/Berlin"
@@ -48,7 +48,7 @@
                           :schedule "0 42 3 * * * *"}}))
   :stop (sched/stop! db-sched))
 
-(defstate sched
+(defstate misc-sched
   :start (sched/start!
           (sched/scheduler
            {:download-tagged-items {:handler (fn [_] (log/info "Downloaded tagged links:"
@@ -93,7 +93,7 @@
                                         (time/minus (time/zoned-date-time) (time/weeks 2))))
                             :schedule "0 42 23 * * * *"}}))
 
-  :stop (sched/stop! sched))
+  :stop (sched/stop! misc-sched))
 
 (defstate feed-sched
   :start (sched/start! (make-feed-sched))

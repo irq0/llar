@@ -1,7 +1,6 @@
 (ns infowarss.apis.dataworkbench
   (:require
    [infowarss.src :as src]
-   [infowarss.core :as core]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
@@ -20,7 +19,6 @@
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable url-encode]]
    [slingshot.slingshot :refer [throw+ try+]]
    [schema.core :as s]
-   [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
    [hiccup.util :refer [escape-html]]
    [clojure.contrib.humanize :as human]
