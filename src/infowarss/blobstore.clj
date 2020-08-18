@@ -1,9 +1,11 @@
 (ns infowarss.blobstore
   (:require
    [infowarss.converter :as conv]
+   [infowarss.regex :as regex-collection]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-http.client :as http2]
+   [clojure.string :as string]
    [java-time :as time]
    [schema.core :as s]
    [pantomime.mime :as pm]
@@ -42,12 +44,39 @@
 (defn- read-propsfile [filename]
   (let [content (slurp filename)]
     (try+
-     (conv/read-edn-propsfile content)
-     (catch Object _
+     (let [props (conv/read-edn-propsfile content)]
+       (when (nil? props)
+         (throw+ {:type ::props-read-error
+                  :reason "file empty"
+                  :props props
+                  :filename filename
+                  :content content}))
+       props)
+     (catch Object e
        (throw+ {:type ::props-read-error
+                :reason (ex-message e)
                 :filename filename
                 :content content})))))
 
+(defn try-read-propsfile-or-recreate [propsfile file]
+  (try+
+   (read-propsfile propsfile)
+   (catch [:type ::props-read-error] err
+     (log/warn "Propsfile broken. Recreating" err)
+     
+     (let [urls (or (into #{} (->> (:content err)
+                                   (re-seq regex-collection/url)
+                                   (map first)
+                                   (map uri/uri)))
+                    #{})
+           new-props {:hits (count urls)
+                      :msg (str "recreated by try-read-propsfile-or-recreate "
+                                (time/format :iso-instant (time/zoned-date-time)))
+                      :failed-file (:content err)
+                      :orig-urls urls
+                      :mime-type (pm/mime-type-of (io/input-stream file))}]
+       (spit propsfile (conv/print-propsfile new-props))
+       new-props))))
 
 (s/defn create-url-index-entry-for-url :- s/Str
   "Create secondary url index entry: url -> hash"
@@ -108,14 +137,6 @@
                          (.toPath link))]
         (str (.getFileName link-target))))))
 
-(defn- setify-urls [x]
-  (cond
-    (set? x) x
-    (set? (first x)) (first x)
-    (coll? x) (set x)
-    (nil? x) #{}
-    :else x))
-
 (defn client-error?
   [{:keys [status]}]
   (when (number? status)
@@ -154,13 +175,15 @@
        (log/warn "BLOBSTORE Broken url?" url)
        (throw+ {:type ::perm-fail :url url}))
 
+     ;; we don't do file system locking here to protect the individual prop files,
+     ;; but rather have application level locks that lock subtrees. 
      (locking lock-obj
        (ensure-dir-hierarchy file)
        (let [exists? (and (.exists propsfile)
                           (.exists file))
              props (if (.exists propsfile)
-                     (let [prev-probs (read-propsfile propsfile)
-                           prev-urls (setify-urls (:orig-urls prev-probs))]
+                     (let [prev-probs (try-read-propsfile-or-recreate propsfile file)
+                           prev-urls (into #{} (:orig-urls prev-probs))]
                        {:orig-urls (conj prev-urls url)
                         :hits (+ 1 (:hits prev-probs))
                         :mime-type mime})
@@ -183,9 +206,29 @@
      (throw+ {:type ::fetch-fail}))
    (catch java.net.MalformedURLException _
      (log/warn (:throwable &throw-context) "URL Kaputt?" url))
+   (catch java.net.ConnectException e
+     (log/debug "BLOBSTORE Server Error (-> temp-fail):" e url)
+     (throw+ {:type ::fetch-fail}))
    (catch Object _
      (log/warn (:throwable &throw-context) "BLOBSTORE ADD failed" url)
      (throw+ {:type ::undefined-error :url url}))))
+
+(defn blob-info [content-hash]
+  (let [file (blob-file +blob-store+ content-hash)
+        propsfile (io/as-file (str file ".props"))
+        props (when (nio2/exists? (.toPath propsfile))
+                (conv/read-edn-propsfile (slurp propsfile)))
+        urls (:orig-urls props)
+        url-files (map #(blob-file +blob-store-dupes+ (digest/sha-256 (str %))) urls)]
+    (when-not (nio2/exists? (.toPath propsfile))
+      (throw+ {:type ::invalid-argument :reason ::blob-does-not-exist
+               :file file :propsfile propsfile
+               :props props :urls urls
+               :url-files url-files :content-hash content-hash}))
+    
+    [file propsfile url-files]))
+    
+
 
 (s/defn add-from-url! :- s/Str
   [url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
@@ -199,7 +242,7 @@
   (let [file (blob-file +blob-store+ hash)
         size (.length file)
         propsfile (str file ".props")
-        props (read-propsfile propsfile)
+        props (try-read-propsfile-or-recreate propsfile file)
         blob (-> props
                  (assoc :hash hash)
                  (assoc :file file)
