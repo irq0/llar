@@ -39,6 +39,10 @@
   (time/zoned-date-time
    (time/local-date (time/formatter fmt) s) 0 (time/zone-id "UTC")))
 
+(defn- parse-date-time-to-zoned-data-time [fmt s]
+  (time/zoned-date-time
+   (time/local-date-time (time/formatter fmt) s) (time/zone-id "UTC")))
+
 
 ;;; Bookmarks
 
@@ -306,8 +310,7 @@
           :cron cron-daily}
 
    ;; seems discontinued
-   :oreilly-ideas {:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
-                   :cron cron-daily
+   :oreilly-ideas {;;:src (src/feed "https://www.oreilly.com/ideas/feed.atom")
                    :proc (proc/make
                           :post [(mercury-contents :keep-orig? true)])
                    :tags #{:tech :magazine}}
@@ -969,7 +972,7 @@
                                             hick/parse
                                             hick/as-hickory)
                                       foo (log/spy h)
-                                      date-elem (log/spy (S/select (S/class "article_top_dateline") h))
+                                      date-elem (S/select (S/class "article_top_dateline") h)
                                       date-str (-> date-elem first :content first)
                                       date (parse-date-to-zoned-data-time (time/formatter "MMMM dd, yyyy ")
                                                                           date-str)]
@@ -1200,7 +1203,7 @@
              :tags #{:tech :blog}
              :cron cron-daily}
 
-   :uswitch-labs {:src (src/feed "https://labs.uswitch.com/rss/")
+   :uswitch-labs {:src (src/feed "https://medium.com/feed/uswitch-labs")
                   :tags #{:tech}
                   :cron cron-daily}
 
@@ -1577,7 +1580,7 @@
                    :ts #(->> %
                              first :content first
                              string/trim
-                             (time/zoned-date-time (time/formatter "yyyy-MM-dd HH:mm")))})
+                             (parse-date-time-to-zoned-data-time "yyyy-MM-dd HH:mm"))})
             :tags #{:blog}
             :cron cron-daily}
 
