@@ -152,7 +152,10 @@
   [url]
   (try+
    (let [response (http2/get (str url)
-                             {:as :stream})
+                             {:as :stream
+                              :socket-timeout 10000
+                              :connection-timeout 5000
+                              })
 
          body (.readAllBytes (:body response))
          content-hash (digest/sha-256 body)
