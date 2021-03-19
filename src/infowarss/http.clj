@@ -6,6 +6,7 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-http.client :as http]
    [schema.core :as s]
+   [clojure.set :refer [intersection]]
    [infowarss.schema :as schema]
    [infowarss.converter :as conv]
    [clojure.set :as clojure-set]
@@ -129,12 +130,20 @@
     (uri/path url "/")
     url))
 
-(s/defn absolutify-url :- (s/maybe schema/URLWithAbsPath)
+(s/defn absolutify-url :- (s/maybe schema/AbsolutifiedURL)
   [raw-href :- (s/cond-pre schema/NotEmptyStr schema/URLRelaxed)
    raw-base-url :- (s/maybe (s/cond-pre s/Str schema/URLRelaxed))]
-  (let [url (parse-href raw-href)]
-    (if (uri/absolute? url)
+  (let [url (parse-href raw-href)
+        scheme (uri/scheme url)]
+    (cond
+      ;; do not touch data / mailto urls!
+      (contains? #{"data" "mailto"} scheme)
+      (uri/uri raw-href)
+
+      (uri/absolute? url)
       (append-path-if-not-exist url)
+
+      :else
       (let [base-url (parse-url raw-base-url)]
         (cond
           (or (nil? base-url) (and (string? raw-base-url) (string/blank? raw-base-url)))
@@ -155,7 +164,7 @@
           (let [resolved (-> (uri/resolve-path base-url url)
                              (uri/query (uri/query url))
                              (uri/fragment (uri/fragment url)))]
-            
+
             (if (uri/absolute-path? resolved)
               resolved
               (update resolved :path #(str "/" %))))
@@ -181,7 +190,7 @@
              (if (= (count pair) 2)
                pair
                [(first pair) "1x"])))
-               
+
          (string/split
           (java.net.URLDecoder/decode str "UTF-8")
           #"(?<=\d+[wx]|),\s*"))))
@@ -202,7 +211,7 @@
             (fn [attrs]
               (let [{:keys [src srcset]} attrs
                     parsed-srcset (parse-img-srcset srcset)]
-                    
+
                 (cond-> attrs
                   (not (or (nil? src) (string/blank? src)))
                   (assoc :src (str (absolutify-url src base-url)))
@@ -247,6 +256,7 @@
 (defn try-blobify-url! [url]
   (let [url (parse-url url)]
     (if (or (nil? url)
+            (= (uri/scheme url) "data")
             (= (uri/path url) "/")
             (= (uri/path url) "/#"))
       (str url)
@@ -291,6 +301,64 @@
              (zip/next (edit-tag tag loc)))
             (recur (zip/next loc))))))))
 
+;; remove all nested div and span - hellishly expensive, lots of copying!
+(defn simplify-expensive [root]
+  (let [zipper (hick-z/hickory-zip root)]
+    (loop [loc zipper]
+      (if (zip/end? loc)
+        (zip/root loc)
+        (recur
+          (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
+            (if (and (= type :element) (some? content)
+                     (some #(contains? #{:div :span} (:tag %)) content))
+              (zip/replace loc
+                           ;; elevate any div/span content to this node
+                           (let [new-content (mapcat (fn [cont]
+                                                       (let [{:keys [tag type attrs content]} cont]
+                                                         (if (and (= type :element)
+                                                                  (some? content)
+                                                                  (contains? #{:div :span} tag))
+                                                           content
+                                                           [cont])))
+                                                     content)]
+                             (assoc node :content new-content)))
+              (zip/next loc))))))))
+
+(defn simplify-expensive [root]
+  (let [zipper (hick-z/hickory-zip root)]
+    (loop [loc zipper]
+      (if (zip/end? loc)
+        (zip/root loc)
+        (recur
+          (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
+            (if (and (= type :element) (some? content)
+                     (some #(contains? #{:div :span} (:tag %)) content))
+              (zip/replace loc
+                           ;; elevate any div/span content to this node
+                           (let [new-content (mapcat (fn [cont]
+                                                       (let [{:keys [tag type attrs content]} cont]
+                                                         (if (and (= type :element)
+                                                                  (some? content)
+                                                                  (contains? #{:div :span} tag))
+                                                           content
+                                                           [cont])))
+                                                     content)]
+                             (assoc node :content new-content)))
+              (zip/next loc))))))))
+
+(defn simplify [root]
+  (let [zipper (hick-z/hickory-zip root)]
+    (loop [loc zipper]
+      (if (zip/end? loc)
+        (zip/root loc)
+        (recur
+         (zip/next
+          (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
+            (if (and (= type :element)
+                     (contains? #{:div :span} tag))
+              (zip/replace loc (assoc node :attrs nil))
+              loc))))))))
+
 (defn sanitize
   [root
    & {:keys [remove-css?]
@@ -298,7 +366,11 @@
   (let [zipper (hick-z/hickory-zip root)
         url-attribs {:a :href
                      :img :src}
-        remove-tags #{:script :noscript}]
+        remove-by-attrs {:data-app-hidden "true"  ;; spiegel online
+                         :class "lazytrigger"  ;; spiegel online
+                         :data-component "AffiliateBox" ;; spiegen online
+                         }
+        remove-tags #{:header :script :noscript :footer :button}]
     (loop [loc zipper]
       (if (zip/end? loc)
         (zip/root loc)
@@ -307,15 +379,26 @@
             (recur
              (zip/next
               (cond
-                (contains? remove-tags tag)
+                (or (contains? remove-tags tag)
+                    (some (fn [[k v]]
+                            (when-let [remove-if-val (get remove-by-attrs k)]
+                              (string/includes? (or v "")
+                                                remove-if-val)))
+                          attrs))
                 (zip/edit loc
                           (fn [node]
                             (-> node
                                 (assoc :content [])
                                 (assoc :attrs {:note "cleared by infowarss html sanitizer"}))))
 
-                (and (= tag :a) (some-> attrs :href (string/starts-with? "mailto:")))
+                (and (= tag :a) (some-> attrs :href #(or (string/starts-with? %"mailto:")
+                                                         (string/starts-with? %"data:"))))
                 loc
+
+                (= tag :font)
+                (zip/edit loc
+                          (fn [node]
+                            (assoc node :attrs nil)))
 
                 (and remove-css? (= tag :link) (= (:rel attrs) "stylesheet"))
                 (zip/edit loc
@@ -331,7 +414,14 @@
                                 (assoc-in [:attrs :orig-style]
                                           (:style attrs)))))
 
+                (and (= tag :img) (string/starts-with? (or (:srcset attrs) "") "data:"))
+                (zip/edit loc
+                          (fn [node]
+                              (assoc-in node [:attrs :srcset] nil)))
+
+
                 (and (contains? #{:a :img} tag)
+                     (contains? #{:href :src} attrs)
                      (try+
                       (let [url (parse-url (get attrs (get url-attribs tag)))
                             host (uri/host url)
@@ -354,8 +444,12 @@
 
 (defn fetch
   "Generic HTTP fetcher"
-  [url & {:keys [user-agent]
-          :or {user-agent :default}}]
+  [url & {:keys [user-agent sanitize? remove-css? simplify? blobify?]
+          :or {user-agent :default
+               sanitize? true
+               blobify? true
+               remove-css? false
+               simplify? false}}]
   (let [url (parse-url url)
         base-url (get-base-url-with-path url)]
     (try+
@@ -363,12 +457,13 @@
                               {:headers {:user-agent (resolve-user-agent user-agent)}
                                :decode-cookies false
                                :cookie-policy :none})
-           parsed-html (-> response
-                           :body
-                           hick/parse hick/as-hickory
-                           (absolutify-links-in-hick base-url)
-                           sanitize
-                           blobify)]
+           parsed-html (cond-> (-> response
+                                   :body
+                                   hick/parse hick/as-hickory
+                                   (absolutify-links-in-hick base-url))
+                         sanitize? (sanitize :remove-css? remove-css?)
+                         simplify? (simplify)
+                         blobify? (blobify))]
        (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
        {:raw response
         :body (hick-r/hickory-to-html parsed-html)

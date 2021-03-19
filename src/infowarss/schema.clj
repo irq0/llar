@@ -64,6 +64,13 @@
                        (uri/host %)
                        (uri/absolute-path? %))))
 
+(defschema AbsolutifiedURL
+  (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
+                 #(or (contains? #{"data" "mailto"} (uri/scheme %))
+                      (and (uri/scheme %)
+                           (uri/host %)
+                           (uri/absolute-path? %)))))
+
 (defschema URL
   (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
                  #(and (uri/scheme %)
