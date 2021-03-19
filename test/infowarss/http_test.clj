@@ -189,6 +189,17 @@
 
       "http://example.com/foo" (uut/absolutify-url "/foo" "http://example.com")
       "http://example.com/foo/bar" (uut/absolutify-url "/foo/bar" "http://example.com")))
+  (testing
+      "leave special urls alone"
+    (are [x] (= (str x) (str (uut/absolutify-url x "http://example.com/")))
+      "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ=="
+      "data:text/html,<script>alert('hi');</script>"
+      "data:,Hello%2C%20World!"
+      "data:text/html,%3Ch1%3EHello%2C%20World!%3C%2Fh1%3E"
+      "mailto:majordomo@example.com?body=subscribe%20bamboo-l"
+      "mailto:infobot@example.com?body=send%20current-issue"
+      "mailto:chris@example.com"
+      "mailto:?to=joe@example.com&cc=bob@example.com&body=hello"))
   
   (testing
       "Half kaputt, but quirks-mode parsable"
