@@ -22,8 +22,7 @@
    [:title "🖖 🔢 🔥 🚧"]
    [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/css/dataTables.bootstrap4.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
+   [:link {:rel "stylesheet" :href "/static/fonts/ibmplex/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/css/fontawesome_all.css"}]
    [:link {:rel "stylesheet" :href "/static/css/jquery.dataTables.min.css"}]
    [:link {:rel "stylesheet" :href "/static/css/my.css"}]])

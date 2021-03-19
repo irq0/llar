@@ -50,7 +50,7 @@
         duration (-> raw-duration
                      (.minusNanos (.getNano raw-duration)))
         period (time/period (time/local-date ts) (time/local-date))]
-    (if (> (.toDays duration) 7)
+    (if (>= (.toDays duration) 2)
       (subs (string/lower-case (str period)) 1)
       (subs (string/lower-case (str duration)) 2))))
 
@@ -94,16 +94,22 @@
    :unread ["unread" "far fa-square"]
    :today ["today" "fas fa-calendar-day"]})
 
+(def +reading-estimate-badge+
+  {:easy "badge-success"
+   :medium "badge-warning"
+   :hard "badge-danger"})
+
 (def +favorites+
   [[:all :default]
    [:saved :item-tags]
-   [:daily :item-tags]
    [:highlight :item-tags]
    [:blog :source-tag]
    [:hackernews :source-tag]
    [:tech :source-tag]
    [:sci :source-tag]
-   [:bookmark :type]])
+   [:news :source-tag]
+   [:bookmark :type]
+   [:recreation :source-tag]])
 
 (declare
  main-list-items
@@ -144,6 +150,7 @@
    :berlin "fas fa-city"
    :blog "fas fa-blog"
    :comics "far fa-images"
+   :news "far fa-newspaper"
    :hackernews "fab fa-y-combinator"
    :storage "fas fa-hdd"
    :tech "fas fa-microchip"
@@ -152,6 +159,7 @@
    :gaming "fas fa-gamepad"
    :music "fas fa-music"
    :magazine "fas fa-newspaper"
+   :recreation "fas fa-umbrella-beach"
    :highlight "fas fa-sun"})
 
 (def +tags-skip-group-list+
@@ -191,6 +199,10 @@
     :icon-set "fas fa-bug icon-is-set"
     :icon-unset "fas fa-bug"}])
 
+(def +headline-view-tag-buttons+
+  "Select from +tag-buttons+"
+  #{:interesting :saved :archive :unread})
+
 (defn icon [ico & args]
   [:i (assoc (apply hash-map args) :class ico) "&thinsp;"])
 
@@ -198,6 +210,24 @@
   clojure.lang.Keyword
   (form-encode* [x encoding]
     (form-encode* (name x) encoding)))
+
+(defn reading-time-estimate [item]
+  (let [words-per-min 200
+        {:keys [nwords readability]} item
+        index (or
+               (:flesch-index readability)
+               51)
+        level (cond
+                (>= index 70) :easy
+                (> 70 index 50) :medium
+                (>= 50 index) :hard)
+        factor (case level
+                 :easy 1
+                 :medium 1.5
+                 :hard 2)
+        estimate (* (/ nwords words-per-min) factor)]
+    {:estimate (int (Math/ceil estimate))
+     :difficulty level}))
 
 (defn make-site-href
   "Make inner site href"
@@ -226,8 +256,7 @@
    [:link {:rel "icon" :type "image/png" :sizes "16x16" :href "/static/img/favicon-16x16.png"}]
    [:link {:rel "manifest" :href "/static/img/site.webmanifest"}]
    [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
+   [:link {:rel "stylesheet" :href "/static/fonts/ibmplex/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/css/fontawesome_all.css"}]
    [:link {:rel "stylesheet" :href "/static/css/my.css"}]])
 
@@ -281,12 +310,13 @@
         short-title (when (= mode :show-item)
                       (-> items first :title))]
 
-    [:nav {:class "navbar navbar-dark navbar-expand-md sticky-top bg-dark flex-md-nowrap p-0"}
+    [:nav {:id "top-nav"
+           :class "navbar navbar-dark navbar-expand-md sticky-top bg-dark flex-md-nowrap p-0"}
      [:div {:class "navbar-toggler"}
       [:a {:class "navbar-toggler"
            :data-toggle "collapse"
            :data-target "#navbar"}
-       (icon "fas fa-cog")]
+       (icon "fas fa-bars")]
       (cond
         (= mode :list-items)
         [:span
@@ -295,8 +325,19 @@
           (icon "fas fa-sync")]
          [:a {:class "navbar-toggler"
               :href (make-site-href [(:uri x)] x)}
-          (icon "fas fa-step-backward")]]
-
+          (icon "fas fa-step-backward")]
+         [:a {:class "navbar-toggler btn-mark-view-read"
+               :href "#"}
+         (icon "fas fa-glasses")]
+         [:a {:class "navbar-toggler"
+              :data-toggle "collapse"
+              :href "#groupnav"}
+          (icon "fas fa-compass")]
+         [:a {:class "navbar-toggler"
+             :data-toggle "collapse"
+             :href "#sourcenav"}
+         (icon "fas fa-list")]
+         ]
         (= mode :show-item)
         [:span
          [:a {:class "navbar-toggler"
@@ -340,8 +381,7 @@
                :href (make-site-href [(:uri x)] (:range-before x) x)}
            (icon "fas fa-sync")]
 
-          [:a {:class "btn btn-secondary"
-               :id "btn-mark-view-read"
+          [:a {:class "btn btn-secondary btn-mark-view-read"
                :href "#"}
            (icon "fas fa-glasses")]
 
@@ -354,17 +394,7 @@
           (for [btn +tag-buttons+]
             (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
           next-item-button])
-       [:div {:class "col-xs-4 text-right d-block d-md-none"}
-        [:a {:class "btn btn-secondary"
-             :data-toggle "collapse"
-             :href "#groupnav"
-             :role "button"}
-         (icon "fas fa-ellipsis-v")]
-        [:a {:class "btn btn-secondary"
-             :data-toggle "collapse"
-             :href "#sourcenav"
-             :role "button"}
-         (icon "fas fa-list")]]]]]))
+       ]]]))
 
 (defn group-list
   "Group Item List - Tags, etc."
@@ -544,7 +574,7 @@
         active-source (:source-key x)]
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-right" " mode-" (name (:mode x)))
            :id "sourcenav"}
-     [:div {:class "sidebar-sticky"}
+     [:div {:class "sidebar-sticky" :id "right-nav"}
       [:ul {:class "nav flex-column"}
        (for [src (->> (:active-sources x) (sort-by :key))]
          (source-list-item
@@ -603,6 +633,7 @@
   (let [item (first (:items x))
         selected-data (:data x)
         selected-content-type (:content-type x)
+        reading-estimate (reading-time-estimate item)
         {:keys [id url data ts tags entry nwords]} item
         lang (if (#{"de" "en"} (:language entry))
                (:language entry)
@@ -615,7 +646,11 @@
       [:div {:class "btn-toolbar " :role "toolbar"}
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:class "btn"}
-         "&nbsp;&nbsp;" (icon "far file-word") nwords]
+         (icon "far file-word")
+         [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
+          (:estimate reading-estimate) "m"]
+         "&nbsp;-&nbsp;"
+         nwords "&nbsp;words"]
         (tags-button-group id tags)]
        (when (some? ts)
          [:div {:class "btn-group btn-group-sm" :role "group"}
@@ -663,7 +698,7 @@
                            :content-type content-type}
                           x)}
                (str (name descr) " - " content-type)]))]]]]]
-     [:div {:id "item-content-body-container" :class "container"}
+     [:div {:id "item-content-body-container" :class "container-fluid"}
       [:div {:class "row"}
        [:div {:class "col-11"}
         [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
@@ -810,23 +845,7 @@
 ;; add number of nouns
 
 
-(defn reading-time-estimate [item]
-  (let [words-per-min 200
-        {:keys [nwords readability]} item
-        index (or
-               (:flesch-index readability)
-               51)
-        level (cond
-                (>= index 70) :easy
-                (> 70 index 50) :medium
-                (>= 50 index) :hard)
-        factor (case level
-                 :easy 1
-                 :medium 1.5
-                 :hard 2)
-        estimate (* (/ nwords words-per-min) factor)]
-    {:estimate (int (Math/ceil estimate))
-     :difficulty level}))
+
 
 (defn main-list-item
   "Main Item List - Word Cloud Style"
@@ -844,13 +863,14 @@
                               (re-find +boring-words-regex+ word))))
         words (take 50 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
         names (take 50 (filter boring-filter names))
+        short-word-cloud? (< (+ (count words) (count names) (count urls)) 10)
         min-freq (second (last words))
         max-freq (second (first words))
         youtube-url (and (string? url)
                          (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url))]
     [:div {:id (str "item-" id)
            :class (str "feed-item "
-                       (string/join
+                       (string/join " "
                         (map #(str "option-" (name %)) options)))}
      [:h4 {:class "h4"}
       [:a {:href (make-site-href [link-prefix "item/by-id" id]
@@ -914,14 +934,18 @@
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]
        [:div {:class "item-preview"} [:img {:src twit-pic}]])
 
-     (when-let [image-url (and (not youtube-url) (:lead-image-url entry))]
-       [:div {:class "item-preview-small"} [:img {:src image-url}]])
+     (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
+       (when (not (or (string/blank? image-url)
+                      (= image-url "default")))
+       [:div {:class (str "item-preview-small" (when (or (contains? options :main-list-use-description)
+                                                         short-word-cloud?)
+                                                 " float-md-left"))}
+        [:img {:src image-url}]]))
 
-     (when (contains? options :main-list-use-description)
+     (if (contains? options :main-list-use-description)
        [:p {:class "description"}
-        (get-in item [:data :description "text/plain"])])
-
-     [:p {:class "word-cloud"}
+        (get-in item [:data :description "text/plain"])]
+       [:p {:class "word-cloud"}
       (html
        (for [[word freq] words
              :let [size (word-cloud-fontsize freq min-freq max-freq)]]
@@ -947,7 +971,7 @@
              :when (not (re-find +boring-url-regex+ url))]
          [:span {:class "url border"}
           [:a {:href url :class "text-white sz-b"}
-           text]]))]
+           text]]))])
 
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
@@ -972,7 +996,7 @@
        [:tr
         [:td (icon "fas fa-rss")]
         [:td "Title"]
-        [:td (icon "far fa-file-word")]
+        [:td (icon "fas fa-book-reader")]
         [:td (icon "far fa-calendar")]
         [:td "Tools"]]]
 
@@ -1002,7 +1026,10 @@
               "(no title)"
               title)]]
 
-          [:td {:class "nwords"} nwords]
+          [:td {:class "nwords"}
+           (let [estimate (reading-time-estimate item)
+                 human-time (:estimate estimate)]
+             human-time)]
 
           [:td {:class "ts"}
            [:ul {:class "list-inline"}
@@ -1011,12 +1038,14 @@
              [:span {:class "timestamp"} (human-datetime-ago ts)]]]]
 
           [:td {:class "toolbox"}
+           [:div
            (concat
             [[:a {:class "btn" :href url}
               (icon "fas fa-external-link-alt")]]
-            (for [btn +tag-buttons+]
+            (for [btn +tag-buttons+
+                  :when (contains? +headline-view-tag-buttons+ (:tag btn))]
               (tag-button id
-                          (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]])]]]))
+                          (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]]])]]]))
 
 (defn gallery-list-items
   "Main Item List - Gallery Style"
@@ -1335,11 +1364,16 @@
           [:h5 {:class "card-title"} group-name]
           [:p {:class "card-text"}]]
          [:ul {:class "list-group list-group-flush"}
-          (for [{:keys
-                 [id title]} items]
+          (for [{:keys [id title]
+                 :as item} items
+                :let [reading-estimate (reading-time-estimate item)]]
             [:li {:class "list-group-item"}
              [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-              title]])]]])]]])
+              [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
+               (:estimate reading-estimate) "m"]
+              "&nbsp;"
+              title
+              ]])]]])]]])
 
 (defmethod lab-view-handler
   :dump-data-structure
@@ -1399,7 +1433,6 @@
                          reverse)
               min-freq (-> freqs last second)
               max-freq (-> freqs first second)]
-          (log/info freqs min-freq max-freq)
           (for [[word freq] freqs
                 :let [size (word-cloud-fontsize freq min-freq max-freq)]]
             [:span {:class (str "word border text-white " size)}
