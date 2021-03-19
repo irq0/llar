@@ -1,0 +1,16 @@
+{:update-max-retires 5
+ :postgresql {:database-name "infowarss"
+              :adapter "postgresql"
+              :server-name "localhost"
+              :username "infowarss"
+              :auto-commit        true
+              :read-only          false
+              :connection-timeout 30000
+              :validation-timeout 5000
+              :idle-timeout       600000
+              :max-lifetime       1800000
+              :minimum-idle       10
+              :maximum-pool-size  20
+              :register-mbeans    false
+              :pool-name          "infowarss-pool"
+              :password ""}}
