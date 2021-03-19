@@ -12,3 +12,4 @@ pom.xml.asc
 /resources/nlp/models/*.bin
 /resources/state.edn
 /resources/annotations.edn
+.eastwood
