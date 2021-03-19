@@ -3,7 +3,8 @@
    [java-time :as time]
    [infowarss.config :as config]
    [infowarss.update :refer [update!]]
-   [infowarss.db :as infowarss-db]
+   [infowarss.db.modify :as db-mod]
+   [infowarss.db.search :as db-search]
    [infowarss.lab :as infowarss-lab]
    [hara.io.scheduler :as sched]
    [taoensso.timbre :as log]
@@ -34,7 +35,7 @@
   :start (sched/start!
           (sched/scheduler
            {:refresh-search-index {:handler (fn [_] (log/info "Refreshing search index:"
-                                                              (infowarss-db/refresh-search-index)))
+                                                              (db-search/refresh-search-index)))
                                    :schedule "0 42 3 * * * *"}
             :update-clustered-saved-items {:handler (fn [_]
                                                       (log/info "Updating saved items cluster")
@@ -44,7 +45,7 @@
                                            :schedule "0 5 * * * * *"}
 
             :refresh-idf {:handler (fn [_] (log/info "Refreshing search index:"
-                                                     (infowarss-db/refresh-idf)))
+                                                     (db-search/refresh-idf)))
                           :schedule "0 42 3 * * * *"}}))
   :stop (sched/stop! db-sched))
 
@@ -58,7 +59,8 @@
                                                          (infowarss-lab/copy-wallpapers-to-home)))
                               :schedule "0 42 23 * * * *"}
             :remove-unread {:handler (fn [_]
-                                       (infowarss-db/remove-unread-for-items-of-source-older-than
+                                       ;; 4 weeks
+                                       (db-mod/remove-unread-for-items-of-source-older-than
                                         [:golem :hn-top :thenewstack
                                          :hn-best :reddit-berlin
                                          :comingsoon :reddit-games
@@ -81,11 +83,15 @@
                                          :reddit-ifyoulikeblank
                                          :reddit-berlin]
                                         (time/minus (time/zoned-date-time) (time/weeks 4)))
-                                       (infowarss-db/remove-unread-for-items-of-source-older-than
+
+                                       ;; 1 week
+                                       (db-mod/remove-unread-for-items-of-source-older-than
                                         [:mydealz-hot :screenrant :wired :theverge :vox :kottke
                                          :vice :humblebundle]
                                         (time/minus (time/zoned-date-time) (time/weeks 1)))
-                                       (infowarss-db/remove-unread-for-items-of-source-older-than
+                                       
+                                       ;; 2 weeks
+                                       (db-mod/remove-unread-for-items-of-source-older-than
                                         [:weekly-programming-digest :oreilly-fourshortlinks
                                          :nasa-image-of-the-day :atlantic-best-of
                                          :reddit-dataisbeautiful

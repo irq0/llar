@@ -152,3 +152,9 @@
 (defn parse-http-ts [ts]
   (when-not (nil? ts)
     (time/zoned-date-time (time/formatter :rfc-1123-date-time)  ts)))
+
+(defn bytea-hex-to-byte-array [bytea]
+  (byte-array
+   (map (fn [[a b]] (Integer/parseInt (str a b) 16))
+        (drop 1 (partition 2 bytea)))))
+

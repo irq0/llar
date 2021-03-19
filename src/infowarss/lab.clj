@@ -1,6 +1,8 @@
 (ns infowarss.lab
   (:require
-   [infowarss.db :as db]
+   [infowarss.db.query :as dbq]
+   [infowarss.db.search :as db-search]
+   [infowarss.db.modify :as db-mod]
    [infowarss.config :as config]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
@@ -75,8 +77,8 @@
 
 (defn make-saved-dataset []
   ;; must ensure that there are no '/' in terms - messes up keyword/name
-  (let [attributes (vec (conj (into #{} (db/saved-items-tf-idf-terms)) "item_id"))
-        term-tf-idf-maps (db/saved-items-tf-idf)
+  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms)) "item_id"))
+        term-tf-idf-maps (db-search/saved-items-tf-idf)
         weka-attributes (map (fn [s]
                                (let [new-attrib (weka.core.Attribute. s)]
                                  (if (= s :item_id)
@@ -136,12 +138,13 @@
            ml-data/dataset-as-maps
            (map (fn [{:keys [item_id class]}]
                   (let [id (int item_id)
-                        title (->
-                               (db/get-items-by-id [id])
-                               first
-                               :title)
+                        item (->
+                               (dbq/get-items-by-id [id])
+                               first)
                         class-name (get names class)]
-                    {:title title
+                    {:title (:title item)
+                     :nwords (:nwords item)
+                     :readability (get-in item [:entry :readability])
                      :class class-name
                      :id id})))
            (group-by :class)))))
@@ -197,13 +200,12 @@
         (throw+ {:type :youtube-error :exit exit})))))
 
 (defn music-links []
-  (let [sources (-> (db/get-sources)
-                    (db/sources-merge-in-config)
+  (let [sources (-> (dbq/get-sources config/*srcs*)
                     vals)
         music-srcs (->> sources
                         (filter #(contains? (:tags %) :music))
                         (map :key))
-        items (db/get-items-recent
+        items (dbq/get-items-recent
                {:with-source-keys music-srcs
                 :limit 512
                 :with-tag :unread})]
@@ -219,17 +221,17 @@
      (let [filename (youtube-dl-music url)]
        (log/infof "Music Miner downloaded %s/%s to %s"
                   title url filename)
-       (db/item-set-tags id :music-mined)
-       (db/item-remove-tags id :unread))
+       (db-mod/item-set-tags id :music-mined)
+       (db-mod/item-remove-tags id :unread))
      (catch [:type :youtube-error] {:keys [msg]}
-       (db/item-set-tags id :music-mined :music-miner-failed)
-       (db/item-remove-tags id :unread)
+       (db-mod/item-set-tags id :music-mined :music-miner-failed)
+       (db-mod/item-remove-tags id :unread)
        (log/errorf "Music miner failed for %s/%s: %s" title url msg))
      (catch Object e
        (log/error e "Unexpected error")))))
 
 (defn download-tagged-stuff []
-  (let [items (db/get-items-by-tag :download)]
+  (let [items (dbq/get-items-by-tag :download)]
     (doall
      (for [item items]
        (let [url (get-in item [:entry :url])
@@ -241,7 +243,7 @@
            (future
              (try+
               (let [filename (youtube-dl-video url dest-dir)]
-                (db/item-remove-tags (:id item) :download)
+                (db-mod/item-remove-tags (:id item) :download)
                 filename)
               (catch [:type :youtube-error] {:keys [msg]}
                 (log/errorf "Miner failed for %s: %s" item msg))
@@ -250,7 +252,7 @@
 
 (defn copy-wallpapers-to-home []
   (doseq [[source destination]
-          (some->> (db/get-items-by-tag :wallpaper)
+          (some->> (dbq/get-items-by-tag :wallpaper)
                    (map (fn [item]
                           (when-let [blob-url (get-in item [:entry :lead-image-url])]
                             [(string/replace blob-url "/blob/" "")

@@ -3,7 +3,7 @@
    [infowarss.config :as config]
    [infowarss.update :as update]
    [infowarss.live :as live]
-   [infowarss.db :as db]
+   [infowarss.db.query :as dbq]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.metrics :as metrics]
    [compojure.core :refer [routes GET]]
@@ -176,7 +176,7 @@
       [:th "Group"]
       [:th "# Documents"]]]
     [:tbody
-     (for [[start count] (db/get-word-count-groups)]
+     (for [[start count] (dbq/get-word-count-groups)]
        (let [txt (cond
                    (nil? start)
                    "Unknown Length"
@@ -186,9 +186,9 @@
                    (str "< " start " Words"))]
          [:tr [:th txt] [:td count]]))]]
    [:h4 "Tags"]
-   (list-to-table ["Tag" "# Documents"]  (db/get-tag-stats))
+   (list-to-table ["Tag" "# Documents"]  (dbq/get-tag-stats))
    [:h4 "Types"]
-   (list-to-table ["Type" "# Documents"] (db/get-type-stats))))
+   (list-to-table ["Type" "# Documents"] (dbq/get-type-stats))))
 
 (defn state-stats []
   (let [states (mount/find-all-states)

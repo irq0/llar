@@ -1,6 +1,6 @@
 (ns infowarss.persistency
   (:require
-   [infowarss.db :as db]
+   [infowarss.db.modify :as db-mod]
    [infowarss.converter :as conv]
    [digest]
    [java-time :as time]
@@ -57,7 +57,7 @@
 (defn overwrite-item! [item]
   (try+
    (let [doc (to-couch item)]
-     (db/inplace-update-document doc))
+     (db-mod/inplace-update-document doc))
    (catch java.lang.IllegalAccessException e
      (log/error e "Failed to store item. Probably called with an unsupported record "
                 (type item) ":" item)
@@ -65,7 +65,7 @@
 
 (defn store-item! [item]
   (let [doc (to-couch item)]
-    (db/add-document doc)))
+    (db-mod/add-document doc)))
 
 (defn- store-item-skip-duplicate!
   [item & {:keys [overwrite?] :or {overwrite? false}}]
@@ -75,7 +75,7 @@
      (let [{:keys [id]} (store-item! item)]
        (log/debugf "Stored item %s/\"%s\": %s" name title id)
        id)
-     (catch [:type :infowarss.db/duplicate] _
+     (catch [:type :infowarss.db.modify/duplicate] _
        (if overwrite?
          (let [ret (overwrite-item! item)]
            (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)

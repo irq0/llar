@@ -65,4 +65,6 @@
                  [hikari-cp "2.13.0"]
                  [mvxcvi/puget "1.3.1"]
                  [cc.artifice/clj-ml "0.8.7"]
-                 [clj-commons/iapetos "0.1.9"]])
+                 [clj-commons/iapetos "0.1.9"]
+                 [com.layerware/hugsql "0.5.1"]])
+

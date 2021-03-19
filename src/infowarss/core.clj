@@ -3,7 +3,7 @@
    [mount.core :as mount]
    [taoensso.timbre :as log]
    [infowarss.logging :as logging]
-   [infowarss.db :as db]
+   [infowarss.db.core :as db]
    [infowarss.repl :as repl]
    [infowarss.update :as update]
    [infowarss.metrics :as metrics]

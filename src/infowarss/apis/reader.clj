@@ -4,7 +4,9 @@
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
-   [infowarss.db :as db]
+   [infowarss.db.query :as dbq]
+   [infowarss.db.search :as db-search]
+   [infowarss.db.modify :as db-mod]
    [infowarss.persistency :as persistency]
    [infowarss.blobstore :as blobstore]
    [infowarss.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
@@ -1132,7 +1134,7 @@
 
     (cond
       (contains? #{:show-item :download :dump-item} mode)
-      (let [current-item (first (db/get-items-by-id [item-id]))
+      (let [current-item (first (dbq/get-items-by-id [item-id]))
             next-items (get-items-for-current-view
                         sources
                         (-> params
@@ -1141,27 +1143,36 @@
         (into [current-item] next-items))
 
       (and (= group-name :default) (= group-item :all) (= source-key :all))
-      (db/get-items-recent common-args)
+      (dbq/get-items-recent common-args)
 
       (and (= group-name :default) (= group-item :all) (keyword? source-key))
-      (db/get-items-recent (merge common-args
-                                  {:with-source-keys [source-key]}))
+      (dbq/get-items-recent (merge common-args
+                                  {:with-preview-data? (contains?
+                                                        (get-in sources [source-key :options])
+                                                        :main-list-use-description)
+                                   :with-source-keys [source-key]}))
 
       (and (= group-name :item-tags) (keyword? group-item) (= source-key :all))
-      (db/get-items-recent (merge common-args
+      (dbq/get-items-recent (merge common-args
                                   {:with-tag group-item}))
 
       (and (= group-name :item-tags) (keyword? group-item) (keyword? source-key))
-      (db/get-items-recent (merge common-args
-                                  {:with-source-keys [source-key]
+      (dbq/get-items-recent (merge common-args
+                                  {:with-preview-data? (contains?
+                                                        (get-in sources [source-key :options])
+                                                        :main-list-use-description)
+                                   :with-source-keys [source-key]
                                    :with-tag group-item}))
 
       (and (= group-name :source-tag) (keyword? group-item) (= source-key :all))
-      (db/get-items-recent (merge common-args
-                                  {:with-source-keys (->> sources
-                                                          vals
-                                                          (filter #(contains? (:tags %) group-item))
-                                                          (map :key))}))
+      (let [selected-sources (->> sources
+                             vals
+                             (filter #(contains? (:tags %) group-item)))]
+        (dbq/get-items-recent (merge common-args
+                                    {:with-preview-data? (some #(contains? (:options %)
+                                                                           :main-list-use-description)
+                                                               selected-sources)
+                                     :with-source-keys (map :key selected-sources)})))
 
       (and (= group-name :source-tag) (keyword? group-item) (keyword? source-key))
       (if (->> sources
@@ -1170,17 +1181,23 @@
                          (contains? (:tags %) group-item)
                          (= (:key %) source-key)))
                not-empty)
-        (db/get-items-recent (merge common-args
-                                    {:with-source-keys [source-key]}))
+        (dbq/get-items-recent (merge common-args
+                                    {:with-preview-data? (contains?
+                                                        (get-in sources [source-key :options])
+                                                        :main-list-use-description)
+                                     :with-source-keys [source-key]}))
         [])
 
       (and (= group-name :type) (keyword? group-item) (= source-key :all))
-      (db/get-items-recent (merge common-args
+      (dbq/get-items-recent (merge common-args
                                   {:with-type group-item}))
 
       (and (= group-name :type) (keyword? group-item) (keyword? source-key))
-      (db/get-items-recent (merge common-args
+      (dbq/get-items-recent (merge common-args
                                   {:with-source-keys [source-key]
+                                   :with-preview-data? (contains?
+                                                        (get-in sources [source-key :options])
+                                                        :main-list-use-description)
                                    :with-type group-item}))
 
       :else
@@ -1195,7 +1212,7 @@
       (vals sources)
 
       (= group-name :item-tags)
-      (db/new-get-sources-item-tags-counts group-item (:filter params) config/*srcs*)
+      (dbq/get-sources-item-tags-counts group-item (:filter params) config/*srcs*)
 
       (= group-name :source-tag)
       (filter #(contains? (:tags %) group-item) (vals sources))
@@ -1218,7 +1235,7 @@
   "Download Selected Item Content"
   [params]
   (let [sources (metrics/with-prom-exec-time :compile-sources
-                  (db/new-get-sources))
+                  (dbq/get-sources))
 
         items (metrics/with-prom-exec-time :items-current-view
                 (get-items-for-current-view sources params))
@@ -1257,16 +1274,16 @@
                          orig-fltr))
 
          item-tags (future (metrics/with-prom-exec-time :tag-list
-                             (doall (db/get-tag-stats))))
+                             (doall (dbq/get-tag-stats))))
 
          sources (metrics/with-prom-exec-time :compile-sources
-                   (db/new-get-sources config/*srcs*))
+                   (dbq/get-sources config/*srcs*))
          items (future (metrics/with-prom-exec-time :items-current-view
                          (get-items-for-current-view sources params)))
          ;; right sidebar
          active-sources (metrics/with-prom-exec-time :active-sources
                           (-> (get-active-group-sources sources params)
-                              (db/new-merge-in-tags-counts)
+                              (dbq/sources-merge-in-tags-counts)
                               doall))
 
          selected-sources (get-selected-sources active-sources params)
@@ -1341,9 +1358,9 @@
         with-source-key (get-in x [:request-params :with-source-key])
         days-ago (get-in x [:request-params :days-ago])
         results (if (or with-source-key days-ago)
-                  (db/search query {:with-source-key with-source-key
+                  (db-search/search query {:with-source-key with-source-key
                                     :time-ago-period (time/days (some-> days-ago Integer/parseInt))})
-                  (db/search query))]
+                  (db-search/search query))]
     [:main {:role "main"
             :class "col-xs-12 col-md-6 col-lg-8"}
      [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
@@ -1425,10 +1442,7 @@
                          orig-fltr))
 
          item-tags (future (metrics/with-prom-exec-time :tag-list
-                             (doall (db/get-tag-stats))))
-
-         ;; sources (metrics/with-prom-exec-time :compile-sources
-         ;;           (db/new-get-sources))
+                             (doall (dbq/get-tag-stats))))
 
          params (merge params {:sources {}
                                :group-group :lab
@@ -1497,8 +1511,8 @@
   [id action tag]
   (log/debug "[INFOWARSS-UI] Item mod:" id action tag)
   (str (case action
-         :set (db/item-set-tags id tag)
-         :del (db/item-remove-tags id tag))))
+         :set (db-mod/item-set-tags id tag)
+         :del (db-mod/item-remove-tags id tag))))
 
 (defn as-keyword
   "Compojure Helper: Parse a string into keyword"
