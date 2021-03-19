@@ -11,3 +11,4 @@ pom.xml.asc
 .hg/
 /resources/nlp/models/*.bin
 /resources/state.edn
+/resources/annotations.edn
