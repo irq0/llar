@@ -123,7 +123,6 @@
 (s/defrecord TwitterApi
              [api-fn :- schema/Func
               params :- s/Any
-              url :- schema/URL
               oauth-creds :- OauthCredentials]
   Object
   (toString [src] (format "[TwitterApi/%s: %s]" api-fn params)))
@@ -133,7 +132,6 @@
   (->TwitterApi
    twitter-rest/statuses-home-timeline
    {:count 200}
-   (uri/uri (str "https://twitter.com/irq0"))
    (make-oauth-creds
     (:app-key oauth-creds)
     (:app-secret oauth-creds)

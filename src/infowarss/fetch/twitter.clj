@@ -161,9 +161,9 @@
     (let [{:keys [api-fn params oauth-creds]} src
           resp (api-fn
                 :oauth-creds oauth-creds
-                :params params)
+                :params (assoc params :tweet_mode "extended"))
           tweets (:body resp)]
-      (log/info tweets)
+      (log/info (:full_text (first tweets)))
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]

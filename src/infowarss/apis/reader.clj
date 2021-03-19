@@ -1,4 +1,4 @@
-(ns infosawarss.apis.reader
+(ns infowarss.apis.reader
   (:require
    [infowarss.config :as config]
    [infowarss.fetch :as fetch]
@@ -49,7 +49,6 @@
   (let [raw-duration (time/duration ts (time/zoned-date-time))
         duration (-> raw-duration
                      (.minusNanos (.getNano raw-duration)))
-        
         period (time/period (time/local-date ts) (time/local-date))]
     (if (> (.toDays duration) 7)
       (subs (string/lower-case (str period)) 1)
@@ -79,7 +78,7 @@
 
 (def +boring-words-regex+
   "Words to skip from word clouds"
-  #"^(\d{1,3}|we|\w['`’]\w|are|at|or|be|but|more|said|what|when|who|where|also|their|one|\w{0,3}|as|you|your|mine|if|our|i|will|on|for|they|and|in|to|is|of|was|were|with|a|the|have|it|he|she|https|http|this|that|an|\W{1,2}|der|die|das|dass|uns|den|und)$")
+  #"^(\d{1,3}|we|\w['`’()]\w|.*[()\"<>]+.*|are|at|or|be|but|more|said|what|when|who|where|also|their|one|\w{0,3}|as|you|your|mine|if|our|i|will|on|for|they|and|in|to|is|of|was|were|with|a|the|have|it|he|she|https|http|this|that|an|\W{1,2}|der|die|das|dass|uns|den|und)$")
 
 (def +boring-url-path-element-regex+
   "Url parts to remove from word cloud urls"

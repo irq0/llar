@@ -136,8 +136,8 @@
               in-feed-contents (extract-feed-content (:contents re))
               contents-url (-> re :link uri/uri)
               contents-base-url (if (uri/absolute? contents-url)
-                                  (get-base-url contents-url)
-                                  base-url)
+                                  base-url
+                                  (get-base-url contents-url))
               contents-url (absolutify-url contents-url contents-base-url)
               deep-fetch? (and (get-in src [:args :deep?])
                                (some? contents-url))
@@ -238,17 +238,16 @@
                  pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
                  description (hick-select-extract-with-source src :description hickory nil)
                  sanitized (process-feed-html-contents base-url hickory)
-                 content (or
-                          (and (some? (:content selectors))
-                               (first (hick-s/select (:content selectors) sanitized)))
-                          (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
+                 content (if (some? (:content selectors))
+                           (first (hick-s/select (:content selectors) sanitized))
+                           (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
                  content-html (hick-r/hickory-to-html content)]
              (map->FeedItem
               (-> item
                   (dissoc :meta :hash :hickory :summary :body)
                   (merge {:meta meta
                           :feed feed
-                          :hash (make-item-hash title pub-ts item-url)
+                          :hash (make-item-hash title (str item-url) content-html)
                           :entry {:pub-ts pub-ts
                                   :url item-url
                                   :title title

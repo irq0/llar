@@ -30,8 +30,8 @@
    #'sched/db-sched
    #'sched/misc-sched
    
-   ;; #'sched/feed-sched
-   ;; #'live/live
+   #'sched/feed-sched
+   #'live/live
 
    #'webapp/status
    #'webapp/reader)

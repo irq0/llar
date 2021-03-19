@@ -74,9 +74,11 @@
         (assoc :type :mail))))
 
 (defn mail-ts [m]
-  (time/zoned-date-time (time/formatter :iso-zoned-date-time)
-                        (or (:date-sent m)
-                            (:date-received m))))
+  (let [ts (or (:date-sent m)
+               (:date-received m))]
+    (log/info ts (type ts))
+    (time/zoned-date-time ts "UTC")))
+
 
 (extend-protocol fetch/FetchSource
   infowarss.src.ImapMailbox
