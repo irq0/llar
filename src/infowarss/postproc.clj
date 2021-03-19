@@ -5,6 +5,7 @@
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.set :refer [union intersection]]
+   [clojure.string :as string]
    [clojure.java.shell :as shell]))
 
 ;;;; Postprocessing and Filtering
@@ -80,6 +81,14 @@
 (def +highlight-words+
   #{"quobyte" "marcel lauhoff"})
 
+(def +highlight-authors+
+  (into #{} (map string/lower-case
+                 ["Sascha Lobo"
+                  "Sibylle Berg"
+                  "Scott Galloway"
+                  "Kara Swisher"])))
+
+
 (defn all-items-process-first [item _ state]
   (log/trace "All items processor (first)" (str item))
   (-> item
@@ -90,7 +99,13 @@
   (log/trace "All items processor (last)" (str item))
   (let [names-and-nouns (union (get-in item [:entry :nlp :names])
                                (get-in item [:entry :nlp :nouns]))
-        highlight (> (count (intersection names-and-nouns +highlight-words+)) 0)]
+
+        highlight (or
+                   (> (count (intersection (into #{} (->>
+                                                      (get-in item [:entry :authors])
+                                                      (map string/lower-case)))
+                                           +highlight-authors+)) 0)
+                   (> (count (intersection names-and-nouns +highlight-words+)) 0))]
     (cond-> item highlight (update-in [:meta :tags] conj :highlight))))
 
 ;;; Item postprocessing protocol
@@ -167,7 +182,7 @@
                 where (type items) items)))
 
 (defn check-pre-multiple [items]
-  (let [unique-hashes (hash-set (map :hash items))]
+  (let [unique-hashes (set (map :hash items))]
     (when (< (count unique-hashes) (count items))
       (throw+ {:type ::pre-proc-into-multipe-made-duplicates :unique-hashes unique-hashes :item-count (count items)}))))
 
