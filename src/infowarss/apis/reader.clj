@@ -1418,7 +1418,9 @@
         days-ago (get-in x [:request-params :days-ago])
         results (if (or with-source-key days-ago)
                   (db-search/search query {:with-source-key with-source-key
-                                    :time-ago-period (time/days (some-> days-ago Integer/parseInt))})
+                                           :time-ago-period (when-not (string/blank? days-ago)
+                                                              (time/days (some-> days-ago
+                                                                                 Integer/parseInt)))})
                   (db-search/search query))]
     [:main {:role "main"
             :class "col-xs-12 col-md-6 col-lg-8"}
@@ -1433,9 +1435,16 @@
                    :name "query" :id "query" :placeholder "fat & (rat | cat)"
                    :value (or query "")}]]]
         [:div {:class "form-group row"}
+         [:label {:for "query" :class "col-sm-4 col-form-label"} ""]
+         [:div {:class "col-sm-8"}
+          [:p "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (follwed by with distance)"]]]
+        [:div {:class "form-group row"}
          [:label {:for "query" :class "col-sm-4 col-form-label"} "Item fetch in the last:"]
          (for [[name days] [["any" ""]
                             ["7d" "7"]
+                            ["14d" "14"]
+                            ["90d" "90"]
+                            ["180d" "180"]
                             ["1y" "365"]]]
            [:div {:class "form-check form-check-inline"}
             [:input (assoc {:class "form-check-input"

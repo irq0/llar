@@ -1,6 +1,7 @@
 (ns infowarss.db.search
   (:require
    [infowarss.db.core :as core :refer [db]]
+   [infowarss.db.sql :as sql]
    [digest]
    [java-time :as time]
    [taoensso.timbre :as log]
@@ -19,23 +20,16 @@
    [cheshire.generate :as json :refer [encode-str]]))
 
 (defn search
-  "Search for query. postgres query format"
   ([query {:keys [with-source-key time-ago-period]}]
-   (j/query db [(str "select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank"
-                              " from search_index"
-                              " where document @@ to_tsquery('english', ?)"
-                              "  and "
-                              (->>
-                               ["1=1"
-                                (when time-ago-period
-                                  (str "ts > " (j/sql-value
-                                                (time/minus (time/zoned-date-time) time-ago-period))))
-                                (when with-source-key (str "key = '" (name with-source-key) "'"))]
-                               (remove nil?)
-                               (string/join " and "))
-                              " order by rank desc") query query]))
+   (sql/search-item
+    db
+    {:query query
+     :source-key with-source-key
+     :time-ago (when-not (nil? time-ago-period)
+                 (time/minus (time/zoned-date-time) time-ago-period))})
+   )
   ([query]
-   (j/query db ["select id, title, key, ts, ts_rank(document, to_tsquery('english', ?)) as rank from search_index where document @@ to_tsquery('english', ?) order by rank desc" query query])))
+   (search query {})))
 
 (defn refresh-search-index []
   (j/execute! db ["refresh materialized view search_index"]))
