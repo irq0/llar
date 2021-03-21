@@ -1803,7 +1803,8 @@
                                :proc (proc/make
                                       :post [(proc/add-tag :highlight)
                                              (fn [item]
-                                               (let [article (->> (S/select (S/tag :article) (:hickory item)))
+                                               (let [article (S/select
+                                                              (S/tag :article) (:hickory item))
                                                      html (-> {:type :element
                                                                :attrs nil
                                                                :tag :article

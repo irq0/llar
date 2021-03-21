@@ -133,7 +133,7 @@
     (fn [value] (puget/pprint-str @value)))
 
    org.bovinegenius.exploding_fish.Uri
-   (puget/tagged-handler 
+   (puget/tagged-handler
     'org.irq0.🖖/url str)})
 
 (defn print-state [state]
@@ -148,7 +148,7 @@
               'org.irq0.🖖/url uri/uri
               'org.irq0.🖖/atom (fn [x] (atom x))}}
    s))
-  
+
 (defn parse-http-ts [ts]
   (when-not (nil? ts)
     (time/zoned-date-time (time/formatter :rfc-1123-date-time)  ts)))

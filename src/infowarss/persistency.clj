@@ -23,12 +23,13 @@
 (add-encoder org.bovinegenius.exploding_fish.UniformResourceIdentifier
              (fn [dt jg]
                (.writeString jg (str dt))))
-             
+
 
 ;;; Item -> Persistency abstraction
 ;;; Split into two parts:
 ;;; CouchItem proto: Convert item to database document
 ;;; StorableItem: store / overwrite / check if duplicate
+
 
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))

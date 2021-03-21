@@ -324,28 +324,6 @@
                              (assoc node :content new-content)))
               (zip/next loc))))))))
 
-(defn simplify-expensive [root]
-  (let [zipper (hick-z/hickory-zip root)]
-    (loop [loc zipper]
-      (if (zip/end? loc)
-        (zip/root loc)
-        (recur
-          (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
-            (if (and (= type :element) (some? content)
-                     (some #(contains? #{:div :span} (:tag %)) content))
-              (zip/replace loc
-                           ;; elevate any div/span content to this node
-                           (let [new-content (mapcat (fn [cont]
-                                                       (let [{:keys [tag type attrs content]} cont]
-                                                         (if (and (= type :element)
-                                                                  (some? content)
-                                                                  (contains? #{:div :span} tag))
-                                                           content
-                                                           [cont])))
-                                                     content)]
-                             (assoc node :content new-content)))
-              (zip/next loc))))))))
-
 (defn simplify [root]
   (let [zipper (hick-z/hickory-zip root)]
     (loop [loc zipper]

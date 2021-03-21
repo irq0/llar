@@ -215,7 +215,7 @@
 
 (defn update-all! [& args]
   (doall
-   (pmap #(apply update! (key %) args)) (updateable-sources)))
+   (pmap #(apply update! (key %) args) (updateable-sources))))
 
 (defn update-matching! [re & args]
   (doall

@@ -38,7 +38,7 @@
   (let [key (name (get-in doc [:meta :source-key]))]
     (sql/get-source-by-key db {:key key})))
 
-(defn get-word-count-groups [db]
+(defn get-word-count-groups []
   (drop 1 (sql/get-word-count-groups db nil {} {:as-arrays? true})))
 
 (defn get-tag-stats []

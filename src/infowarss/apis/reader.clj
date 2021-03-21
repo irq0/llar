@@ -1263,7 +1263,7 @@
   "Download Selected Item Content"
   [params]
   (let [sources (metrics/with-prom-exec-time :compile-sources
-                  (dbq/get-sources))
+                  (dbq/get-sources config/*srcs*))
 
         items (metrics/with-prom-exec-time :items-current-view
                 (get-items-for-current-view sources params))

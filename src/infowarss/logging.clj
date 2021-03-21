@@ -38,7 +38,7 @@
    {:appenders {:println {:min-level :error
                           :enabled? false
                           :stream :std-err}}}))
-  
+
 ;; from mount examples
 
 (defn- f-to-action [f {:keys [status]}]
