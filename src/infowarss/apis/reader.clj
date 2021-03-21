@@ -229,6 +229,11 @@
     {:estimate (int (Math/ceil estimate))
      :difficulty level}))
 
+(defn parse-youtube-url
+  [url]
+  (and (string? url)
+       (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url)))
+
 (defn make-site-href
   "Make inner site href"
   ([path x]
@@ -614,6 +619,42 @@
          [:input {:class "form-control" :id (str "add-tag-" item-id)}]]
         [:input {:class "btn btn-primary" :data-modal (str "#add-custom-tag-" item-id) :type "submit"}]]]]]]])
 
+(defn render-special-item-content
+  "Renders item content that is somehow unique to a source and benefits from special rendering
+  (e.g youtube videos, twitter images)"
+  [item options]
+  (let [{:keys [id source-key title ts author tags
+                nwords names entry url urls top-words]} item
+        url-site (some-> url uri/uri uri/host)
+        youtube-url (parse-youtube-url url)]
+    (html
+    (when-let [vid youtube-url]
+      (when (some? vid)
+        (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
+              hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
+               max-thumb (try-blobify-url! maxres-url)
+               thumb (if (= max-thumb maxres-url)
+                       (try-blobify-url! hq-url)
+                       max-thumb)]
+           [:div {:class "embed-responsive embed-responsive-4by3"}
+            [:div {:id (str "youtube-container-" (last vid))}
+             [:img {:class "lazy-youtube embed-responsive-item"
+                    :data-vid (last vid)
+                    :data-target (str "youtube-container-" (last vid))
+                    :src thumb}]]])))
+
+    (when-let [twit-pic (first (get-in entry [:entities :photos]))]
+       [:div {:class "item-preview"} [:img {:src twit-pic}]])
+
+    (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
+       (when (not (or (string/blank? image-url)
+                      (= image-url "default")))
+         [:div {:class (str "item-preview-small"
+                            (when (every? options [:main-list-use-description
+                                                   :short-word-cloud])
+                              " float-md-left"))}
+        [:img {:src image-url}]])))))
+
 (defn get-html-content
   "Show Item Helper: Get best content to display in full"
   [doc sel-descr sel-content-type]
@@ -624,7 +665,7 @@
           (get contents "text/plain")
           (get description "text/html")
           (get description "text/plain")
-          ""))
+          nil))
     (get-in doc [:data sel-descr sel-content-type])))
 
 (defn main-show-item
@@ -671,12 +712,6 @@
                                                     :content-type "text/html"} x)}
          "&nbsp;" (icon "fas fa-expand")]]
 
-
-       ;; [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
-       ;; (for [btn +tag-buttons+]
-       ;;   (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]
-
-
        [:div {:class "btn-group btn-group-sm " :role "group"}
         [:div {:class "dropdown show "}
          [:a {:class "btn dropdown-toggle btn-sm"
@@ -702,11 +737,13 @@
       [:div {:class "row"}
        [:div {:class "col-11"}
         [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
-         (if (and (= (-> x :active-sources first :type) :item-type/document)
-                  (nil? selected-data) (nil? selected-content-type))
-           (get-html-content item :description "text/html")
-           (get-html-content item selected-data selected-content-type))]]
-       [:div {:id "minimap" :class "col-1 sticky-top"}]]]]))
+         (if-let [html-content (if (and (= (-> x :active-sources first :type) :item-type/document)
+                                   (nil? selected-data) (nil? selected-content-type))
+                            (get-html-content item :description "text/html")
+                            (get-html-content item selected-data selected-content-type))]
+           html-content
+           (render-special-item-content item #{}))
+       [:div {:id "minimap" :class "col-1 sticky-top"}]]]]]]))
 
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
@@ -855,7 +892,6 @@
                 nwords names entry url urls top-words]} item
         url-site (some-> url uri/uri uri/host)
         source (get sources (keyword source-key))
-        options (:options source)
         boring-filter (fn [word]
                         (not (or
                               (> (count word) 20)
@@ -863,11 +899,11 @@
                               (re-find +boring-words-regex+ word))))
         words (take 50 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
         names (take 50 (filter boring-filter names))
-        short-word-cloud? (< (+ (count words) (count names) (count urls)) 10)
+        options (cond-> (set (:options source))
+                  (< (+ (count words) (count names) (count urls)) 10)
+                  (conj :short-word-cloud))
         min-freq (second (last words))
-        max-freq (second (first words))
-        youtube-url (and (string? url)
-                         (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url))]
+        max-freq (second (first words))]
     [:div {:id (str "item-" id)
            :class (str "feed-item "
                        (string/join " "
@@ -916,31 +952,7 @@
          "&nbsp;"
          (icon "far fa-user") author])]
 
-     (when-let [vid youtube-url]
-       (when (some? vid)
-         (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
-               hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
-               max-thumb (try-blobify-url! maxres-url)
-               thumb (if (= max-thumb maxres-url)
-                       (try-blobify-url! hq-url)
-                       max-thumb)]
-           [:div {:class "embed-responsive embed-responsive-4by3"}
-            [:div {:id (str "youtube-container-" (last vid))}
-             [:img {:class "lazy-youtube embed-responsive-item"
-                    :data-vid (last vid)
-                    :data-target (str "youtube-container-" (last vid))
-                    :src thumb}]]])))
-
-     (when-let [twit-pic (first (get-in entry [:entities :photos]))]
-       [:div {:class "item-preview"} [:img {:src twit-pic}]])
-
-     (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
-       (when (not (or (string/blank? image-url)
-                      (= image-url "default")))
-       [:div {:class (str "item-preview-small" (when (or (contains? options :main-list-use-description)
-                                                         short-word-cloud?)
-                                                 " float-md-left"))}
-        [:img {:src image-url}]]))
+     (render-special-item-content item options)
 
      (if (contains? options :main-list-use-description)
        [:p {:class "description"}
