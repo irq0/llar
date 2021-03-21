@@ -103,6 +103,7 @@
         highlight (or
                    (> (count (intersection (into #{} (->>
                                                       (get-in item [:entry :authors])
+                                                      (remove nil?)
                                                       (map string/lower-case)))
                                            +highlight-authors+)) 0)
                    (> (count (intersection names-and-nouns +highlight-words+)) 0))]
