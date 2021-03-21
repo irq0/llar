@@ -227,3 +227,9 @@
    (pmap #(apply update! (key %) args)
          (filter #(contains? (:tags (val %)) tag) (updateable-sources)))))
 
+(defn update-failed! [& args]
+  (let [failed-source-keys (map key (filter (fn [[k v]]
+                                              (contains? #{:perm-fail :temp-fail} (:status v ) ))
+                                            @state))
+        failed-sources (select-keys (updateable-sources) failed-source-keys)]
+    (pmap #(apply update! (key %) args) failed-sources)))
