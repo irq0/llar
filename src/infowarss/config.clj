@@ -981,7 +981,7 @@
                          :post [(mercury-contents :keep-orig? true)])
                   :cron cron-daily}
 
-   :katemats {:src (src/feed "http://katemats.com/feed/")
+   :katemats {:src (src/feed "https://katemats.com/blog?format=rss")
               :tags #{:blog}
               :cron cron-daily}
 
@@ -1079,8 +1079,7 @@
                :cron cron-daily}
 
    :softnas {:src (src/feed "https://www.softnas.com/wp/feed/")
-             :tags #{:corporate}
-             :cron cron-daily}
+             :tags #{:corporate}}
 
    :storpool {:src (src/feed "https://storpool.com/feed")
               :tags #{:corporate}
@@ -1590,7 +1589,7 @@
            :tags #{:blog}
            :cron cron-daily}
 
-   :granolashotgun {:src (src/feed "https://granolashotgun.com/feed/")
+   :granolashotgun {:src (src/feed "https://www.granolashotgun.com/granolashotguncom?format=rss")
                     :tags #{:design}
                     :cron cron-daily}
 
