@@ -9,7 +9,7 @@
   "Generic item row processor. Convert aggregated item data table entries into a
   nice map. "
   [row]
-  (if (some? (:data_types row))
+  (if (and (some? (:data_types row)) (some? (first (:data_types row))))
     (-> row
         (assoc :data
                (->>
