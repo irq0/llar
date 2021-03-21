@@ -138,9 +138,7 @@
            ml-data/dataset-as-maps
            (map (fn [{:keys [item_id class]}]
                   (let [id (int item_id)
-                        item (->
-                               (dbq/get-items-by-id [id])
-                               first)
+                        item (dbq/get-item-with-data-by-id id)
                         class-name (get names class)]
                     {:title (:title item)
                      :nwords (:nwords item)

@@ -1,8 +1,4 @@
--- Item Sources
--- :name create-sources
--- :command :execute
--- :result :raw
--- :doc Create sources table
+-- :name create-sources :! :raw
 create table sources(
   id   	     serial primary key,
   key	     text not null,

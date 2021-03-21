@@ -1162,7 +1162,7 @@
 
     (cond
       (contains? #{:show-item :download :dump-item} mode)
-      (let [current-item (first (dbq/get-items-by-id [item-id]))
+      (let [current-item (dbq/get-item-with-data-by-id item-id)
             next-items (get-items-for-current-view
                         sources
                         (-> params
