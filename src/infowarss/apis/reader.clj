@@ -1291,13 +1291,14 @@
   "Reader Entrypoint"
   ([]
    (reader-index {}))
-  ([params]
-   (log/debug "[INFOWARSS-UI]" params)
+  ([index-params]
+   (log/debug "[INFOWARSS-UI]" index-params)
    (let [;; override filter for special groups like saved
-         orig-fltr (:filter params)
-         params (assoc params :filter
+         orig-fltr (:filter index-params)
+
+         params (assoc index-params :filter
                        (if-let [override (get +filter-overrides+
-                                              (:group-item params))]
+                                              (:group-item index-params))]
                          override
                          orig-fltr))
 
@@ -1323,29 +1324,42 @@
                                :item-tags @item-tags
                                :filter orig-fltr
                                :range-recent (-> @items first (select-keys [:ts :id]))
-                               :range-before (-> @items last (select-keys [:ts :id]))})
+                               :range-before (-> @items last (select-keys [:ts :id]))})]
+     (try+
+      (let [nav-bar (nav-bar params)
+            group-nav (group-nav params)
+            main-view (main-view params)
+            source-nav (source-nav params)
+            title (short-page-headline params)
 
-         nav-bar (nav-bar params)
-         group-nav (group-nav params)
-         main-view (main-view params)
-         source-nav (source-nav params)
-         title (short-page-headline params)
-
-         html (metrics/with-prom-exec-time
-                :render-html
-                (html
-                 [:html {:lang "en"}
-                  (html-header title (:mode params) (some-> params :items first))
-                  [:body
-                   (concat
-                    [nav-bar]
-                    [[:div {:class "container-fluid"}
-                      [:div {:class "row"}
-                       group-nav
-                       main-view
-                       source-nav]]]
-                    (html-footer))]]))]
-     html)))
+            html (metrics/with-prom-exec-time
+                   :render-html
+                   (html
+                    [:html {:lang "en"}
+                     (html-header title (:mode params) (some-> params :items first))
+                     [:body
+                      (concat
+                       [nav-bar]
+                       [[:div {:class "container-fluid"}
+                         [:div {:class "row"}
+                          group-nav
+                          main-view
+                          source-nav]]]
+                       (html-footer))]]))]
+        html)
+     (catch Object _
+       (throw+ {:type ::render-error
+                :params index-params
+                :active-sources (map :key active-sources)
+                :selected-sources (map :key selected-sources)
+                :filter orig-fltr
+                :range-before (:range-before params)
+                :range-recent (:range-recent params)
+                :item-tags @item-tags
+                :first-item (first @items)
+                :items {:count (count @items)
+                        :ids (map :id @items)
+                        :titles (map :title @items)}}))))))
 
 (defmulti lab-view-handler :view)
 

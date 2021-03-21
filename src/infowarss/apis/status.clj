@@ -52,7 +52,7 @@
     :else
     nil))
 
-(defn- pprint-html [x]
+(defn pprint-html [x]
   [:pre {:class "clj-pprint"}
    (puget/pprint-str
     x
@@ -72,7 +72,7 @@
     (for [ex (reverse (:via th))]
       [:tr
        [:td (pprint-html (:type ex))]
-       [:td (:message ex)]
+       [:td (when-not (= 'clojure.lang.ExceptionInfo (:type ex)) (:message ex))]
        [:td (pprint-html (:data ex))]])]])
 
 (defn html-stack-trace [th]

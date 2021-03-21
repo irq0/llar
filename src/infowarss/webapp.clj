@@ -10,7 +10,7 @@
    [hiccup.core :refer [html]]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
-(defn exception-response [ex]
+(defn exception-response [request ex]
   (let [th (Throwable->map ex)]
     {:status 500
 
@@ -25,10 +25,10 @@
             [:body
              [:h1 "😭"]
              [:h2 "Internal Server Error"]
+             [:h4 "Request"]
+             (status/pprint-html request)
              [:h4 "Exception Chain"]
-             (status/html-exception-chain th)
-             [:h4 "Stack Trace"]
-             (status/html-stack-trace th)])}))
+             (status/html-exception-chain th)])}))
 
 (defn wrap-exception [handler]
   (fn [request]
@@ -36,7 +36,7 @@
       (handler request)
       (catch Exception ex
         (log/error ex "Exception during request" request)
-        (exception-response ex)))))
+        (exception-response request ex)))))
 
 (def status-app
   (->
