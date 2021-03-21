@@ -105,6 +105,10 @@
     (uri/path uri)
     (uri/path
      (string/replace (uri/path uri) #"[^a-zA-Z0-9\.\-_~!&'\(\)*+,;=:@/]" ""))
+
+    (= (uri/scheme-relative uri) "//")
+    (uri/scheme-relative "/")
+
     (nil? (uri/scheme uri))
     (uri/scheme "https")))
 
@@ -161,13 +165,21 @@
                    :msg "base-url must be absolute"})
 
           (nil? (uri/host url))
-          (let [resolved (-> (uri/resolve-path base-url url)
-                             (uri/query (uri/query url))
-                             (uri/fragment (uri/fragment url)))]
+          (try+
+           (let [resolved (-> (uri/resolve-path base-url url)
+                              (uri/query (uri/query url))
+                              (uri/fragment (uri/fragment url)))]
 
-            (if (uri/absolute-path? resolved)
-              resolved
-              (update resolved :path #(str "/" %))))
+             (if (uri/absolute-path? resolved)
+               resolved
+               (update resolved :path #(str "/" %))))
+           (catch Object _
+             (throw+ {:type ::absolutify-broken
+                      :raw-href raw-href
+                      :raw-base-url raw-base-url
+                      :url url
+                      :scheme scheme
+                      :base-url base-url})))
 
           :else
           (uri/uri (uri/resolve-uri base-url (str url))))))))

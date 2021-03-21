@@ -208,6 +208,8 @@
            (str (uut/absolutify-url "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB" nil))))
     (is (= "https://example.com/3/extending/extending.html"
            (str (uut/absolutify-url "https://example.com/3/extending/extending.html\"" nil))))
+    (is (= "https://example.com/"
+           (str (uut/absolutify-url "//" "https://example.com/"))))
     (is (= "https://example.com/972"
            (str (uut/absolutify-url "(https://example.com/972)" nil)))))
   (testing
