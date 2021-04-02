@@ -53,41 +53,6 @@
         (assoc-in [:meta :source :args] nil)
         (assoc :type :bookmark))))
 
-(s/defn mercury-get
-  [url :- schema/URL
-   api-key :- s/Str]
-  (try+
-   (let [url (uri/uri url)
-
-         resp (http/get "https://mercury.postlight.com/parser"
-                        {:accept :json
-                         :as :json
-                         :content-type :json
-                         :headers {:x-api-key api-key}
-                         :query-params {:url (str url)}})
-         base-url (get-base-url-with-path url)
-         body (try+
-               (assoc (:body resp) :content
-                      (-> resp
-                          :body
-                          :content
-                          hick/parse hick/as-hickory
-                          (absolutify-links-in-hick base-url)
-                          blobify
-                          hick-r/hickory-to-html))
-               (catch Object _
-                 (log/warn &throw-context "Mercury post processing failed. Using vanilla")
-                 (:body resp)))]
-     body)
-    ;; Mercury sends 502 when it's unable to parse the url
-   (catch [:status 502] {:keys [headers body status]}
-     (log/error "Mercury Error: " url status body)
-     (throw+ {:type ::not-parsable}))
-
-   (catch Object _
-     (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
-     (throw+))))
-
 (s/defn mercury-local
   [url :- schema/URL]
   (try+
