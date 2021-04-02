@@ -18,126 +18,78 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [hikari-cp.core :as hikari]
    [hugsql.core :as hugsql]
+   [pantomime.media :as pantomime-media]
    [cheshire.generate :as json :refer [encode-str]]))
 
-(defn- create-source-from-doc [doc]
-  (let [meta (get doc :meta)
-        feed (get doc :feed)]
-    (sql/create-source db {:name (-> meta :source-name)
-                       :key (-> meta :source-key name)
-                       :created_ts (time/zoned-date-time)
-                       :type (keyword "item_type" (name (:type doc)))
-                       :data (select-keys
-                              feed [:feed-type :language :title :url])})))
+(def item-data-table-entries
+  "Item entries stored in the item_data table, rather than in the items entry column"
+  {:contents :item_data_type/content
+   :descriptions :item_data_type/description
+   :thumbs :item_data_type/thumbnail})
 
-(defn get-or-create-source-for-doc [doc]
-  (let [src (query/get-source-for-doc doc)]
-    (if (nil? src)
-      (create-source-from-doc doc)
-      src)))
+(defn store-item!
+  "store-item! persists item to the database, without data attachment like
+  contents and descriptions. Return {:id .. :hash .. } or nil if the item
+  already exists. Setting the optional overwrite? flag to true overwrites the
+  database row in case of an item hash collision."
+  [item & {:keys [overwrite?]}]
+  (let [{:keys [meta feed summary entry]} item
+        nlp (get-in item [:entry :nlp])]
+    (sql/store-item
+     db
+     {:source {:name (:source-name meta)
+               :key (name (:source-key meta))
+               :type (keyword "item_type" (name (:type item)))
+               :data (select-keys
+                      feed [:feed-type :language :title :url])}
+      :hash (:hash item)
+      :ts (or (:ts summary) (time/zoned-date-time))
+      :title (:title summary)
+      :author (string/join "," (:authors entry))
+      :type (keyword "item_type" (name (:type item)))
+      :tags (into {} (map (fn [x] [(name x) nil]) (:tags meta)))
+      :nlp-nwords (or (:nwords nlp) -1)
+      :nlp-urls (into [] (or (:urls nlp) []))
+      :nlp-names (into [] (or (:names nlp) []))
+      :nlp-nouns (into [] (or (:nouns nlp) []))
+      :nlp-verbs (into [] (or (:verbs nlp) []))
+      :nlp-top (or (:top nlp) {})
+      :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
+                       (sql/conflict-items-ignore-dupe-snip))
+      :entry (apply dissoc (concat [entry :nlp] item-data-table-entries))})))
 
+(defn store-item-data!
+  "store-item-data! persists item data as rows in the item_data table. See
+  item-data-table-entires for a list of this special entries"
+  [item-id item]
+  (let [{:keys [entry]} item]
+    (doall
+     (flatten
+      (for [[entry-key data-entry-type] item-data-table-entries
+            :let [mime-data-pairs (get entry entry-key)]
+            :when (some? mime-data-pairs)]
+        (for [[mime-type data] mime-data-pairs
+              :let [text? (pantomime-media/text? mime-type)]]
+          (sql/store-item-data
+           db
+           {:item-id item-id
+            :mime-type mime-type
+            :type data-entry-type
+            :text (when text? data)
+            :data (when-not text? (to-byte-buffer data))})))))))
 
-(defn make-item-data-row [item-id att-type [mime-type data]]
-  (try+
-   (when (some? data)
-     (if (re-find #"^text/.+" mime-type)
-       (when (and (string? data) (not (string/blank? data)))
-         [item-id mime-type data nil att-type])
-       [item-id mime-type nil (to-byte-buffer data) att-type]))
-   (catch Object _
-     (log/error (:throwable &throw-context) "Unexpected error: "
-                item-id att-type mime-type data)
-     (throw+ {:type ::data-row-conversion-fail
-              :item-id item-id
-              :mime-type mime-type
-              :att-type att-type
-              :data {:type (type data)
-                     :data :data}}))))
+(defn store-item-and-data!
+  "store-item-and-data! combines store-item! and store-item-data! into one
+  transaction. Returns nil if the item already exists in the database or {:item
+  {:id .. :hash ..} :data ({:id :mime_type :type :is_binary})"
+  [item & {:keys [overwrite?]}]
+  (j/with-db-transaction [tx db]
+    (when-let [{:keys [id hash]} (store-item! item :overwrite? overwrite?)]
+      {:item {:id id
+              :hash hash}
+       :data (store-item-data! id item)})))
 
-(defn make-item-data-rows [item-id doc]
-  (let [{:keys [contents descriptions thumbs]} (:entry doc)
-
-        cs (map (partial make-item-data-row item-id :item_data_type/content) contents)
-        ds (map (partial make-item-data-row item-id :item_data_type/description) descriptions)
-        ths (map (partial make-item-data-row item-id :item_data_type/thumbnail) thumbs)]
-
-    (remove nil? (concat cs ds ths))))
-
-(defn doc-to-sql-row [doc source-id]
-  (let [entry (:entry doc)]
-    {:hash (:hash doc)
-     :source_id source-id
-     :ts (or (get-in doc [:summary :ts]) (time/zoned-date-time 0))
-     :title (get-in doc [:summary :title])
-     :author (string/join "," (get-in doc [:entry :authors]))
-     :type (keyword "item_type" (name (:type doc)))
-     :tags (into {} (map (fn [x] [(name x) nil]) (get-in doc [:meta :tags])))
-     :nlp_nwords (or (get-in doc [:entry :nlp :nwords]) -1)
-     :nlp_urls (into [] (or (get-in doc [:entry :nlp :urls]) []))
-     :nlp_names (into [] (or (get-in doc [:entry :nlp :names]) []))
-     :nlp_nouns (into [] (or (get-in doc [:entry :nlp :nouns]) []))
-     :nlp_verbs (into [] (or (get-in doc [:entry :nlp :verbs]) []))
-     :nlp_top (or (get-in doc [:entry :nlp :top]) {})
-     :revision 2
-     :entry (-> entry
-                (dissoc :nlp :contents :descriptions :thumbs))}))
-
-(defn add-document [doc]
-  (try+
-   (j/with-db-transaction [t db]
-     (binding [core/*db* t]
-       (let [db-src (get-or-create-source-for-doc doc)
-             item (first
-                   (j/insert! t :items
-                              (doc-to-sql-row doc (:id db-src))))
-
-             item-data-rows (make-item-data-rows (:id item) doc)]
-         (when (seq item-data-rows)
-           (j/insert-multi! t :item_data
-                            [:item_id :mime_type :text :data :type]
-                            item-data-rows))
-         item)))
-   (catch java.lang.IllegalArgumentException _
-     (log/error (:throwable &throw-context) "Add Document Failed - Programmer error :P"
-                doc))
-   (catch org.postgresql.util.PSQLException _
-     (if (= (.getSQLState (:throwable &throw-context)) "23505")
-       (throw+ {:type ::duplicate})
-       (do
-         (log/error (:throwable &throw-context) "Add Document SQL failed")
-         (throw+ {:type ::general :doc doc}))))))
-
-(defn inplace-update-document [doc]
-  (try+
-   (j/with-db-transaction [t db]
-     (binding [core/*db* t]
-       (let [db-src (get-or-create-source-for-doc doc)
-             ret (first
-                  (j/update! t :items
-                             (doc-to-sql-row doc (:id db-src))
-                             ["hash = ?" (:hash doc)]))]
-         (when (zero? ret)
-           (throw+ {:type ::general :msg "first update failed" :ret ret :doc doc}))
-         (let [item-id (:id (first (j/query t ["select items.id from items where hash = ?"
-                                               (:hash doc)])))
-               item-data-rows (make-item-data-rows item-id doc)]
-           (when (seq item-data-rows)
-             (j/delete! t :item_data
-                        ["item_id = ?" item-id])
-             (j/insert-multi! t :item_data
-                              [:item_id :mime_type :text :data :type]
-                              item-data-rows))
-           item-id))))
-   (catch java.lang.IllegalArgumentException _
-     (log/error (:throwable &throw-context) "Add Document Failed - Programmer error :P"
-                doc))
-   (catch org.postgresql.util.PSQLException _
-     (log/error (:throwable &throw-context) "Add Document SQL failed")
-     (throw+ {:type ::general :doc doc}))))
-
-
-
-;;; -------------------------------------------
+;; ----------
 
 (defn item-set-tags [id & tags]
   (->>
@@ -156,7 +108,7 @@
    keys
    (map keyword)))
 
-;; ---------------------------------------
+;; ----------
 
 (defn remove-unread-for-items-of-source-older-than [source-keys older-than-ts]
   (let [source-ids (sql/resolve-source-keys-to-ids

@@ -10,12 +10,6 @@
    [pantomime.mime :as pm]
    [clojure.string :as string]))
 
-
-;;; Couch is a historical artifact. Before postgresql there was couch :)
-
-;;; Extra cheshire encoders
-
-
 (add-encoder java.time.ZonedDateTime
              (fn [dt jg]
                (.writeString jg (time/format :iso-zoned-date-time dt))))
@@ -24,67 +18,8 @@
              (fn [dt jg]
                (.writeString jg (str dt))))
 
-
-;;; Item -> Persistency abstraction
-;;; Split into two parts:
-;;; CouchItem proto: Convert item to database document
-;;; StorableItem: store / overwrite / check if duplicate
-
-
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))
-
-;;; Attachment Converter
-
-(defn extension-for-mimetype [m]
-  (let [by-mime (pm/extension-for-name m)]
-    (if (string/blank? by-mime)
-      ".bin"
-      by-mime)))
-
-(defn to-couch-atts
-  "Convert feed entry contents to couch attachments. Name will be prefix +
-  extension based on content type"
-  [prefix contents]
-  (into {} (for [[content-type data] contents
-                 :let [extension (extension-for-mimetype content-type)]]
-             (when-not (nil? data)
-               [(str prefix extension)
-                {:content_type content-type
-                 :data (conv/base64-encode data)}]))))
-
-;;; Write functions
-
-(defn overwrite-item! [item]
-  (try+
-   (let [doc (to-couch item)]
-     (db-mod/inplace-update-document doc))
-   (catch java.lang.IllegalAccessException e
-     (log/error e "Failed to store item. Probably called with an unsupported record "
-                (type item) ":" item)
-     (throw+))))
-
-(defn store-item! [item]
-  (let [doc (to-couch item)]
-    (db-mod/add-document doc)))
-
-(defn- store-item-skip-duplicate!
-  [item & {:keys [overwrite?] :or {overwrite? false}}]
-  (let [name (get-in item [:meta :source-name])
-        title (get-in item [:summary :title])]
-    (try+
-     (let [{:keys [id]} (store-item! item)]
-       (log/debugf "Stored item %s/\"%s\": %s" name title id)
-       id)
-     (catch [:type :infowarss.db.modify/duplicate] _
-       (if overwrite?
-         (let [ret (overwrite-item! item)]
-           (log/debugf "Item overwritten %s/\"%s\": %s" name title ret)
-           ret)
-         (log/debugf "Skipping item %s/\"%s\": duplicate" name title)))
-     (catch Object _
-       (log/errorf (:throwable &throw-context) "Unexpected exception while storing item %s/\"%s\"" name title)))))
-;;; API
 
 (defn store-items!
   "Store items (may be a mixture of different types). Pass overwrite? true to
@@ -102,4 +37,5 @@
        (apply concat
               (for [[type items] by-type]
                 (do (log/debugf "Persisting %s items" type)
-                    (remove nil? (map #(store-item-skip-duplicate! % :overwrite? overwrite?) items)))))))))
+                    (remove nil? (map #(db-mod/store-item-and-data!
+                                        (to-couch %) :overwrite? overwrite?) items)))))))))
