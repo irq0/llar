@@ -1299,12 +1299,8 @@
                      (string/join "\n"
                                   (map (fn [[k v]] (str k " - " (keys v))) (:data item))))})))
 
-(defn reader-index
-  "Reader Entrypoint"
-  ([]
-   (reader-index {}))
-  ([index-params]
-   (log/debug "[INFOWARSS-UI]" index-params)
+(defn gather-reader-index-data [index-params]
+  (try+
    (let [;; override filter for special groups like saved
          orig-fltr (:filter index-params)
 
@@ -1328,7 +1324,6 @@
                               doall))
 
          selected-sources (get-selected-sources active-sources params)
-
          params (merge params {:sources sources
                                :active-sources active-sources
                                :selected-sources selected-sources
@@ -1337,6 +1332,18 @@
                                :filter orig-fltr
                                :range-recent (-> @items first (select-keys [:ts :id]))
                                :range-before (-> @items last (select-keys [:ts :id]))})]
+     params)
+   (catch Object _
+     (throw+ {:type ::gather-data-error
+              :params index-params}))))
+
+(defn reader-index
+  "Reader Entrypoint"
+  ([]
+   (reader-index {}))
+  ([index-params]
+   (log/debug "[INFOWARSS-UI]" index-params)
+   (let [params (gather-reader-index-data index-params)]
      (try+
       (let [nav-bar (nav-bar params)
             group-nav (group-nav params)
@@ -1362,16 +1369,15 @@
      (catch Object _
        (throw+ {:type ::render-error
                 :params index-params
-                :active-sources (map :key active-sources)
-                :selected-sources (map :key selected-sources)
-                :filter orig-fltr
+                :active-sources (map :key (:active-sources params))
+                :selected-sources (map :key (:selected-sources params))
+                :filter (:filter params)
                 :range-before (:range-before params)
                 :range-recent (:range-recent params)
-                :item-tags @item-tags
-                :first-item (first @items)
-                :items {:count (count @items)
-                        :ids (map :id @items)
-                        :titles (map :title @items)}}))))))
+                :item-tags (:item-tags params)
+                :items {:count (count (:items params))
+                        :ids (map :id (:items params))
+                        :titles (map :title (:items params))}}))))))
 
 (defmulti lab-view-handler :view)
 
