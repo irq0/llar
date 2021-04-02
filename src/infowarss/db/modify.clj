@@ -140,62 +140,33 @@
 ;;; -------------------------------------------
 
 (defn item-set-tags [id & tags]
-  (let [pairs (mapv (fn [tag]
-                      (format "['%s', NULL]" (name tag)))
-                    tags)
-        sql-tags (str "ARRAY[" (string/join "," pairs) "]")
-        sql (str "update items set tags = tags || hstore(" sql-tags ") where id = ?")]
-    (try+
-     (first (j/execute! db [sql id]))
-     (catch org.postgresql.util.PSQLException _
-       (log/error (:throwable &throw-context) "SQL failed")
-       (throw+ {:type ::general :sql sql :id id :tags tags})))))
-
-(defn item-set-all-tags-for-source [source-id & tags]
-  (let [pairs (mapv (fn [tag]
-                      (format "['%s', NULL]" (name tag))) tags)
-        sql-tags (str "ARRAY[" (string/join "," pairs) "]")
-        sql (str "update items set tags = tags || hstore(" sql-tags ") where source_id = ?")]
-    (try+
-     (first (j/execute! db [sql source-id]))
-     (catch org.postgresql.util.PSQLException _
-       (log/error (:throwable &throw-context) "SQL failed")
-       (throw+ {:type ::general :sql sql :id source-id :tags tags})))))
+  (->>
+   (sql/set-tags db {:tags (vec (map name tags))
+                     :vals (vec (repeat (count tags) nil))
+                     :where [(sql/tag-cond-by-id {:id id})]})
+   :tags
+   keys
+   (map keyword)))
 
 (defn item-remove-tags [id & tags]
-  (let [sql-tags (str "ARRAY[" (string/join ","
-                                            (map (fn [tag] (str "'" (name tag) "'"))
-                                                 tags))
-                      "]")
-        sql (str "update items set tags = delete(tags, " sql-tags ") where id = ?")]
-    (try+
-     (first (j/execute! db [sql id]))
-     (catch org.postgresql.util.PSQLException _
-       (log/error (:throwable &throw-context) "SQL failed")
-       (throw+ {:type ::general :sql sql :id id :tags tags})))))
-
-(defn item-remove-all-tags-for-source [source-id & tags]
-  (let [sql-tags (str "ARRAY[" (string/join ","
-                                            (map (fn [tag] (str "'" (name tag) "'"))
-                                                 tags))
-                      "]")
-        sql (str "update items set tags = delete(tags, " sql-tags ") where source_id = ?")]
-    (try+
-     (j/execute! db [sql source-id])
-
-     (catch org.postgresql.util.PSQLException _
-       (log/error (:throwable &throw-context) "SQL failed")
-       (throw+ {:type ::general :sql sql :source-id source-id :tags tags})))))
+  (->>
+   (sql/remove-tags db {:tags (vec (map name tags))
+                        :where [(sql/tag-cond-by-id {:id id})]})
+   :tags
+   keys
+   (map keyword)))
 
 ;; ---------------------------------------
 
 (defn remove-unread-for-items-of-source-older-than [source-keys older-than-ts]
-  (let [source-ids (j/query db [(format "select id from sources where key in (%s)"
-                                        (->> source-keys
-                                             (map name)
-                                             (map #(str "'" % "'"))
-                                             (string/join ", ")))]
-                            {:row-fn :id})]
-    (j/execute! db [(format "update items set tags = tags - 'unread'::text where source_id in (%s) and exist_inline(tags, 'unread') and ts <= ?"
-                                     (->> source-ids (string/join ", ")))
-                    older-than-ts])))
+  (let [source-ids (sql/resolve-source-keys-to-ids
+                    db
+                    {:keys (vec (map name source-keys))}
+                    {}
+                    {:row-fn :id})]
+    (sql/remove-tags db {:tags ["unread"]
+                         :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
+                                 ["AND"]
+                                 ["exist_inline(tags, 'unread')"]
+                                 ["AND"]
+                                 (sql/tag-cond-le-ts {:ts older-than-ts})]})))

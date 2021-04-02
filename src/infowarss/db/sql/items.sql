@@ -22,7 +22,7 @@ group by skeys(tags)
 select count(*) from items
   where source_id = :id
   and date(ts) = current_date
-and exist_inline(tags,'unread')
+  and exist_inline(tags,'unread')
 
 -- :name get-sources-with-item-tags-count :? :raw
 select distinct on (key) key,

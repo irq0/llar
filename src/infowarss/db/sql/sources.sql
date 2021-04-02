@@ -23,3 +23,6 @@ select * from sources where key = :key
 select name, key, created_ts, id, type, data->':title' as title
 from sources
 
+-- :name resolve-source-keys-to-ids :? :raw
+select id from sources where key in (:v*:keys)
+

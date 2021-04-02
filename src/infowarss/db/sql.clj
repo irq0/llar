@@ -7,4 +7,5 @@
 (hugsql/def-db-fns "infowarss/db/sql/sources.sql" {:quoting :ansi})
 (hugsql/def-db-fns "infowarss/db/sql/analytics.sql" {:quoting :ansi})
 (hugsql/def-db-fns "infowarss/db/sql/search.sql" {:quoting :ansi})
+(hugsql/def-db-fns "infowarss/db/sql/tags.sql" {:quoting :ansi})
 

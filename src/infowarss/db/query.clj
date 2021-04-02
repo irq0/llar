@@ -90,7 +90,7 @@
                                        :total total})})))
         sources))
 
-;; --------------
+;; ----------
 
 (defn get-sources-item-tags-counts [item-tag simple-filter config-sources]
   (sql/get-sources-with-item-tags-count
@@ -142,7 +142,8 @@
 (defn- make-recent-items-where-cond-vec
   "Convert get-items-recent filter parameter into a list of sqlvec where clauses"
   [args]
-  (let [{:keys [before with-source-keys simple-filter with-tag with-type]} args]
+  (let [{:keys [before with-source-keys simple-filter with-tag with-type]} args
+        simple-filter (when (keyword? simple-filter) (simple-filter-to-sql simple-filter))]
     (not-empty
      (interpose ["and"]
                 (cond-> []
@@ -153,8 +154,8 @@
                   (conj (sql/cond-with-source {:keys
                                                (map name with-source-keys)}))
 
-                  (keyword? simple-filter)
-                  (conj [(simple-filter-to-sql simple-filter)])
+                  (some? simple-filter)
+                  (conj [simple-filter])
 
                   (keyword? with-tag)
                   (conj (sql/cond-with-tag {:tag (name with-tag)}))
