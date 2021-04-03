@@ -1314,9 +1314,9 @@
                              (doall (dbq/get-tag-stats))))
 
          sources (metrics/with-prom-exec-time :compile-sources
-                   (dbq/get-sources config/*srcs*))
+                   (doall (dbq/get-sources config/*srcs*)))
          items (future (metrics/with-prom-exec-time :items-current-view
-                         (get-items-for-current-view sources params)))
+                         (doall (get-items-for-current-view sources params))))
          ;; right sidebar
          active-sources (metrics/with-prom-exec-time :active-sources
                           (-> (get-active-group-sources sources params)
