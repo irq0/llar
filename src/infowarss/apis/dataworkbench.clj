@@ -4,7 +4,6 @@
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
-   [infowarss.db :as db]
    [infowarss.persistency :as persistency]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.blobstore :as blobstore]

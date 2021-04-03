@@ -1,8 +1,8 @@
 (ns infowarss.lab
   (:require
-   [infowarss.db.query :as dbq]
+   [infowarss.persistency :as persistency]
+   [infowarss.store :refer [backend-db]]
    [infowarss.db.search :as db-search]
-   [infowarss.db.modify :as db-mod]
    [infowarss.config :as config]
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
@@ -62,23 +62,13 @@
       (log/error th "Error fetching " (str src)))))
 
 
-;; clustering
-
-;; (defn clustertest []
-;;   (let [terms (into #{} (db/saved-itesmtf-idf-terms))
-;;         items (db/saved-items-tf-idf)
-;;         ds (ml-data/make-sparse-dataset "saved-items"
-;;                                         terms
-;;                                         items)]
-;;     ds))
-
-
 (def current-clustered-saved-items (atom {}))
 
 (defn make-saved-dataset []
   ;; must ensure that there are no '/' in terms - messes up keyword/name
-  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms)) "item_id"))
-        term-tf-idf-maps (db-search/saved-items-tf-idf)
+  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms (:datasource backend-db)))
+                              "item_id"))
+        term-tf-idf-maps (db-search/saved-items-tf-idf (:datasource backend-db))
         weka-attributes (map (fn [s]
                                (let [new-attrib (weka.core.Attribute. s)]
                                  (if (= s :item_id)
@@ -138,7 +128,7 @@
            ml-data/dataset-as-maps
            (map (fn [{:keys [item_id class]}]
                   (let [id (int item_id)
-                        item (dbq/get-item-with-data-by-id id)
+                        item (persistency/get-item-by-id backend-db id)
                         class-name (get names class)]
                     {:title (:title item)
                      :nwords (:nwords item)
@@ -198,12 +188,12 @@
         (throw+ {:type :youtube-error :exit exit})))))
 
 (defn music-links []
-  (let [sources (-> (dbq/get-sources config/*srcs*)
+  (let [sources (-> (persistency/get-sources backend-db config/*srcs*)
                     vals)
         music-srcs (->> sources
                         (filter #(contains? (:tags %) :music))
                         (map :key))
-        items (dbq/get-items-recent
+        items (persistency/get-items-recent backend-db
                {:with-source-keys music-srcs
                 :limit 512
                 :with-tag :unread})]
@@ -219,21 +209,21 @@
      (let [filename (youtube-dl-music url)]
        (log/infof "Music Miner downloaded %s/%s to %s"
                   title url filename)
-       (db-mod/item-set-tags id :music-mined)
-       (db-mod/item-remove-tags id :unread))
+       (persistency/item-set-tags! backend-db id [:music-mined])
+       (persistency/item-remove-tags! backend-db id [:unread]))
      (catch [:type :youtube-error] {:keys [msg]}
-       (db-mod/item-set-tags id :music-mined :music-miner-failed)
-       (db-mod/item-remove-tags id :unread)
+       (persistency/item-set-tags! backend-db id [:music-mined :music-miner-failed])
+       (persistency/item-remove-tags! backend-db id [:unread])
        (log/errorf "Music miner failed for %s/%s: %s" title url msg))
      (catch Object e
        (log/error e "Unexpected error")))))
 
 (defn download-tagged-stuff []
-  (let [items (dbq/get-items-by-tag :download)]
+  (let [items (persistency/get-items-by-tag backend-db :download)]
     (doall
      (for [item items]
        (let [url (get-in item [:entry :url])
-             dest-dir (str "/home/seri/Desktop/MEDIA/"
+             dest-dir (str "/home/seri/MEDIA/"
                            (name (:key item)))]
          (when (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)
            (log/info "Downloading " url " to " dest-dir)
@@ -241,7 +231,7 @@
            (future
              (try+
               (let [filename (youtube-dl-video url dest-dir)]
-                (db-mod/item-remove-tags (:id item) :download)
+                (persistency/item-remove-tags! backend-db (:id item) :download)
                 filename)
               (catch [:type :youtube-error] {:keys [msg]}
                 (log/errorf "Miner failed for %s: %s" item msg))
@@ -250,7 +240,7 @@
 
 (defn copy-wallpapers-to-home []
   (doseq [[source destination]
-          (some->> (dbq/get-items-by-tag :wallpaper)
+          (some->> (persistency/get-items-by-tag backend-db :wallpaper)
                    (map (fn [item]
                           (when-let [blob-url (get-in item [:entry :lead-image-url])]
                             [(string/replace blob-url "/blob/" "")

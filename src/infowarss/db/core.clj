@@ -1,36 +1,23 @@
 (ns infowarss.db.core
   (:require
    [digest]
+   [infowarss.db.query]
+   [infowarss.db.modify]
+   [infowarss.db.search]
    [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [clojure.java.jdbc :as j]
    [mpg.core :as mpg]
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
    [byte-streams :refer [to-byte-buffer]]
    [cheshire.core :refer :all]
-   [mount.core :refer [defstate]]
    [org.bovinegenius [exploding-fish :as uri]]
    [hikari-cp.core :as hikari]
    [hugsql.core :as hugsql]
    [cheshire.generate :as json :refer [encode-str]]))
 
-(def config (:postgresql (edn/read-string (slurp (io/resource "config.edn")))))
-
-(def ^:dynamic *db*
-  (merge {:dbtype "postgresql"} config))
-
 (mpg/patch {:default-map :hstore})
-
-(defstate db
-  :start {:datasource (hikari/make-datasource config)})
-
-(defn check-connectivity []
-  (log/infof "Database ready. %s items, %s sources"
-             (:count (first (j/query db ["select count(*) from items"])))
-             (:count (first (j/query db ["select count(*) from sources"])))))
 
 (defn kw->pgenum [kw]
   (let [type (some-> (namespace kw)
@@ -69,3 +56,25 @@
       (if (contains? +schema-enums+ type)
         (keyword (string/replace type "_" "-") val)
         val))))
+
+(defrecord PostgresqlDataStore
+    [datasource]
+  ;; DataStoreLifeCycle
+  ;; (stop-data-store
+  ;;   (when (instance? hikari.. (hikari/close-datasource (:datasource this))
+  
+  Object
+  (toString [this] (format "PostgresqlDataSource{->%s}"
+                           (.toString (:datasource this)))))
+
+
+(defn make-postgresql-pooled-datastore [config]
+  (->PostgresqlDataStore (hikari/make-datasource config)))
+
+(defn make-postgresql-datastore [config]
+  (->PostgresqlDataStore
+   {:dbtype (:adapter config)
+    :dbname (:database-name config)
+    :host (:server-name config)
+    :user (:username config)
+    :password (:password config)}))

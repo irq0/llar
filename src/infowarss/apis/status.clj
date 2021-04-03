@@ -3,7 +3,9 @@
    [infowarss.config :as config]
    [infowarss.update :as update]
    [infowarss.live :as live]
-   [infowarss.db.query :as dbq]
+   [infowarss.persistency :as persistency]
+   [infowarss.appconfig :as appconfig]
+   [infowarss.apis.reader :refer [frontend-db]]
    [infowarss.sched :refer [get-sched-info]]
    [infowarss.metrics :as metrics]
    [compojure.core :refer [routes GET]]
@@ -11,7 +13,7 @@
    [hiccup.core :refer [html]]
    [clojure.contrib.humanize :as human]
    [iapetos.export :as prometheus-export]
-   [mount.core :as mount]
+   [mount.core :as mount :refer [defstate]]
    [puget.printer :as puget]))
 
 (defn html-header []
@@ -175,7 +177,7 @@
       [:th "Group"]
       [:th "# Documents"]]]
     [:tbody
-     (for [[start count] (dbq/get-word-count-groups)]
+     (for [[start count] (persistency/get-word-count-groups frontend-db)]
        (let [txt (cond
                    (nil? start)
                    "Unknown Length"
@@ -185,9 +187,9 @@
                    (str "< " start " Words"))]
          [:tr [:th txt] [:td count]]))]]
    [:h4 "Tags"]
-   (list-to-table ["Tag" "# Documents"]  (dbq/get-tag-stats))
+   (list-to-table ["Tag" "# Documents"]  (persistency/get-tag-stats frontend-db))
    [:h4 "Types"]
-   (list-to-table ["Type" "# Documents"] (dbq/get-type-stats))))
+   (list-to-table ["Type" "# Documents"] (persistency/get-type-stats frontend-db))))
 
 (defn state-stats []
   (let [states (mount/find-all-states)

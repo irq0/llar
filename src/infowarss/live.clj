@@ -2,7 +2,7 @@
   (:require
    [infowarss.config :as config]
    [infowarss.postproc :as proc]
-   [infowarss.persistency :as persistency]
+   [infowarss.store :refer [store-items!]]
    [infowarss.live.common :refer :all]
    [clojure.core.async :as async]
    [mount.core :refer [defstate]]
@@ -31,7 +31,7 @@
                  "-> :source-key must be set during collection"))
     (try+
      (let [processed (proc/process feed @state [item])
-           dbks (when (some? processed) (persistency/store-items! processed))]
+           dbks (when (some? processed) (store-items! processed))]
        (log/debugf "Live processing for %s/%s: processed: %s, db: %s"
                    (str feed) (str item) (count processed) (count dbks)))
 

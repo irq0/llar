@@ -1,8 +1,9 @@
 (ns infowarss.update
   (:require
    [infowarss.config :as config]
+   [infowarss.appconfig :refer [appconfig]]
    [infowarss.fetch :as fetch]
-   [infowarss.persistency :refer [store-items!]]
+   [infowarss.store :refer [store-items!]]
    [infowarss.postproc :as proc]
    [infowarss.converter :as converter]
    [java-time :as time]
@@ -14,8 +15,6 @@
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
-
-(def config (edn/read-string (slurp (io/resource "config.edn"))))
 
 (defn startup-read-state []
   (let [res (io/resource "state.edn")
@@ -186,7 +185,7 @@
       (log/debug "Updating working feed: " k)
       :temp-fail
       (log/debug "Temporary failing feed %d/%d: %s"
-                 (:retry-count cur-state) (:update-max-retires config) k)
+                 (:retry-count cur-state) (:update-max-retires appconfig) k)
       :perm-fail
       (log/debug "Skipping perm fail feed: " k)
       (log/debugf "Unknown status \"%s\": %s" cur-status k))
@@ -199,7 +198,7 @@
          (#{:ok :new} cur-status)
          (and
           (= cur-status :temp-fail)
-          (< (:retry-count cur-state) (:update-max-retires config))))
+          (< (:retry-count cur-state) (:update-max-retires appconfig))))
       (let [kw-args (mapcat identity (dissoc args :force))
             new-state (apply update-feed! k kw-args)
             new-status (:status new-state)]

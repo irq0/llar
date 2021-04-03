@@ -1,11 +1,12 @@
 (ns infowarss.db.query
   (:require
-   [infowarss.db.core :as core :refer [db]]
+   [infowarss.persistency :refer [StatsQueries SourceQueries ItemQueries]]
+   [taoensso.timbre :as log]
    [infowarss.db.sql :as sql]
    [infowarss.converter :as conv]
    [digest]))
 
-(defn process-items-row
+(defn- process-items-row
   "Generic item row processor. Convert aggregated item data table entries into a
   nice map. "
   [row]
@@ -34,39 +35,27 @@
 
 ;; ----------
 
-(defn get-source-for-doc [doc]
-  (let [key (name (get-in doc [:meta :source-key]))]
-    (sql/get-source-by-key db {:key key})))
+(extend-protocol StatsQueries
+  infowarss.db.core.PostgresqlDataStore
 
-(defn get-word-count-groups []
-  (drop 1 (sql/get-word-count-groups db nil {} {:as-arrays? true})))
+  (get-table-row-counts [this]
+    (sql/get-table-row-counts this nil {}))
 
-(defn get-tag-stats []
-  (drop 1 (sql/get-tag-stats db nil {} {:as-arrays? true})))
+  (get-type-stats [this]
+    (drop 1 (sql/get-type-stats this nil {} {:as-arrays? true})))
 
-(defn get-type-stats []
-  (drop 1 (sql/get-type-stats db nil {} {:as-arrays? true})))
+  (get-tag-stats [this]
+    (drop 1 (sql/get-tag-stats this nil {} {:as-arrays? true})))
 
-(defn get-sources [config-sources]
-  (let [row-add-config-src
-        (fn [row]
-          (let [key (keyword (:key row))]
-            [key (-> row
-                     (assoc :key key)
-                     (merge (get config-sources key)))]))]
-    (into {}
-          (sql/get-sources db
-                           nil
-                           {}
-                           {:row-fn row-add-config-src}))))
+  (get-word-count-groups [this]
+    (drop 1 (sql/get-word-count-groups this nil {} {:as-arrays? true}))))
 
-(defn get-items-by-tag [tag]
-  (sql/get-items-by-tag db {:tag (name tag)}))
+;; ----------
 
-(defn get-item-count-of-source [id]
+(defn- get-item-count-of-source [db id]
   (:count (sql/get-item-count-of-source db {:id id})))
 
-(defn get-item-count-by-tag-of-source [id]
+(defn- get-item-count-by-tag-of-source [db id]
   (into {}
         (sql/get-item-count-by-tag-of-source
          db
@@ -75,48 +64,48 @@
          {:row-fn (fn [{:keys [tag count]}]
                     [(keyword tag) count])})))
 
-(defn get-item-count-unread-today [id]
+(defn- get-item-count-unread-today [db id]
   (:count (sql/get-item-count-unread-today db {:id id})))
 
-(defn sources-merge-in-tags-counts [sources]
-  (pmap (fn [source]
-          (let [id (:id source)
-                total (get-item-count-of-source id)
-                per-tag (get-item-count-by-tag-of-source id)
-                today (get-item-count-unread-today id)]
-            (merge source
-                   {:item-tags (merge per-tag
-                                      {:today today
-                                       :total total})})))
-        sources))
+(extend-protocol SourceQueries
+  infowarss.db.core.PostgresqlDataStore
 
-;; ----------
+  (get-sources [this config-sources]
+    (let [row-add-config-src
+          (fn [row]
+            (let [key (keyword (:key row))]
+              [key (-> row
+                       (assoc :key key)
+                       (merge (get config-sources key)))]))]
+      (into {}
+            (sql/get-sources this
+                             nil
+                             {}
+                             {:row-fn row-add-config-src}))))
 
-(defn get-sources-item-tags-counts [item-tag simple-filter config-sources]
-  (sql/get-sources-with-item-tags-count
-   db
-   {:item-tag (name item-tag)
-    :simple-filter (simple-filter-to-sql simple-filter)}
-   {}
-   {:row-fn (fn [row]
-              (let [key (keyword (:key row))]
-                (-> row
-                    (assoc :key key)
-                    (merge (get config-sources key)))))}))
-
-
-;; ----------
-
-
-(defn get-item-with-data-by-id [id]
-  (sql/get-item-by-id
-   core/db
-   {:id id
-    :select (sql/item-select-with-data-snip)
-    :from (sql/item-from-join-with-data-table-snip)
-    :group-by-columns ["items.id"]}
-   {}
-   {:row-fn process-items-row}))
+  (get-sources-item-tags-counts [this item-tag simple-filter config-sources]
+    (sql/get-sources-with-item-tags-count
+     this
+     {:item-tag (name item-tag)
+      :simple-filter (simple-filter-to-sql simple-filter)}
+     {}
+     {:row-fn (fn [row]
+                (let [key (keyword (:key row))]
+                  (-> row
+                      (assoc :key key)
+                      (merge (get config-sources key)))))}))
+  
+  (sources-merge-in-tags-counts [this sources]
+    (pmap (fn [source]
+            (let [id (:id source)
+                  total (get-item-count-of-source this id)
+                  per-tag (get-item-count-by-tag-of-source this id)
+                  today (get-item-count-unread-today this id)]
+              (merge source
+                     {:item-tags (merge per-tag
+                                        {:today today
+                                         :total total})})))
+          sources)))
 
 ;; ----------
 
@@ -163,25 +152,28 @@
                   (keyword? with-type)
                   (conj (sql/cond-with-type {:type with-type})))))))
 
-(defn get-items-recent
-  "
-  get-items-recent returns :limit recent items, optionally offsetted with :before
-  {:ts :id} to implement pagination.
+(extend-protocol ItemQueries
+  infowarss.db.core.PostgresqlDataStore
 
-  Supports the following filters:
-  :with-tag $keyword  -  only $keyword tagged items
-  :with-type :item-type/$type  -  only items with type $type
-  :simple-filter see #'simple-filter-to-sql  -  only items matching simple filter
-  :with-source-keys [$source-key ..]  -  only items from source in vec
+  (get-items-recent [this {:keys [limit] :or {limit 42} :as args}]
+    (sql/get-items-recent
+     this
+     {:select (choose-recent-items-select-snip args)
+      :from (choose-recent-items-from-snip args)
+      :where (make-recent-items-where-cond-vec args)
+      :limit limit
+      :group-by-columns (choose-recent-items-group-by-colums args)}))
 
-  Return item without data when :with-data? or :with-preview-data? is not specified
-  "
+  (get-items-by-tag [this tag]
+    (sql/get-items-by-tag this {:tag (name tag)}))
 
-  [{:keys [limit] :or {limit 42} :as args}]
-  (sql/get-items-recent
-   core/db
-   {:select (choose-recent-items-select-snip args)
-    :from (choose-recent-items-from-snip args)
-    :where (make-recent-items-where-cond-vec args)
-    :limit limit
-    :group-by-columns (choose-recent-items-group-by-colums args)}))
+  (get-item-by-id [this id]
+    (sql/get-item-by-id
+     this
+     {:id id
+      :select (sql/item-select-with-data-snip)
+      :from (sql/item-from-join-with-data-table-snip)
+      :group-by-columns ["items.id"]}
+     {}
+     {:row-fn process-items-row})))
+

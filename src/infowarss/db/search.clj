@@ -1,7 +1,7 @@
 (ns infowarss.db.search
   (:require
-   [infowarss.db.core :as core :refer [db]]
    [infowarss.db.sql :as sql]
+   [infowarss.persistency :refer [DataStoreSearch]]
    [digest]
    [java-time :as time]
    [taoensso.timbre :as log]
@@ -19,25 +19,33 @@
    [hugsql.core :as hugsql]
    [cheshire.generate :as json :refer [encode-str]]))
 
-(defn search
-  ([query {:keys [with-source-key time-ago-period]}]
-   (sql/search-item
-    db
-    {:query query
-     :source-key with-source-key
-     :time-ago (when-not (nil? time-ago-period)
-                 (time/minus (time/zoned-date-time) time-ago-period))})
-   )
-  ([query]
-   (search query {})))
-
-(defn refresh-search-index []
+(defn- refresh-search-index [db]
   (j/execute! db ["refresh materialized view search_index"]))
 
-(defn refresh-idf []
+(defn- refresh-idf [db]
   (j/execute! db ["refresh materialized view idf_top_words"]))
 
-(defn saved-items-tf-idf []
+(extend-protocol DataStoreSearch
+  infowarss.db.core.PostgresqlDataStore
+
+  (search
+    ([this query {:keys [with-source-key time-ago-period]}]
+     (sql/search-item
+      this
+      {:query query
+       :source-key with-source-key
+       :time-ago (when-not (nil? time-ago-period)
+                   (time/minus (time/zoned-date-time) time-ago-period))}))
+    ([this query]
+     (sql/search-item
+      this
+      {:query query})))
+
+  (update-index! [this]
+    (refresh-search-index this)
+    (refresh-idf this)))
+
+(defn saved-items-tf-idf [db]
   (rest (sql/saved-items-tf-idf
    db
    nil
@@ -47,10 +55,9 @@
               (assoc (into {} term-tf-idf) "item_id" (double id)))})))
 
 
-(defn saved-items-tf-idf-terms []
+(defn saved-items-tf-idf-terms [db]
   (first (second (sql/saved-items-tf-idf-terms
                   db
                   nil
                   {}
                   {:as-arrays? true}))))
-

@@ -4,12 +4,12 @@
    [infowarss.fetch :as fetch]
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
-   [infowarss.db.query :as dbq]
-   [infowarss.db.search :as db-search]
-   [infowarss.db.modify :as db-mod]
    [infowarss.persistency :as persistency]
+   [infowarss.store :refer [store-items!]]
+   [infowarss.db.core :as db]
    [infowarss.blobstore :as blobstore]
    [infowarss.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
+   [infowarss.appconfig :as appconfig]
    [org.bovinegenius [exploding-fish :as uri]]
    [infowarss.http :refer [try-blobify-url! human-host-identifier]]
    [infowarss.metrics :as metrics]
@@ -68,6 +68,10 @@
 (defstate annotations
   :start (atom (startup-read-state))
   :stop (spit (io/resource "annotations.edn") (converter/print-annotations @annotations)))
+
+(defstate frontend-db
+  :start (db/make-postgresql-pooled-datastore
+          (get-in appconfig/appconfig [:postgresql :frontend])))
 
 (def +max-items+
   "Number of items in item list. All fetched at once."
@@ -1174,7 +1178,7 @@
 
     (cond
       (contains? #{:show-item :download :dump-item} mode)
-      (let [current-item (dbq/get-item-with-data-by-id item-id)
+      (let [current-item (persistency/get-item-by-id frontend-db item-id)
             next-items (get-items-for-current-view
                         sources
                         (-> params
@@ -1183,21 +1187,21 @@
         (into [current-item] next-items))
 
       (and (= group-name :default) (= group-item :all) (= source-key :all))
-      (dbq/get-items-recent common-args)
+      (persistency/get-items-recent frontend-db common-args)
 
       (and (= group-name :default) (= group-item :all) (keyword? source-key))
-      (dbq/get-items-recent (merge common-args
+      (persistency/get-items-recent frontend-db (merge common-args
                                   {:with-preview-data? (contains?
                                                         (get-in sources [source-key :options])
                                                         :main-list-use-description)
                                    :with-source-keys [source-key]}))
 
       (and (= group-name :item-tags) (keyword? group-item) (= source-key :all))
-      (dbq/get-items-recent (merge common-args
-                                  {:with-tag group-item}))
+      (persistency/get-items-recent frontend-db (merge common-args
+                                        {:with-tag group-item}))
 
       (and (= group-name :item-tags) (keyword? group-item) (keyword? source-key))
-      (dbq/get-items-recent (merge common-args
+      (persistency/get-items-recent frontend-db (merge common-args
                                   {:with-preview-data? (contains?
                                                         (get-in sources [source-key :options])
                                                         :main-list-use-description)
@@ -1208,7 +1212,7 @@
       (let [selected-sources (->> sources
                              vals
                              (filter #(contains? (:tags %) group-item)))]
-        (dbq/get-items-recent (merge common-args
+        (persistency/get-items-recent frontend-db (merge common-args
                                     {:with-preview-data? (some #(contains? (:options %)
                                                                            :main-list-use-description)
                                                                selected-sources)
@@ -1221,7 +1225,7 @@
                          (contains? (:tags %) group-item)
                          (= (:key %) source-key)))
                not-empty)
-        (dbq/get-items-recent (merge common-args
+        (persistency/get-items-recent frontend-db (merge common-args
                                     {:with-preview-data? (contains?
                                                         (get-in sources [source-key :options])
                                                         :main-list-use-description)
@@ -1229,11 +1233,11 @@
         [])
 
       (and (= group-name :type) (keyword? group-item) (= source-key :all))
-      (dbq/get-items-recent (merge common-args
+      (persistency/get-items-recent frontend-db (merge common-args
                                   {:with-type group-item}))
 
       (and (= group-name :type) (keyword? group-item) (keyword? source-key))
-      (dbq/get-items-recent (merge common-args
+      (persistency/get-items-recent frontend-db (merge common-args
                                   {:with-source-keys [source-key]
                                    :with-preview-data? (contains?
                                                         (get-in sources [source-key :options])
@@ -1252,7 +1256,7 @@
       (vals sources)
 
       (= group-name :item-tags)
-      (dbq/get-sources-item-tags-counts group-item (:filter params) config/*srcs*)
+      (persistency/get-sources-item-tags-counts frontend-db group-item (:filter params) config/*srcs*)
 
       (= group-name :source-tag)
       (filter #(contains? (:tags %) group-item) (vals sources))
@@ -1275,7 +1279,7 @@
   "Download Selected Item Content"
   [params]
   (let [sources (metrics/with-prom-exec-time :compile-sources
-                  (dbq/get-sources config/*srcs*))
+                  (persistency/get-sources frontend-db config/*srcs*))
 
         items (metrics/with-prom-exec-time :items-current-view
                 (get-items-for-current-view sources params))
@@ -1311,17 +1315,18 @@
                          orig-fltr))
 
          item-tags (future (metrics/with-prom-exec-time :tag-list
-                             (doall (dbq/get-tag-stats))))
+                             (doall (persistency/get-tag-stats frontend-db))))
 
          sources (metrics/with-prom-exec-time :compile-sources
-                   (doall (dbq/get-sources config/*srcs*)))
+                   (doall (persistency/get-sources frontend-db config/*srcs*)))
          items (future (metrics/with-prom-exec-time :items-current-view
                          (doall (get-items-for-current-view sources params))))
          ;; right sidebar
          active-sources (metrics/with-prom-exec-time :active-sources
-                          (-> (get-active-group-sources sources params)
-                              (dbq/sources-merge-in-tags-counts)
-                              doall))
+                          (doall
+                           (persistency/sources-merge-in-tags-counts
+                            frontend-db
+                            (get-active-group-sources sources params))))
 
          selected-sources (get-selected-sources active-sources params)
          params (merge params {:sources sources
@@ -1423,11 +1428,11 @@
         with-source-key (get-in x [:request-params :with-source-key])
         days-ago (get-in x [:request-params :days-ago])
         results (if (or with-source-key days-ago)
-                  (db-search/search query {:with-source-key with-source-key
-                                           :time-ago-period (when-not (string/blank? days-ago)
-                                                              (time/days (some-> days-ago
+                  (persistency/search frontend-db query {:with-source-key with-source-key
+                                          :time-ago-period (when-not (string/blank? days-ago)
+                                                             (time/days (some-> days-ago
                                                                                  Integer/parseInt)))})
-                  (db-search/search query))]
+                  (persistency/search frontend-db query))]
     [:main {:role "main"
             :class "col-xs-12 col-md-6 col-lg-8"}
      [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
@@ -1515,7 +1520,7 @@
                          orig-fltr))
 
          item-tags (future (metrics/with-prom-exec-time :tag-list
-                             (doall (dbq/get-tag-stats))))
+                             (doall (persistency/get-tag-stats frontend-db))))
 
          params (merge params {:sources {}
                                :group-group :lab
@@ -1567,7 +1572,7 @@
    (let [state (assoc update/src-state-template :key key)
          items (fetch/fetch feed)
          processed (proc/process feed state items)
-         dbks (persistency/store-items! processed :overwrite? true)
+         dbks (store-items! processed :overwrite? true)
          item-id (first dbks)
          item (first processed)]
      {:status 200
@@ -1584,8 +1589,8 @@
   [id action tag]
   (log/debug "[INFOWARSS-UI] Item mod:" id action tag)
   (str (case action
-         :set (db-mod/item-set-tags id tag)
-         :del (db-mod/item-remove-tags id tag))))
+         :set (persistency/item-set-tags! frontend-db id [tag])
+         :del (persistency/item-remove-tags! frontend-db id [tag]))))
 
 (defn as-keyword
   "Compojure Helper: Parse a string into keyword"

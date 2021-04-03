@@ -3,9 +3,9 @@
    [java-time :as time]
    [infowarss.config :as config]
    [infowarss.update :refer [update!]]
-   [infowarss.db.modify :as db-mod]
-   [infowarss.db.search :as db-search]
    [infowarss.lab :as infowarss-lab]
+   [infowarss.persistency :as persistency]
+   [infowarss.store :refer [backend-db]]
    [hara.io.scheduler :as sched]
    [taoensso.timbre :as log]
    [mount.core :refer [defstate]]))
@@ -34,19 +34,15 @@
 (defstate db-sched
   :start (sched/start!
           (sched/scheduler
-           {:refresh-search-index {:handler (fn [_] (log/info "Refreshing search index:"
-                                                              (db-search/refresh-search-index)))
-                                   :schedule "0 42 3 * * * *"}
+           {:update-db-search-indices {:handler (fn [_] (log/info "Refreshing search index:"
+                                                                  (persistency/update-index! backend-db)))
+                                       :schedule "0 42 3 * * * *"}
             :update-clustered-saved-items {:handler (fn [_]
                                                       (log/info "Updating saved items cluster")
                                                       (reset!
                                                        infowarss-lab/current-clustered-saved-items
                                                        (infowarss-lab/cluster-saved)))
-                                           :schedule "0 5 * * * * *"}
-
-            :refresh-idf {:handler (fn [_] (log/info "Refreshing search index:"
-                                                     (db-search/refresh-idf)))
-                          :schedule "0 42 3 * * * *"}}))
+                                           :schedule "0 5 * * * * *"}}))
   :stop (sched/stop! db-sched))
 
 (defstate misc-sched
@@ -60,7 +56,7 @@
                               :schedule "0 42 23 * * * *"}
             :remove-unread {:handler (fn [_]
                                        ;; 4 weeks
-                                       (db-mod/remove-unread-for-items-of-source-older-than
+                                       (persistency/remove-unread-for-items-of-source-older-then! backend-db
                                         [:golem :hn-top :thenewstack
                                          :hn-best :reddit-berlin
                                          :comingsoon :reddit-games
@@ -85,13 +81,13 @@
                                         (time/minus (time/zoned-date-time) (time/weeks 4)))
 
                                        ;; 1 week
-                                       (db-mod/remove-unread-for-items-of-source-older-than
+                                       (persistency/remove-unread-for-items-of-source-older-then! backend-db
                                         [:mydealz-hot :screenrant :wired :theverge :vox :kottke
                                          :vice :humblebundle]
                                         (time/minus (time/zoned-date-time) (time/weeks 1)))
                                        
                                        ;; 2 weeks
-                                       (db-mod/remove-unread-for-items-of-source-older-than
+                                       (persistency/remove-unread-for-items-of-source-older-then! backend-db
                                         [:weekly-programming-digest :oreilly-fourshortlinks
                                          :nasa-image-of-the-day :atlantic-best-of
                                          :reddit-dataisbeautiful

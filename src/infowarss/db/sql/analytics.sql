@@ -31,3 +31,10 @@ group by tag
 select type, count(*)
 from items
 group by type
+
+-- :name get-table-row-counts :? :*
+select 'items' as table, count(*) from items
+union
+select 'sources' as table, count(*) from sources
+union
+select 'item_data' as table, count(*) from item_data

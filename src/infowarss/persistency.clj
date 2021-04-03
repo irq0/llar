@@ -1,11 +1,13 @@
 (ns infowarss.persistency
   (:require
-   [infowarss.db.modify :as db-mod]
    [infowarss.converter :as conv]
    [digest]
    [java-time :as time]
+   [mount.core :refer [defstate]]
+   [clojure.edn :as edn]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
+   [clojure.java.io :as io]
    [cheshire.generate :refer [add-encoder]]
    [pantomime.mime :as pm]
    [clojure.string :as string]))
@@ -21,21 +23,43 @@
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))
 
-(defn store-items!
-  "Store items (may be a mixture of different types). Pass overwrite? true to
-  overwrite existing items"
-  [mixed-items & {:keys [overwrite?]
-                  :or {overwrite? false}
-                  :as args}]
-  ;; Each vector may contain multiple item types.
-  ;; -> Group them by type and call the store method
-  (let [by-type (group-by type mixed-items)]
-    (when (>= (count mixed-items) 1)
-      (log/debugf "Persisting %d items with types: %s"
-                  (count mixed-items) (keys by-type))
-      (doall
-       (apply concat
-              (for [[type items] by-type]
-                (do (log/debugf "Persisting %s items" type)
-                    (remove nil? (map #(db-mod/store-item-and-data!
-                                        (to-couch %) :overwrite? overwrite?) items)))))))))
+(defprotocol ItemPersistency
+  (store-item! [this item args]))
+
+(defprotocol ItemTagsPersistency
+  (item-set-tags! [this item-id tags])
+  (item-remove-tags! [this item-id tags])
+  (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts]))
+
+(defprotocol StatsQueries
+  (get-table-row-counts [this])
+  (get-type-stats [this])
+  (get-tag-stats [this])
+  (get-word-count-groups [this]))
+
+(defprotocol ItemQueries
+  (get-items-recent [this args]
+    "get-items-recent returns :limit recent items, optionally
+    offsetted with :before {:ts :id} to implement pagination.
+
+    Supports the following filters:
+    :with-tag $keyword  -  only $keyword tagged items
+    :with-type :item-type/$type  -  only items with type $type
+    :simple-filter see #'simple-filter-to-sql  -  only items matching simple filter
+    :with-source-keys [$source-key ..]  -  only items from source in vec
+
+    Return item without data when :with-data? or :with-preview-data? is not specified")
+  (get-item-by-id [this item-id])
+  (get-items-by-tag [this tag]))
+
+(defprotocol SourceQueries
+  (get-sources-item-tags-counts [this item-tag simple-filter config-sources])
+  (sources-merge-in-tags-counts [this sources])
+  (get-sources [this config-sources]))
+
+(defprotocol DataStoreSearch
+  (update-index! [this])
+  (search [this query args] [this query]))
+
+(defprotocol DataStoreLifeCycle
+  (stop-data-store [this]))

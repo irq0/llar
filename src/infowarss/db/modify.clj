@@ -2,8 +2,7 @@
   (:require
    [digest]
    [infowarss.db.sql :as sql]
-   [infowarss.db.core :as core :refer [db]]
-   [infowarss.db.query :as query]
+   [infowarss.persistency :refer [ItemTagsPersistency ItemPersistency]]
    [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -27,12 +26,12 @@
    :descriptions :item_data_type/description
    :thumbs :item_data_type/thumbnail})
 
-(defn store-item!
+(defn store-item-without-data!
   "store-item! persists item to the database, without data attachment like
   contents and descriptions. Return {:id .. :hash .. } or nil if the item
   already exists. Setting the optional overwrite? flag to true overwrites the
   database row in case of an item hash collision."
-  [item & {:keys [overwrite?]}]
+  [db item {:keys [overwrite?]}]
   (let [{:keys [meta feed summary entry]} item
         nlp (get-in item [:entry :nlp])]
     (sql/store-item
@@ -61,7 +60,7 @@
 (defn store-item-data!
   "store-item-data! persists item data as rows in the item_data table. See
   item-data-table-entires for a list of this special entries"
-  [item-id item]
+  [db item-id item]
   (let [{:keys [entry]} item]
     (doall
      (flatten
@@ -82,43 +81,54 @@
   "store-item-and-data! combines store-item! and store-item-data! into one
   transaction. Returns nil if the item already exists in the database or {:item
   {:id .. :hash ..} :data ({:id :mime_type :type :is_binary})"
-  [item & {:keys [overwrite?]}]
+  [db item args]
   (j/with-db-transaction [tx db]
-    (when-let [{:keys [id hash]} (store-item! item :overwrite? overwrite?)]
+    (when-let [{:keys [id hash]} (store-item-without-data!
+                                  tx item args)]
       {:item {:id id
               :hash hash}
-       :data (store-item-data! id item)})))
+       :data (store-item-data! tx id item)})))
+
+(extend-protocol
+    ItemPersistency
+  infowarss.db.core.PostgresqlDataStore
+  (store-item! [this item args] (store-item-and-data! this item args)))
 
 ;; ----------
 
-(defn item-set-tags [id & tags]
-  (->>
-   (sql/set-tags db {:tags (vec (map name tags))
-                     :vals (vec (repeat (count tags) nil))
-                     :where [(sql/tag-cond-by-id {:id id})]})
-   :tags
-   keys
-   (map keyword)))
+(extend-protocol
+    ItemTagsPersistency
+  infowarss.db.core.PostgresqlDataStore
 
-(defn item-remove-tags [id & tags]
-  (->>
-   (sql/remove-tags db {:tags (vec (map name tags))
-                        :where [(sql/tag-cond-by-id {:id id})]})
-   :tags
-   keys
-   (map keyword)))
+  (item-set-tags! [this item-id tags]
+    (->>
+     (sql/set-tags this
+                   {:tags (vec (map name tags))
+                    :vals (vec (repeat (count tags) nil))
+                    :where [(sql/tag-cond-by-id {:id item-id})]})
+     :tags
+     keys
+     (map keyword)))
 
-;; ----------
+  (item-remove-tags! [this item-id tags]
+    (->>
+     (sql/remove-tags this
+                      {:tags (vec (map name tags))
+                       :where [(sql/tag-cond-by-id {:id item-id})]})
+     :tags
+     keys
+     (map keyword)))
 
-(defn remove-unread-for-items-of-source-older-than [source-keys older-than-ts]
-  (let [source-ids (sql/resolve-source-keys-to-ids
-                    db
+  (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts]
+    (let [source-ids (sql/resolve-source-keys-to-ids
+                      this
                     {:keys (vec (map name source-keys))}
                     {}
                     {:row-fn :id})]
-    (sql/remove-tags db {:tags ["unread"]
-                         :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
-                                 ["AND"]
-                                 ["exist_inline(tags, 'unread')"]
-                                 ["AND"]
-                                 (sql/tag-cond-le-ts {:ts older-than-ts})]})))
+      (sql/remove-tags this
+                       {:tags ["unread"]
+                        :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
+                                ["AND"]
+                                ["exist_inline(tags, 'unread')"]
+                                ["AND"]
+                                (sql/tag-cond-le-ts {:ts older-then-ts})]}))))

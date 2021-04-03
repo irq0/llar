@@ -3,6 +3,9 @@
    [mount.core :as mount]
    [taoensso.timbre :as log]
    [infowarss.logging :as logging]
+   [infowarss.appconfig :as appconfig]
+   [infowarss.persistency :as persistency]
+   [infowarss.store :as store]
    [infowarss.db.core :as db]
    [infowarss.repl :as repl]
    [infowarss.update :as update]
@@ -20,8 +23,10 @@
   (logging/setup)
   (mount/in-clj-mode)
   (mount/start
-   #'db/db
+   #'appconfig/appconfig
    #'api-reader/annotations
+   #'api-reader/frontend-db
+   #'store/backend-db
    #'http/domain-blocklist
    #'blobstore/locks
    #'repl/nrepl-server
@@ -35,5 +40,7 @@
 
    #'webapp/status
    #'webapp/reader)
-  (db/check-connectivity)
+  (log/info 
+   (persistency/get-table-row-counts
+    (db/make-postgresql-datastore (get-in appconfig/appconfig [:postgresql :backend]))))
   (log/info "🖖"))
