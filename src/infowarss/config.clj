@@ -118,7 +118,7 @@
         (try+
          (replace-contents-with-mercury item keep-orig?)
          (catch [:type :infowarss.fetch.mercury/not-parsable] _
-           (log/errorf (str item) "Mercury Error. Not replacing content with mercury")
+           (log/error (str item) "Mercury Error. Not replacing content with mercury")
            item))))))
 
 (defn make-readability-bookmark-feed [url]
