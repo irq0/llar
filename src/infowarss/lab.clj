@@ -66,9 +66,9 @@
 
 (defn make-saved-dataset []
   ;; must ensure that there are no '/' in terms - messes up keyword/name
-  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms (:datasource backend-db)))
+  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms backend-db))
                               "item_id"))
-        term-tf-idf-maps (db-search/saved-items-tf-idf (:datasource backend-db))
+        term-tf-idf-maps (db-search/saved-items-tf-idf backend-db)
         weka-attributes (map (fn [s]
                                (let [new-attrib (weka.core.Attribute. s)]
                                  (if (= s :item_id)

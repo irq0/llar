@@ -25,22 +25,29 @@
   (mount/start
    #'appconfig/appconfig
    #'api-reader/annotations
+
    #'api-reader/frontend-db
    #'store/backend-db
+
    #'http/domain-blocklist
    #'blobstore/locks
+
    #'repl/nrepl-server
    #'update/state
    #'metrics/prom-registry
+
    #'sched/db-sched
    #'sched/misc-sched
-   
+
    #'sched/feed-sched
    #'live/live
 
    #'webapp/status
    #'webapp/reader)
-  (log/info 
-   (persistency/get-table-row-counts
-    (db/make-postgresql-datastore (get-in appconfig/appconfig [:postgresql :backend]))))
+  (doseq [[key db-config] (:postgresql appconfig/appconfig)
+          :let [db-spec (db/make-postgresql-dbspec db-config)
+                store (db/make-postgresql-datastore db-spec)]]
+    (log/info "Testing database connection: "
+              key
+              (vec (persistency/get-table-row-counts store))))
   (log/info "🖖"))
