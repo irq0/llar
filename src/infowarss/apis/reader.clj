@@ -754,15 +754,20 @@
   [k v]
   [:li (icon "far fa-file") [:strong (str k)] "&nbsp;"
    (cond
+     (nil? v)
+     [:span "nil"]
+
      (coll? v)
      [:span (format "n=%s [%s]" (count v)
                     (string/join ", " v))]
 
      (= k "text/html")
-     [:code [:pre  (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]
+     [:span "(" (type v) ")"
+      [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]]
 
      (= k "text/plain")
-     [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]
+     [:span "(" (type v) ")"
+      [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]]
 
      :else
      [:span
