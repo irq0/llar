@@ -68,6 +68,7 @@
             :let [mime-data-pairs (get entry entry-key)]
             :when (some? mime-data-pairs)]
         (for [[mime-type data] mime-data-pairs
+              :when (some? data)
               :let [text? (pantomime-media/text? mime-type)]]
           (sql/store-item-data
            db

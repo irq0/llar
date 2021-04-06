@@ -11,11 +11,14 @@
   nice map. "
   [row]
   (if (and (some? (:data_types row)) (some? (first (:data_types row))))
+    ;; data tables is aggregated into 4 json colums
+    ;; transform them to tree of {:data {:data_type {mime_type data}}}
     (-> row
         (assoc :data
                (->>
                 (map (fn [t m text bin]
-                       [t {m (or text (conv/bytea-hex-to-byte-array bin))}])
+                       (when-let [data (or text (conv/bytea-hex-to-byte-array bin))]
+                         [t {m data}]))
                      (map keyword (:data_types row))
                      (:mime_types row)
                      (:text row)
