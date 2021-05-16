@@ -1578,7 +1578,7 @@
          items (fetch/fetch feed)
          processed (proc/process feed state items)
          dbks (store-items! processed :overwrite? true)
-         item-id (first dbks)
+         item-id (-> dbks first :item :id)
          item (first processed)]
      {:status 200
       :body {:item {:meta (:meta item)
