@@ -153,7 +153,7 @@
                   (conj (sql/cond-with-tag {:tag (name with-tag)}))
 
                   (keyword? with-type)
-                  (conj (sql/cond-with-type {:type with-type})))))))
+                  (conj (sql/cond-with-type {:type (keyword "item_type" (name with-type))})))))))
 
 (extend-protocol ItemQueries
   infowarss.db.core.PostgresqlDataStore
