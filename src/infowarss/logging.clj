@@ -31,13 +31,8 @@
     :level :trace})
 
   (log/merge-config!
-   {:appenders {:spit (assoc (appenders/spit-appender
-                              {:fname "/tmp/infowarss_info.log"})
-                             :min-level :info)}})
-
-  (log/merge-config!
-   {:appenders {:println {:min-level :error
-                          :enabled? false
+   {:appenders {:println {:min-level :info
+                          :enabled? true
                           :stream :std-err}}}))
 
 ;; from mount examples
