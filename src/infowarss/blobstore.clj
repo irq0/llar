@@ -2,6 +2,7 @@
   (:require
    [infowarss.converter :as conv]
    [infowarss.regex :as regex-collection]
+   [infowarss.appconfig :as appconfig]
    [clojure.java.io :as io]
    [taoensso.timbre :as log]
    [clj-http.client :as http2]
@@ -15,10 +16,6 @@
    [nio2.core :as nio2]
    [digest :as digest])
   (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))
-
-(def +blob-store+ "/fast/infowarss/blobs")
-(def +blob-store-url-index+ "/fast/infowarss/blobs/url-index")
-(def +blob-store-dupes+ "/fast/infowarss/url-dupe-content-index")
 
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
@@ -83,11 +80,11 @@
   "Create secondary url index entry: url -> hash"
   [content-hash :- s/Str
    url :- UniformResourceIdentifier]
-  (let [file-abs (blob-file +blob-store+ content-hash)
+  (let [file-abs (blob-file (appconfig/blob-store-dir) content-hash)
         url-hash (digest/sha-256 (str url))
-        dupe-file (-> (blob-file +blob-store-dupes+ url-hash) io/as-file .toPath)
+        dupe-file (-> (blob-file (appconfig/blob-store-dupes-dir) url-hash) io/as-file .toPath)
 
-        link (-> (blob-file +blob-store-url-index+ url-hash) .toPath)
+        link (-> (blob-file (appconfig/blob-store-url-index-dir) url-hash) .toPath)
         link-props (-> (str link ".props") io/as-file .toPath)
 
         file (.relativize
@@ -121,7 +118,7 @@
   "Return seq of blob store entry files - only data files not
   .props"
   []
-  (->> +blob-store+
+  (->> (appconfig/blob-store-dir)
        io/as-file
        file-seq
        (filter #(.isFile %))
@@ -131,7 +128,7 @@
 
 (defn find-in-url-index [url]
   (let [hash (digest/sha-256 (str url))
-        link (blob-file +blob-store-url-index+ hash)
+        link (blob-file (appconfig/blob-store-url-index-dir) hash)
         link-props (io/as-file (str link ".props"))]
     (when (and (.exists link) (.exists link-props))
       (let [link-target (java.nio.file.Files/readSymbolicLink
@@ -167,7 +164,7 @@
                 (pm/mime-type-of body)
                 response-mime)
 
-         file (blob-file +blob-store+ content-hash)
+         file (blob-file (appconfig/blob-store-dir) content-hash)
          propsfile (io/as-file (str file ".props"))
 
          lock-key (subs content-hash 0 1)
@@ -218,12 +215,12 @@
      (throw+ {:type ::undefined-error :url url}))))
 
 (defn blob-info [content-hash]
-  (let [file (blob-file +blob-store+ content-hash)
+  (let [file (blob-file (appconfig/blob-store-dir) content-hash)
         propsfile (io/as-file (str file ".props"))
         props (when (nio2/exists? (.toPath propsfile))
                 (conv/read-edn-propsfile (slurp propsfile)))
         urls (:orig-urls props)
-        url-files (map #(blob-file +blob-store-dupes+ (digest/sha-256 (str %))) urls)]
+        url-files (map #(blob-file (appconfig/blob-store-dupes-dir) (digest/sha-256 (str %))) urls)]
     (when-not (nio2/exists? (.toPath propsfile))
       (throw+ {:type ::invalid-argument :reason ::blob-does-not-exist
                :file file :propsfile propsfile
@@ -240,10 +237,10 @@
       (download-and-add! url)))
 
 (defn get-local-filename [hash]
-  (blob-file +blob-store+ hash))
+  (blob-file (appconfig/blob-store-dir) hash))
 
 (defn get-blob [hash]
-  (let [file (blob-file +blob-store+ hash)
+  (let [file (blob-file (appconfig/blob-store-dir) hash)
         size (.length file)
         propsfile (str file ".props")
         props (try-read-propsfile-or-recreate propsfile file)

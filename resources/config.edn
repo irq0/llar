@@ -1,3 +1,4 @@
 {:update-max-retry 5
  :annotations-file "annotations.edn"
- :state-dir "/tmp"}
+ :state-dir "/tmp"
+ :blob-store-dir "/tmp/blobs"}

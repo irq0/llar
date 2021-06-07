@@ -39,3 +39,12 @@
 
 (defn postgresql-config [pool]
   (get-in appconfig [:postgresql pool]))
+
+(defn blob-store-dir []
+  (get appconfig :blob-store-dir))
+
+(defn blob-store-url-index-dir []
+  (str (get appconfig :blob-store-dir) "/url-index"))
+
+(defn blob-store-dupes-dir []
+  (str (get appconfig :blob-store-dir) "/url-dupe-content-index"))
