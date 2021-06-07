@@ -62,19 +62,6 @@
 
 (declare process-feedless-item)
 
-(def sa-to-bool
-  {"Yes" true
-   "No" false})
-
-(defn spamassassin
-  [msg]
-  (let [{:keys [exit out]} (shell/sh "spamassassin" "--local" "--test-mode" :in msg)]
-    (if (zero? exit)
-      (let [[_ sa-bool score] (re-find #"X-Spam-Status: (.+), score=(\d+\.\d+)" out)]
-        {:status (get sa-to-bool sa-bool)
-         :score (Float/parseFloat score)})
-      "")))
-
 ;; All item processors
 ;; first = first in chain, last = last in chain
 
