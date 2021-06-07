@@ -1,6 +1,6 @@
 {:update-max-retry 5
- :annotations-file "annotations.edn"
- :state-dir "/tmp"
+ :annotations-file "/var/lib/infowarss/annotations.edn"
+ :state-dir "/var/lib/infowarss/state"
  :commands {:mercury-parser "mercury-parser"
             :diction-style "style"
             :youtube-dl "youtube-dl"
@@ -10,4 +10,4 @@
             :w3m "w3m"
             :lynx "lynx"
             :html2text "html2text"}
- :blob-store-dir "/tmp/blobs"}
+ :blob-store-dir "/var/lib/infowarss/blobs"}
