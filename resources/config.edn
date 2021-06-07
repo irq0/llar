@@ -1,0 +1,3 @@
+{:update-max-retry 5
+ :annotations-file "annotations.edn"
+ :state-dir "/tmp"}

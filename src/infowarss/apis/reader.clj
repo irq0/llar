@@ -55,23 +55,22 @@
       (subs (string/lower-case (str duration)) 2))))
 
 (defn- startup-read-state []
-  (let [res (io/resource "annotations.edn")
-        backup (io/file (str "/tmp/infowarss_annotations.edn." (time/format :iso-instant (time/zoned-date-time))))]
-    (log/info "Reading annotations file. Creating backup in " backup)
-    (io/copy (io/file (.getFile res)) backup)
+  (let [file (appconfig/annotations-file)]
+    (log/info "Reading annotations file" file)
     (try+
-     (converter/read-edn-annotations (slurp res))
+     (converter/read-edn-annotations (slurp file))
      (catch java.lang.RuntimeException _
-       (log/warn "Failed to read state file. Starting with clean state")
+       (log/warn "Failed to read annotations file. Starting with empty annotations")
        {}))))
 
+;; TODO move to database
 (defstate annotations
   :start (atom (startup-read-state))
-  :stop (spit (io/resource "annotations.edn") (converter/print-annotations @annotations)))
+  :stop (spit (appconfig/annotations-file) (converter/print-annotations @annotations)))
 
 (defstate frontend-db
   :start (db/make-postgresql-pooled-datastore
-          (get-in appconfig/appconfig [:postgresql :frontend])))
+          (appconfig/postgresql-config :frontend)))
 
 (def +max-items+
   "Number of items in item list. All fetched at once."

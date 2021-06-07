@@ -17,7 +17,7 @@
 
 (defstate backend-db
   :start (db/make-postgresql-pooled-datastore
-          (get-in appconfig/appconfig [:postgresql :backend])))
+          (appconfig/postgresql-config :backend)))
 
 (defn store-items!
   "Store items (may be a mixture of different types). Pass overwrite? true to

@@ -1,7 +1,7 @@
 (ns infowarss.update
   (:require
    [infowarss.config :as config]
-   [infowarss.appconfig :refer [appconfig]]
+   [infowarss.appconfig :as appconfig]
    [infowarss.fetch :as fetch]
    [infowarss.store :refer [store-items!]]
    [infowarss.postproc :as proc]
@@ -11,25 +11,31 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [taoensso.timbre :as log]
    [mount.core :refer [defstate]]
-   [clojure.java.io :as io]))
+   [clojure.java.io :as io]
+   [nio2.core :as nio2]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
 
 (defn startup-read-state []
-  (let [res (io/resource "state.edn")
-        backup (io/file (str "/tmp/infowarss_state.edn." (time/format :iso-instant (time/zoned-date-time))))]
-    (log/info "Reading feed state file. Creating backup in " backup)
-    (io/copy (io/file (.getFile res)) backup)
+  (let [state-dir (appconfig/state-dir)
+        state-file (.resolve state-dir "state.edn")
+        backup-file (.resolve state-dir
+                              (str "infowarss_state.edn."
+                                   (time/format :iso-instant (time/zoned-date-time))))]
+    (log/info "Using state file" state-file)
+    (when (nio2/exists? state-file)
+      (log/info "State file exists. Creating backup copy in " backup-file)
+      (nio2/copy-file state-file backup-file))
     (try+
-     (converter/read-edn-state (slurp res))
+     (converter/read-edn-state (slurp state-file))
      (catch java.lang.RuntimeException _
        (log/warn "Failed to read state file. Starting with clean state")
        {}))))
 
 (defstate state
   :start (atom (startup-read-state))
-  :stop (spit (io/resource "state.edn") (converter/print-state @state)))
+  :stop (spit (.resolve (appconfig/state-dir) "state.edn") (converter/print-state @state)))
 
 (defn get-current-state []
   (into {}
@@ -185,7 +191,7 @@
       (log/debug "Updating working feed: " k)
       :temp-fail
       (log/debug "Temporary failing feed %d/%d: %s"
-                 (:retry-count cur-state) (:update-max-retires appconfig) k)
+                 (:retry-count cur-state) (appconfig/update-max-retry) k)
       :perm-fail
       (log/debug "Skipping perm fail feed: " k)
       (log/debugf "Unknown status \"%s\": %s" cur-status k))
@@ -198,7 +204,7 @@
          (#{:ok :new} cur-status)
          (and
           (= cur-status :temp-fail)
-          (< (:retry-count cur-state) (:update-max-retires appconfig))))
+          (< (:retry-count cur-state) (appconfig/update-max-retry))))
       (let [kw-args (mapcat identity (dissoc args :force))
             new-state (apply update-feed! k kw-args)
             new-status (:status new-state)]
