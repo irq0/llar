@@ -567,11 +567,9 @@ sidebar {
     color: #555;
 }
 
-@media (max-width: 768px) {
 #headlines .toolbox div {
     overflow-y: scroll;
     white-space: nowrap;
-}
 }
 
 #headlines .title a {
