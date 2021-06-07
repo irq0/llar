@@ -1,5 +1,6 @@
 (ns infowarss.converter
   (:require
+   [infowarss.appconfig :as appconfig]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [clojure.string :as string]
@@ -14,10 +15,10 @@
   (:import (org.bovinegenius.exploding_fish Uri)))
 
 (def +html-to-text-tools+
-  {:pandoc ["pandoc" "-f" "html" "-t" "plain" "--reference-links"]
-   :w3m ["w3m" "-T" "text/html" "-dump"]
-   :lynx ["lynx" "-dump" "-list_inline" "-width 1024" "-stdin"]
-   :html2text ["html2text" "-style" "pretty" "-utf8"]})
+  {:pandoc [(appconfig/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
+   :w3m [(appconfig/command :w3m) "-T" "text/html" "-dump"]
+   :lynx [(appconfig/command :lynx) "-dump" "-list_inline" "-width 1024" "-stdin"]
+   :html2text [(appconfig/command :html2text) "-style" "pretty" "-utf8"]})
 
 (defn html2text
   "Convert html to text"
@@ -70,7 +71,7 @@
   (let [file (java.io.File/createTempFile "content" ".pdf")
         out-file (io/as-file (string/replace (.getAbsolutePath file) #"\.pdf$" ".html"))]
     (io/copy data file)
-    (let [{:keys [exit out err]} (shell/sh "pdf2htmlEX"
+    (let [{:keys [exit out err]} (shell/sh (appconfig/command :pdf2htmlex)
                                            "--no-drm" "1"
                                            "--printing" "1"
                                            "--zoom" "1.3"
@@ -89,7 +90,7 @@
 (defmulti thumbnail get-mimetype)
 
 (defmethod thumbnail "application/pdf" [data & _]
-  (let [{:keys [exit out err]} (shell/sh "pdftocairo" "-png" "-singlefile"
+  (let [{:keys [exit out err]} (shell/sh (appconfig/command :pdftocairo) "-png" "-singlefile"
                                          "-scale-to" "800" "-" "-" :in data :out-enc :bytes)]
     (when-not (zero? exit)
       (throw+ {:type ::thumbnail-creation-failed :exit exit :out out :err err}))

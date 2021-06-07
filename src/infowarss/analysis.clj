@@ -1,5 +1,6 @@
 (ns infowarss.analysis
   (:require
+   [infowarss.appconfig :as appconfig]
    [clojure.java.io :as io]
    [opennlp.nlp :as nlp]
    [clojure.java.shell :as shell]
@@ -62,7 +63,7 @@
 
 (defn readability-scores [s]
   (let [{:keys [exit out err]}
-        (shell/sh "style" :in s :env {"LANG" "c"})]
+        (shell/sh (appconfig/command :diction-style) :in s :env {"LANG" "c"})]
     {:flesch-index (when-let [[_ x] (re-find #"Flesch Index: ([\d\.-]+)/" out)]
                      (Float/parseFloat x))
      :smog-grade (when-let [[_ x] (re-find #"SMOG-Grading: ([\d\.-]+)" out)]

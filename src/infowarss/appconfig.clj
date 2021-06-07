@@ -11,6 +11,7 @@
    (io/file (System/getProperty "config"))])
 
 ;; TODO run config through schema
+;; TODO check that :commands all exists and work!
 (defn try-read-config [file]
   (log/info "Reading config from" file)
   (try
@@ -48,3 +49,6 @@
 
 (defn blob-store-dupes-dir []
   (str (get appconfig :blob-store-dir) "/url-dupe-content-index"))
+
+(defn command [name]
+  (get-in appconfig [:commands name]))

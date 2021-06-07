@@ -1,4 +1,13 @@
 {:update-max-retry 5
  :annotations-file "annotations.edn"
  :state-dir "/tmp"
+ :commands {:mercury-parser "mercury-parser"
+            :diction-style "style"
+            :youtube-dl "youtube-dl"
+            :pdftocairo "pdftocairo"
+            :pdf2htmlex "pdf2htmlEX"
+            :pandoc "pandoc"
+            :w3m "w3m"
+            :lynx "lynx"
+            :html2text "html2text"}
  :blob-store-dir "/tmp/blobs"}

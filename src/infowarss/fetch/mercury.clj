@@ -7,6 +7,7 @@
    [infowarss.persistency :refer [CouchItem]]
    [infowarss.analysis :as analysis]
    [infowarss.http :refer [absolutify-url absolutify-links-in-hick get-base-url-with-path blobify try-blobify-url! sanitize]]
+   [infowarss.appconfig :as appconfig]
    [org.bovinegenius [exploding-fish :as uri]]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
@@ -57,7 +58,7 @@
   [url :- schema/URL]
   (try+
    (let [url (uri/uri url)
-         {:keys [exit out err]} (shell/sh "/home/seri/opt/mercury-parser/cli.js" (str url))
+         {:keys [exit out err]} (shell/sh (appconfig/command :mercury-parser) (str url))
          base-url (get-base-url-with-path url)
          json (json/parse-string out true)]
      (if (and (zero? exit) (not (:failed json)))

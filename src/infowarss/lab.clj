@@ -8,6 +8,7 @@
    [infowarss.postproc :as proc]
    [infowarss.update :as update]
    [infowarss.blobstore :as blobstore]
+   [infowarss.appconfig :as appconfig]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [java-time :as time]
@@ -139,8 +140,7 @@
 
 (defn youtube-dl-music [url]
   (let [{:keys [exit out err]} (shell/sh
-                                "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
-                                "youtube-dl"
+                                (appconfig/command :youtube-dl)
                                 "--no-progress"
                                 "-f" "bestaudio"
                                 "--extract-audio"
@@ -162,8 +162,7 @@
 
 (defn youtube-dl-video [url dest-dir]
   (let [{:keys [exit out err]} (shell/sh
-                                 ;; "sudo" "ip" "netns" "exec" "privacy" "sudo" "-u" "seri"
-                                "/home/seri/.local/bin/youtube-dl"
+                                (appconfig/command :youtube-dl)
                                 "--format" "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
                                 "--recode-video" "mp4"
                                 "--embed-subs"
