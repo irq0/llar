@@ -55,7 +55,7 @@
                        (map get-blocklist)
                        (apply clojure-set/union)
                        (into #{}))]
-    (log/infof "Loaded %s domains from %s"
+    (log/infof "Blocklist: Loaded %s domains from %s"
                (count blocklist)
                public-blocklists)))
 
