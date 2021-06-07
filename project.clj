@@ -10,7 +10,7 @@
              "-XX:TieredStopAtLevel=1"
              "-Djdk.attach.allowAttachSelf=true"]
 
-  :aot :all
+  :aot [#"infowarss\..*"]
   :main infowarss.core
   :plugins [[lein-cljfmt "0.6.8"] [lein-aot-order "0.1.0"]]
   :license {:name "None"
