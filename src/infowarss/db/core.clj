@@ -2,9 +2,6 @@
   (:require
    [digest]
    [java-time :as time]
-   [infowarss.db.search]
-   [infowarss.db.query]
-   [infowarss.db.modify]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]

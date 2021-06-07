@@ -2,6 +2,7 @@
   (:require
    [digest]
    [infowarss.db.sql :as sql]
+   [infowarss.db.core]
    [infowarss.persistency :refer [ItemTagsPersistency ItemPersistency]]
    [java-time :as time]
    [taoensso.timbre :as log]
@@ -18,7 +19,8 @@
    [hikari-cp.core :as hikari]
    [hugsql.core :as hugsql]
    [pantomime.media :as pantomime-media]
-   [cheshire.generate :as json :refer [encode-str]]))
+   [cheshire.generate :as json :refer [encode-str]])
+  (:import (infowarss.db.core PostgresqlDataStore)))
 
 (def item-data-table-entries
   "Item entries stored in the item_data table, rather than in the items entry column"
@@ -92,14 +94,14 @@
 
 (extend-protocol
     ItemPersistency
-  infowarss.db.core.PostgresqlDataStore
+  PostgresqlDataStore
   (store-item! [this item args] (store-item-and-data! this item args)))
 
 ;; ----------
 
 (extend-protocol
     ItemTagsPersistency
-  infowarss.db.core.PostgresqlDataStore
+  PostgresqlDataStore
 
   (item-set-tags! [this item-id tags]
     (->>

@@ -2,6 +2,7 @@
   (:require
    [infowarss.db.sql :as sql]
    [infowarss.persistency :refer [DataStoreSearch]]
+   [infowarss.db.core]
    [digest]
    [java-time :as time]
    [taoensso.timbre :as log]
@@ -17,7 +18,8 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [hikari-cp.core :as hikari]
    [hugsql.core :as hugsql]
-   [cheshire.generate :as json :refer [encode-str]]))
+   [cheshire.generate :as json :refer [encode-str]])
+  (:import (infowarss.db.core PostgresqlDataStore)))
 
 (defn- refresh-search-index [db]
   (j/execute! db ["refresh materialized view search_index"]))
@@ -26,7 +28,7 @@
   (j/execute! db ["refresh materialized view idf_top_words"]))
 
 (extend-protocol DataStoreSearch
-  infowarss.db.core.PostgresqlDataStore
+  PostgresqlDataStore
 
   (search
     ([this query {:keys [with-source-key time-ago-period]}]

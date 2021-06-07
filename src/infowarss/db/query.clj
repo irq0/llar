@@ -1,10 +1,12 @@
 (ns infowarss.db.query
   (:require
    [infowarss.persistency :refer [StatsQueries SourceQueries ItemQueries]]
+   [infowarss.db.core]
    [taoensso.timbre :as log]
    [infowarss.db.sql :as sql]
    [infowarss.converter :as conv]
-   [digest]))
+   [digest])
+  (:import (infowarss.db.core PostgresqlDataStore)))
 
 
 (defn- process-items-row
@@ -40,7 +42,7 @@
 ;; ----------
 
 (extend-protocol StatsQueries
-  infowarss.db.core.PostgresqlDataStore
+  PostgresqlDataStore
 
   (get-table-row-counts [this]
     (sql/get-table-row-counts this nil {}))
@@ -72,7 +74,7 @@
   (:count (sql/get-item-count-unread-today db {:id id})))
 
 (extend-protocol SourceQueries
-  infowarss.db.core.PostgresqlDataStore
+  PostgresqlDataStore
 
   (get-sources [this config-sources]
     (let [row-add-config-src
@@ -157,7 +159,7 @@
                   (conj (sql/cond-with-type {:type (keyword "item_type" (name with-type))})))))))
 
 (extend-protocol ItemQueries
-  infowarss.db.core.PostgresqlDataStore
+  PostgresqlDataStore
 
   (get-items-recent [this {:keys [limit] :or {limit 42} :as args}]
     (sql/get-items-recent
