@@ -651,8 +651,9 @@
        [:div {:class "item-preview"} [:img {:src twit-pic}]])
 
     (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
-       (when (not (or (string/blank? image-url)
-                      (= image-url "default")))
+      (when (not (or (string/blank? image-url)
+                     (= image-url "self")
+                     (= image-url "default")))
          [:div {:class (str "item-preview-small"
                             (when (every? options [:main-list-use-description
                                                    :short-word-cloud])
