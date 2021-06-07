@@ -8,17 +8,17 @@
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
-   [cheshire.generate :refer [add-encoder]]
+   [cheshire.generate :refer [add-encoder encode-str]]
    [pantomime.mime :as pm]
-   [clojure.string :as string]))
+   [org.bovinegenius [exploding-fish :as uri]]
+   [clojure.string :as string])
+  (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))
 
 (add-encoder java.time.ZonedDateTime
              (fn [dt jg]
                (.writeString jg (time/format :iso-zoned-date-time dt))))
 
-(add-encoder org.bovinegenius.exploding_fish.UniformResourceIdentifier
-             (fn [dt jg]
-               (.writeString jg (str dt))))
+(add-encoder UniformResourceIdentifier encode-str)
 
 (defprotocol CouchItem
   (to-couch [item] "Convert item to database form"))

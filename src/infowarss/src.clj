@@ -3,6 +3,7 @@
             [infowarss.schema :as schema]
             [slingshot.slingshot :refer [throw+]]
             [org.bovinegenius [exploding-fish :as uri]]
+            [twitter.oauth]
             [twitter.oauth :refer [make-oauth-creds]]
             [twitter.api.restful :as twitter-rest])
   (:import [twitter.oauth OauthCredentials]))

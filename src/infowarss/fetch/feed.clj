@@ -4,6 +4,7 @@
                                      make-meta
                                      make-item-hash
                                      tag-items]]
+            [infowarss.src]
             [infowarss.postproc :refer [ItemProcessor]]
             [infowarss.persistency :refer [CouchItem]]
             [infowarss.http :refer [fetch
@@ -27,7 +28,8 @@
             [clj-rome.reader :as rome]
             [clj-http.client :as http]
             [cheshire.core :as cheshire]
-            [java-time :as time]))
+            [java-time :as time])
+  (:import (infowarss.src Feed)))
 
 (s/defrecord FeedItem
              [meta :- schema/Metadata
@@ -108,7 +110,7 @@
     contents))
 
 (extend-protocol FetchSource
-  infowarss.src.Feed
+  Feed
   (fetch-source [src]
     (let [url (uri/uri (:url src))
           base-url (get-base-url url)

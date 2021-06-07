@@ -3,13 +3,15 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [clojure.string :as string]
+   [org.bovinegenius.exploding-fish]
    [org.bovinegenius [exploding-fish :as uri]]
    [pantomime.mime :as pm]
    [java-time :as time]
    [taoensso.timbre :as log]
    [clojure.edn :as edn]
    [puget.printer :as puget]
-   [clojure.java.shell :as shell]))
+   [clojure.java.shell :as shell])
+  (:import (org.bovinegenius.exploding_fish Uri)))
 
 (def +html-to-text-tools+
   {:pandoc ["pandoc" "-f" "html" "-t" "plain" "--reference-links"]
@@ -96,7 +98,7 @@
 ;; propsfile: blobstore metadata
 
 (def +propsfile-handlers+
-  {org.bovinegenius.exploding_fish.Uri
+  {Uri
    (puget/tagged-handler
     'org.irq0.🖖/url str)})
 
@@ -132,7 +134,7 @@
     'org.irq0.🖖/atom
     (fn [value] (puget/pprint-str @value)))
 
-   org.bovinegenius.exploding_fish.Uri
+   Uri
    (puget/tagged-handler
     'org.irq0.🖖/url str)})
 

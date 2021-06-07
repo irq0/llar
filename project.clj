@@ -1,6 +1,8 @@
 (defproject infowarss "0.1.0-SNAPSHOT"
-  :profiles {:dev {:dependencies [[alembic "0.3.2"]]}}
-  
+  :profiles {:dev {:dependencies [[alembic "0.3.2"]]
+                   :source-paths ["dev"]}
+             :uberjar {:omit-source true
+                       :aot :all}}
   :description "infowarss - information processor"
   :url ""
   :jvm-opts ["-Xmx4g"

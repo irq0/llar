@@ -15,7 +15,8 @@
    [infowarss.http :as http]
    [infowarss.blobstore :as blobstore]
    [infowarss.live :as live]
-   [infowarss.webapp :as webapp]))
+   [infowarss.webapp :as webapp])
+  (:gen-class))
 
 (defn -main [& args]
   ;; otherwise date time parsers will fail!

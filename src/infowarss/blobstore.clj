@@ -13,7 +13,8 @@
    [mount.core :refer [defstate]]
    [org.bovinegenius [exploding-fish :as uri]]
    [nio2.core :as nio2]
-   [digest :as digest]))
+   [digest :as digest])
+  (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))
 
 (def +blob-store+ "/fast/infowarss/blobs")
 (def +blob-store-url-index+ "/fast/infowarss/blobs/url-index")
@@ -81,7 +82,7 @@
 (s/defn create-url-index-entry-for-url :- s/Str
   "Create secondary url index entry: url -> hash"
   [content-hash :- s/Str
-   url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
+   url :- UniformResourceIdentifier]
   (let [file-abs (blob-file +blob-store+ content-hash)
         url-hash (digest/sha-256 (str url))
         dupe-file (-> (blob-file +blob-store-dupes+ url-hash) io/as-file .toPath)
@@ -234,7 +235,7 @@
 
 
 (s/defn add-from-url! :- s/Str
-  [url :- org.bovinegenius.exploding_fish.UniformResourceIdentifier]
+  [url :- UniformResourceIdentifier]
   (or (find-in-url-index url)
       (download-and-add! url)))
 

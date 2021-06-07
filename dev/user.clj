@@ -5,7 +5,6 @@
    [infowarss.core :as core]
    [infowarss.config :as config]
    [infowarss.persistency :as persistency]
-   [infowarss.db :as db]
    [infowarss.update :as update :refer [update! update-all! update-matching! update-tagged!
                                         update-failed!]]
    [infowarss.webapp :as webapp]
@@ -17,9 +16,7 @@
    [infowarss.analysis :as analysis]
    [infowarss.converter :as converter]
    [infowarss.logging :refer [with-logging-status]]
-   [infowarss.apis.reader :as reader]
    [infowarss.blobstore :as blobstore]
-   [org.bovinegenius [exploding-fish :as uri]]
    [infowarss.lab :as lab]
    [clj-http.client :as http-client]
    [slingshot.slingshot :refer [throw+ try+]]

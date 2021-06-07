@@ -1,10 +1,10 @@
 (ns infowarss.db.core
   (:require
    [digest]
+   [java-time :as time]
+   [infowarss.db.search]
    [infowarss.db.query]
    [infowarss.db.modify]
-   [infowarss.db.search]
-   [java-time :as time]
    [taoensso.timbre :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
@@ -15,7 +15,8 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [hikari-cp.core :as hikari]
    [hugsql.core :as hugsql]
-   [cheshire.generate :as json :refer [encode-str]]))
+   [cheshire.generate :as json :refer [encode-str]])
+  (:import (org.bovinegenius.exploding_fish Uri UniformResourceIdentifier)))
 
 (mpg/patch {:default-map :hstore})
 
@@ -33,16 +34,16 @@
     (kw->pgenum kw)))
 
 (extend-protocol j/ISQLValue
-  org.bovinegenius.exploding_fish.Uri
+  Uri
   (sql-value [url]
     (str url)))
   
 (extend-protocol j/ISQLValue
-  org.bovinegenius.exploding_fish.UniformResourceIdentifier
+  UniformResourceIdentifier
   (sql-value [url]
     (str url)))
 
-(json/add-encoder org.bovinegenius.exploding_fish.Uri encode-str)
+(json/add-encoder Uri encode-str)
 
 (def +schema-enums+
   "A set of all PostgreSQL enums in schema.sql. Used to convert

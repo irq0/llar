@@ -4,7 +4,8 @@
             [clojure.test :refer [function?]]
             [clojure.string :as string]
             [java-time :as time]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io])
+  (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))
 
 ;;;; Schemas - Both for internal and external data
 
@@ -59,20 +60,20 @@
   {:url URLStr})
 
 (defschema URLWithAbsPath
-  (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
+  (s/constrained UniformResourceIdentifier
                  #(and (uri/scheme %)
                        (uri/host %)
                        (uri/absolute-path? %))))
 
 (defschema AbsolutifiedURL
-  (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
+  (s/constrained UniformResourceIdentifier
                  #(or (contains? #{"data" "mailto"} (uri/scheme %))
                       (and (uri/scheme %)
                            (uri/host %)
                            (uri/absolute-path? %)))))
 
 (defschema URL
-  (s/constrained org.bovinegenius.exploding_fish.UniformResourceIdentifier
+  (s/constrained UniformResourceIdentifier
                  #(and (uri/scheme %)
                        (uri/host %)
                        (or (nil? (uri/path %))
@@ -80,7 +81,7 @@
 
 (defschema URLRelaxed
   (s/cond-pre
-   org.bovinegenius.exploding_fish.UniformResourceIdentifier))
+   UniformResourceIdentifier))
 
 
 ;;; *Items

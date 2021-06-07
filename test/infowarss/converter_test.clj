@@ -7,7 +7,8 @@
    [clojure.string :as string]
    [java-time :as time]
    [slingshot.test :refer :all]
-   [mount.core :as mount]))
+   [mount.core :as mount])
+  (:import (org.bovinegenius.exploding_fish Uri)))
 
 (deftest read-edn-propsfile
   (is (= {:orig-urls #{(uri/uri "http://files.explosm.net/thumbs/videos/splash-5f344ac96cfc2.png")}
@@ -39,7 +40,7 @@
                   uut/print-propsfile
                   uut/read-edn-propsfile)]
       (is (= (-> in :orig-urls first type) (-> out :orig-urls first type)))
-      (is (instance? org.bovinegenius.exploding_fish.Uri (-> out :orig-urls first)))
+      (is (instance? Uri (-> out :orig-urls first)))
       (is (= in out))))
   (testing "annotations"
     (let [anno [161949
