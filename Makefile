@@ -51,3 +51,10 @@ leaflet:
 	wget -O resources/status/leaflet/leaflet.css "https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
 
 web-3rd-party: leaflet datatables popper annotator waypoints hammer-js jquery bootstrap fontawesome ibmplex
+
+
+uberjar:
+	lein uberjar
+
+docker-image: uberjar
+	docker build --network host -t irq0/infowarss .
