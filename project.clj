@@ -1,7 +1,5 @@
 (defproject infowarss "0.1.0-SNAPSHOT"
-  :profiles {:dev {:dependencies [[alembic "0.3.2"]]
-                   :source-paths ["dev"]}
-             :uberjar {:omit-source true
+  :profiles {:uberjar {:omit-source true
                        :aot :all}}
   :description "infowarss - information processor"
   :url ""
@@ -12,7 +10,7 @@
              "-XX:TieredStopAtLevel=1"
              "-Djdk.attach.allowAttachSelf=true"]
 
-  :aot [#"infowarss\..*"]
+  :aot :all
   :main infowarss.core
   :plugins [[lein-cljfmt "0.6.8"] [lein-aot-order "0.1.0"]]
   :license {:name "None"
