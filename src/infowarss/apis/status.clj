@@ -22,18 +22,17 @@
    [:meta {:http-equiv "X-UA-Compatible" :content "IE=edge"}]
    [:meta {:name "viewport" :content "width=device-width, initial-scale=1, shrink-to-fit=no"}]
    [:title "🖖 🔢 🔥 🚧"]
-   [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/css/dataTables.bootstrap4.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/ibmplex/css/ibm-plex.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/css/fontawesome_all.css"}]
-   [:link {:rel "stylesheet" :href "/static/css/jquery.dataTables.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/css/my.css"}]])
+   [:link {:rel "stylesheet" :href "/static/bootstrap/bootstrap-4.6.0-dist/css/bootstrap.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/fontawesome/fontawesome-free-5.15.3-web/css/all.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/datatables/jquery.dataTables.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/infowarss/infowarss.css"}]])
 
 (defn html-footer []
-  [[:script {:src "/static/js/jquery.min.js"}]
-   [:script {:src "/static/js/jquery.dataTables.min.js"}]
-   [:script {:src "/static/js/bootstrap.min.js"}]
-   [:script {:src "/static/js/infowarss-status.js"}]])
+  [[:script {:src "/static/jquery/jquery-3.6.0.min.js"}]
+   [:script {:src "/static/datatables/jquery.dataTables.min.js"}]
+   [:script {:src "/static/bootstrap/bootstrap-4.6.0-dist/js/bootstrap.min.js"}]
+   [:script {:src "/static/infowarss/infowarss-status.js"}]])
 
 (defn wrap-body [body]
   (html [:html {:lang "en"}
