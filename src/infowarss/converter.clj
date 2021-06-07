@@ -14,16 +14,17 @@
    [clojure.java.shell :as shell])
   (:import (org.bovinegenius.exploding_fish Uri)))
 
-(def +html-to-text-tools+
-  {:pandoc [(appconfig/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
-   :w3m [(appconfig/command :w3m) "-T" "text/html" "-dump"]
-   :lynx [(appconfig/command :lynx) "-dump" "-list_inline" "-width 1024" "-stdin"]
-   :html2text [(appconfig/command :html2text) "-style" "pretty" "-utf8"]})
+(defn html-to-text-command [tool]
+  (get {:pandoc [(appconfig/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
+        :w3m [(appconfig/command :w3m) "-T" "text/html" "-dump"]
+        :lynx [(appconfig/command :lynx) "-dump" "-list_inline" "-width 1024" "-stdin"]
+        :html2text [(appconfig/command :html2text) "-style" "pretty" "-utf8"]}
+       tool))
 
 (defn html2text
   "Convert html to text"
   [html & {:keys [tool] :or {tool :lynx}}]
-  (let [cmdline (concat (get +html-to-text-tools+ tool) [:in html])
+  (let [cmdline (concat (html-to-text-command tool) [:in html])
         {:keys [exit out]}
         (apply shell/sh cmdline)]
     (if (zero? exit)
