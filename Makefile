@@ -57,4 +57,4 @@ uberjar:
 	lein uberjar
 
 docker-image: uberjar
-	docker build --network host -t irq0/infowarss .
+	docker build --network host -t irq0/1f596 .

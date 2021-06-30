@@ -28,6 +28,6 @@ ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
-RUN mkdir -p /opt/infowarss
-COPY target/infowarss-0.1.0-SNAPSHOT-standalone.jar /opt/infowarss/standalone.jar
-CMD ["java", "-jar", "/opt/infowarss/standalone.jar"]
+RUN mkdir -p /opt/u1f596
+COPY target/u1f596-0.1.0-SNAPSHOT-standalone.jar /opt/u1f596/standalone.jar
+CMD ["java", "-jar", "/opt/u1f596/standalone.jar"]

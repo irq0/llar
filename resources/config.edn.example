@@ -1,8 +1,8 @@
 {:update-max-retires 5
- :postgresql {:database-name "infowarss"
+ :postgresql {:database-name "u1f596"
               :adapter "postgresql"
               :server-name "localhost"
-              :username "infowarss"
+              :username "u1f596"
               :auto-commit        true
               :read-only          false
               :connection-timeout 30000
@@ -12,5 +12,5 @@
               :minimum-idle       10
               :maximum-pool-size  20
               :register-mbeans    false
-              :pool-name          "infowarss-pool"
+              :pool-name          "u1f596-pool"
               :password ""}}
