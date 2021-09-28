@@ -45,7 +45,7 @@
 
 ;; State: annotations live in memory
 
-(defn- human-datetime-ago [ts]
+(defn human-datetime-ago [ts]
   (let [raw-duration (time/duration ts (time/zoned-date-time))
         duration (-> raw-duration
                      (.minusNanos (.getNano raw-duration)))

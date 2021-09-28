@@ -11,13 +11,18 @@ $(document).ready(function() {
     $('#sources-datatable').on('click', 'td.details-control', function () {
         var tr = $(this).closest('tr');
         var row = sources_datatable.row(tr);
-
+        var k = tr.children()[1].innerText;
         if (row.child.isShown()) {
             row.child.hide();
             tr.removeClass('shown');
         } else {
-            row.child(tr.data('child-value')).show();
-            tr.addClass('shown');
+        	tr.addClass('shown');
+            $.ajax({
+                url: "/source-details/" + k
+            })
+              .done(function( msg ) {
+              	row.child(msg).show();
+            });
         }
     });
 });

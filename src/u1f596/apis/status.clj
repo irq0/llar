@@ -5,7 +5,7 @@
    [u1f596.live :as live]
    [u1f596.persistency :as persistency]
    [u1f596.appconfig :as appconfig]
-   [u1f596.apis.reader :refer [frontend-db]]
+   [u1f596.apis.reader :refer [frontend-db human-datetime-ago]]
    [u1f596.sched :refer [get-sched-info]]
    [u1f596.metrics :as metrics]
    [compojure.core :refer [routes GET]]
@@ -14,7 +14,8 @@
    [clojure.contrib.humanize :as human]
    [iapetos.export :as prometheus-export]
    [mount.core :as mount :refer [defstate]]
-   [puget.printer :as puget]))
+   [puget.printer :as puget])
+  (:import (org.bovinegenius.exploding_fish Uri)))
 
 (defn html-header []
   [:head
@@ -26,7 +27,7 @@
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/fontawesome-free-5.15.3-web/css/all.min.css"}]
    [:link {:rel "stylesheet" :href "/static/datatables/jquery.dataTables.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/🖖.css"}]])
+   [:link {:rel "stylesheet" :href "/static/u1f596.css"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery-3.6.0.min.js"}]
@@ -53,6 +54,11 @@
     :else
     nil))
 
+(def +pprint-handlers+
+  {Uri
+   (puget/tagged-handler
+    'uri str)})
+
 (defn pprint-html [x]
   [:pre {:class "clj-pprint"}
    (puget/pprint-str
@@ -60,6 +66,7 @@
     {:width 60
      :sort-keys true
      :print-color true
+     :print-handlers +pprint-handlers+
      :color-markup :html-inline})])
 
 (defn html-exception-chain [th]
@@ -81,6 +88,7 @@
    (puget/pprint-str
     (:trace th)
     {:width 120
+     :print-handlers +pprint-handlers+
      :print-color false})])
 
 (defn source-status []
@@ -94,9 +102,10 @@
       [:th "Status"]
       [:th "Source"]
       [:th "Sched"]
+      [:th "Last Exception"]
       [:th "Last Success / Update"]
       [:th "Last Attempt / Start"]
-      [:th "Last Exception"]]]
+      ]]
     [:tbody
      (for [[k src] config/*srcs*]
        (let [state (get-state k)
@@ -104,33 +113,41 @@
              sched (:schedule (get-sched-info k))]
          [:tr {:class
                (cond (= :perm-fail status) "table-danger"
-                     (or (= :temp-fail status) (nil? sched)) "table-warning"
-                     :else "")
-               :data-child-value
-               (html
-                [:div
-                 [:h5 "State Structure"]
-                 (pprint-html state)]
-                (when-let [th (some-> (get-in state [:last-exception :throwable])
-                                      Throwable->map)]
-                  [:div
-                   [:h5 "Exception Details"]
-                   [:h6 "Chain"]
-                   (html-exception-chain th)
-                   [:h6 "Stack Trace"]
-                   (html-stack-trace th)]))}
+                     (= :bug status) "table-info"
+                     (contains? #{:updating :running} status) "table-success"
+                     (or (= :temp-fail status) (and (not (= :running status)) (nil? sched))) "table-warning"
+                     :else "")}
           [:td {:class "details-control"}]
           [:td {:class "col-xs-1"} k]
-          [:td {:class "col-xs-1"} status]
+          [:td {:class "col-xs-1"} (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")")))]
           [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
            (str (:src src))]
-          [:td {:class "col-xs-1"} (or sched [:emph "No sched"])]
-          [:td {:class "col-xs-1"} (or (:last-successful-fetch-ts state)
-                                       (:last-update-ts state))]
-          [:td {:class "col-xs-1"} (or (:last-attempt-ts state)
-                                       (:start-ts state))]
+          [:td {:class "col-xs-1"} [:pre (or sched [:emph "No sched"])]]
           [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
-           (get-in state [:last-exception :object :type])]]))]]))
+           (get-in state [:last-exception :object :type])]
+          [:td {:class "col-xs-1"}  (some-> (or (:last-successful-fetch-ts state)
+                                                (:last-update-ts state))
+                                            human-datetime-ago)]
+          [:td {:class "col-xs-1"}  (some-> (or (:last-attempt-ts state)
+                                                (:start-ts state))
+                                            human-datetime-ago)]]))]]))
+
+(defn source-details [k]
+  (let [state (get-state (keyword k))
+        status (:status state)
+        sched (:schedule (get-sched-info k))]
+    (html
+     [:div
+      [:h5 "State Structure"]
+      (pprint-html state)]
+     (when-let [th (some-> (get-in state [:last-exception :throwable])
+                           Throwable->map)]
+       [:div
+        [:h5 "Exception Details"]
+        [:h6 "Chain"]
+        (html-exception-chain th)
+        [:h6 "Stack Trace"]
+        (html-stack-trace th)]))))
 
 (defn list-to-table [header data]
   [:table {:class "datatable"}
@@ -248,6 +265,8 @@
   (routes
 
    (GET "/" [] (status-index))
+
+   (GET "/source-details/:key" [key] (source-details key))
 
    (GET "/metrics" []
      {:status 200
