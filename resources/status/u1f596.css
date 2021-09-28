@@ -60,12 +60,14 @@ div.item-content .orig-content {
     div.item-content-body {
 	font-family: "IBM Plex Serif", serif;
 	font-size: 0.9rem;
-	text-align: justify;
 	line-height: 1.9;
 	max-width: 60ch;
 	margin: auto;
 	padding-bottom: 1.5em;
 	overflow: hidden;
+    }
+    div.item-content-body p {
+	text-align: justify;
     }
 }
 
@@ -73,9 +75,7 @@ div.item-content .orig-content {
 @media (min-width: 769px) and (max-width: 991px) {
     div.item-content-body {
 	font-family: "IBM Plex Serif", serif;
-	text-align: justify;
 	line-height: 1.9;
-	font-size: 13pt;
 	max-width: 60ch;
 	margin: auto;
     }
@@ -85,17 +85,21 @@ div.item-content .orig-content {
 	text-align: left;
 	font-weight: 600;
     }
+    div.item-content-body p {
+	text-align: justify;
+    }
 }
 
 /* standard desktop */
 @media (min-width: 992px) and (max-width: 1700px) {
     div.item-content-body {
 	font-family: "IBM Plex Serif", serif;
-	text-align: justify;
 	line-height: 1.9;
-	font-size: 13pt;
 	max-width: 60ch;
 	margin: auto;
+    }
+    div.item-content-body p {
+	text-align: justify;
     }
     div.item-content-body h1,h2,h3,h4 {
 	padding-top: 0.8em;
@@ -109,13 +113,14 @@ div.item-content .orig-content {
 @media (min-width: 1700px) {
     div.item-content-body {
 	font-family: "IBM Plex Serif", serif;
-	text-align: justify;
 	line-height: 1.8;
-	font-size: 13pt;
 	columns: 40ch;
 	margin-right: 5em;
 	overflow-x: scroll;
 	height: calc(100vh - 9em);
+    }
+    div.item-content-body p {
+	text-align: justify;
     }
     div.item-content-body h1,h2,h3,h4 {
 	padding-top: 0.8em;
