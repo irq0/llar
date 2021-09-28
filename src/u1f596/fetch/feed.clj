@@ -138,8 +138,8 @@
               in-feed-contents (extract-feed-content (:contents re))
               contents-url (-> re :link uri/uri)
               contents-base-url (if (uri/absolute? contents-url)
-                                  base-url
-                                  (get-base-url contents-url))
+                                  (get-base-url contents-url)
+                                  base-url)
               contents-url (absolutify-url contents-url contents-base-url)
               deep-fetch? (and (get-in src [:args :deep?])
                                (some? contents-url))
