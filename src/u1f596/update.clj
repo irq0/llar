@@ -58,6 +58,14 @@
    :last-exception nil
    :retry-count 0})
 
+(defn- make-next-state [state next-status next-retry-count last-exception]
+  (let [now (time/zoned-date-time)]
+        (merge state
+               {:last-attempt-ts now
+                :status next-status
+                :last-exception last-exception
+                :retry-count next-retry-count})))
+
 (defn- update-feed!
   "Update feed. Return new state"
   [k & {:keys [skip-proc skip-store overwrite?]
@@ -68,14 +76,10 @@
   (let [feed (get config/*srcs* k)
         state (get @state k)
         now (time/zoned-date-time)
-        {:keys [src]} feed]
+        {:keys [src]} feed
+        retry-count (or (get-in feed [:state :retry-count]) 0)]
     (try+
-     (let [fetched (try+
-                    (fetch/fetch feed)
-                    (catch Object _
-                      (throw+ {:type ::fetch-error
-                               :feed feed})))
-
+     (let [fetched (fetch/fetch feed)
            processed (try+
                       (if-not skip-proc
                         (proc/process feed state fetched)
@@ -102,49 +106,30 @@
        (log/infof "Updated %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
                   (str src) (count fetched) (count processed) (count dbks)
                   skip-proc skip-store)
+       (make-next-state state :ok 0 nil))
 
-       (merge state
-              {:last-attempt-ts now
-               :last-successful-fetch-ts now
-               :status :ok
-               :retry-count 0}))
+     (catch [:type :u1f596.http/server-error-retry-later] _
+       (make-next-state state :temp-fail (inc retry-count) &throw-context))
 
-     (catch [:type :u1f596.fetch/server-error-retry-later] _
-       (merge state
-              {:last-attempt-ts now
-               :status :temp-fail
-               :last-exception &throw-context
-               :retry-count (inc (get-in feed [:state :retry-count]))}))
+     (catch [:type :u1f596.http/request-error] _
+       (make-next-state state :perm-fail 0 &throw-context))
 
-     (catch [:type :u1f596.fetch/request-error] _
-       (merge state
-              {:last-attempt-ts now
-               :status :perm-fail
-               :last-exception &throw-context
-               :retry-count 0}))
+     (catch [:type :u1f596.http/unexpected-error] _
+       (make-next-state state :bug 0 &throw-context))
 
-     (catch [:type :u1f596.fetch/unexpected-error] _
-       (merge state
-              {:last-attempt-ts now
-               :status :perm-fail
-               :last-exception &throw-context
-               :retry-count 0}))
+     (catch java.io.IOException ex
+       (log/warn (:throwable &throw-context) "IOException for" (str src))
+       (if (re-find #"error=11" (ex-message ex))
+         (make-next-state state :temp-fail (inc retry-count) &throw-context)
+         (make-next-state state :bug 0 &throw-context)))
 
      (catch java.net.ConnectException _
        (log/warn (:throwable &throw-context) "Connection error (-> temp-fail) for" (str src))
-       (merge state
-              {:last-attempt-ts now
-               :status :temp-fail
-               :last-exception &throw-context
-               :retry-count 0}))
+       (make-next-state state :temp-fail (inc retry-count) &throw-context))
 
      (catch Object _
        (log/error (:throwable &throw-context) "Unexpected error (-> perm-fail) for " (str src) src)
-       (merge state
-              {:last-attempt-ts now
-               :status :perm-fail
-               :last-exception &throw-context
-               :retry-count 0})))))
+       (make-next-state state :bug 0 &throw-context)))))
 
 (defn set-status!
   "Set feed's status"
@@ -194,26 +179,31 @@
                  (:retry-count cur-state) (appconfig/update-max-retry) k)
       :perm-fail
       (log/debug "Skipping perm fail feed: " k)
+
+      :bug
+      (log/debug "Skipping feed that triggerd a bug: " k)
+
       (log/debugf "Unknown status \"%s\": %s" cur-status k))
 
     (when force
       (log/debugf "Force updating %s feed %s" cur-status k))
 
-    (if (or
-         force
-         (#{:ok :new} cur-status)
-         (and
-          (= cur-status :temp-fail)
-          (< (:retry-count cur-state) (appconfig/update-max-retry))))
-      (let [kw-args (mapcat identity (dissoc args :force))
-            new-state (apply update-feed! k kw-args)
-            new-status (:status new-state)]
-        (log/debugf "[%s] State: %s -> %s " k
-                    cur-status new-status)
-        (swap! state (fn [current]
-                       (assoc current k new-state)))
-        new-status)
-      cur-status)))
+    (let [update? (or force
+                      (#{:ok :new} cur-status)
+                      (and (= cur-status :temp-fail)
+                           (< (:retry-count cur-state) (appconfig/update-max-retry))))]
+      (if update?
+        (do
+          (swap! state update k assoc :status :updating)
+          (let [kw-args (mapcat identity (dissoc args :force))
+                new-state (apply update-feed! k kw-args)
+                new-status (:status new-state)]
+            (log/debugf "[%s] State: %s -> %s " k
+                        cur-status new-status)
+            (swap! state (fn [current]
+                           (assoc current k new-state)))
+            new-status))
+          cur-status))))
 
 (defn updateable-sources []
   (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) config/*srcs*)))
@@ -237,4 +227,13 @@
                                               (contains? #{:perm-fail :temp-fail} (:status v ) ))
                                             @state))
         failed-sources (select-keys (updateable-sources) failed-source-keys)]
-    (pmap #(apply update! (key %) args) failed-sources)))
+    (doall (pmap #(apply update! (key %) args) failed-sources))))
+
+
+(defn update-bugged! [& args]
+  (let [failed-source-keys (map key (filter (fn [[k v]]
+                                              (contains? #{:bug} (:status v ) ))
+                                            @state))
+        failed-sources (select-keys (updateable-sources) failed-source-keys)]
+    (doall
+     (map #(apply update! (key %) args) failed-sources))))

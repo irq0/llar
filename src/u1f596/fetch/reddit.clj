@@ -48,15 +48,15 @@
    (catch (contains? #{500 501 502 503 504} (get % :status))
           {:keys [headers body status]}
      (log/errorf "Server Error (%s): %s %s" status headers body)
-     (throw+ {:type ::server-error-retry-later}))
+     (throw+ {:type  :u1f596.http/server-error-retry-later}))
    (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
           {:keys [headers body status]}
      (log/errorf "Client error probably due to broken request (%s): %s %s"
                  status headers body)
-     (throw+ {:type ::request-error}))
+     (throw+ {:type :u1f596.http/request-error}))
    (catch Object _
      (log/error "Unexpected error: " (:throwable &throw-context))
-     (throw+ {:type ::unexpected-error}))))
+     (throw+ {:type :u1f596.http/unexpected-error}))))
 
 (defn reddit-ts-to-zoned-date-time [t]
   (when (number? t)

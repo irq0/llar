@@ -495,6 +495,42 @@
                 :url url
                 :base-url base-url}))
 
+     (catch javax.net.ssl.SSLHandshakeException ex
+       (throw+ {:type ::server-error-retry-later
+                :url url
+                :base-url base-url
+                :message (str "SSL Handshake failed: " (ex-message ex))}))
+
+     (catch java.net.ConnectException ex
+       (throw+ {:type ::server-error-retry-later
+                :url url
+                :base-url base-url
+                :message (str "Connection refused (gone?): " (ex-message ex))}))
+
+     (catch java.security.cert.CertificateExpiredException ex
+       (throw+ {:type ::server-error-retry-later
+                :url url
+                :base-url base-url
+                :message (str "Certificate expired: " (ex-message ex))}))
+
+     (catch javax.net.ssl.SSLPeerUnverifiedException ex
+       (throw+ {:type ::server-error-retry-later
+                :url url
+                :base-url base-url
+                :message (str "SSL Peer verification error: " (ex-message ex))}))
+
+     (catch java.net.SocketException ex
+       (throw+ {:type ::server-error-retry-later
+                :url url
+                :base-url base-url
+                :message (str "SocketException: " (ex-message ex))}))
+
+     (catch java.io.EOFException ex
+       (throw+ {:type ::server-error-retry-later
+                :url url
+                :base-url base-url
+                :message (str "EOF Exception: " (ex-message ex))}))
+
      (catch Object _
        (log/error "Unexpected error: " (:throwable &throw-context) url)
        (throw+ {:type ::unexpected-error
