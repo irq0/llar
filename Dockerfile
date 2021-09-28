@@ -30,4 +30,4 @@ ENV LANGUAGE en_US.UTF-8
 
 RUN mkdir -p /opt/u1f596
 COPY target/u1f596-0.1.0-SNAPSHOT-standalone.jar /opt/u1f596/standalone.jar
-CMD ["java", "-jar", "/opt/u1f596/standalone.jar"]
+CMD ["nice", "java", "-Xmx4g", "-server", "-jar", "/opt/u1f596/standalone.jar"]
