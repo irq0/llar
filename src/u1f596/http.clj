@@ -407,7 +407,12 @@
                 (and (= tag :img) (string/starts-with? (or (:srcset attrs) "") "data:"))
                 (zip/edit loc
                           (fn [node]
-                              (assoc-in node [:attrs :srcset] nil)))
+                            (assoc-in node [:attrs :srcset] nil)))
+
+                (= tag :iframe)
+                (zip/edit loc
+                          (fn [node]
+                            (assoc-in node [:attrs :class] "embed-responsive")))
 
 
                 (and (contains? #{:a :img} tag)
