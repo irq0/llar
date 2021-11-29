@@ -118,8 +118,12 @@
           res (try+
                (-> http-item :raw :body rome/build-feed)
                (catch Object _
-                 (log/error (:throwable &throw-context) "rome parse failed" http-item)
-                 (throw+ {:type ::rome-failure :http-item http-item})))
+                 (log/error (:throwable &throw-context) "rome parse failed" (:summary http-item))
+                 (throw+ {:type ::rome-failure
+                          :http-item (-> http-item
+                                         (assoc-in [:raw :body] :removed)
+                                         (assoc-in [:hickory] :removed)
+                                         (assoc-in [:body] :removed))})))
           raw-feed-url (:link res)
           feed-url (if (nil? raw-feed-url)
                      url
