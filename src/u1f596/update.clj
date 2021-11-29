@@ -117,9 +117,13 @@
      (catch [:type :u1f596.http/unexpected-error] _
        (make-next-state state :bug 0 &throw-context))
 
+     (catch java.lang.OutOfMemoryError ex
+       (log/warn (:throwable &throw-context) "Out of memory! Adjust resource limits? (-> temp fail) " (str src))
+       (make-next-state state :temp-fail (inc retry-count) &throw-context))
+
      (catch java.io.IOException ex
        (log/warn (:throwable &throw-context) "IOException for" (str src))
-       (if (re-find #"error=11" (ex-message ex))
+       (if (re-find #"error=11" (ex-message (:cause ex)))
          (make-next-state state :temp-fail (inc retry-count) &throw-context)
          (make-next-state state :bug 0 &throw-context)))
 
@@ -128,7 +132,7 @@
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
 
      (catch Object _
-       (log/error (:throwable &throw-context) "Unexpected error (-> perm-fail) for " (str src) src)
+       (log/error (:throwable &throw-context) "Unexpected error (-> bug) for " (str src) src)
        (make-next-state state :bug 0 &throw-context)))))
 
 (defn set-status!
