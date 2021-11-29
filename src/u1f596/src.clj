@@ -33,6 +33,18 @@
    & {:keys [user-agent] :as args}]
   (GenericWebsite. (uri/uri url) (merge +http-default-args+ args)))
 
+(s/defrecord Custom
+    [id :- s/Keyword
+     fn :- schema/Func]
+
+  Object
+  (toString [src] (str "[Custom: " (name (:id src)) "]")))
+
+(defn custom
+  [id fn]
+  (Custom. id fn))
+
+
 (s/defrecord PaywalledWebsite
              [url :- schema/URL
               cookie-getter :- s/Any

@@ -8,6 +8,7 @@
    [u1f596.fetch.mercury]
    [u1f596.fetch.reddit]
    [u1f596.fetch.twitter]
+   [u1f596.fetch.custom]
    [u1f596.live.hackernews]
    [u1f596.src :as src]
    [taoensso.timbre :as log]
