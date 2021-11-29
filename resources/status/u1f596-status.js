@@ -7,6 +7,10 @@ $(document).ready(function() {
 	"paging":   false,
 	"searching":   false,
     });
+    var threads_datatable = $('#threads-datatable').DataTable({
+	"paging":   false,
+	"searching":   false,
+    });
 
     $('#sources-datatable').on('click', 'td.details-control', function () {
         var tr = $(this).closest('tr');
@@ -23,6 +27,17 @@ $(document).ready(function() {
               .done(function( msg ) {
               	row.child(msg).show();
             });
+        }
+    });
+    $('#threads-datatable').on('click', 'td.details-control', function () {
+        var tr = $(this).closest('tr');
+        var row = threads_datatable.row(tr);
+        if (row.child.isShown()) {
+            row.child.hide();
+            tr.removeClass('shown');
+        } else {
+            tr.addClass('shown');
+	    row.child(tr.data("stacktrace")).show();
         }
     });
 });

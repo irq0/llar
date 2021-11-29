@@ -14,6 +14,8 @@
    [clojure.contrib.humanize :as human]
    [iapetos.export :as prometheus-export]
    [mount.core :as mount :refer [defstate]]
+   [clj-stacktrace.core :as stacktrace]
+   [clj-stacktrace.repl :as stacktrace-repl]
    [puget.printer :as puget])
   (:import (org.bovinegenius.exploding_fish Uri)))
 
@@ -83,13 +85,12 @@
        [:td (when-not (= 'clojure.lang.ExceptionInfo (:type ex)) (:message ex))]
        [:td (pprint-html (:data ex))]])]])
 
-(defn html-stack-trace [th]
-  [:pre
-   (puget/pprint-str
-    (:trace th)
-    {:width 120
-     :print-handlers +pprint-handlers+
-     :print-color false})])
+(defn html-stack-trace [stack]
+  (html
+   [:ol
+    (for [parsed (stacktrace/parse-trace-elems stack)
+          :let [formatted (stacktrace-repl/pst-elem-str false parsed 70)]]
+      [:li [:pre formatted]])]))
 
 (defn source-status []
   (html
@@ -147,7 +148,7 @@
         [:h6 "Chain"]
         (html-exception-chain th)
         [:h6 "Stack Trace"]
-        (html-stack-trace th)]))))
+        (html-stack-trace (:trace th))]))))
 
 (defn list-to-table [header data]
   [:table {:class "datatable"}
@@ -225,6 +226,32 @@
           [:td (some? (some #{state} running))]
           [:td (mount/current-state state)]])]])))
 
+(defn thread-stats []
+  (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]
+    [:h2 "Current Threads"]
+    [:table {:id "threads-datatable"}
+   [:thead
+    [:tr
+     [:th ""]
+     [:th "Group"]
+     [:th "Name"]
+     [:th "State"]
+     [:th "Top Frame"]]]
+   [:tbody
+     (for [[th stack] stack-traces]
+       [:tr {:data-stacktrace (html-stack-trace stack)
+             :class
+             (cond
+               false "table-info"
+               :else "")}
+        [:td {:class "details-control"}]
+        [:td {:class "col-xs-1"} (-> th .getThreadGroup .getName)]
+        [:td {:class "col-xs-1"} (.getName th)]
+        [:td {:class "col-xs-1"} [:pre (.getState th)]]
+        [:td {:class "col-xs-4"} [:pre (first stack)]]
+        ])]]))
+  
+
 (defn home-tab [])
 
 (def tabs
@@ -232,6 +259,7 @@
    :memory memory-stats
    :database database-stats
    :state state-stats
+   :threads thread-stats
    :sources source-status})
 
 (defn status-index []
