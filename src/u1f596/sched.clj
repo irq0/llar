@@ -102,4 +102,4 @@
   :stop (sched/stop! feed-sched))
 
 (defn get-sched-info [k]
-  (some #(when (= (:name %) k) %) (sched/list-tasks feed-sched)))
+  (sched/get-task feed-sched k))
