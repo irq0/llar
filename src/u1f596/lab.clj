@@ -5,6 +5,7 @@
    [u1f596.db.search :as db-search]
    [u1f596.config :as config]
    [u1f596.fetch :as fetch]
+   [cheshire.core :as json]
    [u1f596.postproc :as proc]
    [u1f596.update :as update]
    [u1f596.blobstore :as blobstore]
