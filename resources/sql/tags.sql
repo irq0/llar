@@ -12,12 +12,12 @@ ts <= (:v:ts)
 
 -- :name set-tags :i! :*
 update items
-set tags = tags || hstore(:v*:tags, :v*:vals)
+set tagi = tagi | (select array_agg(id) from tags where tag = ANY(:v:tags))
 --~ (when (:where params) "where :snip*:where")
 returning tags
 
 -- :name remove-tags :i! :*
 update items
-set tags = delete(tags, :v*:tags)
+set tagi = tagi - (select array_agg(id) from tags where tag = ANY(:v:tags))
 --~ (when (:where params) "where :snip*:where")
 returning tags

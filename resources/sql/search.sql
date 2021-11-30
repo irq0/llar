@@ -19,8 +19,8 @@ select
 from
   ( select id, jsonb_array_elements(nlp_top->'words') as term_tf
     from items
-    where exist_inline(tags, 'saved')
-      or (items.type = 'bookmark' and exist_inline(tags, 'unread'))
+    where tagi @@ '1'
+      or (items.type = 'bookmark' and tagi @@ '0')
   ) as i
 inner join
   idf_top_words on (term_tf->0 = idf_top_words.term)
@@ -34,8 +34,8 @@ from (
   from (
     select id, jsonb_array_elements(nlp_top->'words') as term_tf
     from items
-    where exist_inline(tags, 'saved') or (items.type = 'bookmark')
-      and exist_inline(tags, 'unread')) as i
+    where tagi @@ '1' or (items.type = 'bookmark')
+      and tagi @@ '0') as i
   inner join idf_top_words on (term_tf->0 = idf_top_words.term)
   where
     (term_tf->>1)::float > 1

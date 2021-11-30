@@ -14,17 +14,15 @@ from items
 group by nword_groups
 order by nword_groups
 
-
 -- Tag Statistics {tag -> item count}
 -- :name get-tag-stats :? :raw
-select tag, sum(count)
-from (
-  select count(AKEYS(tags)), unnest(akeys(tags)) as tag
-  from items
-  group by akeys(tags)
-) as x
-group by tag
+select tag, count(*) as sum
+from items, tags, lateral (select unnest(tagi) as tag_id) as un
+where tags.id = tag_id group by tag_id, tags.tag;
 
+-- Tags {list of tags}
+-- :name get-tags :? :raw
+select tag from tags
 
 -- Type Statistics (type -> item count)
 -- :name get-type-stats :? :raw

@@ -7,6 +7,7 @@ do update set
   author = excluded.author,
   type = excluded.type,
   tags = excluded.tags,
+  tagi = excluded.tagi,
   nlp_nwords = excluded.nlp_nwords,
   nlp_urls = excluded.nlp_urls,
   nlp_names = excluded.nlp_names,
@@ -19,7 +20,7 @@ do update set
 do nothing
 
 -- Store item and create source when necessary
--- 
+--
 -- Collision handling:
 --  Sources by unique key. Existing sources update their name, data and updated_ts
 --  Items by hash. Existing items are not updated
@@ -46,7 +47,7 @@ insert into items(
   title,
   author,
   type,
-  tags,
+  tagi,
   nlp_nwords, nlp_urls, nlp_names, nlp_nouns, nlp_verbs, nlp_top,
   entry
 )
@@ -59,7 +60,7 @@ values (
   :title,
   :author,
   :type,
-  :tags,
+  (select array_agg(id) from tags where tag = ANY(:v:tags)),
   :nlp-nwords, :nlp-urls, :nlp-names, :nlp-nouns, :nlp-verbs, :nlp-top,
   :entry
 )

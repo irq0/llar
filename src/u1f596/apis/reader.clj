@@ -522,7 +522,7 @@
        [:span "item tags"]]
       [:ul {:class "nav flex-column"}
        (group-list x "/reader/group/item-tags"
-                   (->> x :item-tags (map first) (remove +tags-skip-group-list+) sort)
+                   (->> x :item-tags (remove +tags-skip-group-list+) sort)
                    (when (= active-group :item-tags) active-key)
                    icons)]
 
@@ -1221,7 +1221,7 @@
                                     {:with-preview-data? (some #(contains? (:options %)
                                                                            :main-list-use-description)
                                                                selected-sources)
-                                     :with-source-keys (map :key selected-sources)})))
+                                     :with-source-ids (map :id selected-sources)})))
 
       (and (= group-name :source-tag) (keyword? group-item) (keyword? source-key))
       (if (->> sources
@@ -1320,7 +1320,7 @@
                          orig-fltr))
 
          item-tags (future (metrics/with-prom-exec-time :tag-list
-                             (doall (persistency/get-tag-stats frontend-db))))
+                             (doall (persistency/get-tags frontend-db))))
 
          sources (metrics/with-prom-exec-time :compile-sources
                    (doall (persistency/get-sources frontend-db config/*srcs*)))
@@ -1525,7 +1525,7 @@
                          orig-fltr))
 
          item-tags (future (metrics/with-prom-exec-time :tag-list
-                             (doall (persistency/get-tag-stats frontend-db))))
+                             (doall (persistency/get-tags frontend-db))))
 
          params (merge params {:sources {}
                                :group-group :lab

@@ -35,8 +35,8 @@
 
 (defn- simple-filter-to-sql [kw]
   (case kw
-    :unread "exist_inline(tags, 'unread')"
-    :today "date(ts) = current_date AND exist_inline(tags, 'unread')"
+    :unread "tagi @@ '0'"
+    :today "date(ts) = current_date AND tagi @@ '0'"
     nil))
 
 ;; ----------
@@ -52,6 +52,10 @@
 
   (get-tag-stats [this]
     (drop 1 (sql/get-tag-stats this nil {} {:as-arrays? true})))
+
+  (get-tags [this]
+    (apply concat
+           (drop 1 (sql/get-tags this nil {} {:as-arrays? true}))))
 
   (get-word-count-groups [this]
     (drop 1 (sql/get-word-count-groups this nil {} {:as-arrays? true}))))
@@ -137,7 +141,7 @@
 (defn- make-recent-items-where-cond-vec
   "Convert get-items-recent filter parameter into a list of sqlvec where clauses"
   [args]
-  (let [{:keys [before with-source-keys simple-filter with-tag with-type]} args
+  (let [{:keys [before with-source-keys with-source-ids simple-filter with-tag with-type]} args
         simple-filter (when (keyword? simple-filter) (simple-filter-to-sql simple-filter))]
     (not-empty
      (interpose ["and"]
@@ -146,8 +150,11 @@
                   (conj (sql/cond-before before))
 
                   (coll? with-source-keys)
-                  (conj (sql/cond-with-source {:keys
-                                               (map name with-source-keys)}))
+                  (conj (sql/cond-with-source-keys {:keys
+                                                    (map name with-source-keys)}))
+
+                  (coll? with-source-ids)
+                  (conj (sql/cond-with-source-ids {:ids with-source-ids}))
 
                   (some? simple-filter)
                   (conj [simple-filter])

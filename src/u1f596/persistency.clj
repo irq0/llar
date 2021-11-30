@@ -35,6 +35,7 @@
   (get-table-row-counts [this])
   (get-type-stats [this])
   (get-tag-stats [this])
+  (get-tags [this])
   (get-word-count-groups [this]))
 
 (defprotocol ItemQueries

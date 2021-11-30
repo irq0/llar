@@ -13,16 +13,17 @@ create type item_type as enum(
 select count(*) from items where source_id = :id
 
 -- :name get-item-count-by-tag-of-source :? :raw
-select count(*), skeys(tags) as tag
-from items
+select count(tag), tag
+from items, tags, lateral (select unnest(tagi) as tag_id) as tags_un
 where source_id = :id
-group by skeys(tags)
+and tags.id = tag_id
+group by tag;
 
 -- :name get-item-count-unread-today :? :1
 select count(*) from items
   where source_id = :id
   and date(ts) = current_date
-  and exist_inline(tags,'unread')
+  and tagi @@ '0';
 
 -- :name get-sources-with-item-tags-count :? :raw
 select distinct on (key) key,
@@ -34,14 +35,14 @@ select distinct on (key) key,
 from sources
 inner join items
 on sources.id = items.source_id
-where exist_inline(items.tags, :v:item-tag)
+where tagi @@ (SELECT format('(%s)', id) FROM tags WHERE tag = :item-tag)::query_int
 --~ (when (:simple-filter params) "and :sql:simple-filter")
 
 -- :name get-items-by-tag :? :*
-select key, title, author, items.type, tags, items.id, entry
+select key, title, author, items.type, items.id, entry
 from items inner join sources
 on items.source_id = sources.id
-where exist_inline(tags, :v:tag)
+where tagi @@ (SELECT format('(%s)', id) FROM tags WHERE tag = :tag)::query_int
 
 -- :snip item-select-default-snip
 select
@@ -50,9 +51,9 @@ select
   author,
   entry->'url' as url,
   entry,
-  exist_inline(tags, 'saved') as saved,
-  (not exist_inline(tags, 'unread')) as read,
-  akeys(tags) as tags,
+  tagi @@ '1' as saved,
+  tagi @@ '!0' as read,
+  (select array_agg(tag) from unnest(tagi) as tag_id inner join tags on tag_id = id) as tags,
   ts,
   nlp_names as names,
   nlp_verbs as verbs,
@@ -70,9 +71,9 @@ select
   author,
   entry->'url' as url,
   entry,
-  exist_inline(tags, 'saved') as saved,
-  (not exist_inline(tags, 'unread')) as read,
-  akeys(tags) as tags,
+  tagi @@ '1' as saved,
+  tagi @@ '!0' as read,
+  (select array_agg(tag) from unnest(tagi) as tag_id inner join tags on tag_id = id) as tags,
   ts,
   nlp_names as names,
   nlp_verbs as verbs,
@@ -117,11 +118,14 @@ where
 -- :snip cond-before
 (items.ts, items.id) < (:ts, :id)
 
--- :snip cond-with-source
+-- :snip cond-with-source-keys
 sources.key in (:v*:keys)
 
+-- :snip cond-with-source-ids
+sources.id in (:v*:ids)
+
 -- :snip cond-with-tag
-exist_inline(items.tags, :v:tag)
+tagi @@ (select format('(%s)', id) FROM tags WHERE tag = :tag)::query_int
 
 -- :snip cond-with-type
 items.type = :type::item_type
@@ -133,4 +137,4 @@ items.type = :type::item_type
 --~ (when (:group-by-columns params) "group by :i*:group-by-columns")
 order by
   ts desc, id desc
-limit :limit  
+limit :limit

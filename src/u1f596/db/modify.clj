@@ -48,7 +48,7 @@
       :title (:title summary)
       :author (string/join "," (:authors entry))
       :type (keyword "item_type" (name (:type item)))
-      :tags (into {} (map (fn [x] [(name x) nil]) (:tags meta)))
+      :tags (into [] (map name (or (:tags meta) [])))
       :nlp-nwords (or (:nwords nlp) -1)
       :nlp-urls (into [] (or (:urls nlp) []))
       :nlp-names (into [] (or (:names nlp) []))
@@ -107,7 +107,6 @@
     (->>
      (sql/set-tags this
                    {:tags (vec (map name tags))
-                    :vals (vec (repeat (count tags) nil))
                     :where [(sql/tag-cond-by-id {:id item-id})]})
      :tags
      keys
@@ -132,6 +131,6 @@
                        {:tags ["unread"]
                         :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
                                 ["AND"]
-                                ["exist_inline(tags, 'unread')"]
+                                ["tagi @@ '0'"]
                                 ["AND"]
                                 (sql/tag-cond-le-ts {:ts older-then-ts})]}))))
