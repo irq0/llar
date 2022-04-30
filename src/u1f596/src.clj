@@ -172,22 +172,32 @@
   [url :- schema/NotEmptyStr]
   (->Document (uri/uri url)))
 
+(def reddit-supported-listings #{:controversial :best :hot :new :random :rising :top})
+(def reddit-supported-timeframes #{:hour :day :week :month :year :all})
+
 (s/defrecord Reddit
              [subreddit :- schema/NotEmptyStr
-              feed :- schema/NotEmptyStr]
+              listing :- schema/NotEmptyStr
+              timeframe :- schema/NotEmptyStr]
   Object
-  (toString [src] (format "[Reddit: r/%s/%s]" (:subreddit src) (:feed src))))
+  (toString [src] (format "[Reddit: r/%s/%s]" (:subreddit src) (:listing src) (:timeframe src))))
 
 (s/defn reddit :- Reddit
   "Fetch URL using Mercury Web Parser API"
-  [subreddit :- schema/NotEmptyStr
-   feed :- s/Keyword]
-  (let [supported #{:hot :top :rising :new}]
-    (when-not (contains? supported feed)
-      (throw+ {:type ::invalid-feed :supported supported}))
-    (->Reddit
-     subreddit
-     (name feed))))
+  ([subreddit :- schema/NotEmptyStr
+    listing :- s/Keyword]
+   (reddit subreddit listing :week))
+  ([subreddit :- schema/NotEmptyStr
+   listing :- s/Keyword
+   timeframe :- s/Keyword]
+  (when-not (contains? reddit-supported-listings listing)
+    (throw+ {:type ::invalid-reddit-listing :supported reddit-supported-listings}))
+  (when-not (contains? reddit-supported-timeframes timeframe)
+    (throw+ {:type ::invalid-reddit-timeframe :supported reddit-supported-timeframes}))
+  (->Reddit
+   subreddit
+   (name listing)
+   (name timeframe))))
 
 (s/defrecord ImapMailbox
              [uri :- schema/URL

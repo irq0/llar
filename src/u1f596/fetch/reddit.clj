@@ -94,8 +94,8 @@
 (extend-protocol fetch/FetchSource
   u1f596.src.Reddit
   (fetch-source [src]
-    (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100"
-                                     (:subreddit src) (:feed src)))]
+    (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100&t=%s"
+                                     (:subreddit src) (:listing src) (:timeframe src)))]
       (for [child (get-in reddit [:data :children])
             :let [item (:data child)]]
         (->RedditItem
