@@ -162,16 +162,6 @@
   (->MercuryWebParser
    (uri/uri url)))
 
-(s/defrecord Document
-             [url :- schema/URL]
-  Object
-  (toString [src] (str "[Document: " (:url src) "]")))
-
-(s/defn doc :- Document
-  "Fetch URL and process as document"
-  [url :- schema/NotEmptyStr]
-  (->Document (uri/uri url)))
-
 (def reddit-supported-listings #{:controversial :best :hot :new :random :rising :top})
 (def reddit-supported-timeframes #{:hour :day :week :month :year :all})
 

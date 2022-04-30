@@ -3,7 +3,6 @@
    [u1f596.fetch :refer [make-item-hash] :as fetch]
    [u1f596.fetch.feed]
    [u1f596.fetch.http]
-   [u1f596.fetch.document]
    [u1f596.fetch.imap]
    [u1f596.fetch.mercury]
    [u1f596.fetch.reddit]
@@ -163,13 +162,6 @@
                                      (if (some? site)
                                        (format "[Bookmark: %s]" (str site))
                                        "[Bookmark]")))))])}))
-
-(defn make-doc-feed [url]
-  (let [src (src/doc url)]
-    {:src src
-     :tags #{:document}
-     :proc (proc/make
-            :post [(fn [item] (assoc-in item [:meta :source-name] "[Document]"))])}))
 
 (defn make-hacker-news-filter [min-score min-score-match]
   (fn [item]
@@ -719,9 +711,6 @@
 
    :bookmark {:src nil
               :tags #{:bookmark}}
-   :document {:src nil
-              :tags #{:document}}
-
    :tumblr-worstofchefkoch {:src (src/feed "https://worstofchefkoch.tumblr.com/rss"
                                            :user-agent :bot)
                             :tags #{:recreation}}

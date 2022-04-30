@@ -471,14 +471,7 @@
                    :data-success "#add-url-1-status"
                    :data-type "raw-bookmark"}
 
-          "B"]
-         [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
-                   :type "submit"
-                   :data-url-source "#add-url-1"
-                   :data-success "#add-url-1-status"
-                   :data-type "document"}
-
-          "D"]]]]
+          "B"]]]]
 
       [:ul {:class "nav flex-column"}
        (for [[k [name ico]] +exposed-simple-filter+]
@@ -1619,7 +1612,7 @@
       (html-footer))]]))
 
 (defn add-thing
-  "Bookmark / Document Add URL Entry Point"
+  "Bookmark Add URL Entry Point"
   [feed key]
   (log/debug "[🖖-UI] Add Bookmark: " feed)
   (try+
@@ -1684,19 +1677,10 @@
                                   :bookmark)
            :raw-bookmark (add-thing
                           (config/make-raw-bookmark-feed url)
-                          :bookmark)
-           :document (add-thing
-                      (config/make-doc-feed url)
-                      :document))
+                          :bookmark))
          (catch java.net.MalformedURLException ex
            {:status 400
             :body {:error (str "Malformed URL: " url)}})))
-
-     (POST "/document/add"
-       [url]
-       (add-thing
-        (config/make-doc-feed url)
-        :document))
 
      (GET "/lab/:view" [view :<< as-keyword]
        (reader-lab-index {:uri (:uri req)
