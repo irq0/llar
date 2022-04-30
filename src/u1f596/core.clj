@@ -18,6 +18,7 @@
    [u1f596.http :as http]
    [u1f596.blobstore :as blobstore]
    [u1f596.live :as live]
+   [u1f596.notifier :as notifier]
    [u1f596.webapp :as webapp])
   (:gen-class))
 
@@ -45,6 +46,8 @@
 
    #'sched/feed-sched
    #'live/live
+
+   #'notifier/telegram-bot
 
    #'webapp/status
    #'webapp/reader)
