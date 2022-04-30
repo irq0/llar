@@ -70,27 +70,6 @@
      :print-handlers +pprint-handlers+
      :color-markup :html-inline})])
 
-(defn html-exception-chain [th]
-  [:table {:class "exception-chain"}
-   [:thread
-    [:tr
-     [:th "Type"]
-     [:th "Message"]
-     [:th "Data"]]]
-   [:tbody
-    (for [ex (reverse (:via th))]
-      [:tr
-       [:td (pprint-html (:type ex))]
-       [:td (when-not (= 'clojure.lang.ExceptionInfo (:type ex)) (:message ex))]
-       [:td (pprint-html (:data ex))]])]])
-
-(defn html-stack-trace [stack]
-  (html
-   [:ol
-    (for [parsed (stacktrace/parse-trace-elems stack)
-          :let [formatted (stacktrace-repl/pst-elem-str false parsed 70)]]
-      [:li [:pre formatted]])]))
-
 (defn source-status []
   (html
    [:h2 "Sources"]
@@ -137,13 +116,15 @@
       [:h5 "State Structure"]
       (pprint-html state)]
      (when-let [th (some-> (get-in state [:last-exception :throwable])
-                           Throwable->map)]
+                           stacktrace/parse-exception)]
        [:div
         [:h5 "Exception Details"]
-        [:h6 "Chain"]
-        (html-exception-chain th)
+        [:pre (get-in state [:last-exception :object :message])]
         [:h6 "Stack Trace"]
-        (html-stack-trace (:trace th))]))))
+        [:ol
+         (for [s (:trace-elems th)
+               :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+           [:li [:pre formatted]])]]))))
 
 (defn list-to-table [header data]
   [:table {:class "datatable"}
@@ -234,7 +215,10 @@
      [:th "Top Frame"]]]
    [:tbody
      (for [[th stack] stack-traces]
-       [:tr {:data-stacktrace (html-stack-trace stack)
+       [:tr {:data-stacktrace (html [:ol
+                                     (for [s (stacktrace/parse-trace-elems stack)
+                                           :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                                       [:li [:pre formatted]])])
              :class
              (cond
                false "table-info"

@@ -6,12 +6,14 @@
    [u1f596.apis.dataworkbench :as datawb]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
+   [clj-stacktrace.core :as stacktrace]
+   [clj-stacktrace.repl :as stacktrace-repl]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
 (defn exception-response [request ex]
-  (let [th (Throwable->map ex)]
+  (let [th (stacktrace/parse-exception ex)]
     {:status 500
 
      :body (html
@@ -28,7 +30,11 @@
              [:h4 "Request"]
              (status/pprint-html request)
              [:h4 "Exception Chain"]
-             (status/html-exception-chain th)])}))
+             [:pre (get-in ex [:object :message])]
+             [:ol
+              (for [s (:trace-elems th)
+                    :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                [:li [:pre formatted]])]])}))
 
 (defn wrap-exception [handler]
   (fn [request]
