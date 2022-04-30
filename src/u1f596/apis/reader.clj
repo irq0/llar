@@ -106,9 +106,11 @@
   [[:all :default]
    [:saved :item-tags]
    [:highlight :item-tags]
+   [:in-progress :item-tags]
    [:blog :source-tag]
    [:hackernews :source-tag]
    [:tech :source-tag]
+   [:deep-tech :source-tag]
    [:sci :source-tag]
    [:news :source-tag]
    [:bookmark :type]
@@ -157,6 +159,7 @@
    :hackernews "fab fa-y-combinator"
    :storage "fas fa-hdd"
    :tech "fas fa-microchip"
+   :deep-tech "fas fa-microchip"
    :youtube-channel "fab fa-youtube"
    :sci "fas fa-flask"
    :gaming "fas fa-gamepad"

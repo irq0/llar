@@ -66,7 +66,7 @@
 ;; first = first in chain, last = last in chain
 
 (def +highlight-words+
-  #{"quobyte" "marcel lauhoff" "ceph" "ionos"})
+  #{"quobyte" "marcel lauhoff" "ceph" "ionos" "fscrypt" "suse" "irq0"})
 
 (def +highlight-authors+
   (into #{} (map string/lower-case
