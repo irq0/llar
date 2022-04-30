@@ -109,14 +109,15 @@
 ;;; Postprocessing utilities
 
 
-(defn- wrap-proc-fn [item func]
+(defn- wrap-proc-fn [item func hint]
   (fn [& args]
     (try+
      (let [new (apply func args)]
        (log/tracef "proc %s: (%s %s)" (str item) func (count args))
        new)
      (catch Object e
-       (log/warnf (:throwable &throw-context) "proc %s: (%s %s) FAILED: %s" (str item) func (count args) e)
+       (log/warnf (:throwable &throw-context) "proc %s: (%s %s %s) FAILED: %s %s"
+                  (str item) func (count args) hint e (.getMessage e))
        nil))))
 
 (defn- apply-filter [item f]
@@ -138,7 +139,8 @@
         all-proc-first #(all-items-process-first % src state)
         all-proc-last #(all-items-process-last % src state)
         proto-feed-proc (wrap-proc-fn item
-                                      #(post-process-item % src state))]
+                                      #(post-process-item % src state)
+                                      "proto-feed-proc")]
     (log/debugf "Processing feedless %s"
                 (str item))
 
@@ -183,13 +185,14 @@
         per-feed-proc-pre (apply comp
                                  (->> feed
                                       :proc :pre
-                                      (map #(wrap-proc-fn item %))))
+                                      (map #(wrap-proc-fn item % "per-feed-proc-pre"))))
         per-feed-proc-post (apply comp
                                   (->> feed
                                        :proc :post
-                                       (map #(wrap-proc-fn item %))))
+                                       (map #(wrap-proc-fn item % "per-feed-proc-post"))))
         proto-feed-proc (wrap-proc-fn item
-                                      #(post-process-item % src state))
+                                      #(post-process-item % src state)
+                                      "proto-feed-proc")
 
         per-feed-filter (-> feed :proc :filter)
 

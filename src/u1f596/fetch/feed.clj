@@ -81,7 +81,7 @@
   "Extract feed entry timestamp"
   [e http]
   (or (some-> e :published-date)
-      (some-> e :updated-date) 
+      (some-> e :updated-date)
       (get-in http [:meta :fetch-ts])))
 
 (defn http-get-feed-content [url]
@@ -235,7 +235,7 @@
                    item-url (absolutify-url raw-item-url base-url)
                    item (fetch item-url :user-agent user-agent)
                    {:keys [hickory summary]} item]]
-         
+
          (try
            (log/debug (str src) " Fetching: " {:base-url base-url
                                            :item-url item-url})
@@ -248,6 +248,13 @@
                            (first (hick-s/select (:content selectors) sanitized))
                            (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
                  content-html (hick-r/hickory-to-html content)]
+
+             ;; todo match selected+extracted data to some schema
+             (when-not (string? title)
+               (throw+ {:type ::selector-or-extractor-broken
+                        :item "title"
+                        :value title}))
+
              (map->FeedItem
               (-> item
                   (dissoc :meta :hash :hickory :summary :body)
