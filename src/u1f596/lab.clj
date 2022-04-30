@@ -185,7 +185,7 @@
                    exit
                    out
                    err)
-        (throw+ {:type :youtube-error :exit exit})))))
+        (throw+ {:type :youtube-error :msg err :exit exit})))))
 
 (defn music-links []
   (let [sources (-> (persistency/get-sources backend-db config/*srcs*)
@@ -234,7 +234,9 @@
                 (persistency/item-remove-tags! backend-db (:id item) [:download])
                 filename)
               (catch [:type :youtube-error] {:keys [msg]}
-                (log/errorf "Miner failed for %s: %s" item msg))
+                (log/errorf "Miner failed for %s: %s" item msg)
+                (when (or (string/includes? msg "Video unavailable") (string/includes? msg " Sign in to confirm your age"))
+                  (persistency/item-remove-tags! backend-db (:id item) [:download])))
               (catch Object e
                 (log/error e "Unexpected error"))))))))))
 
