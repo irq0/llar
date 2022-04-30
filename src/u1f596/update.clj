@@ -106,7 +106,9 @@
        (log/infof "Updated %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
                   (str src) (count fetched) (count processed) (count dbks)
                   skip-proc skip-store)
-       (make-next-state state :ok 0 nil))
+
+       (-> (make-next-state state :ok 0 nil)
+           (assoc :last-successful-fetch-ts (time/zoned-date-time))))
 
      (catch [:type :u1f596.http/server-error-retry-later] _
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
