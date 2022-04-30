@@ -5,7 +5,6 @@
    [u1f596.postproc :as proc]
    [u1f596.update :as update]
    [u1f596.persistency :as persistency]
-   [u1f596.sched :refer [get-sched-info]]
    [u1f596.blobstore :as blobstore]
    [u1f596.lab :as lab]
    [clj-memory-meter.core :as mm]

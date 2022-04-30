@@ -21,7 +21,16 @@
          fin# (java.lang.System/nanoTime)
          elasped# (- fin# start#)
          elasped-sec# (/ elasped# 1000000)]
-     (log/debugf "%s: %.2fms" (quote ~@body) (float elasped-sec#))
+     (log/debugf "[EXECTIME] form %s: %.2fms" (quote ~@body) (float elasped-sec#))
+     result#))
+
+(defmacro with-log-exec-time-named [metric & body]
+  `(let [start# (java.lang.System/nanoTime)
+         result# (do ~@body)
+         fin# (java.lang.System/nanoTime)
+         elasped# (- fin# start#)
+         elasped-sec# (/ elasped# 1000000)]
+     (log/debugf "[EXECTIME] %s: %.2fms" '~metric (float elasped-sec#))
      result#))
 
 (defmacro with-prom-exec-time [metric & body]

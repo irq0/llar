@@ -33,11 +33,6 @@
 
 (def creds (edn/read-string (slurp (io/resource "credentials.edn"))))
 
-;; second minute hour day-of-week day-of-month month year
-(def cron-hourly "23 42 * * * * *")
-(def cron-daily "23 42 5,8,12,17,23 * * * *")
-(def cron-twitter "23 42 12,18,23 * * * *")
-
 (defn- parse-date-to-zoned-data-time [fmt s]
   (time/zoned-date-time
    (time/local-date (time/formatter fmt) s) 0 (time/zone-id "UTC")))

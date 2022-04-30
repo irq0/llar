@@ -6,7 +6,6 @@
    [u1f596.persistency :as persistency]
    [u1f596.appconfig :as appconfig]
    [u1f596.apis.reader :refer [frontend-db human-datetime-ago]]
-   [u1f596.sched :refer [get-sched-info]]
    [u1f596.metrics :as metrics]
    [compojure.core :refer [routes GET]]
    [compojure.route :as route]
@@ -102,7 +101,6 @@
       [:th "Key"]
       [:th "Status"]
       [:th "Source"]
-      [:th "Sched"]
       [:th "Last Exception"]
       [:th "Last Success / Update"]
       [:th "Last Attempt / Start"]
@@ -110,20 +108,18 @@
     [:tbody
      (for [[k src] config/*srcs*]
        (let [state (get-state k)
-             status (:status state)
-             sched (:schedule (get-sched-info k))]
+             status (:status state)]
          [:tr {:class
                (cond (= :perm-fail status) "table-danger"
                      (= :bug status) "table-info"
                      (contains? #{:updating :running} status) "table-success"
-                     (or (= :temp-fail status) (and (not (= :running status)) (nil? sched))) "table-warning"
+                     (or (= :temp-fail status) (and (not (= :running status)))) "table-warning"
                      :else "")}
           [:td {:class "details-control"}]
           [:td {:class "col-xs-1"} k]
           [:td {:class "col-xs-1"} (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")")))]
           [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
            (str (:src src))]
-          [:td {:class "col-xs-1"} [:pre (or sched [:emph "No sched"])]]
           [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
            (get-in state [:last-exception :object :type])]
           [:td {:class "col-xs-1"}  (some-> (or (:last-successful-fetch-ts state)
@@ -135,8 +131,7 @@
 
 (defn source-details [k]
   (let [state (get-state (keyword k))
-        status (:status state)
-        sched (:schedule (get-sched-info k))]
+        status (:status state)]
     (html
      [:div
       [:h5 "State Structure"]
@@ -250,7 +245,7 @@
         [:td {:class "col-xs-1"} [:pre (.getState th)]]
         [:td {:class "col-xs-4"} [:pre (first stack)]]
         ])]]))
-  
+
 
 (defn home-tab [])
 

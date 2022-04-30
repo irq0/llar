@@ -41,16 +41,17 @@
    #'update/state
    #'metrics/prom-registry
 
-   #'sched/db-sched
-   #'sched/misc-sched
-
-   #'sched/feed-sched
    #'live/live
 
    #'notifier/telegram-bot
 
    #'webapp/status
    #'webapp/reader)
+
+  (mount/start sched/db-sched)
+  (mount/start sched/misc-sched)
+  (mount/start sched/feed-sched)
+
   (doseq [[key db-config] (:postgresql appconfig/appconfig)
           :let [db-spec (db/make-postgresql-dbspec db-config)
                 store (db/make-postgresql-datastore db-spec)]]

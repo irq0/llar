@@ -51,7 +51,6 @@
                  [mount "0.1.16"]
                  [robert/hooke "1.3.0"]
                  [clojure-opennlp "0.5.0"]
-                 [hara/io.scheduler "3.0.12"]
                  [com.novemberain/pantomime "2.11.0"]
                  [com.firebase/firebase-client-jvm "2.5.2"]
                  [org.clojure/java.jdbc "0.7.12"]
@@ -68,3 +67,4 @@
                  [io.github.nextjournal/clerk "0.3.233"]])
                  [telegrambot-lib "1.5.0"]
                  [com.layerware/hugsql "0.5.3"]
+                 [jarohen/chime "0.3.3"]

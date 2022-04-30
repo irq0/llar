@@ -233,3 +233,16 @@
   [story-feed
    & {:keys [throttle-secs]}]
   (->HackerNews story-feed {:throttle-secs (or throttle-secs 120)}))
+
+
+(defn feed? [src]
+  (some #(instance? % src) [Feed SelectorFeed WordpressJsonFeed Reddit]))
+
+(defn twitter? [src]
+  (some #(instance? % src) [TwitterSearch TwitterApi]))
+
+(defn reddit? [src]
+  (some #(instance? % src) [Reddit]))
+
+(defn mailbox? [src]
+  (some #(instance? % src) [ImapMailbox]))
