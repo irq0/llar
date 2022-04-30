@@ -5,6 +5,7 @@
    [u1f596.postproc :as proc]
    [u1f596.update :as update]
    [u1f596.persistency :as persistency]
+   [u1f596.fetch.bookmark :as bookmark]
    [u1f596.store :refer [store-items!]]
    [u1f596.db.core :as db]
    [u1f596.blobstore :as blobstore]
@@ -38,10 +39,6 @@
 
 ;; show last update ts
 ;; open links in external
-
-
-;; add link as bookmark
-
 
 ;; State: annotations live in memory
 
@@ -1673,10 +1670,10 @@
        (try
          (case type
            :readability-bookmark (add-thing
-                                  (config/make-readability-bookmark-feed url)
+                                  (bookmark/make-readability-bookmark-feed url)
                                   :bookmark)
            :raw-bookmark (add-thing
-                          (config/make-raw-bookmark-feed url)
+                          (bookmark/make-raw-bookmark-feed url)
                           :bookmark))
          (catch java.net.MalformedURLException ex
            {:status 400
