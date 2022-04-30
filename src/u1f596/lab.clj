@@ -223,7 +223,7 @@
     (doall
      (for [item items]
        (let [url (get-in item [:entry :url])
-             dest-dir (str "/home/seri/MEDIA/"
+             dest-dir (str "/MEDIA/"
                            (name (:key item)))]
          (when (re-find #"^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$" url)
            (log/info "Downloading " url " to " dest-dir)
@@ -250,7 +250,7 @@
                                 mime (pantomime.mime/mime-type-of local-fn)
                                 extension (pantomime.mime/extension-for-name mime)]
                             [local-fn (str source-key "_" blob extension)]))))]
-    (let [dst-file (io/file "/home/seri/Pictures/wallpaper" destination)]
+    (let [dst-file (io/file "/wallpaper" destination)]
       (when-not (.exists dst-file)
         (io/copy source dst-file)
         dst-file))))
