@@ -231,7 +231,7 @@
            (future
              (try+
               (let [filename (youtube-dl-video url dest-dir)]
-                (persistency/item-remove-tags! backend-db (:id item) :download)
+                (persistency/item-remove-tags! backend-db (:id item) [:download])
                 filename)
               (catch [:type :youtube-error] {:keys [msg]}
                 (log/errorf "Miner failed for %s: %s" item msg))
