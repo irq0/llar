@@ -1,4 +1,4 @@
-FROM ubuntu:focal
+FROM ubuntu:jammy
 
 RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
@@ -9,7 +9,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y install \
   lynx \
   html2text \
   poppler-utils \
-  openjdk-16-jdk-headless \
+  openjdk-18-jdk-headless \
   leiningen \
   wget \
   yarnpkg \
