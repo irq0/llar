@@ -102,9 +102,11 @@
 
 (defn remove-url-garbage [uri]
   (cond-> uri
-    (uri/path uri)
-    (uri/path
-     (string/replace (uri/path uri) #"[^a-zA-Z0-9\.\-_~!&'\(\)*+,;=:@/]" ""))
+    ;; What not to filter:
+    ;; (uri/path uri)
+    ;; (uri/path
+    ;;  (string/replace (uri/path uri) #"[^a-zA-Z0-9\.\-_~!&'\(\)*+,;=:@/]" ""))
+    ;; Why? unicode chars are actually allowed in url paths
 
     (= (uri/scheme-relative uri) "//")
     (uri/scheme-relative "/")
@@ -125,9 +127,10 @@
                :url s} nil))))
 
 (defn parse-href [s]
-  (when-let [url (or (swallow-exceptions (parse-url s))
-                     (swallow-exceptions (parse-url (str "/" s))))]
-    url))
+  (let [decoded (or (swallow-exceptions (java.net.URLDecoder/decode s)) s)]
+  (when-let [url (or (swallow-exceptions (parse-url decoded))
+                     (swallow-exceptions (parse-url (str "/" decoded))))]
+    url)))
 
 (defn- append-path-if-not-exist [url]
   (if (nil? (uri/path url))
@@ -439,11 +442,12 @@
 
 (defn fetch
   "Generic HTTP fetcher"
-  [url & {:keys [user-agent sanitize? remove-css? simplify? blobify?]
+  [url & {:keys [user-agent sanitize? remove-css? simplify? blobify? absolutify-urls?]
           :or {user-agent :default
                sanitize? true
                blobify? true
                remove-css? false
+               absolutify-urls? true
                simplify? false}}]
   (let [url (parse-url url)
         base-url (get-base-url-with-path url)]
@@ -454,8 +458,8 @@
                                :cookie-policy :none})
            parsed-html (cond-> (-> response
                                    :body
-                                   hick/parse hick/as-hickory
-                                   (absolutify-links-in-hick base-url))
+                                   hick/parse hick/as-hickory)
+                         absolutify-urls? (absolutify-links-in-hick base-url)
                          sanitize? (sanitize :remove-css? remove-css?)
                          simplify? (simplify)
                          blobify? (blobify))]

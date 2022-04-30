@@ -172,11 +172,12 @@
     (is (empty? style-attrs) "All style attrs cleared")
     (is (empty? stylesheet-links) "All style sheet links should be removed")))
 
-
 (deftest absolutify-url
   (testing
       "Basics"
     (are [x y] (= (str x) (str y))
+      "https://example.com/squeezing-cybersecurity-lemons-–-labeling-regime-iot-products"
+      (uut/absolutify-url "/squeezing-cybersecurity-lemons-%E2%80%93-labeling-regime-iot-products" "https://example.com")
       "https://example.com/baz/foo.txt" (uut/absolutify-url "foo.txt" "https://example.com/baz/")
       "https://example.com/foo.txt" (uut/absolutify-url "/foo.txt" "https://example.com/baz/")
       "https://example.com/foo/" (uut/absolutify-url "/foo/" "https://example.com/baz/")
@@ -200,11 +201,11 @@
       "mailto:infobot@example.com?body=send%20current-issue"
       "mailto:chris@example.com"
       "mailto:?to=joe@example.com&cc=bob@example.com&body=hello"))
-  
+
   (testing
       "Half kaputt, but quirks-mode parsable"
 
-    (is (= "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB"
+    (is (= "http://www.google.com/search?hl=en&q=2^20 * 2^12 bytes in GB"
            (str (uut/absolutify-url "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB" nil))))
     (is (= "https://example.com/3/extending/extending.html"
            (str (uut/absolutify-url "https://example.com/3/extending/extending.html\"" nil))))
@@ -219,7 +220,8 @@
                                                        "http://some-other-base-url.com")))
      "Absolute urls are returned as is regardless of base url"))
   (testing "Meaningless input should throw"
-    (is (thrown+? [:type :schema.core/error]
+    (is (thrown+? [:type :u1f596.http/absolutify-impossible
+                   :reason :u1f596.http/base-url-useless]
                   (uut/absolutify-url nil "")))
     (is (thrown+? [:type :u1f596.http/absolutify-impossible
                    :reason :u1f596.http/base-url-relative]
