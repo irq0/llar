@@ -212,6 +212,11 @@
 (defn updateable-sources []
   (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) config/*srcs*)))
 
+(defn update-some! [keys & args]
+  (doall
+   (pmap #(apply update! (key %) args)
+         (filter #(contains? (set keys) (key %)) (updateable-sources)))))
+
 (defn update-all! [& args]
   (doall
    (pmap #(apply update! (key %) args) (updateable-sources))))

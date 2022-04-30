@@ -57,6 +57,7 @@ function tag_item_by_id(id, tag, icon_elem) {
 //
 // group action buttons
 //
+
 $(".btn-mark-view-read").click(function () {
     var ids = jQuery.unique($("main").find("[data-id]").map(function () {
 	return $(this).data("id");
@@ -66,6 +67,50 @@ $(".btn-mark-view-read").click(function () {
 	var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
 	tag_item_by_id(id, "unread", icon_elem);
     }
+});
+
+$(".btn-update-sources-in-view").popover({
+    placement: "bottom",
+    container: "body",
+    offset: 10,
+    trigger: "manual",
+    html: true,
+    title: function () {
+	return $(".btn-update-sources-in-view").data("result-title");
+    },
+    content: function () {
+	return $(".btn-update-sources-in-view").data("result-message");
+    }
+});
+
+function show_update_sources_update_result(title, message) {
+    var popover_root = $(".btn-update-sources-in-view");
+    popover_root.data("result-title", "Update done");
+    popover_root.data("result-message", `<div class="text-center">${message}</div>`);
+    popover_root.popover("show");
+}
+
+function update_sources_update_state(target) {
+    $.getJSON(target, function(result) {
+	if (result["done"]) {
+	    var items_url = $(".btn-update-sources-in-view").data("items");
+	    show_update_sources_update_result(
+		"Update done",
+		`<a href="${items_url}">refresh</a>`
+	    );
+	} else {
+	    setTimeout(update_sources_update_state, 5000, target);
+	}
+    });
+}
+
+$(".btn-update-sources-in-view").click(function () {
+    var target = $(this).data("target");
+    $.post(target, function(data, status) {
+	if (status == "success") {
+	    setTimeout(update_sources_update_state, 5000, target);
+	}
+    });
 });
 
 //

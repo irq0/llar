@@ -301,14 +301,15 @@
         active-key (:group-item x)
         active-source (:source-key x)
 
+        link-prefix (format "/reader/group/%s/%s/source/%s"
+                            (name group-name)
+                            (name group-item)
+                            (name source-key))
+
         next-item-href (when (> (count items) 1)
-                         (let [link-prefix (format "/reader/group/%s/%s/source/%s"
-                                                   (name group-name)
-                                                   (name group-item)
-                                                   (name source-key))]
-                           (make-site-href [link-prefix "item/by-id"
-                                            (-> items second :id)]
-                                           {:mark :read} x)))
+                         (make-site-href [link-prefix "item/by-id"
+                                          (-> items second :id)]
+                                         {:mark :read} x))
 
         next-item-button (when (> (count items) 1)
                            [:a {:class "btn btn-secondary"
@@ -386,16 +387,26 @@
          (= mode :list-items)
          [:div {:class "col-xs-8 col-ld-12"}
           [:a {:class "btn btn-secondary"
+               :title "Back to first item"
+               :href (make-site-href [(:uri x)] x)}
+           (icon "fas fa-fast-backward")]
+
+          [:a {:class "btn btn-secondary"
+               :title "Forward N items"
                :href (make-site-href [(:uri x)] (:range-before x) x)}
-           (icon "fas fa-sync")]
+           (icon "fas fa-forward")]
 
           [:a {:class "btn btn-secondary btn-mark-view-read"
+               :title "Toggle unread on all items in view"
                :href "#"}
            (icon "fas fa-glasses")]
 
-          [:a {:class "btn btn-secondary"
-               :href (make-site-href [(:uri x)] x)}
-           (icon "fas fa-step-backward")]]
+          [:a {:class "btn btn-secondary btn-update-sources-in-view"
+               :title "Update sources in view"
+               :data-target (make-site-href [link-prefix "update"] x)
+               :data-items (make-site-href [(:uri x)] x)
+               :href "#"}
+           (icon "fas fa-download")]]
 
          (= mode :show-item)
          [:div {:class "col-xs-8 col-ld-12"}
@@ -1389,6 +1400,41 @@
                         :ids (map :id (:items params))
                         :titles (map :title (:items params))}}))))))
 
+(def update-futures (atom {}))
+
+(defn update-sources [params]
+  (let [sources (metrics/with-prom-exec-time :compile-sources
+                  (doall (persistency/get-sources frontend-db config/*srcs*)))
+        active-sources (metrics/with-prom-exec-time :active-sources
+                         (doall
+                          (persistency/sources-merge-in-tags-counts
+                           frontend-db
+                           (get-active-group-sources sources params))))
+        active-source-keys (vec (sort (map :key active-sources)))
+        fut (future (update/update-some! active-source-keys))]
+    (swap! update-futures assoc active-source-keys fut)
+    (log/infof "[🖖-UI] Updating sources: %s (%s)" active-source-keys fut)
+    {:status 200
+     :body {:source-keys active-source-keys
+            :future (str fut)}}))
+
+(defn update-sources-status [params]
+  (let [sources (metrics/with-prom-exec-time :compile-sources
+                  (doall (persistency/get-sources frontend-db config/*srcs*)))
+        active-sources (metrics/with-prom-exec-time :active-sources
+                         (doall
+                          (persistency/sources-merge-in-tags-counts
+                           frontend-db
+                           (get-active-group-sources sources params))))
+        active-source-keys (vec (sort (map :key active-sources)))
+        fut (get @update-futures active-source-keys)]
+    (when fut
+      {:status 200
+       :body {:source-keys active-source-keys
+              :future (str fut)
+              :done (future-done? fut)
+              :result (when (future-done? fut) @fut)}})))
+
 (defmulti lab-view-handler :view)
 
 (defmethod lab-view-handler
@@ -1664,6 +1710,18 @@
        [group-name :<< as-keyword
         group-item :<< as-keyword
         source-key :<< as-keyword]
+
+       (POST "/update" []
+             (update-sources {:uri (:uri req)
+                              :group-name group-name
+                              :group-item group-item
+                              :source-key source-key}))
+
+       (GET "/update" []
+             (update-sources-status {:uri (:uri req)
+                                     :group-name group-name
+                                     :group-item group-item
+                                     :source-key source-key}))
 
        (GET "/items"
          [id :<< as-int
