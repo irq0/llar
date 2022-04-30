@@ -73,7 +73,7 @@
              skip-store false
              overwrite? false}}]
 
-  (let [feed (get config/*srcs* k)
+  (let [feed (config/get-source k)
         state (get @state k)
         now (time/zoned-date-time)
         {:keys [src]} feed
@@ -148,24 +148,25 @@
 (defn reset-all-failed!
   "Reset all feed states to :new"
   []
-  (doseq [[k v] config/*srcs*]
+  (doseq [[k v] (config/get-sources)]
     (set-status! k :new)))
 
 ;;; Update API
 
 (defn update!
-  "Update feed by id (see: *srcs*)"
+  "Update feed by id"
   [k & {:keys [force]
         :as args}]
 
-  (when (nil? (get config/*srcs* k))
-    (throw+ {:type ::unknown-source-key :key k :known-keys (keys config/*srcs*)}))
+  (when (nil? (config/get-source k))
+    (throw+ {:type ::unknown-source-key :key k :known-keys (keys (config/get-sources))}))
 
-  (when-not (satisfies? fetch/FetchSource (get-in config/*srcs* [k :src]))
-    (throw+ {:type ::source-not-fetchable
-             :key k
-             :src (get-in config/*srcs* [k :src])
-             :src-type (type (get-in config/*srcs* [k :src]))}))
+  (when-not (satisfies? fetch/FetchSource (:src (config/get-source k)))
+    (let [src (config/get-source k)]
+      (throw+ {:type ::source-not-fetchable
+               :key k
+               :src (:src src)
+               :src-type (type (:src src))})))
 
   (when-not (contains? @state k)
     (swap! state assoc k (assoc src-state-template :key k)))
@@ -212,7 +213,7 @@
           cur-status))))
 
 (defn updateable-sources []
-  (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) config/*srcs*)))
+  (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) (config/get-sources))))
 
 (defn update-some! [keys & args]
   (doall

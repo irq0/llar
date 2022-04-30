@@ -26,9 +26,17 @@
            filter (constantly false)}}]
   (Processing. post pre filter))
 
+;; new api
+(defn new
+  "Make new Processing record"
+  [{:keys [post pre rm]
+    :or {post []
+         pre []
+         rm (constantly false)}}]
+  (Processing. post pre rm))
+
 
 ;;;; Postprocessing utility functions
-
 
 (defn add-tag [tag]
   (fn [item]

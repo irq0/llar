@@ -19,6 +19,7 @@
    [clojure.set :refer [intersection]]
    [hiccup.core :refer [html]]
    [hickory.select :as S]
+   [schema.core :as s]
    [slingshot.slingshot :refer [try+]]
    [clj-http.client :as http-client]
    [clj-http.cookies :as http-cookies]
@@ -33,109 +34,80 @@
 
 (def creds (edn/read-string (slurp (io/resource "credentials.edn"))))
 
-(def ^:dynamic *srcs*
-  {:twit-c3pb {:src (src/twitter-search "c3pb" (:twitter-api creds))
-               :proc (proc/make
-                      :filter (fn [item]
-                                (->> item
-                                     :entry
-                                     :type
-                                     #{:retweet})))
-               :tags #{}}
+(defonce ^:private srcs (atom {}))
 
-   :twitter-timeline {:src (src/twitter-timeline (:twitter-api creds))
-                      :tags #{}}
+(defn get-sources [] @srcs)
 
-   :twit-berlin-pics {:src (src/twitter-search "#berlin filter:images"
-                                               (:twitter-api creds))
-                      :options #{:mark-read-on-view}
-                      :proc (proc/make
-                             :filter (fn [item]
-                                       (let [type (get-in item [:entry :type])
-                                             text (get-in item [:entry :contents "text/plain"])]
-                                         (or
-                                          (#{:retweet} type)
-                                          (= (count (get-in item [:entry :entities :photos])) 0)
-                                          (re-find #"pussy|porn|camsex|webcam" text))))
-                             :proc [(fn [item]
-                                      (assoc-in item [:entry :contents "text/html"]
-                                                (format "<img src=\"%s\"/>"
-                                                        (first (get-in item [:entry :entities :photos])))))])
-                      :tags #{:pics}}
+(defn get-source [k] (get @srcs k))
 
-   :impfcenter-berlin {:last-state (atom {})
-                       :src (src/custom :impfcenter (fn [] (let [data (:body (http-client/get "https://www.joerss.dev/api/ampel/" {:as :json}))
-                                                                 color-num-to-kw {0 :red 1 :amber 2 :green}]
-                                                             (for [{:keys [ciz color updateDateTime]} data]
-                                                               {:summary {:title (str "Impfcenter " ciz)
-                                                                          :ts (time/zoned-date-time (time/formatter :iso-date-time) updateDateTime)}
-                                                                :entry [ciz (get color-num-to-kw color)]}))))
-                       :proc (proc/make
-                              :filter (constantly true)
-                              :pre [(fn [item]
-                                      (let [[name new-state] (:entry item)
-                                            last-state-atom (get-in *srcs* [(get-in item [:meta :source-key])
-                                                                            :last-state])
-                                            last-state (get @last-state-atom name)]
-                                        (log/info name last-state "->" new-state)
-                                        (when (and (#{:red :amber} last-state) (= :green new-state))
-                                          (notifier/notify :vac (str "Go! " name ": " last-state " -> " new-state)))
-                                        (when (and (= :green last-state) (#{:red :amber} new-state))
-                                          (notifier/notify :vac (str "Don't go "  name ": " last-state " -> " new-state)))
-                                        (swap! last-state-atom assoc name new-state)
-;;                                        (notifier/notify :vac (str name ": " last-state " -> " new-state))
-                                        item))])}
+(defmacro wrap-proc [src-key tags options & body]
+  (when-not (nil? body)
+    `(fn [item#]
+       (let [~'$item item#
+             ~'$key ~src-key
+             ~'$title (get-in item# [:summary :title])
+             ~'$authors (get-in item# [:entry :authors])
+             ~'$tags ~tags
+             ~'$raw (get item# :raw)
+             ~'$url (get-in item# [:entry :url])
+             ~'$html (get-in item# [:entry :contents "text/html"])
+             ~'$text (get-in item# [:entry :contents "text/plain"])
+             ~'$options ~options
+             ~'$entry (:entry item#)]
+         (do ~@body)))))
 
+;; TODO validate filter code. get dummy from source; pass through see if item exists and things
+;; TODO validate pre / post
+(defmacro fetch
+  [src-key src & body]
+  (let [{:keys [options tags post pre rm post-fns pre-fns rm-fn]
+         :or {options #{} tags #{}}
+         :as params}
+        (apply hash-map body)
 
-   :usenix-login {:src
-                  (u1f596.src/selector-feed "https://www.usenix.org/publications/loginonline"
-                                            {:urls (S/and (S/tag :a)
-                                                          (S/has-descendant (S/find-in-text #"Read article now")))
-                                             :ts (S/class "date-display-single")
-                                             :title (S/id "page-title")
-                                             :author (S/descendant (S/class "field-pseudo-field--author-list") (S/tag :a))
-                                             :content (S/id "block-system-main")}
-                                            {:urls (fn [l] (map (fn [x] (log/spy (->> x :attrs :href http/parse-href))) l))
-                                             :ts #(->> %
-                                                       first
-                                                       :content
-                                                       first
-                                                       (parse-date-to-zoned-data-time "MMMM d, yyyy"))
-                                             :author (fn [l] (map #(->> % :attrs :title) l))
-                                             :title (fn [l] (->> l first :content first))
-                                             :content (fn [l] (log/spy l) (->> l first :content))
-                                             })
-                  :tags #{:deep-tech :sci}}
+        src-kw (keyword src-key)
+
+        pre (cond (some? pre-fns) pre-fns
+                  (some? pre) [`(wrap-proc ~src-kw ~tags ~options ~pre)]
+                  :default nil)
+
+        post (cond (some? post-fns) post-fns
+                  (some? post) [`(wrap-proc ~src-kw ~tags ~options ~post)]
+                  :default nil)
+
+        rm (cond (some? rm-fn) rm-fn
+                  (some? rm) `(wrap-proc ~src-kw ~tags ~options ~rm)
+                  :default '(constantly false))
+        ]
+
+    (s/validate #{s/Keyword} tags)
+    (s/validate #{s/Keyword} options)
+
+    `(do (swap! srcs assoc (keyword '~src-key)
+                {:src ~src
+                 :options ~options
+                 :tags ~tags
+                 :proc (proc/new {:rm ~rm
+                                  :pre ~pre
+                                  :post ~post})})
+         (keyword '~src-key))))
 
 
-   :fefe {:src (src/selector-feed "https://blog.fefe.de"
-                                  {:urls (S/descendant
-                                          (S/find-in-text #"\[l\]"))
-                                   :ts (S/tag :h3)
-                                   :title (S/tag :li)
-                                   :content (S/tag :li)}
-                                  {:content  #(->> % first :content (drop 1))
-                                   :author "fefe"
-                                   :urls (fn [l] (map (fn [x] (->> x :attrs :href uri/uri)) l))
-                                   :title (fn [l]
-                                            (human/truncate
-                                             (->> l
-                                                  first
-                                                  :content
-                                                  (drop 1)
-                                                  first
-                                                  hickory-to-html
-                                                  (converter/html2text))
-                                             70))
+(defmacro fetch-reddit
+  [src & body]
+  (let [{:keys [options tags min-score]
+         :or {options #{} tags #{} min-score 0}
+         :as params} (apply hash-map body)]
+    (s/validate #{s/Keyword} tags)
+    (s/validate #{s/Keyword} options)
 
-                                   :ts #(->> %
-                                             first
-                                             :content
-                                             first
-                                             (parse-date-to-zoned-data-time "EEE MMM d yyyy"))})
-          :tags #{:blog}}
-
-   :paulgraham {:src (src/selector-feed "http://www.paulgraham.com/articles.html"
+    `(do (let [src-key# (keyword (str "reddit-" (string/lower-case (:subreddit ~src))))]
+           (swap! srcs assoc src-key#
+                  {:src ~src
+                   :options ~options
+                   :tags (conj ~tags :reddit)
+                   :proc (make-reddit-proc ~min-score)})
+         (keyword src-key#)))))
                                   {:urls (S/descendant
                                           (S/tag :td)
                                           (S/tag :font)

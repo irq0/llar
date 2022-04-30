@@ -1265,7 +1265,7 @@
       (vals sources)
 
       (= group-name :item-tags)
-      (persistency/get-sources-item-tags-counts frontend-db group-item (:filter params) config/*srcs*)
+      (persistency/get-sources-item-tags-counts frontend-db group-item (:filter params) (config/get-sources))
 
       (= group-name :source-tag)
       (filter #(contains? (:tags %) group-item) (vals sources))
@@ -1288,7 +1288,7 @@
   "Download Selected Item Content"
   [params]
   (let [sources (metrics/with-prom-exec-time :compile-sources
-                  (persistency/get-sources frontend-db config/*srcs*))
+                  (persistency/get-sources frontend-db (config/get-sources)))
 
         items (metrics/with-prom-exec-time :items-current-view
                 (get-items-for-current-view sources params))
@@ -1327,7 +1327,7 @@
                              (doall (persistency/get-tags frontend-db))))
 
          sources (metrics/with-prom-exec-time :compile-sources
-                   (doall (persistency/get-sources frontend-db config/*srcs*)))
+                   (doall (persistency/get-sources frontend-db (config/get-sources))))
          items (future (metrics/with-prom-exec-time :items-current-view
                          (doall (get-items-for-current-view sources params))))
          ;; right sidebar
@@ -1397,7 +1397,7 @@
 
 (defn update-sources [params]
   (let [sources (metrics/with-prom-exec-time :compile-sources
-                  (doall (persistency/get-sources frontend-db config/*srcs*)))
+                  (doall (persistency/get-sources frontend-db (config/get-sources))))
         active-sources (metrics/with-prom-exec-time :active-sources
                          (doall
                           (persistency/sources-merge-in-tags-counts
@@ -1413,7 +1413,7 @@
 
 (defn update-sources-status [params]
   (let [sources (metrics/with-prom-exec-time :compile-sources
-                  (doall (persistency/get-sources frontend-db config/*srcs*)))
+                  (doall (persistency/get-sources frontend-db (config/get-sources))))
         active-sources (metrics/with-prom-exec-time :active-sources
                          (doall
                           (persistency/sources-merge-in-tags-counts

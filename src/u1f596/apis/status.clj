@@ -85,7 +85,7 @@
       [:th "Last Attempt / Start"]
       ]]
     [:tbody
-     (for [[k src] config/*srcs*]
+     (for [[k src] (config/get-sources)]
        (let [state (get-state k)
              status (:status state)]
          [:tr {:class
@@ -152,11 +152,7 @@
             ["Runtime Free" (human/filesize (.freeMemory (Runtime/getRuntime)))]
             ["Runtime Used" (human/filesize
                              (- (.totalMemory (Runtime/getRuntime))
-                                (.freeMemory (Runtime/getRuntime))))]
-            ;; ["*srcs*" (mm/measure core/*srcs*)]
-            ;; ["reader annotations" (mm/measure reader/annotations)]
-            ;; ["domain blacklist" (mm/measure u1f596-http/domain-blacklist)]
-            ]]
+                                (.freeMemory (Runtime/getRuntime))))]]]
        [:tr
         [:td name]
         [:td value]])]]))

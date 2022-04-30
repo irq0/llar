@@ -188,7 +188,7 @@
         (throw+ {:type :youtube-error :msg err :exit exit})))))
 
 (defn music-links []
-  (let [sources (-> (persistency/get-sources backend-db config/*srcs*)
+  (let [sources (-> (persistency/get-sources backend-db (config/get-sources))
                     vals)
         music-srcs (->> sources
                         (filter #(contains? (:tags %) :music))

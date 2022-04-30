@@ -23,7 +23,7 @@
 (defn process [item]
   (let [{:keys [_]} item
         k (get-in item [:meta :source-key])
-        feed (get config/*srcs* k)
+        feed (config/get-source k)
         state (get-in live [:sources k :state])]
 
     (when (or (= k :unknown) (nil? k) (nil? @state))
@@ -52,7 +52,7 @@
 
 (defn live-feeds []
   (into {}
-        (for [[k feed] config/*srcs*
+        (for [[k feed] (config/get-sources)
               :when (satisfies? LiveSource (:src feed))]
           [k feed])))
 
