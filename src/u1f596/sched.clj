@@ -48,18 +48,18 @@
 (defsched update-db-search-indices (chime/periodic-seq (today-at 5 0) (Duration/ofDays 1))
   (persistency/update-index! backend-db))
 
-(defsched update-clustered-saved-items (chime/periodic-seq (chime/now) (Duration/ofHours 12))
+(defsched update-clustered-saved-items (chime/periodic-seq (.plusSeconds (chime/now) 42) (Duration/ofHours 12))
   (log/info "Updating saved items cluster")
   (reset!
    u1f596-lab/current-clustered-saved-items
    (u1f596-lab/cluster-saved)))
 
-(defsched download-tagged-items (chime/periodic-seq (chime/now) (Duration/ofMinutes 10))
+(defsched download-tagged-items (chime/periodic-seq (.plusSeconds (chime/now) 42) (Duration/ofMinutes 10))
   (log/info
    "Downloaded tagged links:"
-   (u1f596-lab/download-tagged-stuff)))
+   (vec (u1f596-lab/download-tagged-stuff))))
 
-(defsched copy-wallpapers (chime/periodic-seq (chime/now) (Duration/ofHours 1))
+(defsched copy-wallpapers (chime/periodic-seq (.plusSeconds (chime/now) 42) (Duration/ofHours 1))
   (log/info
    "New Wallpaper: "
    (u1f596-lab/copy-wallpapers-to-home)))
@@ -140,7 +140,7 @@
 
 
 (defsched-feed-by-filter twitter
-  (chime/periodic-seq (chime/now) (Duration/ofHours 4))
+  early-morning
   (src/twitter? $SRC))
 
 (defsched-feed-by-filter reddit
