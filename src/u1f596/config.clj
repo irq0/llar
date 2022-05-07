@@ -265,9 +265,6 @@
        :post-fns [(proc/add-tag :highlight)
                   (proc/exchange [:entry :descriptions] [:entry :contents])])
 
-(fetch uusenix-conferences (src/feed "https://www.usenix.org/upcoming-conferences-feed")
-       :tags #{:events})
-
 (fetch acm-queue (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml"
                            :user-agent :browser
                                  :force-update? true)
