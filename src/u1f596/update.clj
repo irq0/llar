@@ -249,3 +249,9 @@
         failed-sources (select-keys (updateable-sources) failed-source-keys)]
     (doall
      (map #(apply update! (key %) args) failed-sources))))
+
+(defn update-unfetched! [& args]
+  (let [sources-and-state (merge-with merge (updateable-sources) @state)
+        unfetched-keys (map key (filter (fn [[k v]] (nil? (:status v))) sources-and-state))
+        result (doall (pmap #(apply update! % args) unfetched-keys))]
+    result))
