@@ -77,8 +77,8 @@
 
         rm (cond (some? rm-fn) rm-fn
                   (some? rm) `(wrap-proc ~src-kw ~tags ~options ~rm)
-                  :default '(constantly false))
-        ]
+                  :default '(constantly false))]
+
 
     (s/validate #{s/Keyword} tags)
     (s/validate #{s/Keyword} options)
@@ -147,8 +147,8 @@
                                      (parse-date-to-zoned-data-time "MMMM d, yyyy"))
                            :author (fn [l] (map #(->> % :attrs :title) l))
                            :title (fn [l] (->> l first :content first))
-                           :content (fn [l] (log/spy l) (->> l first :content))
-                           })
+                           :content (fn [l] (log/spy l) (->> l first :content))})
+
        :tags #{:deep-tech :sci})
 
 (fetch fefe
@@ -189,8 +189,8 @@
                                         (S/tag :font))
                                    :title (S/tag :title)
                                    :content (S/descendant
-                                        (S/tag :td)
-                                        (S/tag :font))}
+                                             (S/tag :td)
+                                             (S/tag :font))}
                                   {:content  #(->> % first :content (drop 1))
                                    :author "Paul Graham"
                                    :urls (fn [l] (take 10 (map (fn [x] (->> x :attrs :href uri/uri)) l)))
@@ -270,13 +270,14 @@
 
 (fetch acm-queue (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml"
                            :user-agent :browser
-                           :force-update? true)
+                                 :force-update? true)
        :post-fns [(mercury-contents :keep-orig? true)]
        :tags #{:tech :magazine :sci})
 
 
 (fetch-reddit (src/reddit "DIY" :top) :min-score 2000)
 (fetch-reddit (src/reddit "DataHoarder" :top) :min-score 10
+              :options #{:mark-read-on-view}
               :tags #{:tech})
 (fetch-reddit (src/reddit "fascinating" :top) :min-score 100)
 
@@ -623,7 +624,7 @@
                                           [:img {:src img-url
                                                  :orig-src orig-img-url}]
                                           [:p descr]])}]
-                                             (-> $item
+                  (-> $item
                                                  (assoc-in [:entry :contents] content)
                                                  (assoc-in [:entry :lead-image-url] img-url)))
        :tags #{:pics})
@@ -649,7 +650,7 @@
                                            :content (S/class "note")}
                                           :author (constantly ["Will Crichton"])
                                           {:content #(-> % first :attrs :content)
-                                          :author (constantly ["Will Crichton"])
+                                           :author (constantly ["Will Crichton"])
                                            :ts #(->> % first :content first (re-find #"\w+\s\d{1,2},\s\d{4}")
                                                      (parse-date-to-zoned-data-time
                                                       (time/formatter "MMMM d, yyyy")))})
@@ -726,7 +727,7 @@
                     (assoc-in [:entry :contents]
                               {"text/html" html
                                "text/plain" (converter/html2text html)}))))
-                :tags #{:tech :deep-tech})
+            :tags #{:tech :deep-tech})
 
 (fetch thenewstack (src/feed "https://thenewstack.io/feed/")
        :options #{:mark-read-on-view}
@@ -746,13 +747,13 @@
 
 (fetch longform (src/feed "https://longform.org/feed.rss")
        :pre-fns [(mercury-contents)
-             (fn [item] (let [redirect-page (http/fetch (get-in item [:entry :url]))
-                              real-article-link (some-> (S/select
-                                                         (S/descendant
-                                                          (S/class "post__link"))
-                                                         (:hickory redirect-page))
+                 (fn [item] (let [redirect-page (http/fetch (get-in item [:entry :url]))
+                                  real-article-link (some-> (S/select
+                                                             (S/descendant
+                                                              (S/class "post__link"))
+                                                             (:hickory redirect-page))
                                                         first :attrs :href)]
-                          (assoc-in item [:entry :url] (uri/uri real-article-link))))]
+                             (assoc-in item [:entry :url] (uri/uri real-article-link))))]
        :tags #{:magazine}
        :options #{:main-list-use-description})
 
@@ -987,7 +988,7 @@
                               :pre [(fn [item]
                                       (let [[name new-state] (:entry item)
                                             last-state-atom (get-in (get-sources) [(get-in item [:meta :source-key])
-                                                                            :last-state])
+                                                                                   :last-state])
                                             last-state (get @last-state-atom name)]
                                         (log/info name last-state "->" new-state)
                                         (when (and (#{:red :amber} last-state) (= :green new-state))
@@ -996,5 +997,4 @@
                                           (notifier/notify :vac (str "Don't go "  name ": " last-state " -> " new-state)))
                                         (swap! last-state-atom assoc name new-state)
 ;;                                        (notifier/notify :vac (str name ": " last-state " -> " new-state))
-                                        item))])}
-   )
+                                        item))])})
