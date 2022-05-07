@@ -58,6 +58,13 @@
      (log/error "Unexpected error: " (:throwable &throw-context))
      (throw+ {:type :u1f596.http/unexpected-error}))))
 
+(defn reddit-get-scores [src]
+  (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100&t=%s"
+                                   (:subreddit src) (:listing src) (:timeframe src)))]
+    (->> (get-in reddit [:data :children])
+         (map #(get-in % [:data :score])))))
+
+
 (defn reddit-ts-to-zoned-date-time [t]
   (when (number? t)
     (time/zoned-date-time (time/instant (* 1000 (long t))) (time/zone-id "UTC"))))

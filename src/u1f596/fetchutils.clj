@@ -9,7 +9,7 @@
    [clojure.set :refer [intersection]]
    [hiccup.core :refer [html]]
    [hickory.select :as S]
-   [slingshot.slingshot :refer [try+]]
+   [slingshot.slingshot :refer [try+ throw+]]
    [clj-http.client :as http-client]
    [clj-http.cookies :as http-cookies]
    [hickory.core :as hick]
@@ -103,18 +103,40 @@
     (let [categories (set (get-in item [:entry :categories]))]
       (>= (count (intersection categories (set blacklist))) 1))))
 
-(defn make-reddit-proc [min-score]
-  (proc/make
-   :filter (fn [item]
-             (let [score (get-in item [:entry :score])]
-               (< score min-score)))
-   :post [(fn [item]
-            (let [site (some-> item :entry :url uri/host)
-                  path (some-> item :entry :url uri/path)]
-              (cond
-                (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
-                    (re-find #"\.(jpg|jpeg|gif|png)$" path))
-                (update-in item [:entry :contents "text/html"]
-                           str "<img src=\"" (get-in item [:entry :url]) "\"/>")
-                (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
-                :else ((mercury-contents :keep-orig? true) item))))]))
+(defonce reddit-scores (atom {}))
+
+(defn- update-reddit-cutoff-score! [k src]
+  (let [s (u1f596.fetch.reddit/reddit-get-scores src)
+        next {:top-n-score (nth (sort s) (- (count s) (num (* (count s) 0.05))))
+              :update-ts (time/zoned-date-time)}]
+    (swap! reddit-scores assoc k next)
+    next))
+
+(defn get-reddit-cutoff-score [k src]
+  (if-let [{:keys [top-n-score update-ts]} (get @reddit-scores k)]
+    (if (time/before? update-ts (time/minus (time/zoned-date-time) (time/hours 12)))
+      (:top-n-score (update-reddit-cutoff-score! k src))
+      top-n-score)
+    (:top-n-score (update-reddit-cutoff-score! k src))))
+
+
+(defn make-reddit-proc [k src options]
+  (let [{:keys [min-score dynamic?]
+         :or {min-score 0
+              dynamic? false}} options]
+    (proc/make
+     :filter (fn [item]
+               (let [dynamic-min-score (if dynamic? (get-reddit-cutoff-score k src) min-score)
+                     min-score (max dynamic-min-score min-score)
+                     score (get-in item [:entry :score])]
+                 (<= score dynamic-min-score min-score)))
+     :post [(fn [item]
+              (let [site (some-> item :entry :url uri/host)
+                    path (some-> item :entry :url uri/path)]
+                (cond
+                  (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
+                      (re-find #"\.(jpg|jpeg|gif|png)$" path))
+                  (update-in item [:entry :contents "text/html"]
+                             str "<img src=\"" (get-in item [:entry :url]) "\"/>")
+                  (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
+                  :else ((mercury-contents :keep-orig? true) item))))])))

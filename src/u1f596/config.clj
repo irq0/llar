@@ -95,8 +95,8 @@
 
 (defmacro fetch-reddit
   [src & body]
-  (let [{:keys [options tags min-score]
-         :or {options #{} tags #{} min-score 0}
+  (let [{:keys [options tags min-score dynamic?]
+         :or {options #{} tags #{} min-score 0 dynamic? true}
          :as params} (apply hash-map body)]
     (s/validate #{s/Keyword} tags)
     (s/validate #{s/Keyword} options)
@@ -106,8 +106,9 @@
                   {:src ~src
                    :options ~options
                    :tags (conj ~tags :reddit)
-                   :proc (make-reddit-proc ~min-score)})
-         (keyword src-key#)))))
+                   :proc (make-reddit-proc src-key# ~src {:min-score ~min-score
+                                                          :dynamic? ~dynamic?})})
+          (keyword src-key#)))))
 
 (fetch twit-c3pb (src/twitter-search "c3pb" (:twitter-api creds))
        :rm (->> $item
