@@ -2,6 +2,7 @@
   (:require
    [u1f596.config :as config]
    [u1f596.update :as update]
+   [java-time :as time]
    [u1f596.live :as live]
    [u1f596.persistency :as persistency]
    [u1f596.appconfig :as appconfig]
@@ -56,19 +57,28 @@
     nil))
 
 (def +pprint-handlers+
-  {Uri
+  {java.time.ZonedDateTime
+   (puget/tagged-handler
+    'inst (fn [x] (-> x time/instant str)))
+   clojure.lang.ExceptionInfo
+   (puget/tagged-handler
+    'clojure.lang.ExceptionInfo.message (partial ex-message))
+   Uri
    (puget/tagged-handler
     'uri str)})
 
 (defn pprint-html [x]
   [:pre {:class "clj-pprint"}
-   (puget/pprint-str
-    x
-    {:width 60
-     :sort-keys true
-     :print-color true
-     :print-handlers +pprint-handlers+
-     :color-markup :html-inline})])
+   (let [pr-str-orig pr-str
+         pr-str  (fn [& xs] (org.apache.commons.lang.StringEscapeUtils/escapeHtml (apply pr-str xs)))]
+    (puget/pprint-str
+     x
+     {:width 60
+      :sort-keys true
+      :print-color true
+      :print-handlers +pprint-handlers+
+      :print-fallback (fn [_ value] [:span (org.apache.commons.lang.StringEscapeUtils/escapeHtml (pr-str-orig value))])
+      :color-markup :html-inline}))])
 
 (defn source-status []
   (html
@@ -82,8 +92,8 @@
       [:th "Source"]
       [:th "Last Exception"]
       [:th "Last Success / Update"]
-      [:th "Last Attempt / Start"]
-      ]]
+      [:th "Last Attempt / Start"]]]
+
     [:tbody
      (for [[k src] (config/get-sources)]
        (let [state (get-state k)
@@ -202,29 +212,29 @@
   (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]
     [:h2 "Current Threads"]
     [:table {:id "threads-datatable"}
-   [:thead
-    [:tr
-     [:th ""]
-     [:th "Group"]
-     [:th "Name"]
-     [:th "State"]
-     [:th "Top Frame"]]]
-   [:tbody
-     (for [[th stack] stack-traces]
-       [:tr {:data-stacktrace (html [:ol
-                                     (for [s (stacktrace/parse-trace-elems stack)
-                                           :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-                                       [:li [:pre formatted]])])
-             :class
-             (cond
-               false "table-info"
-               :else "")}
-        [:td {:class "details-control"}]
-        [:td {:class "col-xs-1"} (-> th .getThreadGroup .getName)]
-        [:td {:class "col-xs-1"} (.getName th)]
-        [:td {:class "col-xs-1"} [:pre (.getState th)]]
-        [:td {:class "col-xs-4"} [:pre (first stack)]]
-        ])]]))
+     [:thead
+      [:tr
+       [:th ""]
+       [:th "Group"]
+       [:th "Name"]
+       [:th "State"]
+       [:th "Top Frame"]]]
+     [:tbody
+       (for [[th stack] stack-traces]
+         [:tr {:data-stacktrace (html [:ol
+                                       (for [s (stacktrace/parse-trace-elems stack)
+                                             :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                                         [:li [:pre formatted]])])
+               :class
+               (cond
+                 false "table-info"
+                 :else "")}
+          [:td {:class "details-control"}]
+          [:td {:class "col-xs-1"} (-> th .getThreadGroup .getName)]
+          [:td {:class "col-xs-1"} (.getName th)]
+          [:td {:class "col-xs-1"} [:pre (.getState th)]]
+          [:td {:class "col-xs-4"} [:pre (first stack)]]])]]))
+
 
 
 (defn home-tab [])

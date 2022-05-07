@@ -762,14 +762,12 @@
      [:span "nil"]
 
      (coll? v)
-     [:span (format "n=%s [%s]" (count v)
-                    (string/join ", " v))]
+     [:span (format "n=%s (%s)" (count v) (type v))
+      [:ol
+      (for [i v]
+        [:li (org.apache.commons.lang.StringEscapeUtils/escapeHtml (str i))])]]
 
-     (= k "text/html")
-     [:span "(" (type v) ")"
-      [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]]
-
-     (= k "text/plain")
+     (re-find #"(application|text)/\w+" (str k))
      [:span "(" (type v) ")"
       [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]]
 
