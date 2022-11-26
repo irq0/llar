@@ -58,13 +58,23 @@
    :last-exception nil
    :retry-count 0})
 
-(defn- make-next-state [state next-status next-retry-count last-exception]
-  (let [now (time/zoned-date-time)]
-        (merge state
+(defn- make-next-state
+  ([state ok-status stats]
+   (let [now (time/zoned-date-time)]
+     (merge state
+            {:last-attempt-ts now
+             :last-successful-fetch-ts now
+             :status ok-status
+             :stats stats
+             :last-exception nil
+             :retry-count 0})))
+  ([state next-status next-retry-count last-exception]
+   (let [now (time/zoned-date-time)]
+     (merge state
                {:last-attempt-ts now
                 :status next-status
                 :last-exception last-exception
-                :retry-count next-retry-count})))
+                :retry-count next-retry-count}))))
 
 (defn- update-feed!
   "Update feed. Return new state"
@@ -107,8 +117,10 @@
                   (str src) (count fetched) (count processed) (count dbks)
                   skip-proc skip-store)
 
-       (-> (make-next-state state :ok 0 nil)
-           (assoc :last-successful-fetch-ts (time/zoned-date-time))))
+       (make-next-state state :ok {:fetched (count fetched)
+                                       :processed (count processed)
+                                       :db (count dbks)})
+       )
 
      (catch [:type :u1f596.http/server-error-retry-later] _
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
