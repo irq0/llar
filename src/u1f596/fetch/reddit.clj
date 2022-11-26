@@ -54,6 +54,10 @@
      (log/errorf "Client error probably due to broken request (%s): %s %s"
                  status headers body)
      (throw+ {:type :u1f596.http/request-error}))
+   (catch java.net.UnknownHostException ex
+     (log/error ex "Host resolution error" url)
+     (throw+ {:type :u1f596.http/server-error-retry-later
+              :url url}))
    (catch Object _
      (log/error "Unexpected error: " (:throwable &throw-context))
      (throw+ {:type :u1f596.http/unexpected-error}))))
