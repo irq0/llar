@@ -21,6 +21,7 @@
    [u1f596.notifier :as notifier]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
+   [migratus.core :as migratus]
    [u1f596.webapp :as webapp])
   (:gen-class))
 
@@ -98,16 +99,29 @@
        #'sched/misc-sched
        #'sched/feed-sched))
 
+    (cond
+      (:init-db options)
+      (do
+        (let [config {:store :database
+                      :db store/backend-db
+                      :migration-dir "migrations/"
+                      :init-script "init.sql"}]
+         (log/info "Starting DB migrations" config)
+         (log/info (migratus/init config))
+         (log/info (migratus/migrate config)))
+       (log/info "Finished DB migrations. Exiting")
+       (System/exit 0))
 
+      (not (:dry options))
+      (doseq [[key db-config] (:postgresql appconfig/appconfig)
+              :let [db-spec (db/make-postgresql-dbspec db-config)
+                    store (db/make-postgresql-datastore db-spec)]]
+        (log/info "Smoke testing database: "
+                  key
+                  (vec (persistency/get-table-row-counts store)))))
 
    (when-not (:dry options)
      (http/update-domain-blocklist!))
 
 
-  (doseq [[key db-config] (:postgresql appconfig/appconfig)
-          :let [db-spec (db/make-postgresql-dbspec db-config)
-                store (db/make-postgresql-datastore db-spec)]]
-    (log/info "Testing database connection: "
-              key
-              (vec (persistency/get-table-row-counts store))))
    (log/info "🖖")))

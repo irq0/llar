@@ -62,6 +62,7 @@
                  [com.clojure-goes-fast/clj-memory-meter "0.1.3"]
                  [org.bovinegenius/exploding-fish "0.3.6"]
                  [hikari-cp "2.14.0"]
+                 [migratus "1.4.5"]
                  [mvxcvi/puget "1.3.2"]
                  [cc.artifice/clj-ml "0.8.7"]
                  [clj-commons/iapetos "0.1.12"]
