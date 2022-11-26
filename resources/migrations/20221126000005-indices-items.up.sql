@@ -1,0 +1,13 @@
+CREATE INDEX items_source_id_idx ON items USING btree (source_id);
+--;;
+CREATE INDEX items_tag_type_idx ON items USING gin (tagi gin__int_ops, type);
+--;;
+CREATE INDEX items_tagi_idx ON items USING gin (tagi gin__int_ops);
+--;;
+CREATE INDEX items_tagi_source_id_idx ON items USING gin (tagi gin__int_ops, source_id);
+--;;
+CREATE INDEX items_tagi_unread ON items USING btree (tagi) WHERE (tagi OPERATOR(@@) '0'::query_int);
+--;;
+CREATE INDEX items_tagi_unread_source ON items USING btree (tagi, source_id) WHERE (tagi OPERATOR(@@) '0'::query_int);
+--;;
+CREATE INDEX items_type_idx ON items USING btree (type);

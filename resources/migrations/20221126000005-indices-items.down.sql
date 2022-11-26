@@ -1,0 +1,13 @@
+DROP INDEX items_source_id_idx;
+--;;
+DROP INDEX items_tag_type_idx;
+--;;
+DROP INDEX items_tagi_idx;
+--;;
+DROP INDEX items_tagi_source_id_idx;
+--;;
+DROP INDEX items_tagi_unread;
+--;;
+DROP INDEX items_tagi_unread_source;
+--;;
+DROP INDEX items_type_idx;
