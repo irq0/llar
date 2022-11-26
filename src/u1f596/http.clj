@@ -24,6 +24,7 @@
 
 ;; 🖖 HTTP Fetch utility
 
+(defonce domain-blocklist (atom #{}))
 
 (def +http-user-agent+
   {:bot "Mozilla/5.0 (compatible); Googlebot/2.1; +http://www.google.com/bot.html)"
@@ -59,8 +60,8 @@
                (count blocklist)
                public-blocklists)))
 
-(defstate domain-blocklist
-  :start (atom (fetch-domain-blocklists)))
+(defn update-domain-blocklist! []
+  (reset! domain-blocklist (fetch-domain-blocklists))) 
 
 (defn extract-http-title
   [parsed-html]
