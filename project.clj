@@ -52,6 +52,7 @@
                  [robert/hooke "1.3.0"]
                  [clojure-opennlp "0.5.0"]
                  [com.novemberain/pantomime "2.11.0"]
+                 [org.clojure/tools.cli "1.0.214"]
                  [com.firebase/firebase-client-jvm "2.5.2"]
                  [org.clojure/java.jdbc "0.7.12"]
                  [org.postgresql/postgresql "42.3.4"]

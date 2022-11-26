@@ -19,38 +19,90 @@
    [u1f596.blobstore :as blobstore]
    [u1f596.live :as live]
    [u1f596.notifier :as notifier]
+   [clojure.string :as string]
+   [clojure.tools.cli :refer [parse-opts]]
    [u1f596.webapp :as webapp])
   (:gen-class))
+
+(def cli-options
+  [[nil "--init-db" "Initialize new database"]
+   [nil "--dry" "Start without live, schedulers, etc"]
+   [nil "--nrepl" "Start nrepl server"]
+   ["-h" "--help"]])
 
 (defn -main [& args]
   ;; otherwise date time parsers will fail!
   (java.util.Locale/setDefault java.util.Locale/ENGLISH)
-  (logging/setup)
-  (mount/in-clj-mode)
-  (mount/start
-   #'appconfig/appconfig
-   #'api-reader/annotations
 
-   #'api-reader/frontend-db
-   #'store/backend-db
+  (let [{:keys [options summary errors]} (parse-opts args cli-options)]
+    (when (or errors (:help options))
+      (log/info "Usage:")
+      (doseq [line (string/split summary #"\n")]
+        (log/info line))
+      (when errors
+        (log/error errors))
+      (System/exit 1))
 
-   #'http/domain-blocklist
-   #'blobstore/locks
+    (logging/setup)
+    (mount/in-clj-mode)
 
-   #'repl/nrepl-server
-   #'update/state
-   #'metrics/prom-registry
+    (when (:nrepl options)
+      (mount/start #'repl/nrepl-server))
 
-   #'live/live
+    (cond
+      (:init-db options)
+      (mount/start
+       #'appconfig/appconfig
+       #'store/backend-db)
 
-   #'notifier/telegram-bot
+      (:dry options)
+      (mount/start
+       #'appconfig/appconfig
+       #'api-reader/annotations
 
-   #'webapp/status
-   #'webapp/reader)
+       #'api-reader/frontend-db
+       #'store/backend-db
 
-  (mount/start sched/db-sched)
-  (mount/start sched/misc-sched)
-  (mount/start sched/feed-sched)
+       #'blobstore/locks
+
+       #'update/state
+       #'metrics/prom-registry
+
+       #'notifier/telegram-bot
+
+       #'webapp/status
+       #'webapp/reader)
+
+      :default
+      (mount/start
+       #'appconfig/appconfig
+       #'api-reader/annotations
+
+       #'api-reader/frontend-db
+       #'store/backend-db
+
+       #'http/domain-blocklist
+       #'blobstore/locks
+
+       #'update/state
+       #'metrics/prom-registry
+
+       #'live/live
+
+       #'notifier/telegram-bot
+
+       #'webapp/status
+       #'webapp/reader
+
+       #'sched/db-sched
+       #'sched/misc-sched
+       #'sched/feed-sched))
+
+
+
+   (when-not (:dry options)
+     (http/update-domain-blocklist!))
+
 
   (doseq [[key db-config] (:postgresql appconfig/appconfig)
           :let [db-spec (db/make-postgresql-dbspec db-config)
@@ -58,4 +110,4 @@
     (log/info "Testing database connection: "
               key
               (vec (persistency/get-table-row-counts store))))
-  (log/info "🖖"))
+   (log/info "🖖")))
