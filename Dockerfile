@@ -15,6 +15,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y install \
   yarnpkg \
   git \
   diction \
+  exiftool \
   locales
 
 RUN yarnpkg global add --cwd /tmp @postlight/mercury-parser
