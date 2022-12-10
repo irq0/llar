@@ -59,6 +59,9 @@
                  [robert/hooke "1.3.0"]
                  [slingshot "0.12.2"]
                  [org.apache.commons/commons-text "1.10.0"]
+                 [commons-io/commons-io "2.11.0"]
+                 [com.sun.activation/jakarta.activation "2.0.1"]
+                 [com.google.guava/guava "31.1-jre"]
                  [cider/cider-nrepl "0.29.0"]
                  [potemkin "0.4.6" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
@@ -107,9 +110,9 @@
 
                  ;; data processing and analysis
                  [clojure-opennlp "0.5.0"]
-                 [org.apache.tika/tika-parsers-standard-package "2.6.0"]
+                 [org.apache.tika/tika-parsers-standard-package "2.6.0" :exclusions [org.ow2.asm/asm commons-io]]
                  [org.apache.tika/tika-langdetect-optimaize "2.6.0"]
-                 [org.apache.tika/tika-core "2.6.0"]
+                 [org.apache.tika/tika-core "2.6.0" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
                  [io.github.nextjournal/clerk "0.12.707"
                   :exclusions [hiccup org.clojure/data.priority-map org.clojure/tools.analyzer.jvm
