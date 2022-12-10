@@ -34,10 +34,6 @@
       io/file
       .toPath))
 
-(defn annotations-file []
-  (-> (get appconfig :annotations-file)
-      io/file))
-
 (defn postgresql-config [pool]
   (get-in appconfig [:postgresql pool]))
 

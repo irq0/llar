@@ -40,8 +40,6 @@
 ;; show last update ts
 ;; open links in external
 
-;; State: annotations live in memory
-
 (defn human-datetime-ago [ts]
   (let [raw-duration (time/duration ts (time/zoned-date-time))
         duration (-> raw-duration
@@ -50,20 +48,6 @@
     (if (>= (.toDays duration) 2)
       (subs (string/lower-case (str period)) 1)
       (subs (string/lower-case (str duration)) 2))))
-
-(defn- startup-read-state []
-  (let [file (appconfig/annotations-file)]
-    (log/info "Reading annotations file" file)
-    (try+
-     (converter/read-edn-annotations (slurp file))
-     (catch java.lang.RuntimeException _
-       (log/warn "Failed to read annotations file. Starting with empty annotations")
-       {}))))
-
-;; TODO move to database
-(defstate annotations
-  :start (atom (startup-read-state))
-  :stop (spit (appconfig/annotations-file) (converter/print-annotations @annotations)))
 
 (defstate frontend-db
   :start (db/make-postgresql-pooled-datastore
@@ -146,7 +130,6 @@
    :wallpaper "fas fa-tree"
    :has-video "fas fa-film"
    :has-spotify-playlist "fab fa-spotify"
-   :has-annotation "fas fa-pen"
    :bookmark "fas fa-bookmark"
    :all "fas fa-asterisk"
    :berlin "fas fa-city"
@@ -275,7 +258,6 @@
    [:script {:src "/static/waypoints/imakewebthings-waypoints-34d9f6d/lib/jquery.waypoints.min.js"}]
    [:script {:src "/static/popper/popper.min.js"}]
    [:script {:src "/static/bootstrap/bootstrap-4.6.0-dist/js/bootstrap.min.js"}]
-   [:script {:src "/static/annotator/annotator.min.js"}]
    [:script {:src "/static/u1f596.js"}]])
 
 (defn tag-button [id {:keys [tag is-set? icon-set icon-unset]}]
@@ -337,16 +319,16 @@
           (icon "fas fa-step-backward")]
          [:a {:class "navbar-toggler btn-mark-view-read"
                :href "#"}
-         (icon "fas fa-glasses")]
+          (icon "fas fa-glasses")]
          [:a {:class "navbar-toggler"
               :data-toggle "collapse"
               :href "#groupnav"}
           (icon "fas fa-compass")]
          [:a {:class "navbar-toggler"
-             :data-toggle "collapse"
-             :href "#sourcenav"}
-         (icon "fas fa-list")]
-         ]
+              :data-toggle "collapse"
+              :href "#sourcenav"}
+          (icon "fas fa-list")]]
+         
         (= mode :show-item)
         [:span
          [:a {:class "navbar-toggler"
@@ -412,8 +394,8 @@
          [:div {:class "col-xs-8 col-ld-12"}
           (for [btn +tag-buttons+]
             (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
-          next-item-button])
-       ]]]))
+          next-item-button])]]]))
+       
 
 (defn group-list
   "Group Item List - Tags, etc."
@@ -635,33 +617,33 @@
         url-site (some-> url uri/uri uri/host)
         youtube-url (parse-youtube-url url)]
     (html
-    (when-let [vid youtube-url]
-      (when (some? vid)
-        (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
-              hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
-               max-thumb (try-blobify-url! maxres-url)
-               thumb (if (= max-thumb maxres-url)
-                       (try-blobify-url! hq-url)
-                       max-thumb)]
-           [:div {:class "embed-responsive embed-responsive-4by3"}
-            [:div {:id (str "youtube-container-" (last vid))}
-             [:img {:class "lazy-youtube embed-responsive-item"
-                    :data-vid (last vid)
-                    :data-target (str "youtube-container-" (last vid))
-                    :src thumb}]]])))
+     (when-let [vid youtube-url]
+       (when (some? vid)
+         (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
+               hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
+                max-thumb (try-blobify-url! maxres-url)
+                thumb (if (= max-thumb maxres-url)
+                        (try-blobify-url! hq-url)
+                        max-thumb)]
+            [:div {:class "embed-responsive embed-responsive-4by3"}
+             [:div {:id (str "youtube-container-" (last vid))}
+              [:img {:class "lazy-youtube embed-responsive-item"
+                     :data-vid (last vid)
+                     :data-target (str "youtube-container-" (last vid))
+                     :src thumb}]]])))
 
-    (when-let [twit-pic (first (get-in entry [:entities :photos]))]
-       [:div {:class "item-preview"} [:img {:src twit-pic}]])
+     (when-let [twit-pic (first (get-in entry [:entities :photos]))]
+        [:div {:class "item-preview"} [:img {:src twit-pic}]])
 
-    (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
-      (when (not (or (string/blank? image-url)
-                     (= image-url "self")
-                     (= image-url "default")))
-         [:div {:class (str "item-preview-small"
-                            (when (every? options [:main-list-use-description
-                                                   :short-word-cloud])
-                              " float-md-left"))}
-        [:img {:src image-url}]])))))
+     (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
+       (when (not (or (string/blank? image-url)
+                      (= image-url "self")
+                      (= image-url "default")))
+          [:div {:class (str "item-preview-small"
+                             (when (every? options [:main-list-use-description
+                                                    :short-word-cloud])
+                               " float-md-left"))}
+           [:img {:src image-url}]])))))
 
 (defn get-html-content
   "Show Item Helper: Get best content to display in full"
@@ -746,16 +728,17 @@
        [:div {:class "col-11"}
         [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
          (if-let [html-content (if (and (= (-> x :active-sources first :type) :item-type/document)
-                                   (nil? selected-data) (nil? selected-content-type))
-                            (get-html-content item :description "text/html")
-                            (get-html-content item selected-data selected-content-type))]
+                                    (nil? selected-data) (nil? selected-content-type))
+                                (get-html-content item :description "text/html")
+                                (get-html-content item selected-data selected-content-type))]
            html-content
            (render-special-item-content item #{}))
-       [:div {:id "minimap" :class "col-1 sticky-top"}]]]]]]))
+         [:div {:id "minimap" :class "col-1 sticky-top"}]]]]]]))
 
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
   [k v]
+  (log/info (name k))
   [:li (icon "far fa-file") [:strong (str k)] "&nbsp;"
    (cond
      (nil? v)
@@ -764,8 +747,8 @@
      (coll? v)
      [:span (format "n=%s (%s)" (count v) (type v))
       [:ol
-      (for [i v]
-        [:li (org.apache.commons.lang.StringEscapeUtils/escapeHtml (str i))])]]
+       (for [i v]
+         [:li (org.apache.commons.lang.StringEscapeUtils/escapeHtml (str i))])]]
 
      (re-find #"(application|text)/\w+" (str k))
      [:span "(" (type v) ")"
@@ -969,32 +952,32 @@
        [:p {:class "description"}
         (get-in item [:data :description "text/plain"])]
        [:p {:class "word-cloud"}
-      (html
-       (for [[word freq] words
-             :let [size (word-cloud-fontsize freq min-freq max-freq)]]
-         [:span {:class (str "word border text-white " size)} word]))
-      (html
-       (for [n names]
-         [:span {:class "name border"}
-          [:a {:href (str "https://en.wikipedia.org/wiki/" n)
-               :class "text-white sz-b"} n]]))
-      (html
-       (for [[text all-text-urls] (->> urls
-                                       ;; controversial? remove urls pointing to same site
-                                       (remove (fn [str-url]
-                                                 (= (some-> str-url uri/uri uri/host)
-                                                    url-site)))
-                                       (filter #(> (count %) 20))
-                                       (take 20)
-                                       (map (juxt awesome-url-text identity))
-                                       (group-by first)
-                                       (doall))
-             :let [url (-> all-text-urls
-                           first second)]
-             :when (not (re-find +boring-url-regex+ url))]
-         [:span {:class "url border"}
-          [:a {:href url :class "text-white sz-b"}
-           text]]))])
+        (html
+         (for [[word freq] words
+               :let [size (word-cloud-fontsize freq min-freq max-freq)]]
+           [:span {:class (str "word border text-white " size)} word]))
+        (html
+         (for [n names]
+           [:span {:class "name border"}
+            [:a {:href (str "https://en.wikipedia.org/wiki/" n)
+                 :class "text-white sz-b"} n]]))
+        (html
+         (for [[text all-text-urls] (->> urls
+                                         ;; controversial? remove urls pointing to same site
+                                         (remove (fn [str-url]
+                                                   (= (some-> str-url uri/uri uri/host)
+                                                      url-site)))
+                                         (filter #(> (count %) 20))
+                                         (take 20)
+                                         (map (juxt awesome-url-text identity))
+                                         (group-by first)
+                                         (doall))
+               :let [url (-> all-text-urls
+                             first second)]
+               :when (not (re-find +boring-url-regex+ url))]
+           [:span {:class "url border"}
+            [:a {:href url :class "text-white sz-b"}
+             text]]))])
 
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
@@ -1062,13 +1045,13 @@
 
           [:td {:class "toolbox"}
            [:div
-           (concat
-            [[:a {:class "btn" :href url}
-              (icon "fas fa-external-link-alt")]]
-            (for [btn +tag-buttons+
-                  :when (contains? +headline-view-tag-buttons+ (:tag btn))]
-              (tag-button id
-                          (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]]])]]]))
+            (concat
+             [[:a {:class "btn" :href url}
+               (icon "fas fa-external-link-alt")]]
+             (for [btn +tag-buttons+
+                   :when (contains? +headline-view-tag-buttons+ (:tag btn))]
+               (tag-button id
+                           (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]]])]]]))
 
 (defn gallery-list-items
   "Main Item List - Gallery Style"
@@ -1198,32 +1181,32 @@
 
       (and (= group-name :default) (= group-item :all) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                  {:with-preview-data? (contains?
-                                                        (get-in sources [source-key :options])
-                                                        :main-list-use-description)
-                                   :with-source-keys [source-key]}))
+                                                 {:with-preview-data? (contains?
+                                                                       (get-in sources [source-key :options])
+                                                                       :main-list-use-description)
+                                                  :with-source-keys [source-key]}))
 
       (and (= group-name :item-tags) (keyword? group-item) (= source-key :all))
       (persistency/get-items-recent frontend-db (merge common-args
-                                        {:with-tag group-item}))
+                                                 {:with-tag group-item}))
 
       (and (= group-name :item-tags) (keyword? group-item) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                  {:with-preview-data? (contains?
-                                                        (get-in sources [source-key :options])
-                                                        :main-list-use-description)
-                                   :with-source-keys [source-key]
-                                   :with-tag group-item}))
+                                                 {:with-preview-data? (contains?
+                                                                       (get-in sources [source-key :options])
+                                                                       :main-list-use-description)
+                                                  :with-source-keys [source-key]
+                                                  :with-tag group-item}))
 
       (and (= group-name :source-tag) (keyword? group-item) (= source-key :all))
       (let [selected-sources (->> sources
-                             vals
-                             (filter #(contains? (:tags %) group-item)))]
+                              vals
+                              (filter #(contains? (:tags %) group-item)))]
         (persistency/get-items-recent frontend-db (merge common-args
-                                    {:with-preview-data? (some #(contains? (:options %)
-                                                                           :main-list-use-description)
-                                                               selected-sources)
-                                     :with-source-ids (map :id selected-sources)})))
+                                                   {:with-preview-data? (some #(contains? (:options %)
+                                                                                          :main-list-use-description)
+                                                                              selected-sources)
+                                                    :with-source-ids (map :id selected-sources)})))
 
       (and (= group-name :source-tag) (keyword? group-item) (keyword? source-key))
       (if (->> sources
@@ -1233,23 +1216,23 @@
                          (= (:key %) source-key)))
                not-empty)
         (persistency/get-items-recent frontend-db (merge common-args
-                                    {:with-preview-data? (contains?
-                                                        (get-in sources [source-key :options])
-                                                        :main-list-use-description)
-                                     :with-source-keys [source-key]}))
+                                                   {:with-preview-data? (contains?
+                                                                         (get-in sources [source-key :options])
+                                                                         :main-list-use-description)
+                                                    :with-source-keys [source-key]}))
         [])
 
       (and (= group-name :type) (keyword? group-item) (= source-key :all))
       (persistency/get-items-recent frontend-db (merge common-args
-                                  {:with-type group-item}))
+                                                 {:with-type group-item}))
 
       (and (= group-name :type) (keyword? group-item) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                  {:with-source-keys [source-key]
-                                   :with-preview-data? (contains?
-                                                        (get-in sources [source-key :options])
-                                                        :main-list-use-description)
-                                   :with-type group-item}))
+                                                 {:with-source-keys [source-key]
+                                                  :with-preview-data? (contains?
+                                                                       (get-in sources [source-key :options])
+                                                                       :main-list-use-description)
+                                                  :with-type group-item}))
 
       :else
       [])))
@@ -1378,18 +1361,18 @@
                           source-nav]]]
                        (html-footer))]]))]
         html)
-     (catch Object _
-       (throw+ {:type ::render-error
-                :params index-params
-                :active-sources (map :key (:active-sources params))
-                :selected-sources (map :key (:selected-sources params))
-                :filter (:filter params)
-                :range-before (:range-before params)
-                :range-recent (:range-recent params)
-                :item-tags (:item-tags params)
-                :items {:count (count (:items params))
-                        :ids (map :id (:items params))
-                        :titles (map :title (:items params))}}))))))
+      (catch Object _
+        (throw+ {:type ::render-error
+                 :params index-params
+                 :active-sources (map :key (:active-sources params))
+                 :selected-sources (map :key (:selected-sources params))
+                 :filter (:filter params)
+                 :range-before (:range-before params)
+                 :range-recent (:range-recent params)
+                 :item-tags (:item-tags params)
+                 :items {:count (count (:items params))
+                         :ids (map :id (:items params))
+                         :titles (map :title (:items params))}}))))))
 
 (def update-futures (atom {}))
 
@@ -1451,8 +1434,8 @@
               [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
                (:estimate reading-estimate) "m"]
               "&nbsp;"
-              title
-              ]])]]])]]])
+              title]])]]])]]])
+              
 
 (defmethod lab-view-handler
   :dump-data-structure
@@ -1471,9 +1454,9 @@
         days-ago (get-in x [:request-params :days-ago])
         results (if (or with-source-key days-ago)
                   (persistency/search frontend-db query {:with-source-key with-source-key
-                                          :time-ago-period (when-not (string/blank? days-ago)
-                                                             (time/days (some-> days-ago
-                                                                                 Integer/parseInt)))})
+                                                         :time-ago-period (when-not (string/blank? days-ago)
+                                                                            (time/days (some-> days-ago
+                                                                                                Integer/parseInt)))})
                   (persistency/search frontend-db query))]
     [:main {:role "main"
             :class "col-xs-12 col-md-6 col-lg-8"}
@@ -1809,54 +1792,6 @@
       (catch Object e
         (log/warn e "get-blob failed: " h)
         {:status 404})))
-
-   (context
-     "/ans" [:as req]
-     (GET "/search" []
-       (let [item-id (as-int (get-in req [:params :item_id]))]
-         (if-let [items (get @annotations item-id)]
-           {:status 200
-            :body {:total (count items)
-                   :rows (map-indexed (fn [i item]
-                                        (assoc item :id
-                                               (str item-id "-" i)))
-                                      items)}}
-
-           {:status 200
-            :body {:total 0}})))
-
-     (GET "/annotations/:id" [id]
-       (let [[item-id anno-entry-i]
-             (map as-int (string/split id #"-"))]
-         (if-let [entry (get-in @annotations [item-id anno-entry-i])]
-           {:status 200
-            :body entry}
-           {:status 404})))
-
-     (POST "/annotations" []
-       (let [body (:json-params req)
-             item-id (get body "item_id")
-             next (swap! annotations update item-id (fnil conj []) body)
-             new-anno-id (dec (count (get next item-id)))
-             url (str "/ans/annotations/" item-id "-" new-anno-id)]
-         (reader-item-modify item-id :set :has-annotation)
-         {:status 303
-          :headers {"Location" url}}))
-
-     (DELETE "/annotations/:id" [id]
-       (let [[item-id anno-entry-i] (map as-int (string/split id #"-"))
-             next (swap! annotations
-                         update-in [item-id]
-                         #(vec (concat (subvec % 0 anno-entry-i)
-                                       (subvec % (inc anno-entry-i)))))]
-         {:status 204}))
-
-     (PUT "/annotations/:id" [id]
-       (let [[item-id anno-entry-i] (map as-int (string/split id #"-"))
-             next (swap! annotations assoc-in [item-id anno-entry-i] (:json-params req))
-             url (str "/ans/annotations/" item-id "-" anno-entry-i)]
-         {:status 303
-          :headers {"Location" url}})))
 
    (route/resources "/static" {:root "status"})
    (route/not-found "404 Not found")))

@@ -115,14 +115,6 @@
               'org.irq0.🖖/atom (fn [x] (atom x))}}
    s))
 
-;; reader annotations data store
-
-(defn print-annotations [props]
-  (puget/render-str (puget/canonical-printer) props))
-
-(defn read-edn-annotations [s]
-  (edn/read-string s))
-
 ;; feed fetch state
 
 (def +state-handlers+

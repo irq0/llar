@@ -40,6 +40,8 @@
 
 (defn get-source [k] (get @srcs k))
 
+(defn remove-source [k] (keys (swap! srcs dissoc k)))
+
 (defmacro wrap-proc [src-key tags options & body]
   (when-not (nil? body)
     `(fn [item#]
@@ -512,7 +514,7 @@
        :tags #{:politics :AAA}
        :post-fns [(proc/exchange [:entry :descriptions] [:entry :contents])])
 
-(fetch flarp (src/feed "http://www.flarp.de/feed/")
+(fetch flarp (src/feed "https://www.flarp.de/index.xml")
        :post-fns [(proc/exchange [:entry :descriptions] [:entry :contents])]
        :tags #{:berlin})
 
@@ -640,18 +642,6 @@
 
 (fetch frankrieger (src/feed "http://frank.geekheim.de/?feed=rss2")
        :tags #{:blog})
-
-(fetch willcrichton (src/selector-feed "http://willcrichton.net/notes/"
-                                          {:urls (S/class "note-link")
-                                           :ts (S/class "date")
-                                           :content (S/class "note")}
-                                          :author (constantly ["Will Crichton"])
-                                          {:content #(-> % first :attrs :content)
-                                           :author (constantly ["Will Crichton"])
-                                           :ts #(->> % first :content first (re-find #"\w+\s\d{1,2},\s\d{4}")
-                                                     (parse-date-to-zoned-data-time
-                                                      (time/formatter "MMMM d, yyyy")))})
-                  :tags #{:blog})
 
 (fetch joschabach (src/feed "http://bach.ai/feed.xml")
        :tags #{:blog})
@@ -867,6 +857,9 @@
        :tags #{:blog})
 
 (fetch dmeister (src/feed "https://dmeister.github.io/blog/atom.xml")
+       :tags #{:blog})
+
+(fetch coredumped (src/feed "https://coredumped.dev/index.xml" :deep? true)
        :tags #{:blog})
 
 (fetch internet-protocol-journal (src/website "https://ipj.dreamhosters.com/internet-protocol-journal/issues/current-issue/")

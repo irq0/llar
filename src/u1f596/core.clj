@@ -60,7 +60,6 @@
       (:dry options)
       (mount/start
        #'appconfig/appconfig
-       #'api-reader/annotations
 
        #'api-reader/frontend-db
        #'store/backend-db
@@ -78,7 +77,6 @@
       :default
       (mount/start
        #'appconfig/appconfig
-       #'api-reader/annotations
 
        #'api-reader/frontend-db
        #'store/backend-db

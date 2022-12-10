@@ -32,10 +32,6 @@ waypoints:
 	wget -O $(waypoints_tmp) "https://github.com/imakewebthings/waypoints/zipball/latest"
 	unzip -o $(waypoints_tmp) -d resources/status/waypoints
 
-annotator:
-	mkdir -p resources/status/annotator
-	wget -O resources/status/annotator/annotator.min.js "https://github.com/openannotation/annotator/releases/download/v2.0.0-alpha.3/annotator.min.js"
-
 popper:
 	mkdir -p resources/status/popper
 	wget -O resources/status/popper/popper.min.js "https://unpkg.com/@popperjs/core@2"

@@ -1,5 +1,4 @@
 {:update-max-retry 5
- :annotations-file "/var/lib/🖖/annotations.edn"
  :state-dir "/var/lib/🖖/state"
  :commands {:mercury-parser "mercury-parser"
             :diction-style "style"

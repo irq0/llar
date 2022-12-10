@@ -42,33 +42,6 @@
       (is (= (-> in :orig-urls first type) (-> out :orig-urls first type)))
       (is (instance? Uri (-> out :orig-urls first)))
       (is (= in out))))
-  (testing "annotations"
-    (let [anno [161949
-                [{"quote" "pub­lished",
-                  "ranges"
-                  [{"start" "/div[1]/div[1]/main[1]/div[1]/div[1]/div[3]/p[6]",
-                    "startOffset" 11,
-                    "end" "/div[1]/div[1]/main[1]/div[1]/div[1]/div[3]/p[6]",
-                    "endOffset" 21}],
-                  "item_id" 161949,
-                  "text" "dinge",
-                  "id" "161949-0"}
-                 {"quote"
-                  "ata pro­cess­ing has moved from com­pute and stor­age to the net­work. Au­rora brings a novel ar­chi­tec­ture to th",
-                  "ranges"
-                  [{"start"
-                    "/div[1]/div[1]/main[1]/div[1]/div[1]/div[3]/blockquote[1]/p[1]/em[1]",
-                    "startOffset" 308,
-                    "end"
-                    "/div[1]/div[1]/main[1]/div[1]/div[1]/div[3]/blockquote[1]/p[1]/em[1]",
-                    "endOffset" 423}],
-                  "item_id" 161949,
-                  "text" "test 324234",
-                  "id" "161949-1"}]]]
-      (is (= anno
-             (-> anno
-                 uut/print-annotations
-                 uut/read-edn-annotations)))))
   (testing "state"
     (let [state {:ok
                  {:key :ok,

@@ -1,27 +1,3 @@
-// annotator
-
-var anno = new annotator.App();
-anno.include(annotator.ui.main);
-anno.include(annotator.storage.http, {
-    prefix: "/ans"
-});
-
-anno.include(function () {
-    return {
-	beforeAnnotationCreated: function(a) {
-            a.item_id = $("#item-meta").data("id");
-	}
-    };
-});
-
-$(".item_content").ready(function () {
-    anno
-	.start()
-	.then(function() {
-	    anno.annotations.load({item_id: $("#item-meta").data("id")});
-	});
-});
-
 //
 // utilities
 //
