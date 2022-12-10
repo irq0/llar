@@ -87,17 +87,6 @@
 
 (def unparsable-urls (atom []))
 
-(defn human-host-identifier [url]
-  ;; hack because some database entries got a strange serialization
-  (let [url (if (map? url) (uri/map->uri url) url)
-        host (uri/host url)]
-    (try+
-     (let [guava-host (com.google.common.net.InternetDomainName/from host)
-           site (.topPrivateDomain guava-host)]
-       (.name site))
-     (catch Object _
-       (str host)))))
-
 (defn sensible-uri-or-nil [uri]
   (when (and (uri/scheme uri) (uri/host uri)) uri))
 

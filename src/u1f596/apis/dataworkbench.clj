@@ -19,7 +19,6 @@
    [schema.core :as s]
    [hiccup.core :refer [html]]
    [hiccup.util :refer [escape-html]]
-   [clojure.contrib.humanize :as human]
    [clojure.set :as set]
    [clojure.pprint :as pprint]
    [cheshire.core :refer :all]

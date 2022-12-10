@@ -60,7 +60,6 @@
                  [slingshot "0.12.2"]
                  [org.apache.commons/commons-text "1.10.0"]
                  [cider/cider-nrepl "0.29.0"]
-                 [clojure-humanize "0.2.2"] ;; switch?
                  [potemkin "0.4.6" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
                  [nrepl "1.0.0"]

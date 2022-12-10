@@ -14,7 +14,7 @@
    [clj-http.cookies :as http-cookies]
    [hickory.core :as hick]
    [hickory.render :refer [hickory-to-html]]
-   [clojure.contrib.humanize :as human]
+
    [u1f596.postproc :as proc]
    [clojure.string :as string]
    [clojure.edn :as edn]
@@ -46,11 +46,11 @@
                     (get-in mercu [:entry :contents "text/plain"]))
                (get-in mercu [:entry :contents "text/plain"]))]
     (cond-> (-> item
-        (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
-        (assoc-in [:entry :descriptions "text/plain"] (get-in mercu [:entry :descriptions "text/plain"]))
-        (assoc-in [:entry :contents "text/plain"] text)
-        (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
-        (assoc-in [:entry :contents "text/html"] html))
+             (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
+             (assoc-in [:entry :descriptions "text/plain"] (get-in mercu [:entry :descriptions "text/plain"]))
+             (assoc-in [:entry :contents "text/plain"] text)
+             (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
+             (assoc-in [:entry :contents "text/html"] html))
       (empty? (get-in item [:entry :authors]))
       (assoc-in [:entry :authors] (get-in mercu [:entry :authors])))))
 

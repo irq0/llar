@@ -6,12 +6,12 @@
    [u1f596.live :as live]
    [u1f596.persistency :as persistency]
    [u1f596.appconfig :as appconfig]
-   [u1f596.apis.reader :refer [frontend-db human-datetime-ago]]
+   [u1f596.apis.reader :refer [frontend-db]]
    [u1f596.metrics :as metrics]
+   [u1f596.human :as human]
    [compojure.core :refer [routes GET]]
    [compojure.route :as route]
    [hiccup.core :refer [html]]
-   [clojure.contrib.humanize :as human]
    [iapetos.export :as prometheus-export]
    [mount.core :as mount :refer [defstate]]
    [clj-stacktrace.core :as stacktrace]
@@ -114,10 +114,10 @@
            (get-in state [:last-exception :object :type])]
           [:td {:class "col-xs-1"}  (some-> (or (:last-successful-fetch-ts state)
                                                 (:last-update-ts state))
-                                            human-datetime-ago)]
+                                            human/datetime-ago)]
           [:td {:class "col-xs-1"}  (some-> (or (:last-attempt-ts state)
                                                 (:start-ts state))
-                                            human-datetime-ago)]]))]]))
+                                            human/datetime-ago)]]))]]))
 
 (defn source-details [k]
   (let [state (get-state (keyword k))

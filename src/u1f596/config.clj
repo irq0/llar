@@ -15,6 +15,7 @@
    [u1f596.http :as http]
    [u1f596.converter :as converter]
    [u1f596.notifier :as notifier]
+   [u1f596.human :as human]
    [java-time :as time]
    [clojure.set :refer [intersection]]
    [hiccup.core :refer [html]]
@@ -25,7 +26,6 @@
    [clj-http.cookies :as http-cookies]
    [hickory.core :as hick]
    [hickory.render :refer [hickory-to-html]]
-   [clojure.contrib.humanize :as human]
    [u1f596.postproc :as proc]
    [clojure.string :as string]
    [clojure.edn :as edn]
@@ -164,7 +164,7 @@
                            :author "fefe"
                            :urls (fn [l] (map (fn [x] (->> x :attrs :href uri/uri)) l))
                            :title (fn [l]
-                                    (human/truncate
+                                    (human/truncate-ellipsis
                                      (->> l
                                           first
                                           :content

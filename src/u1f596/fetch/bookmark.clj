@@ -4,6 +4,7 @@
    [u1f596.http :as http]
    [u1f596.src :as src]
    [u1f596.postproc :as proc]
+   [u1f596.human :as human]
    [slingshot.slingshot :refer [try+]]
    [schema.core :as s]
    [clojure.tools.logging :as log]
@@ -48,7 +49,7 @@
                      (let [summary (bookmark-html item)
                            html (get-in item [:entry :contents "text/html"])
                            url (some-> item :entry :url uri/uri)
-                           site (http/human-host-identifier url)]
+                           site (human/host-identifier url)]
                        (-> item
                            (assoc-in [:entry :contents "text/html"]
                                      (str summary "\n\n\n" html))
@@ -71,7 +72,7 @@
                      (let [summary (bookmark-html item)
                            html (get-in item [:entry :contents "text/html"])
                            url (some-> item :entry :url uri/uri)
-                           site (http/human-host-identifier url)]
+                           site (human/host-identifier url)]
                        (-> item
                            (assoc-in [:entry :contents "text/html"]
                                      (str summary "\n\n\n" html))

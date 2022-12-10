@@ -12,9 +12,10 @@
    [u1f596.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
    [u1f596.appconfig :as appconfig]
    [org.bovinegenius [exploding-fish :as uri]]
-   [u1f596.http :refer [try-blobify-url! human-host-identifier]]
+   [u1f596.http :refer [try-blobify-url!]]
    [u1f596.metrics :as metrics]
    [u1f596.converter :as converter]
+   [u1f596.human :as human]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
    [java-time :as time]
@@ -26,7 +27,6 @@
    [slingshot.slingshot :refer [try+ throw+]]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
-   [clojure.contrib.humanize :as human]
    [clojure.set :as set])
   (:import [org.apache.commons.text StringEscapeUtils]))
 
@@ -40,15 +40,6 @@
 
 ;; show last update ts
 ;; open links in external
-
-(defn human-datetime-ago [ts]
-  (let [raw-duration (time/duration ts (time/zoned-date-time))
-        duration (-> raw-duration
-                     (.minusNanos (.getNano raw-duration)))
-        period (time/period (time/local-date ts) (time/local-date))]
-    (if (>= (.toDays duration) 2)
-      (subs (string/lower-case (str period)) 1)
-      (subs (string/lower-case (str duration)) 2))))
 
 (defstate frontend-db
   :start (db/make-postgresql-pooled-datastore
@@ -559,7 +550,7 @@
          pill
          [:span {:class "sidebar-heading-2"} key]
          [:br]
-         [:span {:class "font-weight-italic"} (human/truncate title 30 "…")]])]]))
+         [:span {:class "font-weight-italic"} (human/truncate-ellipsis title 30)]])]]))
 
 (defn source-nav
   "Source Navigation: List Sources having the selected tag"
@@ -688,7 +679,7 @@
          [:div {:class "btn-group btn-group-sm" :role "group"}
           [:a {:class "btn"}
            "&nbsp;&nbsp;"
-           (icon "far fa-calendar") (human-datetime-ago ts)]])
+           (icon "far fa-calendar") (human/datetime-ago ts)]])
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:target "_blank"
              :href url
@@ -916,7 +907,7 @@
        "&nbsp;"
        [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
        [:span " - "]
-       [:span {:class "timestamp"} (human-datetime-ago ts)]]
+       [:span {:class "timestamp"} (human/datetime-ago ts)]]
       (when (>= nwords 0)
         (let [estimate (reading-time-estimate item)
               human-time (:estimate estimate)]
@@ -936,11 +927,11 @@
             (when-let [comments-url (or (:hn-url entry)
                                         (:comments-url entry))]
               [:a {:href comments-url} "(comments)"])
-            " → " (human-host-identifier url)])
+            " → " (human/host-identifier url)])
          (when (and (string? url) (string? (:url source))
-                    (not= (human-host-identifier url)
-                          (human-host-identifier (:url source))))
-           [:span " → " (human-host-identifier url)])])
+                    (not= (human/host-identifier url)
+                          (human/host-identifier (:url source))))
+           [:span " → " (human/host-identifier url)])])
 
       (when-not (string/blank? author)
         [:li {:class "list-inline-item"}
@@ -1020,11 +1011,11 @@
            source-key
            (when (= (:type item) :item-type/link)
              [:span "&nbsp;"
-              " → " (human-host-identifier url)])
+              " → " (human/host-identifier url)])
            (when (and (string? url) (string? (:url source))
-                      (not= (human-host-identifier url)
-                            (human-host-identifier (:url source))))
-             [:span " → " (human-host-identifier url)])]
+                      (not= (human/host-identifier url)
+                            (human/host-identifier (:url source))))
+             [:span " → " (human/host-identifier url)])]
 
           [:th {:class "title"}
            [:a {:href (make-site-href [link-prefix "item/by-id" id]
@@ -1042,7 +1033,7 @@
            [:ul {:class "list-inline"}
             [:li {:class "list-inline-item"}
              "&nbsp;"
-             [:span {:class "timestamp"} (human-datetime-ago ts)]]]]
+             [:span {:class "timestamp"} (human/datetime-ago ts)]]]]
 
           [:td {:class "toolbox"}
            [:div
@@ -1098,7 +1089,7 @@
                 title)]
              [:p {:class "card-text"}]
              [:p {:class= "card-text"} [:small {:class "text-muted"} source-key]]
-             [:p {:class= "card-text"} [:small {:class "text-muted"} (human-datetime-ago ts)]]
+             [:p {:class= "card-text"} [:small {:class "text-muted"} (human/datetime-ago ts)]]
              [:p {:class "card-text toolbox"}
               (concat
                [[:a {:class "btn" :href url}
