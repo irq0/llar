@@ -6,7 +6,6 @@ do update set
   title = excluded.title,
   author = excluded.author,
   type = excluded.type,
-  tags = excluded.tags,
   tagi = excluded.tagi,
   nlp_nwords = excluded.nlp_nwords,
   nlp_urls = excluded.nlp_urls,

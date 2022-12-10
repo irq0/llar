@@ -104,6 +104,7 @@
   PostgresqlDataStore
 
   (item-set-tags! [this item-id tags]
+    (sql/ensure-tags this {:tags (map (fn [kw] [(name kw)]) tags)})
     (->>
      (sql/set-tags this
                    {:tags (vec (map name tags))

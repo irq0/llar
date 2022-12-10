@@ -14,10 +14,17 @@ ts <= (:v:ts)
 update items
 set tagi = tagi | (select array_agg(id) from tags where tag = ANY(:v:tags))
 --~ (when (:where params) "where :snip*:where")
-returning tags
+returning tagi
 
 -- :name remove-tags :i! :*
 update items
 set tagi = tagi - (select array_agg(id) from tags where tag = ANY(:v:tags))
 --~ (when (:where params) "where :snip*:where")
-returning tags
+returning tagi
+
+-- :name ensure-tags :! :n
+insert into tags (tag)
+values :t*:tags
+on conflict do nothing
+returning id
+
