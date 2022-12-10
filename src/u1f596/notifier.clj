@@ -1,7 +1,7 @@
 (ns u1f596.notifier
   (:require
    [mount.core :as mount]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [telegrambot-lib.core :as tbot]))

@@ -2,7 +2,7 @@
   (:require
    [u1f596.schema :as schema]
    [schema.core :as s]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.set :refer [union intersection]]
    [clojure.string :as string]

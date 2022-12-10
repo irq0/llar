@@ -8,7 +8,7 @@
    [java-time :as time]
    [mount.core :refer [defstate]]
    [clojure.edn :as edn]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [cheshire.generate :refer [add-encoder]]

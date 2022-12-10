@@ -4,7 +4,7 @@
             [u1f596.persistency :refer [CouchItem]]
             [u1f596.schema :as schema]
             [u1f596.analysis :as analysis]
-            [taoensso.timbre :as log]
+            [clojure.tools.logging :as log]
             [u1f596.http :refer [try-blobify-url!]]
             [twitter.api.restful :as twitter]
             [schema.core :as s]

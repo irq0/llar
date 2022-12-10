@@ -3,7 +3,7 @@
    [u1f596.schema :as schema]
    [digest]
    [java-time :as time]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clojure.string :as string]
    [schema.core :as s]))
 

@@ -8,7 +8,7 @@
    [u1f596.metrics :as metrics]
    [u1f596.src :as src]
    [chime.core :as chime]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [mount.core :refer [defstate]])
   (:import [java.time Instant Duration LocalDateTime ZonedDateTime ZoneId]))
 

@@ -9,7 +9,7 @@
    [u1f596.lab :as lab]
    [clj-memory-meter.core :as mm]
    [clojure.java.io :as io]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [compojure.core :refer :all]
    [compojure.route :as route]
    [compojure.coercions :refer [as-int]]

@@ -8,7 +8,8 @@
              "-XX:-OmitStackTraceInFastThrow"
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
-             "-Djdk.attach.allowAttachSelf=true"]
+             "-Djdk.attach.allowAttachSelf=true"
+             "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
 
   :aot :all
   :main u1f596.core
@@ -17,58 +18,101 @@
             :url ""}
   :exclusions [org.slf4j/slf4j-nop]
   :dependencies [[org.clojure/clojure "1.11.1"]
-                 [nrepl "1.0.0"]
-                 [cider/cider-nrepl "0.29.0"]
-                 [clj-http "3.12.3"]
-                 [org.clojure/core.async "1.6.673"]
-                 [slingshot "0.12.2"]
-                 [hickory "0.7.1"]
-                 [hiccup "1.0.5"]
-                 [matchbox "0.0.9"]
-                 [clj-rome "0.4.0"]
-                 [digest "1.4.10"]
+                 ;; logging
+                 [org.clojure/tools.logging "1.2.4"]
+                 [org.slf4j/slf4j-api "2.0.5"]
+                 [org.slf4j/jcl-over-slf4j "2.0.5"]
+                 [org.slf4j/jul-to-slf4j "2.0.5"]
+                 [org.slf4j/osgi-over-slf4j "2.0.5"]
+
+                 [org.apache.logging.log4j/log4j-slf4j2-impl "2.19.0"]
+                 [org.apache.logging.log4j/log4j-core "2.19.0"]
+                 [org.apache.logging.log4j/log4j-api "2.19.0"]
+
+                 ;; leaf node deps
+                 [org.clojure/data.priority-map "1.1.0"]
+                 [org.clojure/tools.analyzer.jvm "1.2.3"]
+                 [org.clojure/data.xml "0.2.0-alpha8"]
+                 [org.clojure/data.json "2.4.0"]
+                 [org.clojure/test.check "1.1.1"]
+                 [org.clojure/tools.cli "1.0.214"]
+                 [dev.weavejester/medley "1.5.0"]
+                 [com.fasterxml.jackson.core/jackson-databind "2.14.1"]
+                 [org.jsoup/jsoup "1.15.3"]
+                 [org.apache.httpcomponents/httpcore "4.4.16"]
+                 [org.bouncycastle/bcprov-jdk15on "1.70"]
+                 [org.bouncycastle/bcpkix-jdk15on "1.70"]
+                 [javax.activation/activation "1.1.1"]
+                 [net.java.dev.jna/jna "5.12.1"]
+                 [riddley "0.2.0"]
+                 [cheshire "5.11.0"]
+                 [bk/ring-gzip "0.3.0"]
+                 [org.tukaani/xz "1.9"]
                  [table "0.5.0"]
                  [nio2 "0.2.3"]
-                 [io.forward/clojure-mail "1.0.8"]
-                 [com.taoensso/encore "3.23.0"]
-                 [io.github.nextjournal/clerk "0.12.707"]
-                 [com.taoensso/timbre "5.2.1"]
-                 [org.slf4j/log4j-over-slf4j "1.7.36"]
-                 [org.slf4j/jul-to-slf4j "1.7.36"]
-                 [org.slf4j/jcl-over-slf4j "1.7.36"]
-                 [com.fzakaria/slf4j-timbre "0.3.21"]
-                 [byte-streams "0.2.4"]
-                 [twitter-api "1.8.0"]
-                 [com.draines/postal "2.0.5"]
-                 [clj-stacktrace "0.2.8"]
-                 [ring/ring-core "1.9.6"]
-                 [ring/ring-devel "1.9.6"]
-                 [ring/ring-jetty-adapter "1.9.6"]
-                 [ring/ring-json "0.5.1"]
-                 [compojure "1.7.0"]
-                 [prismatic/schema-generators "0.1.5"]
-                 [prismatic/schema "1.4.1"]
-                 [org.clojure/test.check "1.1.1"]
-                 [bk/ring-gzip "0.3.0"]
                  [mount "0.1.16"]
-                 [robert/hooke "1.3.0"]
-                 [clojure-opennlp "0.5.0"]
-                 [com.novemberain/pantomime "2.11.0"]
-                 [org.clojure/tools.cli "1.0.214"]
-                 [com.firebase/firebase-client-jvm "2.5.2"]
-                 [org.clojure/java.jdbc "0.7.12"]
-                 [org.postgresql/postgresql "42.5.1"]
-                 [mpg "1.3.0"]
-                 [clojure-humanize "0.2.2"]
+                 [digest "1.4.10"]
+                 [clj-stacktrace "0.2.8"]
                  [clojure.java-time "1.1.0"]
-                 [com.clojure-goes-fast/clj-memory-meter "0.2.1"]
-                 [org.bovinegenius/exploding-fish "0.3.6"]
-                 [hikari-cp "3.0.1"]
-                 [migratus "1.4.5"]
+                 [jarohen/chime "0.3.3" :exclusions [org.clojure/tools.logging]]
+                 [robert/hooke "1.3.0"]
+                 [slingshot "0.12.2"]
+                 [cider/cider-nrepl "0.29.0"]
+                 [clojure-humanize "0.2.2"] ;; switch?
+                 [potemkin "0.4.6" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
-                 [cc.artifice/clj-ml "0.8.7"]
+                 [nrepl "1.0.0"]
+                 [org.clojure/core.async "1.6.673" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
+                 [byte-streams "0.2.4" :exclusions [riddley]]
+                 
+                 ;; schema
+                 [prismatic/schema "1.4.1"]
+                 [prismatic/schema-generators "0.1.5"]
+
+                 ;; monitoring
                  [clj-commons/iapetos "0.1.13"]
-                 [telegrambot-lib "2.3.0"]
+                 [com.clojure-goes-fast/clj-memory-meter "0.2.1"]
+
+                 ;; apis
+                 [telegrambot-lib "2.3.0" :exclusions [org.clojure/data.priority-map org.clojure/tools.logging]]
+                 [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
+                 [clj-http "3.12.3" :exclusions [org.apache.httpcomponents/httpcore]]
+                 [clj-rome "0.4.0"]
+                 [com.firebase/firebase-client-jvm "2.5.2" :exclusions [com.fasterxml.jackson.core/jackson-databind]]
+
+                 ;; email
+                 [com.draines/postal "2.0.5"]
+                 [io.forward/clojure-mail "1.0.8" :exclusions [medley javax.activation/activation]]
+                 
+                 ;; database
+                 [mpg "1.3.0" :exclusions [chesire]]
                  [com.layerware/hugsql "0.5.3"]
-                 [jarohen/chime "0.3.3"]])
+                 [org.postgresql/postgresql "42.5.1"]
+                 [hikari-cp "3.0.1" :exclusions [org.slf4j/slf4j-api]]
+                 [org.clojure/java.jdbc "0.7.12"]
+                 [migratus "1.4.5" :exclusions [org.clojure/tools.logging]]
+
+                 ;; webapp
+                 [ring/ring-core "1.9.6"  :exclusions [commons-io]]
+                 [ring/ring-devel "1.9.6"  :exclusions [commons-io]]
+                 [ring/ring-jetty-adapter "1.9.6" :exclusions [commons-io]]
+                 [ring/ring-json "0.5.1" :exclusions [cheshire]]
+                 [compojure "1.7.0" :exclusions [commons-io medley]]
+
+                 ;; html
+                 [hiccup "1.0.5"]
+                 [hickory "0.7.1" :exclusions [org.jsoup/jsoup]]
+                 [org.bovinegenius/exploding-fish "0.3.6"]
+
+                 ;; data processing and analysis
+                 [clojure-opennlp "0.5.0"]
+                 [com.novemberain/pantomime "2.11.0"
+                  :exclusions [com.fasterxml.jackson.core/jackson-databind org.jsoup/jsoup org.tukaani/xz
+                               org.bouncycastle/bcprov-jdk15on javax.activation/activation net.java.dev.jna/jna]]
+                 [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
+                 [io.github.nextjournal/clerk "0.12.707"
+                  :exclusions [hiccup org.clojure/data.priority-map org.clojure/tools.analyzer.jvm
+                               org.clojure/data.json net.java.dev.jna/jna]]])
+
+
 

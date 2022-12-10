@@ -21,7 +21,7 @@
             [schema.core :as s]
             [org.bovinegenius [exploding-fish :as uri]]
             [slingshot.slingshot :refer [throw+ try+]]
-            [taoensso.timbre :as log]
+            [clojure.tools.logging :as log]
             [hickory.core :as hick]
             [hickory.select :as hick-s]
             [hickory.render :as hick-r]

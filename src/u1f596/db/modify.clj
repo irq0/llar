@@ -5,7 +5,7 @@
    [u1f596.db.core]
    [u1f596.persistency :refer [ItemTagsPersistency ItemPersistency]]
    [java-time :as time]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.string :as string]
    [clojure.java.jdbc :as j]

@@ -11,7 +11,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.slingshot :refer [try+]]
    [clojure.core.async :refer [>!! <!!] :as async]
-   [taoensso.timbre :as log]))
+   [clojure.tools.logging :as log]))
 
 
 ;;;; Hacker News Firebase API live source

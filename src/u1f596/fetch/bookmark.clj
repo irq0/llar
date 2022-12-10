@@ -6,7 +6,7 @@
    [u1f596.postproc :as proc]
    [slingshot.slingshot :refer [try+]]
    [schema.core :as s]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clj-http.client :as http-client]
    [hickory.core :as hick]
    [java-time :as time]

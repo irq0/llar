@@ -2,7 +2,7 @@
   (:require
    [u1f596.persistency :refer [StatsQueries SourceQueries ItemQueries]]
    [u1f596.db.core]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [u1f596.db.sql :as sql]
    [u1f596.converter :as conv]
    [digest])

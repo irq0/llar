@@ -1,6 +1,6 @@
 (ns u1f596.webapp
   (:require
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [u1f596.apis.status :as status]
    [u1f596.apis.reader :as reader]
    [u1f596.apis.dataworkbench :as datawb]

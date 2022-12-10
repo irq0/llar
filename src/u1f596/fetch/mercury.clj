@@ -14,7 +14,7 @@
    [digest]
    [clj-http.client :as http]
    [java-time :as time]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [schema.core :as s]
    [clojure.java.shell :as shell]

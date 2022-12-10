@@ -1,39 +1,11 @@
 (ns u1f596.logging
   (:require
    [mount.core]
-   [taoensso.timbre :as log]
-   [taoensso.timbre.appenders.core :as appenders]
-   [taoensso.timbre.appenders.3rd-party.rotor]
+   [clojure.tools.logging :as log]
    [clojure.string :as string]
    [robert.hooke :refer [add-hook clear-hooks]]))
 
 (alter-meta! *ns* assoc ::load false)
-
-;;; Logger
-
-(defn setup []
-  (log/merge-config!
-   {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
-                           {:path "/tmp/u1f596_all.log"
-                                                            :max-size (* 42 1024 1024)})}})
-
-  (log/merge-config!
-   {:ns-filter {:allow #{"*"}
-                :deny #{"org.apache.http.*"
-                        "org.eclipse.jetty.io.*"
-                        "org.eclipse.jetty.http.*"
-                        "org.eclipse.jetty.server.*"
-                        "org.eclipse.jetty.util.*"
-                        "org.apache.pdfbox.io.*"
-                        "com.zaxxer.hikari.pool.HikariPool"
-                        "com.ning.http.client.providers.netty.handler.*"
-                        "com.ning.http.client.providers.netty.channel.*"}}
-    :level :trace})
-
-  (log/merge-config!
-   {:appenders {:println {:min-level :info
-                          :enabled? true
-                          :stream :std-err}}}))
 
 ;; from mount examples
 

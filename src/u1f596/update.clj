@@ -9,7 +9,7 @@
    [java-time :as time]
    [clojure.edn :as edn]
    [slingshot.slingshot :refer [throw+ try+]]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [mount.core :refer [defstate]]
    [clojure.java.io :as io]
    [nio2.core :as nio2]))

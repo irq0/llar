@@ -4,7 +4,7 @@
    [clojure.java.io :as io]
    [opennlp.nlp :as nlp]
    [clojure.java.shell :as shell]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
    [opennlp.tools.filters :as nlp-filter]

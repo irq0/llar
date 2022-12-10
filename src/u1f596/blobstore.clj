@@ -4,7 +4,7 @@
    [u1f596.regex :as regex-collection]
    [u1f596.appconfig :as appconfig]
    [clojure.java.io :as io]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clj-http.client :as http2]
    [clojure.string :as string]
    [java-time :as time]

@@ -7,7 +7,7 @@
    [clojure.core.async :as async]
    [mount.core :refer [defstate]]
    [slingshot.slingshot :refer [try+]]
-   [taoensso.timbre :as log]))
+   [clojure.tools.logging :as log]))
 
 ;;;; Live source logic. Similar to update, but running continuously in background
 

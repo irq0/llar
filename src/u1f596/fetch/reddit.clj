@@ -10,7 +10,7 @@
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
    [java-time :as time]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [org.bovinegenius [exploding-fish :as uri]]
    [schema.core :as s]))

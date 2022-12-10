@@ -13,7 +13,7 @@
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [java-time :as time]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clojure.java.io :as io]
    [clojure.string :as string]
    [schema.core :as s]

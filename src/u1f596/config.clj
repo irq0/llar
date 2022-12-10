@@ -11,7 +11,7 @@
    [u1f596.live.hackernews]
    [u1f596.src :as src]
    [u1f596.fetchutils :refer [make-reddit-proc make-category-filter-deny make-hacker-news-filter mercury-contents parse-date-to-zoned-data-time parse-date-time-to-zoned-data-time]]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [u1f596.http :as http]
    [u1f596.converter :as converter]
    [u1f596.notifier :as notifier]

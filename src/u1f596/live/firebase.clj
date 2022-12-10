@@ -1,7 +1,7 @@
 (ns u1f596.live.firebase
   (:require
    [clojure.set :refer [map-invert]]
-   [taoensso.timbre :as log])
+   [clojure.tools.logging :as log])
   (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))
 
 

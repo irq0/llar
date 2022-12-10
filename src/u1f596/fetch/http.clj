@@ -9,7 +9,7 @@
    [u1f596.persistency :refer [CouchItem]]
    [slingshot.slingshot :refer [try+]]
    [schema.core :as s]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clj-http.client :as http-client]
    [hickory.core :as hick]
    [hickory.render :as hick-r]

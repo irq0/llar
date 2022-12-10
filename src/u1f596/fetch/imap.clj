@@ -8,7 +8,7 @@
    [clojure-mail.core :as mail-core]
    [org.bovinegenius [exploding-fish :as uri]]
    [clojure-mail.message :as mail-message]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
    [pantomime.media :as mt]

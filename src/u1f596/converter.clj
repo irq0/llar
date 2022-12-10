@@ -8,7 +8,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [pantomime.mime :as pm]
    [java-time :as time]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clojure.edn :as edn]
    [puget.printer :as puget]
    [clojure.java.shell :as shell])

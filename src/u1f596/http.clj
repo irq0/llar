@@ -14,7 +14,7 @@
    [hickory.select :as hick-s]
    [hickory.render :as hick-r]
    [hickory.zip :as hick-z]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clojure.string :as string]
    [clojure.zip :as zip]
    [mount.core :refer [defstate]]

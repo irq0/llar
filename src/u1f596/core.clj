@@ -1,7 +1,7 @@
 (ns u1f596.core
   (:require
    [mount.core :as mount]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [u1f596.logging :as logging]
    [u1f596.appconfig :as appconfig]
    [u1f596.persistency :as persistency]
@@ -45,7 +45,6 @@
         (log/error errors))
       (System/exit 1))
 
-    (logging/setup)
     (mount/in-clj-mode)
 
     (when (:nrepl options)

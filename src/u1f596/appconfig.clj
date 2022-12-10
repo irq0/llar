@@ -2,7 +2,7 @@
   (:require
    [mount.core :refer [defstate]]
    [clojure.edn :as edn]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [clojure.java.io :as io]))
 
 (def +config-locations+

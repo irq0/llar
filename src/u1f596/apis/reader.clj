@@ -16,7 +16,7 @@
    [u1f596.metrics :as metrics]
    [u1f596.converter :as converter]
    [clojure.java.io :as io]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [java-time :as time]
    [compojure.core :refer [GET POST PUT DELETE context routes]]
    [compojure.route :as route]

@@ -2,7 +2,7 @@
   (:require
    [u1f596.fetch :refer [make-item-hash] :as fetch]
    [u1f596.src :as src]
-   [taoensso.timbre :as log]
+   [clojure.tools.logging :as log]
    [u1f596.converter :as converter]
    [u1f596.notifier :as notifier]
    [java-time :as time]
