@@ -64,14 +64,6 @@
       (re-find #"^['\"]\w['\"]$" s)
       (re-find #"^['\"]\w{1,2}$" s)))
 
-(defn readability-scores [s]
-  (let [{:keys [exit out err]}
-        (shell/sh (appconfig/command :diction-style) :in s :env {"LANG" "c"})]
-    {:flesch-index (when-let [[_ x] (re-find #"Flesch Index: ([\d\.-]+)/" out)]
-                     (Float/parseFloat x))
-     :smog-grade (when-let [[_ x] (re-find #"SMOG-Grading: ([\d\.-]+)" out)]
-                   (Float/parseFloat x))}))
-
 (defn sanitize-text [s]
   (-> s
       remove-urls
@@ -135,7 +127,6 @@
                    (remove non-word-string-filter)
                    (map string/lower-case))]
     {:language lang
-     :readability (readability-scores text-sanitized)
      :nlp {:nwords (count all-words)
            :top {:words (->> words
                              token-frequencies

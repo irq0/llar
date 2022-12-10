@@ -191,10 +191,8 @@
 
 (defn reading-time-estimate [item]
   (let [words-per-min 200
-        {:keys [nwords readability]} item
-        index (or
-               (:flesch-index readability)
-               51)
+        {:keys [nwords]} item
+        index 51 ;; use something like SMOL..
         level (cond
                 (>= index 70) :easy
                 (> 70 index 50) :medium

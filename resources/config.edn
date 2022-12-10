@@ -1,7 +1,6 @@
 {:update-max-retry 5
  :state-dir "/var/lib/🖖/state"
  :commands {:mercury-parser "mercury-parser"
-            :diction-style "style"
             :youtube-dl "youtube-dl"
             :pdftocairo "pdftocairo"
             :pdf2htmlex "pdf2htmlEX"
