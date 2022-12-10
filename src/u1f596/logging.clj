@@ -15,7 +15,7 @@
   (log/merge-config!
    {:appenders {:rotating (taoensso.timbre.appenders.3rd-party.rotor/rotor-appender
                            {:path "/tmp/u1f596_all.log"
-                            :max-size (* 42 1024 1024)})}})
+                                                            :max-size (* 42 1024 1024)})}})
 
   (log/merge-config!
    {:ns-filter {:allow #{"*"}
