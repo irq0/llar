@@ -9,6 +9,7 @@
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
              "-Djdk.attach.allowAttachSelf=true"
+             "-Dtika.config=tika-config.xml"
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
 
   :aot :all
@@ -57,6 +58,7 @@
                  [jarohen/chime "0.3.3" :exclusions [org.clojure/tools.logging]]
                  [robert/hooke "1.3.0"]
                  [slingshot "0.12.2"]
+                 [org.apache.commons/commons-text "1.10.0"]
                  [cider/cider-nrepl "0.29.0"]
                  [clojure-humanize "0.2.2"] ;; switch?
                  [potemkin "0.4.6" :exclusions [riddley]]
@@ -106,9 +108,9 @@
 
                  ;; data processing and analysis
                  [clojure-opennlp "0.5.0"]
-                 [com.novemberain/pantomime "2.11.0"
-                  :exclusions [com.fasterxml.jackson.core/jackson-databind org.jsoup/jsoup org.tukaani/xz
-                               org.bouncycastle/bcprov-jdk15on javax.activation/activation net.java.dev.jna/jna]]
+                 [org.apache.tika/tika-parsers-standard-package "2.6.0"]
+                 [org.apache.tika/tika-langdetect-optimaize "2.6.0"]
+                 [org.apache.tika/tika-core "2.6.0"]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
                  [io.github.nextjournal/clerk "0.12.707"
                   :exclusions [hiccup org.clojure/data.priority-map org.clojure/tools.analyzer.jvm

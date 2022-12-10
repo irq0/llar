@@ -3,19 +3,19 @@
    [u1f596.converter :as conv]
    [u1f596.regex :as regex-collection]
    [u1f596.appconfig :as appconfig]
+   [u1f596.contentdetect :as contentdetect]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
    [clj-http.client :as http2]
    [clojure.string :as string]
    [java-time :as time]
    [schema.core :as s]
-   [pantomime.mime :as pm]
    [slingshot.slingshot :refer [throw+ try+]]
    [mount.core :refer [defstate]]
    [org.bovinegenius [exploding-fish :as uri]]
    [nio2.core :as nio2]
    [digest :as digest])
-  (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))
+  (:import [org.bovinegenius.exploding_fish UniformResourceIdentifier]))
 
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
@@ -72,7 +72,7 @@
                                 (time/format :iso-instant (time/zoned-date-time)))
                       :failed-file (:content err)
                       :orig-urls urls
-                      :mime-type (pm/mime-type-of (io/input-stream file))}]
+                      :mime-type (contentdetect/detect-mime-type (io/input-stream file))}]
        (spit propsfile (conv/print-propsfile new-props))
        new-props))))
 
@@ -161,7 +161,7 @@
          response-mime (get-in response [:headers "Content-Type"])
          mime (if (or (nil? response-mime)
                       (= response-mime "application/octet-stream"))
-                (pm/mime-type-of body)
+                (contentdetect/detect-mime-type body)
                 response-mime)
 
          file (blob-file (appconfig/blob-store-dir) content-hash)

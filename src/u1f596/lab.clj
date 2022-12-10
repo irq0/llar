@@ -10,6 +10,7 @@
    [u1f596.update :as update]
    [u1f596.blobstore :as blobstore]
    [u1f596.appconfig :as appconfig]
+   [u1f596.contentdetect :as contentdetect]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
    [java-time :as time]
@@ -23,7 +24,6 @@
    [mount.core :refer [defstate]]
    [clojure.edn :as edn]
    [nrepl.server :refer [start-server stop-server]]
-   [pantomime.mime :as pm]
    [clj-ml.clusterers :as ml-clusterers]
    [clj-ml.data :as ml-data]))
 
@@ -249,8 +249,8 @@
                              (:key item)])))
                    (map (fn [[blob source-key]]
                           (let [local-fn (blobstore/get-local-filename blob)
-                                mime (pantomime.mime/mime-type-of local-fn)
-                                extension (pantomime.mime/extension-for-name mime)]
+                                mime (contentdetect/detect-mime-type (io/as-file local-fn))
+                                extension (contentdetect/mime-extension mime)]
                             [local-fn (str source-key "_" blob extension)]))))]
     (let [dst-file (io/file "/wallpaper" destination)]
       (when-not (.exists dst-file)

@@ -27,7 +27,8 @@
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
    [clojure.contrib.humanize :as human]
-   [clojure.set :as set]))
+   [clojure.set :as set])
+  (:import [org.apache.commons.text StringEscapeUtils]))
 
 
 ;; NEXT
@@ -748,11 +749,11 @@
      [:span (format "n=%s (%s)" (count v) (type v))
       [:ol
        (for [i v]
-         [:li (org.apache.commons.lang.StringEscapeUtils/escapeHtml (str i))])]]
+         [:li (StringEscapeUtils/escapeHtml4 (str i))])]]
 
      (re-find #"(application|text)/\w+" (str k))
      [:span "(" (type v) ")"
-      [:code [:pre (org.apache.commons.lang.StringEscapeUtils/escapeHtml v)]]]
+      [:code [:pre (StringEscapeUtils/escapeHtml4 v)]]]
 
      :else
      [:span

@@ -17,7 +17,8 @@
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
    [puget.printer :as puget])
-  (:import (org.bovinegenius.exploding_fish Uri)))
+  (:import [org.bovinegenius.exploding_fish Uri]
+           [org.apache.commons.text StringEscapeUtils]))
 
 (defn html-header []
   [:head
@@ -70,14 +71,14 @@
 (defn pprint-html [x]
   [:pre {:class "clj-pprint"}
    (let [pr-str-orig pr-str
-         pr-str  (fn [& xs] (org.apache.commons.lang.StringEscapeUtils/escapeHtml (apply pr-str xs)))]
+         pr-str  (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
     (puget/pprint-str
      x
      {:width 60
       :sort-keys true
       :print-color true
       :print-handlers +pprint-handlers+
-      :print-fallback (fn [_ value] [:span (org.apache.commons.lang.StringEscapeUtils/escapeHtml (pr-str-orig value))])
+      :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
       :color-markup :html-inline}))])
 
 (defn source-status []

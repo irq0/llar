@@ -12,7 +12,6 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [cheshire.generate :refer [add-encoder]]
-   [pantomime.mime :as pm]
    [clojure.string :as string]))
 
 (defstate backend-db

@@ -7,8 +7,11 @@
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
-   [opennlp.tools.filters :as nlp-filter]
-   [pantomime.languages :as pl]))
+   [opennlp.tools.filters :as nlp-filter])
+  (:import [org.apache.tika.langdetect.optimaize OptimaizeLangDetector]
+           [org.apache.tika.language.detect LanguageDetector]))
+
+(def ^LanguageDetector language-detector (-> (OptimaizeLangDetector.) .loadModels))
 
 (def stopwords
   {:en (with-open [rdr (io/reader (io/resource "stopwords_en.txt"))] (set (line-seq rdr)))
@@ -84,13 +87,18 @@
                 [token (/ freq ntokens)]))
          (into {}))))
 
+(defn detect-language [text]
+  (->> text
+       (.detect language-detector)
+       (.getLanguage)))
+
 (defn find-best-analysis-language [{:keys [text lang]}]
   (let [text-size (count text)]
     (cond
       (#{:de :en} lang) lang
       (< text-size 300) :en
       :else
-      (let [detected-lang (keyword (pl/detect-language text))]
+      (let [detected-lang (keyword (detect-language text))]
         (if (#{:de :en} detected-lang)
           detected-lang
           (do

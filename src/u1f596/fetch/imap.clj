@@ -11,7 +11,6 @@
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
-   [pantomime.media :as mt]
    [java-time :as time]
    [schema.core :as s])
   (:import
@@ -28,7 +27,10 @@
 
 (defn try-get-base-type [content-type]
   (try+
-   (str (mt/base-type content-type))
+   (->
+    (org.apache.tika.mime.MediaType/parse content-type)
+    .getBaseType
+    str)
    (catch Object _
      content-type)))
 

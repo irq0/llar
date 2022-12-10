@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<properties>
+  <parsers>
+    <parser class="org.apache.tika.parser.DefaultParser">
+      <parser-exclude class="org.apache.tika.parser.ocr.TesseractOCRParser"/>
+      <parser-exclude class="org.apache.tika.parser.executable.ExecutableParser"/>
+    </parser>
+    <parser class="org.apache.tika.parser.EmptyParser">
+      <mime>application/pdf</mime>
+    </parser>
+  </parsers>
+</properties>

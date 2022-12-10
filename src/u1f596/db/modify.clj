@@ -4,6 +4,7 @@
    [u1f596.db.sql :as sql]
    [u1f596.db.core]
    [u1f596.persistency :refer [ItemTagsPersistency ItemPersistency]]
+   [u1f596.contentdetect :as contentdetect]
    [java-time :as time]
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -18,7 +19,6 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [hikari-cp.core :as hikari]
    [hugsql.core :as hugsql]
-   [pantomime.media :as pantomime-media]
    [cheshire.generate :as json :refer [encode-str]])
   (:import (u1f596.db.core PostgresqlDataStore)))
 
@@ -71,7 +71,7 @@
             :when (some? mime-data-pairs)]
         (for [[mime-type data] mime-data-pairs
               :when (some? data)
-              :let [text? (pantomime-media/text? mime-type)]]
+              :let [text? (contentdetect/text-mime-type? mime-type)]]
           (sql/store-item-data
            db
            {:item-id item-id
@@ -124,9 +124,9 @@
   (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts]
     (let [source-ids (sql/resolve-source-keys-to-ids
                       this
-                    {:keys (vec (map name source-keys))}
-                    {}
-                    {:row-fn :id})]
+                      {:keys (vec (map name source-keys))}
+                      {}
+                      {:row-fn :id})]
       (sql/remove-tags this
                        {:tags ["unread"]
                         :where [(sql/tag-cond-by-source-id-in {:ids source-ids})

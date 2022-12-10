@@ -9,7 +9,6 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [cheshire.generate :refer [add-encoder encode-str]]
-   [pantomime.mime :as pm]
    [org.bovinegenius [exploding-fish :as uri]]
    [clojure.string :as string])
   (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))

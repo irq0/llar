@@ -1,18 +1,18 @@
 (ns u1f596.converter
   (:require
    [u1f596.appconfig :as appconfig]
+   [u1f596.contentdetect :as contentdetect]
    [slingshot.slingshot :refer [throw+ try+]]
    [clojure.java.io :as io]
    [clojure.string :as string]
    [org.bovinegenius.exploding-fish]
    [org.bovinegenius [exploding-fish :as uri]]
-   [pantomime.mime :as pm]
    [java-time :as time]
    [clojure.tools.logging :as log]
    [clojure.edn :as edn]
    [puget.printer :as puget]
    [clojure.java.shell :as shell])
-  (:import (org.bovinegenius.exploding_fish Uri)))
+  (:import [org.bovinegenius.exploding_fish Uri]))
 
 (defn html-to-text-command [tool]
   (get {:pandoc [(appconfig/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
@@ -54,7 +54,7 @@
    data))
 
 (defn data-uri [data & {:keys [mime-type]
-                        :or {mime-type (pm/mime-type-of data)}}]
+                        :or {mime-type (contentdetect/detect-mime-type data)}}]
   (if (and (instance? String data) (nil? mime-type))
     (format "data:text/plain;%s" (java.net.URLEncoder/encode data "UTF-8"))
     (format "data:%s;base64,%s"
@@ -64,7 +64,7 @@
   [data & {:keys [mime-type]}]
   (if-not (string/blank? mime-type)
     mime-type
-    (pm/mime-type-of data)))
+    (contentdetect/detect-mime-type data)))
 
 (defmulti convert-to-html get-mimetype)
 
