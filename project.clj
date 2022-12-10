@@ -66,7 +66,7 @@
                  [mvxcvi/puget "1.3.2"]
                  [cc.artifice/clj-ml "0.8.7"]
                  [clj-commons/iapetos "0.1.12"]
-                 [io.github.nextjournal/clerk "0.3.233"]])
                  [telegrambot-lib "1.5.0"]
                  [com.layerware/hugsql "0.5.3"]
                  [jarohen/chime "0.3.3"]
+                 [io.github.nextjournal/clerk "0.12.707"]])

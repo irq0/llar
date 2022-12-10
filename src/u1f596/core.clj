@@ -21,6 +21,7 @@
    [u1f596.notifier :as notifier]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
+   [nextjournal.clerk :as clerk]
    [migratus.core :as migratus]
    [u1f596.webapp :as webapp])
   (:gen-class))
@@ -123,5 +124,8 @@
    (when-not (:dry options)
      (http/update-domain-blocklist!))
 
+   (when (:clerk options)
+     (clerk/serve! {:browse? false
+                    :watch-paths ["src/notebooks"]}))
 
    (log/info "🖖")))
