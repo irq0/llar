@@ -14,7 +14,7 @@
   nice map. "
   [row]
   (if (and (some? (:data_types row)) (some? (first (:data_types row))))
-    ;; data tables is aggregated into 4 json colums
+    ;; data tables is aggregated into 4 json columns
     ;; transform them to tree of {:data {:data_type {mime_type data}}}
     (-> row
         (assoc :data
@@ -104,7 +104,7 @@
                   (-> row
                       (assoc :key key)
                       (merge (get config-sources key)))))}))
-  
+
   (sources-merge-in-tags-counts [this sources]
     (pmap (fn [source]
             (let [id (:id source)
@@ -189,4 +189,3 @@
       :group-by-columns ["items.id"]}
      {}
      {:row-fn process-items-row})))
-

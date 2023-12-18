@@ -68,7 +68,7 @@
                  [nrepl "1.1.0"]
                  [org.clojure/core.async "1.6.681" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
                  [byte-streams "0.2.4" :exclusions [riddley]]
-                 
+
                  ;; schema
                  [prismatic/schema "1.4.1"]
                  [prismatic/schema-generators "0.1.5"]
@@ -87,7 +87,7 @@
                  ;; email
                  [com.draines/postal "2.0.5"]
                  [io.forward/clojure-mail "1.0.8" :exclusions [medley javax.activation/activation]]
-                 
+
                  ;; database
                  [mpg "1.3.0" :exclusions [chesire]]
                  [com.layerware/hugsql "0.5.3"]
@@ -110,14 +110,10 @@
 
                  ;; fetch source configuration
                  [org.babashka/sci "0.8.41"]
-                 
+
                  ;; data processing and analysis
                  [clojure-opennlp "0.5.0"]
                  [org.apache.tika/tika-parsers-standard-package "2.9.1" :exclusions [org.ow2.asm/asm commons-io]]
                  [org.apache.tika/tika-langdetect-optimaize "2.9.1"]
                  [org.apache.tika/tika-core "2.9.1" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]])
-                 
-
-
-

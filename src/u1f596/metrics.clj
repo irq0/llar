@@ -19,25 +19,25 @@
   `(let [start# (java.lang.System/nanoTime)
          result# (do ~@body)
          fin# (java.lang.System/nanoTime)
-         elasped# (- fin# start#)
-         elasped-sec# (/ elasped# 1000000)]
-     (log/debugf "[EXECTIME] form %s: %.2fms" (quote ~@body) (float elasped-sec#))
+         elapsed# (- fin# start#)
+         elapsed-sec# (/ elapsed# 1000000)]
+     (log/debugf "[EXECTIME] form %s: %.2fms" (quote ~@body) (float elapsed-sec#))
      result#))
 
 (defmacro with-log-exec-time-named [metric & body]
   `(let [start# (java.lang.System/nanoTime)
          result# (do ~@body)
          fin# (java.lang.System/nanoTime)
-         elasped# (- fin# start#)
-         elasped-sec# (/ elasped# 1000000)]
-     (log/debugf "[EXECTIME] %s: %.2fms" '~metric (float elasped-sec#))
+         elapsed# (- fin# start#)
+         elapsed-sec# (/ elapsed# 1000000)]
+     (log/debugf "[EXECTIME] %s: %.2fms" '~metric (float elapsed-sec#))
      result#))
 
 (defmacro with-prom-exec-time [metric & body]
   `(let [start# (java.lang.System/nanoTime)
          result# (do ~@body)
          fin# (java.lang.System/nanoTime)
-         elasped# (- fin# start#)]
-     (log/debugf "[EXECTIME] %s: %.2fms" (name ~metric) (float (/ elasped# 1000000)))
-     (prometheus/observe prom-registry ~metric (float (/ elasped# 1000000000)))
+         elapsed# (- fin# start#)]
+     (log/debugf "[EXECTIME] %s: %.2fms" (name ~metric) (float (/ elapsed# 1000000)))
+     (prometheus/observe prom-registry ~metric (float (/ elapsed# 1000000000)))
      result#))

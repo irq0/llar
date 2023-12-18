@@ -27,4 +27,3 @@ insert into tags (tag)
 values :t*:tags
 on conflict do nothing
 returning id
-

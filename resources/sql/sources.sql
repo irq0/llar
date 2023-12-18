@@ -3,7 +3,7 @@
 insert into sources (name, key, created_ts, type, data)
 values (:name, :key, :created_ts, :data)
 returning id
-  
+
 -- Get source by key
 -- :name get-source-by-key :? :1
 select * from sources where key = :key
@@ -15,4 +15,3 @@ from sources
 
 -- :name resolve-source-keys-to-ids :? :raw
 select id from sources where key in (:v*:keys)
-

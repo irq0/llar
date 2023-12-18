@@ -15,4 +15,3 @@
 (defstate nrepl-server
   :start (start-server :port 42000 :handler (nrepl-handler))
   :stop (stop-server nrepl-server))
-

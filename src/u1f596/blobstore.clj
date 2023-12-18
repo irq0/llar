@@ -61,7 +61,7 @@
    (read-propsfile propsfile)
    (catch [:type ::props-read-error] err
      (log/warn "Propsfile broken. Recreating" err)
-     
+
      (let [urls (or (into #{} (->> (:content err)
                                    (re-seq regex-collection/url)
                                    (map first)
@@ -146,7 +146,7 @@
     (<= 500 status 599)))
 
 (defn- download-and-add!
-  "Downoad, hash, add to primary index - create secondary index entry"
+  "Download, hash, add to primary index - create secondary index entry"
   [url]
   (try+
    (let [response (http2/get (str url)
@@ -177,7 +177,7 @@
        (throw+ {:type ::perm-fail :url url}))
 
      ;; we don't do file system locking here to protect the individual prop files,
-     ;; but rather have application level locks that lock subtrees. 
+     ;; but rather have application level locks that lock subtrees.
      (locking lock-obj
        (ensure-dir-hierarchy file)
        (let [exists? (and (.exists propsfile)
@@ -226,9 +226,9 @@
                :file file :propsfile propsfile
                :props props :urls urls
                :url-files url-files :content-hash content-hash}))
-    
+
     [file propsfile url-files]))
-    
+
 
 
 (s/defn add-from-url! :- s/Str

@@ -1,6 +1,6 @@
 --
 --  sources <--     items    --> item_data
---          1:*              1:*              
+--          1:*              1:*
 --                         []--> tags
 --                           *:*
 
@@ -84,7 +84,7 @@ ALTER TABLE ONLY item_data
 -- deduplicate items by source defined hash
 ALTER TABLE ONLY items ADD CONSTRAINT items_hash_key UNIQUE (hash);
 
--- humans identify their sources by clojure keywork
+-- humans identify their sources by clojure keyword
 ALTER TABLE ONLY sources ADD CONSTRAINT sources_key_key UNIQUE (key);
 
 -- item gone -> item data gone

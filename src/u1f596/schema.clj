@@ -359,4 +359,3 @@
    :hn-url (s/maybe URL) ;; https://news.ycombinator.com/item?id=
    :contents {(s/required-key "text/plain") (s/maybe s/Str)
               (s/optional-key "text/html") s/Str}})
-

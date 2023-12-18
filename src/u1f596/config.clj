@@ -905,7 +905,7 @@
 (fetch spiegel-online (src/feed "https://www.spiegel.de/schlagzeilen/index.rss")
        :rm (or ((make-category-filter-deny ["Sport"]) $item)
                (empty? $authors)
-               (re-find #"(?smi)Weiterlesen mit.*Ihre Vorteile mit SPIEGEL.*Sie haben bereits ein Digital-Abonnement" $text))
+               (re-find #"(?smi)Weiterlesen mit.*Ihre Vorteile mit SPIEGEL.*haben bereits ein Digital-Abonnement" $text))
        :pre (let [h (:hickory (http/fetch $url
                                           :remove-css? true
                                           :simplify? true

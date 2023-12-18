@@ -268,4 +268,3 @@
        (remove #(some (partial = "Massage") (map :name (:categories %))))
        (map #(merge (select-keys % [:district :name :location])
                     {:categories (string/join ", " (map :name (:categories %)))}))))
-

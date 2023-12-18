@@ -65,7 +65,7 @@
   #"bit\.ly|googleusercontent\.com|cdn\.vox-cdn\.com|(png|jpe?g|gif)(\?.+)?$")
 
 (def +exposed-simple-filter+
-  "Predifined items table filters. See db/simple-filter-to-sql"
+  "Predefined items table filters. See db/simple-filter-to-sql"
   {nil ["all" "fas fa-asterisk"]
    :unread ["unread" "far fa-square"]
    :today ["today" "fas fa-calendar-day"]})
@@ -318,7 +318,7 @@
               :data-toggle "collapse"
               :href "#sourcenav"}
           (icon "fas fa-list")]]
-         
+
         (= mode :show-item)
         [:span
          [:a {:class "navbar-toggler"
@@ -385,7 +385,7 @@
           (for [btn +tag-buttons+]
             (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
           next-item-button])]]]))
-       
+
 
 (defn group-list
   "Group Item List - Tags, etc."
@@ -769,7 +769,7 @@
                     (list-entry-kv k v)))))])))
 
 (defn dump-item
-  "Dump Item Developer Represenation"
+  "Dump Item Developer Representation"
   [x]
   (let [item (first (:items x))]
     [:div {:class "item-content"}
@@ -1142,7 +1142,7 @@
       :show-item (main-show-item x)
       :dump-item (dump-item x)
       :list-items (list-items x)
-      "Unkown mode")]])
+      "Unknown mode")]])
 
 (defn get-items-for-current-view
   "Fetch current view items from database"
@@ -1425,7 +1425,7 @@
                (:estimate reading-estimate) "m"]
               "&nbsp;"
               title]])]]])]]])
-              
+
 
 (defmethod lab-view-handler
   :dump-data-structure
@@ -1463,7 +1463,7 @@
         [:div {:class "form-group row"}
          [:label {:for "query" :class "col-sm-4 col-form-label"} ""]
          [:div {:class "col-sm-8"}
-          [:p "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (follwed by with distance)"]]]
+          [:p "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (followed by with distance)"]]]
         [:div {:class "form-group row"}
          [:label {:for "query" :class "col-sm-4 col-form-label"} "Item fetch in the last:"]
          (for [[name days] [["any" ""]

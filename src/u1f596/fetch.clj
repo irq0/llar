@@ -33,7 +33,7 @@
   [src :- s/Any]
   {:source src
    :source-name (str src)
-   :source-key :unkown  ; get added later by postprocessing
+   :source-key :unknown  ; get added later by postprocessing
    :app "u1f596"
    :ns (str *ns*)
    :fetch-ts (time/zoned-date-time)

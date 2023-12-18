@@ -61,7 +61,7 @@
                public-blocklists)))
 
 (defn update-domain-blocklist! []
-  (reset! domain-blocklist (fetch-domain-blocklists))) 
+  (reset! domain-blocklist (fetch-domain-blocklists)))
 
 (defn extract-http-title
   [parsed-html]

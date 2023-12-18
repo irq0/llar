@@ -200,7 +200,7 @@
       (log/debug "Skipping perm fail feed: " k)
 
       :bug
-      (log/debug "Skipping feed that triggerd a bug: " k)
+      (log/debug "Skipping feed that triggered a bug: " k)
 
       (log/debugf "Unknown status \"%s\": %s" cur-status k))
 

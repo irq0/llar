@@ -34,7 +34,7 @@
   Uri
   (sql-value [url]
     (str url)))
-  
+
 (extend-protocol j/ISQLValue
   UniformResourceIdentifier
   (sql-value [url]
