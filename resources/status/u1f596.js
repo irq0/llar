@@ -19,7 +19,7 @@ function tag_item_by_id(id, tag, icon_elem) {
       action: action,
       tag: tag,
     },
-    function (data) {
+    () => {
       var icon = icon_elem.find("i");
       if (icon_elem.data("is-set")) {
         icon_elem.data("is-set", false);
@@ -40,12 +40,10 @@ $(".btn-mark-view-read").click(function () {
   var ids = jQuery.unique(
     $("main")
       .find("[data-id]")
-      .map(function () {
-        return $(this).data("id");
-      }),
+      .map(() => $(this).data("id")),
   );
 
-  for (id of ids) {
+  for (var id of ids) {
     var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
     tag_item_by_id(id, "unread", icon_elem);
   }
@@ -57,12 +55,8 @@ $(".btn-update-sources-in-view").popover({
   offset: 10,
   trigger: "manual",
   html: true,
-  title: function () {
-    return $(".btn-update-sources-in-view").data("result-title");
-  },
-  content: function () {
-    return $(".btn-update-sources-in-view").data("result-message");
-  },
+  title: () => $(".btn-update-sources-in-view").data("result-title"),
+  content: () => $(".btn-update-sources-in-view").data("result-message"),
 });
 
 function show_update_sources_update_result(title, message) {
@@ -76,7 +70,7 @@ function show_update_sources_update_result(title, message) {
 }
 
 function update_sources_update_state(target) {
-  $.getJSON(target, function (result) {
+  $.getJSON(target, (result) => {
     if (result["done"]) {
       var items_url = $(".btn-update-sources-in-view").data("items");
       show_update_sources_update_result(
@@ -91,7 +85,7 @@ function update_sources_update_state(target) {
 
 $(".btn-update-sources-in-view").click(function () {
   var target = $(this).data("target");
-  $.post(target, function (data, status) {
+  $.post(target, (data, status) => {
     if (status == "success") {
       setTimeout(update_sources_update_state, 5000, target);
     }
@@ -103,7 +97,7 @@ $(".btn-update-sources-in-view").click(function () {
 //
 
 // tag toggle buttons
-$(".ajax-toggle").click(function () {
+$(".ajax-toggle").click(() => {
   var action = "set";
   if ($(this).data("is-set")) {
     action = "del";
@@ -112,7 +106,7 @@ $(".ajax-toggle").click(function () {
   $.post(
     "/reader/item/by-id/" + x.data("id"),
     { action: action, tag: x.data("tag") },
-    function (data) {
+    () => {
       var icon = x.find("i");
       if (x.data("is-set")) {
         x.data("is-set", false);
@@ -126,7 +120,7 @@ $(".ajax-toggle").click(function () {
 });
 
 // custom tag modal form
-$("form.add-custom-tag").submit(function (event) {
+$("form.add-custom-tag").submit((event) => {
   event.preventDefault();
   var action = "set";
   var tag = $(this).find("input:first").val();
@@ -137,9 +131,7 @@ $("form.add-custom-tag").submit(function (event) {
       action: action,
       tag: tag,
     },
-    function () {
-      location.reload();
-    },
+    () => location.reload(),
   );
 });
 
@@ -154,7 +146,7 @@ function show_bookmark_add_result(title, message) {
 }
 
 // bookmark / document add url
-$(".bookmark-submit").click(function () {
+$(".bookmark-submit").click(() => {
   var x = $(this);
   x.removeClass("btn-warning");
   x.removeClass("btn-secondary");
@@ -163,7 +155,7 @@ $(".bookmark-submit").click(function () {
     url: "/reader/bookmark/add",
     data: { url: $(x.data("url-source")).val(), type: x.data("type") },
     dataType: "json",
-    success: function (data) {
+    success: (data) => {
       x.removeClass("btn-warning");
       x.removeClass("btn-info");
       $(x.data("url-source")).val("");
@@ -187,7 +179,7 @@ $(".bookmark-submit").click(function () {
       );
       return false;
     },
-  }).fail(function (data) {
+  }).fail((data) => {
     x.addClass("btn-warning");
     x.removeClass("btn-secondary");
     x.removeClass("btn-info");
@@ -203,16 +195,12 @@ $("#add-thing").popover({
   boundary: $("#groupnav"),
   trigger: "manual",
   html: true,
-  title: function () {
-    return $("#add-thing").data("result-title");
-  },
-  content: function () {
-    return $("#add-thing").data("result-message");
-  },
+  title: () => $("#add-thing").data("result-title"),
+  content: () => $("#add-thing").data("result-message"),
 });
 
 // click on youtube preview image to start player
-$(".lazy-youtube").click(function () {
+$(".lazy-youtube").click(() => {
   var vid = $(this).data("vid");
   var target = $(this).data("target");
   $("#" + target).html(
@@ -226,7 +214,7 @@ $(".lazy-youtube").click(function () {
 // main list: mark on view, toggle read
 $(".option-mark-read-on-view").waypoint({
   offset: "bottom-in-view",
-  handler: function (direction) {
+  handler: () => {
     var x = $("#" + this.element.id + " .direct-tag-buttons .btn-tag-unread");
     console.log(x);
     $.post(
@@ -235,7 +223,7 @@ $(".option-mark-read-on-view").waypoint({
         action: "del",
         tag: x.data("tag"),
       },
-      function (data) {
+      () => {
         var icon = x.find("i");
         x.data("is-set", false);
         icon.attr("class", x.data("icon-unset"));
@@ -245,13 +233,13 @@ $(".option-mark-read-on-view").waypoint({
 });
 
 // document structure aware page forward scrolling
-$("#item-content-body").ready(function () {
+$("#item-content-body").ready(() => {
   //    var main_top = $("main").offset().top;
   if ($("#item-content-body").length) {
     var main_top = $("#item-content-body").offset().top;
     var main_bottom = window.innerHeight;
     var items = get_scroll_to_items();
-    items.each(function (index) {
+    items.each(() => {
       var this_top = $(this)[0].getBoundingClientRect().top;
       var this_bottom = this_top + $(this).height();
       if (this_top >= main_top && this_bottom < main_bottom) {
@@ -268,9 +256,7 @@ $("#item-content-body").ready(function () {
         $(this).attr("view", "out");
       }
     });
-    items.each(function (index) {
-      $(this).removeClass("viewport-bottom");
-    });
+    items.each(() => $(this).removeClass("viewport-bottom"));
     var scroll_to = items.last();
     var candidate = items.filter('[view="out"]');
     if (candidate.length > 0) {
@@ -284,14 +270,14 @@ $("#item-content-body").ready(function () {
   }
 });
 
-$(window).scroll(function () {
+$(window).scroll(() => {
   var content_body = $("#item-content-body");
   if (content_body.length) {
     var main_top = content_body.offset().top;
     // var main_top = $("main").offset().top;
     var main_bottom = window.innerHeight;
     var items = get_scroll_to_items();
-    items.each(function (index) {
+    items.each(() => {
       var this_top = $(this)[0].getBoundingClientRect().top + 10;
       var this_bottom = this_top + $(this).height();
       if (this_top >= main_top && this_bottom < main_bottom) {
@@ -308,9 +294,7 @@ $(window).scroll(function () {
         $(this).attr("view", "out");
       }
     });
-    items.each(function (index) {
-      $(this).removeClass("viewport-bottom");
-    });
+    items.each(() => $(this).removeClass("viewport-bottom"));
     var scroll_to = items.last();
     var candidate = items.filter('[view="out"]');
     if (candidate.length > 0) {
@@ -325,11 +309,14 @@ $(window).scroll(function () {
 });
 
 // keyboard navigation
-$("body").keypress(function (event) {
+$("body").keypress((event) => {
   var main_top = $("#item-content-body").offset().top;
   // var main_top = $("main").offset().top;
   var main_bottom = window.innerHeight;
-
+  var content = null;
+  var next_url = null;
+  var scroll_to = null;
+  var candidate = null;
   if ($("body").hasClass("modal-open")) {
     return;
   }
@@ -338,7 +325,7 @@ $("body").keypress(function (event) {
   if ($(".feed-item").length > 0) {
     content = $(".feed-item");
     if (event.which == 32) {
-      $(".feed-item").each(function (index) {
+      $(".feed-item").each(() => {
         var this_top = $(this)[0].getBoundingClientRect().top;
         var this_bottom = this_top + $(this).height();
         if (this_top >= main_top && this_bottom < main_bottom) {
@@ -355,24 +342,8 @@ $("body").keypress(function (event) {
           $(this).attr("view", "out");
         }
       });
-      // debugging: highlight view attribute with color
-      // $(".feed-item").each(function (index) {
-      //    $(this).css("background-color", "white");
-      //    if ($(this).attr("view") == "out")  {
-      //      $(this).css("background-color", "red");
-      //    }
-      //    if ($(this).attr("view") == "partial-top")  {
-      //      $(this).css("background-color", "blue");
-      //    }
-      //    if ($(this).attr("view") == "partial-bottom")  {
-      //      $(this).css("background-color", "yellow");
-      //    }
-      //    if ($(this).attr("view") == "full")  {
-      //      $(this).css("background-color", "green");
-      //    }
-      // });
-      var scroll_to = $(".feed-item").last();
-      var candidate = $('.feed-item[view="out"]');
+      scroll_to = $(".feed-item").last();
+      candidate = $('.feed-item[view="out"]');
       if (candidate.length > 0) {
         scroll_to = candidate.first();
       }
@@ -388,7 +359,7 @@ $("body").keypress(function (event) {
   } else if ($("#item-content-body").length > 0) {
     content = $("#item-content-body");
     if (event.key == "n") {
-      var next_url = $("#btn-next-item").attr("href");
+      next_url = $("#btn-next-item").attr("href");
       if (next_url) {
         window.location.href = next_url;
       }
@@ -396,7 +367,7 @@ $("body").keypress(function (event) {
       window.history.back();
     } else if (event.key == "N") {
       $("#btn-tag-unread").trigger("click");
-      var next_url = $("#btn-next-item").attr("href");
+      next_url = $("#btn-next-item").attr("href");
       if (next_url) {
         window.location.href = next_url;
       }
@@ -414,7 +385,7 @@ $("body").keypress(function (event) {
       // space
       event.preventDefault();
       var items = get_scroll_to_items();
-      items.each(function (index) {
+      items.each(() => {
         var this_top = $(this)[0].getBoundingClientRect().top;
         var this_bottom = this_top + $(this).height();
         if (this_top >= main_top && this_bottom < main_bottom) {
@@ -431,24 +402,8 @@ $("body").keypress(function (event) {
           $(this).attr("view", "out");
         }
       });
-      // debugging: highlight view attribute with color
-      // items.each(function (index) {
-      // 	$(this).css("background-color", "white");
-      // 	if ($(this).attr("view") == "out")  {
-      // 	    $(this).css("background-color", "red");
-      // 	}
-      // 	if ($(this).attr("view") == "partial-top")  {
-      // 	    $(this).css("background-color", "blue");
-      // 	}
-      // 	if ($(this).attr("view") == "partial-bottom")  {
-      // 	    $(this).css("background-color", "yellow");
-      // 	}
-      // 	if ($(this).attr("view") == "full")  {
-      // 	    $(this).css("background-color", "green");
-      // 	}
-      // });
-      var scroll_to = items.last();
-      var candidate = items.filter('[view="out"]');
+      scroll_to = items.last();
+      candidate = items.filter('[view="out"]');
       if (candidate.length > 0) {
         scroll_to = candidate.first();
       }
@@ -475,8 +430,9 @@ function is_touch_device() {
 }
 
 if (is_touch_device()) {
+  /* eslint no-undef: "off" */
   var main_swipe = new Hammer($("main")[0]);
-  main_swipe.on("swipeleft", function (ev) {
+  main_swipe.on("swipeleft", (ev) => {
     console.log(ev);
     var main_top = $("main").offset().top;
     var main_bottom = window.innerHeight;
@@ -486,7 +442,7 @@ if (is_touch_device()) {
     }
 
     var items = get_scroll_to_items();
-    items.each(function (index) {
+    items.each(() => {
       var this_top = $(this)[0].getBoundingClientRect().top;
       var this_bottom = this_top + $(this).height();
       if (this_top >= main_top && this_bottom < main_bottom) {
