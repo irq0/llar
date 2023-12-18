@@ -57,3 +57,10 @@ repos:
     rev: 'v8.56.0'
     hooks:
     -   id: eslint
+
+  - repo: https://github.com/awebdeveloper/pre-commit-stylelint
+    rev: '0.0.1'
+    hooks:
+    -   id: stylelint
+        args: ["--fix"]
+        additional_dependencies: ['stylelint@16.0.2', 'stylelint-config-standard@35.0.0']
