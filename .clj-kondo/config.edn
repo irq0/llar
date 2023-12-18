@@ -1,2 +1,4 @@
-{:lint-as {mount.core/defstate clojure.core/def}
- :linters {:unresolved-symbol {:exclude [(slingshot.slingshot/try+ [e &throw-context _])]}}}
+{:lint-as {mount.core/defstate clojure.core/def
+           u1f596.config/fetch clojure.core/def}
+ :linters {:unresolved-symbol {:exclude [(slingshot.slingshot/try+ [e &throw-context _])
+                                         (u1f596.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])]}}}

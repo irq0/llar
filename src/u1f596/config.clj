@@ -6,6 +6,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
+   [hiccup.core :as hiccup]
    [hickory.core :as hick]
    [hickory.render :refer [hickory-to-html]]
    [hickory.select :as S]
@@ -94,8 +95,7 @@
 (defmacro fetch-reddit
   [src & body]
   (let [{:keys [options tags min-score dynamic?]
-         :or {options #{} tags #{} min-score 0 dynamic? true}
-         :as params} (apply hash-map body)]
+         :or {options #{} tags #{} min-score 0 dynamic? true}} (apply hash-map body)]
     (s/validate #{s/Keyword} tags)
     (s/validate #{s/Keyword} options)
 
@@ -559,10 +559,10 @@
        :tags #{:emacs :blog})
 
 (fetch infoq-articles (src/feed "https://www.infoq.com/feed/articles" :force-update? false)
-       :post  (if-let [title-without (second (re-find #"Article: (.+)" $title))]
+       :post  (when-let [title-without (second (re-find #"Article: (.+)" $title))]
                 (-> $item
                     (assoc-in [:summary :title] title-without)
-                    (apply (mercury-contents :keep-orig? true))))
+                    (mercury-contents :keep-orig? true)))
        :tags #{:tech})
 
 (fetch quobyte (src/feed "https://www.quobyte.com/blog/feed/")
@@ -580,7 +580,7 @@
 (fetch theregister-storage (src/feed "https://www.theregister.co.uk/data_centre/storage/headlines.atom" :force-update? false)
        :post (-> $item
                  (assoc-in [:entry :url] (string/replace $url #"go\.theregister\.com/feed/" ""))
-                 (apply (mercury-contents)))
+                 (mercury-contents))
        :options #{:mark-read-on-view}
        :tags #{:storage :magazine})
 
@@ -609,7 +609,7 @@
                    descr (get-in $entry [:descriptions "text/plain"])
                    content {"text/plain" (string/join "\n"
                                                       [$title orig-img-url descr])
-                            "text/html" (hiccup.core/html
+                            "text/html" (hiccup/html
                                          [:div
                                           [:h1 $title]
                                           [:img {:src img-url
