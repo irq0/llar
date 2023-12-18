@@ -8,7 +8,6 @@
    [digest])
   (:import (u1f596.db.core PostgresqlDataStore)))
 
-
 (defn- process-items-row
   "Generic item row processor. Convert aggregated item data table entries into a
   nice map. "

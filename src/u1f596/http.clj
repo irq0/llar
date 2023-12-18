@@ -21,7 +21,6 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [java-time :as time]))
 
-
 ;; 🖖 HTTP Fetch utility
 
 (defonce domain-blocklist (atom #{}))
@@ -317,21 +316,21 @@
       (if (zip/end? loc)
         (zip/root loc)
         (recur
-          (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
-            (if (and (= type :element) (some? content)
-                     (some #(contains? #{:div :span} (:tag %)) content))
-              (zip/replace loc
+         (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
+           (if (and (= type :element) (some? content)
+                    (some #(contains? #{:div :span} (:tag %)) content))
+             (zip/replace loc
                            ;; elevate any div/span content to this node
-                           (let [new-content (mapcat (fn [cont]
-                                                       (let [{:keys [tag type attrs content]} cont]
-                                                         (if (and (= type :element)
-                                                                  (some? content)
-                                                                  (contains? #{:div :span} tag))
-                                                           content
-                                                           [cont])))
-                                                     content)]
-                             (assoc node :content new-content)))
-              (zip/next loc))))))))
+                          (let [new-content (mapcat (fn [cont]
+                                                      (let [{:keys [tag type attrs content]} cont]
+                                                        (if (and (= type :element)
+                                                                 (some? content)
+                                                                 (contains? #{:div :span} tag))
+                                                          content
+                                                          [cont])))
+                                                    content)]
+                            (assoc node :content new-content)))
+             (zip/next loc))))))))
 
 (defn simplify [root]
   (let [zipper (hick-z/hickory-zip root)]
@@ -378,8 +377,8 @@
                                 (assoc :content [])
                                 (assoc :attrs {:note "cleared by u1f596 html sanitizer"}))))
 
-                (and (= tag :a) (some-> attrs :href #(or (string/starts-with? %"mailto:")
-                                                         (string/starts-with? %"data:"))))
+                (and (= tag :a) (some-> attrs :href #(or (string/starts-with? % "mailto:")
+                                                         (string/starts-with? % "data:"))))
                 loc
 
                 (= tag :font)
@@ -410,7 +409,6 @@
                 (zip/edit loc
                           (fn [node]
                             (assoc-in node [:attrs :class] "embed-responsive")))
-
 
                 (and (contains? #{:a :img} tag)
                      (contains? #{:href :src} attrs)
@@ -467,7 +465,7 @@
      (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
             {:keys [headers body status]}
        (log/warnf "Client error probably due to broken request (%s): %s %s"
-                   status headers body user-agent)
+                  status headers body user-agent)
        (throw+ {:type ::request-error
                 :code status
                 :url url

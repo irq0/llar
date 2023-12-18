@@ -74,13 +74,12 @@
                   :default nil)
 
         post (cond (some? post-fns) post-fns
-                  (some? post) [`(wrap-proc ~src-kw ~tags ~options ~post)]
-                  :default nil)
+                   (some? post) [`(wrap-proc ~src-kw ~tags ~options ~post)]
+                   :default nil)
 
         rm (cond (some? rm-fn) rm-fn
-                  (some? rm) `(wrap-proc ~src-kw ~tags ~options ~rm)
-                  :default '(constantly false))]
-
+                 (some? rm) `(wrap-proc ~src-kw ~tags ~options ~rm)
+                 :default '(constantly false))]
 
     (s/validate #{s/Keyword} tags)
     (s/validate #{s/Keyword} options)
@@ -93,7 +92,6 @@
                                   :pre ~pre
                                   :post ~post})})
          (keyword '~src-key))))
-
 
 (defmacro fetch-reddit
   [src & body]
@@ -110,7 +108,7 @@
                    :tags (conj ~tags :reddit)
                    :proc (make-reddit-proc src-key# ~src {:min-score ~min-score
                                                           :dynamic? ~dynamic?})})
-          (keyword src-key#)))))
+           (keyword src-key#)))))
 
 (fetch twit-c3pb (src/twitter-search "c3pb" (:twitter-api creds))
        :rm (->> $item
@@ -130,8 +128,6 @@
        :tags #{:pics})
 
 (fetch twitter-timeline (src/twitter-timeline (:twitter-api creds)))
-
-
 
 (fetch usenix-login
        (src/selector-feed "https://www.usenix.org/publications/loginonline"
@@ -183,29 +179,29 @@
        :tags #{:blog})
 
 (fetch paulgraham (src/selector-feed "http://www.paulgraham.com/articles.html"
-                                  {:urls (S/descendant
-                                          (S/tag :td)
-                                          (S/tag :font)
-                                          (S/tag :a))
-                                   :ts (S/descendant
-                                        (S/tag :td)
-                                        (S/tag :font))
-                                   :title (S/tag :title)
-                                   :content (S/descendant
+                                     {:urls (S/descendant
                                              (S/tag :td)
-                                             (S/tag :font))}
-                                  {:content  #(->> % first :content (drop 1))
-                                   :author "Paul Graham"
-                                   :urls (fn [l] (take 10 (map (fn [x] (->> x :attrs :href uri/uri)) l)))
-                                   :ts #(->> %
-                                             first
-                                             hickory-to-html
-                                             converter/html2text
-                                             (re-find #"(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}")
-                                             first
-                                             ((fn [maybe-ts] (if (nil? maybe-ts) "January 0001" maybe-ts)))
-                                             (str "1 ")
-                                             (parse-date-to-zoned-data-time "d MMMM yyyy"))})
+                                             (S/tag :font)
+                                             (S/tag :a))
+                                      :ts (S/descendant
+                                           (S/tag :td)
+                                           (S/tag :font))
+                                      :title (S/tag :title)
+                                      :content (S/descendant
+                                                (S/tag :td)
+                                                (S/tag :font))}
+                                     {:content  #(->> % first :content (drop 1))
+                                      :author "Paul Graham"
+                                      :urls (fn [l] (take 10 (map (fn [x] (->> x :attrs :href uri/uri)) l)))
+                                      :ts #(->> %
+                                                first
+                                                hickory-to-html
+                                                converter/html2text
+                                                (re-find #"(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}")
+                                                first
+                                                ((fn [maybe-ts] (if (nil? maybe-ts) "January 0001" maybe-ts)))
+                                                (str "1 ")
+                                                (parse-date-to-zoned-data-time "d MMMM yyyy"))})
        :tags #{:blog})
 
 (fetch xahteiwi (src/feed "https://xahteiwi.eu/feeds/all.atom.xml")
@@ -270,10 +266,9 @@
 
 (fetch acm-queue (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml"
                            :user-agent :browser
-                                 :force-update? true)
+                           :force-update? true)
        :post-fns [(mercury-contents :keep-orig? true)]
        :tags #{:tech :magazine :sci})
-
 
 (fetch-reddit (src/reddit "DIY" :top) :min-score 2000)
 (fetch-reddit (src/reddit "DataHoarder" :top) :min-score 10
@@ -287,7 +282,6 @@
 
 (fetch-reddit (src/reddit "listentothis" :top) :min-score 150
               :tags #{:reddit :music})
-
 
 (fetch-reddit (src/reddit "europe" :top) :min-score 2500
               :options #{:mark-read-on-view})
@@ -307,7 +301,7 @@
               :tags #{:music})
 
 (fetch-reddit (src/reddit "Albumoftheday" :top) :min-score 5
-                          :tags #{:music})
+              :tags #{:music})
 (fetch-reddit (src/reddit "listentoconcerts" :top) :min-score 5
               :tags #{:music})
 
@@ -340,7 +334,6 @@
 (fetch-reddit (src/reddit "experienceddevs" :top) :min-score 70
               :options #{:mark-read-on-view}
               :tags #{:tech})
-
 
 (fetch gamasutra-pc (src/feed "http://feeds.feedburner.com/GamasutraConsolePCNews")
        :options #{:mark-read-on-view}
@@ -395,7 +388,7 @@
                              (str
                               (get-in $item [:entry :descriptions "text/html"])
                               "<p>" alt-text "</p>"))))
-          :tags #{:AAA :comics})
+       :tags #{:AAA :comics})
 
 (fetch daily-wtf (src/feed "http://syndication.thedailywtf.com/TheDailyWtf")
        :tags #{:recreation}
@@ -484,7 +477,7 @@
                                             :user-agent :bot)
        :tags #{:recreation}
        :post-fns [(proc/exchange [:entry :descriptions]
-                             [:entry :contents])])
+                                 [:entry :contents])])
 
 (fetch berlintypography (src/feed "https://berlintypography.wordpress.com/feed/")
        :tags #{:design})
@@ -624,9 +617,9 @@
                                           [:img {:src img-url
                                                  :orig-src orig-img-url}]
                                           [:p descr]])}]
-                  (-> $item
-                                                 (assoc-in [:entry :contents] content)
-                                                 (assoc-in [:entry :lead-image-url] img-url)))
+               (-> $item
+                   (assoc-in [:entry :contents] content)
+                   (assoc-in [:entry :lead-image-url] img-url)))
        :tags #{:pics})
 
 (fetch wired (src/feed "https://www.wired.com/feed")
@@ -665,12 +658,12 @@
        :tags #{:tech})
 
 (fetch lwn-weekly (src/website+paywall "https://lwn.net/current"
-                                          (fn [] (let [cs (http-cookies/cookie-store)]
-                                                   (http-client/post "https://lwn.net/Login/"
-                                                                     {:form-params (:lwn creds)
-                                                                      :cookie-store cs})
-                                                   cs))
-                                          :user-agent :browser)
+                                       (fn [] (let [cs (http-cookies/cookie-store)]
+                                                (http-client/post "https://lwn.net/Login/"
+                                                                  {:form-params (:lwn creds)
+                                                                   :cookie-store cs})
+                                                cs))
+                                       :user-agent :browser)
        :pre (let [new-items
                   (->> (S/select (S/descendant
                                   (S/class "SummarySection"))
@@ -715,7 +708,7 @@
                     (assoc-in [:entry :contents]
                               {"text/html" html
                                "text/plain" (converter/html2text html)}))))
-            :tags #{:tech :deep-tech})
+       :tags #{:tech :deep-tech})
 
 (fetch thenewstack (src/feed "https://thenewstack.io/feed/")
        :options #{:mark-read-on-view}
@@ -740,8 +733,8 @@
                                                              (S/descendant
                                                               (S/class "post__link"))
                                                              (:hickory redirect-page))
-                                                        first :attrs :href)]
-                             (assoc-in item [:entry :url] (uri/uri real-article-link))))]
+                                                            first :attrs :href)]
+                              (assoc-in item [:entry :url] (uri/uri real-article-link))))]
        :tags #{:magazine}
        :options #{:main-list-use-description})
 
@@ -752,22 +745,22 @@
        :tags #{:blog})
 
 (fetch guzey (src/selector-feed
-                 "https://guzey.com/archive/"
-                 {:urls (S/descendant
-                         (S/class :article)
-                         (S/and
-                          (S/tag :a)
-                          (S/attr :href #(string/starts-with? % "https://guzey.com/"))))
-                  :title (S/class :article-title)
-                  :ts (S/descendant (S/class :post-date)
-                                    (S/tag :time))
-                  :author (constantly ["Alexey Guzey"])
-                  :content (S/tag :article)}
-                 {:author (constantly ["Alexey Guzey"])
-                  :ts (fn [hick]
-                        (let [raw (->> hick first :content first)]
-                          (when (string? raw)
-                            (parse-date-to-zoned-data-time (time/formatter :iso-date) raw))))})
+              "https://guzey.com/archive/"
+              {:urls (S/descendant
+                      (S/class :article)
+                      (S/and
+                       (S/tag :a)
+                       (S/attr :href #(string/starts-with? % "https://guzey.com/"))))
+               :title (S/class :article-title)
+               :ts (S/descendant (S/class :post-date)
+                                 (S/tag :time))
+               :author (constantly ["Alexey Guzey"])
+               :content (S/tag :article)}
+              {:author (constantly ["Alexey Guzey"])
+               :ts (fn [hick]
+                     (let [raw (->> hick first :content first)]
+                       (when (string? raw)
+                         (parse-date-to-zoned-data-time (time/formatter :iso-date) raw))))})
        :post (assoc $item :hash (make-item-hash (some-> $url uri/uri)))
        :tags #{:blog})
 
@@ -967,25 +960,25 @@
        :tags #{:news})
 
 (comment
-   :impfcenter-berlin {:last-state (atom {})
-                       :src (src/custom :impfcenter (fn [] (let [data (:body (http-client/get "https://www.joerss.dev/api/ampel/" {:as :json}))
-                                                                 color-num-to-kw {0 :red 1 :amber 2 :green}]
-                                                             (for [{:keys [ciz color updateDateTime]} data]
-                                                               {:summary {:title (str "Impfcenter " ciz)
-                                                                          :ts (time/zoned-date-time (time/formatter :iso-date-time) updateDateTime)}
-                                                                :entry [ciz (get color-num-to-kw color)]}))))
-                       :proc (proc/make
-                              :filter (constantly true)
-                              :pre [(fn [item]
-                                      (let [[name new-state] (:entry item)
-                                            last-state-atom (get-in (get-sources) [(get-in item [:meta :source-key])
-                                                                                   :last-state])
-                                            last-state (get @last-state-atom name)]
-                                        (log/info name last-state "->" new-state)
-                                        (when (and (#{:red :amber} last-state) (= :green new-state))
-                                          (notifier/notify :vac (str "Go! " name ": " last-state " -> " new-state)))
-                                        (when (and (= :green last-state) (#{:red :amber} new-state))
-                                          (notifier/notify :vac (str "Don't go "  name ": " last-state " -> " new-state)))
-                                        (swap! last-state-atom assoc name new-state)
+  :impfcenter-berlin {:last-state (atom {})
+                      :src (src/custom :impfcenter (fn [] (let [data (:body (http-client/get "https://www.joerss.dev/api/ampel/" {:as :json}))
+                                                                color-num-to-kw {0 :red 1 :amber 2 :green}]
+                                                            (for [{:keys [ciz color updateDateTime]} data]
+                                                              {:summary {:title (str "Impfcenter " ciz)
+                                                                         :ts (time/zoned-date-time (time/formatter :iso-date-time) updateDateTime)}
+                                                               :entry [ciz (get color-num-to-kw color)]}))))
+                      :proc (proc/make
+                             :filter (constantly true)
+                             :pre [(fn [item]
+                                     (let [[name new-state] (:entry item)
+                                           last-state-atom (get-in (get-sources) [(get-in item [:meta :source-key])
+                                                                                  :last-state])
+                                           last-state (get @last-state-atom name)]
+                                       (log/info name last-state "->" new-state)
+                                       (when (and (#{:red :amber} last-state) (= :green new-state))
+                                         (notifier/notify :vac (str "Go! " name ": " last-state " -> " new-state)))
+                                       (when (and (= :green last-state) (#{:red :amber} new-state))
+                                         (notifier/notify :vac (str "Don't go "  name ": " last-state " -> " new-state)))
+                                       (swap! last-state-atom assoc name new-state)
 ;;                                        (notifier/notify :vac (str name ": " last-state " -> " new-state))
-                                        item))])})
+                                       item))])})

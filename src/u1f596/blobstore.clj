@@ -109,7 +109,6 @@
                                             :props (conv/read-edn-propsfile (slurp (nio2/input-stream link-props)))})
        ;; (java.nio.file.Files/delete (.toPath link-props))
 
-
        (nio2/create-dirs (.getParent dupe-file))
        (spit (nio2/output-stream dupe-file) url)))
     url-hash))
@@ -152,8 +151,7 @@
    (let [response (http2/get (str url)
                              {:as :stream
                               :socket-timeout 10000
-                              :connection-timeout 5000
-                              })
+                              :connection-timeout 5000})
 
          body (.readAllBytes (:body response))
          content-hash (digest/sha-256 body)
@@ -228,8 +226,6 @@
                :url-files url-files :content-hash content-hash}))
 
     [file propsfile url-files]))
-
-
 
 (s/defn add-from-url! :- s/Str
   [url :- UniformResourceIdentifier]

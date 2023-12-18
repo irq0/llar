@@ -113,7 +113,7 @@
         entities (get tweet :entities)]
 
     {:url (uri/uri (format "https://twitter.com/%s/status/%s"
-                             user id))
+                           user id))
      :pub-ts (parse-twitter-ts (get tweet :created_at))
      :score {:favs (get tweet :favorite_count)
              :retweets (get tweet :retweet_count)}

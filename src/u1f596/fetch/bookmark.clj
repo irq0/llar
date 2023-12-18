@@ -15,8 +15,6 @@
    [hickory.render :as hick-r]
    [org.bovinegenius [exploding-fish :as uri]]))
 
-
-
 ;;; Bookmarks
 
 (defn bookmark-html [i]
@@ -37,8 +35,6 @@
     [:h2 "Names / Places"]
     [:p (map (fn [name] [:span [:a {:href (str "https://www.startpage.com/do/search?query=" name)} (str " " name " ")] "&nbsp;"]) (get-in i [:entry :nlp :names]))]]
    [:h1 "Content"]))
-
-
 
 (defn make-readability-bookmark-feed [url]
   (let [src (src/mercury url)]

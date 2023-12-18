@@ -71,10 +71,10 @@
   ([state next-status next-retry-count last-exception]
    (let [now (time/zoned-date-time)]
      (merge state
-               {:last-attempt-ts now
-                :status next-status
-                :last-exception last-exception
-                :retry-count next-retry-count}))))
+            {:last-attempt-ts now
+             :status next-status
+             :last-exception last-exception
+             :retry-count next-retry-count}))))
 
 (defn- update-feed!
   "Update feed. Return new state"
@@ -118,9 +118,8 @@
                   skip-proc skip-store)
 
        (make-next-state state :ok {:fetched (count fetched)
-                                       :processed (count processed)
-                                       :db (count dbks)})
-       )
+                                   :processed (count processed)
+                                   :db (count dbks)}))
 
      (catch [:type :u1f596.http/server-error-retry-later] _
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
@@ -222,7 +221,7 @@
             (swap! state (fn [current]
                            (assoc current k new-state)))
             new-status))
-          cur-status))))
+        cur-status))))
 
 (defn updateable-sources []
   (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) (config/get-sources))))
@@ -248,15 +247,14 @@
 
 (defn update-failed! [& args]
   (let [failed-source-keys (map key (filter (fn [[k v]]
-                                              (contains? #{:perm-fail :temp-fail} (:status v ) ))
+                                              (contains? #{:perm-fail :temp-fail} (:status v)))
                                             @state))
         failed-sources (select-keys (updateable-sources) failed-source-keys)]
     (doall (pmap #(apply update! (key %) args) failed-sources))))
 
-
 (defn update-bugged! [& args]
   (let [failed-source-keys (map key (filter (fn [[k v]]
-                                              (contains? #{:bug} (:status v ) ))
+                                              (contains? #{:bug} (:status v)))
                                             @state))
         failed-sources (select-keys (updateable-sources) failed-source-keys)]
     (doall

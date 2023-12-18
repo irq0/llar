@@ -46,11 +46,11 @@
                     (get-in mercu [:entry :contents "text/plain"]))
                (get-in mercu [:entry :contents "text/plain"]))]
     (cond-> (-> item
-             (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
-             (assoc-in [:entry :descriptions "text/plain"] (get-in mercu [:entry :descriptions "text/plain"]))
-             (assoc-in [:entry :contents "text/plain"] text)
-             (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
-             (assoc-in [:entry :contents "text/html"] html))
+                (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
+                (assoc-in [:entry :descriptions "text/plain"] (get-in mercu [:entry :descriptions "text/plain"]))
+                (assoc-in [:entry :contents "text/plain"] text)
+                (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
+                (assoc-in [:entry :contents "text/html"] html))
       (empty? (get-in item [:entry :authors]))
       (assoc-in [:entry :authors] (get-in mercu [:entry :authors])))))
 
@@ -118,7 +118,6 @@
       (:top-n-score (update-reddit-cutoff-score! k src))
       top-n-score)
     (:top-n-score (update-reddit-cutoff-score! k src))))
-
 
 (defn make-reddit-proc [k src options]
   (let [{:keys [min-score dynamic?]

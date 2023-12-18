@@ -1,20 +1,20 @@
 (ns u1f596.fetch.feed
   (:require [u1f596.fetch :refer [FetchSource
-                                     item-to-string
-                                     make-meta
-                                     make-item-hash
-                                     tag-items]]
+                                  item-to-string
+                                  make-meta
+                                  make-item-hash
+                                  tag-items]]
             [u1f596.src]
             [u1f596.postproc :refer [ItemProcessor]]
             [u1f596.persistency :refer [CouchItem]]
             [u1f596.http :refer [fetch
-                                    absolutify-links-in-hick
-                                    absolutify-url
-                                    get-base-url
-                                    get-base-url-with-path
-                                    blobify
-                                    sanitize
-                                    resolve-user-agent]]
+                                 absolutify-links-in-hick
+                                 absolutify-url
+                                 get-base-url
+                                 get-base-url-with-path
+                                 blobify
+                                 sanitize
+                                 resolve-user-agent]]
             [u1f596.analysis :as analysis]
             [u1f596.schema :as schema]
             [u1f596.converter :as conv]
@@ -238,7 +238,7 @@
 
          (try
            (log/debug (str src) " Fetching: " {:base-url base-url
-                                           :item-url item-url})
+                                               :item-url item-url})
            (let [author (hick-select-extract-with-source src :author hickory nil)
                  title (hick-select-extract-with-source src :title hickory (:title summary))
                  pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
@@ -298,7 +298,7 @@
                           :headers {"User-Agent" user-agent}})
           posts-url (get-posts-url (:body site))
           posts (-> (http/get posts-url {:as :reader
-                                                   :headers {:user-agent user-agent}})
+                                         :headers {:user-agent user-agent}})
                     :body (cheshire/parse-stream true))]
       (doall
        (for [post posts]

@@ -13,9 +13,7 @@
    [clojure.core.async :refer [>!! <!!] :as async]
    [clojure.tools.logging :as log]))
 
-
 ;;;; Hacker News Firebase API live source
-
 
 (def hacker-news-base-url "https://hacker-news.firebaseio.com/v0/")
 

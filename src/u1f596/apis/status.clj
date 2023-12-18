@@ -72,14 +72,14 @@
   [:pre {:class "clj-pprint"}
    (let [pr-str-orig pr-str
          pr-str  (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
-    (puget/pprint-str
-     x
-     {:width 60
-      :sort-keys true
-      :print-color true
-      :print-handlers +pprint-handlers+
-      :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
-      :color-markup :html-inline}))])
+     (puget/pprint-str
+      x
+      {:width 60
+       :sort-keys true
+       :print-color true
+       :print-handlers +pprint-handlers+
+       :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
+       :color-markup :html-inline}))])
 
 (defn source-status []
   (html
@@ -221,22 +221,20 @@
        [:th "State"]
        [:th "Top Frame"]]]
      [:tbody
-       (for [[th stack] stack-traces]
-         [:tr {:data-stacktrace (html [:ol
-                                       (for [s (stacktrace/parse-trace-elems stack)
-                                             :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-                                         [:li [:pre formatted]])])
-               :class
-               (cond
-                 false "table-info"
-                 :else "")}
-          [:td {:class "details-control"}]
-          [:td {:class "col-xs-1"} (-> th .getThreadGroup .getName)]
-          [:td {:class "col-xs-1"} (.getName th)]
-          [:td {:class "col-xs-1"} [:pre (.getState th)]]
-          [:td {:class "col-xs-4"} [:pre (first stack)]]])]]))
-
-
+      (for [[th stack] stack-traces]
+        [:tr {:data-stacktrace (html [:ol
+                                      (for [s (stacktrace/parse-trace-elems stack)
+                                            :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                                        [:li [:pre formatted]])])
+              :class
+              (cond
+                false "table-info"
+                :else "")}
+         [:td {:class "details-control"}]
+         [:td {:class "col-xs-1"} (-> th .getThreadGroup .getName)]
+         [:td {:class "col-xs-1"} (.getName th)]
+         [:td {:class "col-xs-1"} [:pre (.getState th)]]
+         [:td {:class "col-xs-4"} [:pre (first stack)]]])]]))
 
 (defn home-tab [])
 

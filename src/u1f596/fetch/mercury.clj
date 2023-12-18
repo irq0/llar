@@ -96,7 +96,7 @@
           base-url (get-base-url-with-path url)
           mercu (mercury-local url)
           pub-ts (or (when (string? (:date_published mercu)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
-                                                              (:date_published mercu)))
+                                                                                   (:date_published mercu)))
                      (time/zoned-date-time))
           title (cond
                   (string? (:title mercu)) (:title mercu)

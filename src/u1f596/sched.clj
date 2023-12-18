@@ -37,7 +37,7 @@
                                            (let [~'$KEY k#
                                                  ~'$SRC (:src source#)
                                                  ~'$TAGS (:tags source#)]
-                                            ~pred))
+                                             ~pred))
                                          sources#)
                        keys# (mapv first filtered#)
                        result# (pmap feed-update/update! keys#)]
@@ -137,7 +137,6 @@
                              (ZoneId/of "Europe/Berlin")))
                         (Duration/ofHours 1))
    (chime/without-past-times)))
-
 
 (defsched-feed-by-filter twitter
   early-morning

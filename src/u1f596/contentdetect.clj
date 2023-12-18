@@ -5,7 +5,6 @@
 (def ^Tika tika (Tika.))
 (def ^MimeTypes mime-types (MimeTypes/getDefaultMimeTypes))
 
-
 (defn detect-mime-type [obj]
   (.detect tika obj))
 

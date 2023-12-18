@@ -49,13 +49,12 @@
 
 (defn saved-items-tf-idf [db]
   (rest (sql/saved-items-tf-idf
-   db
-   nil
-   {}
-   {:as-arrays? true
-    :row-fn (fn [[id term-tf-idf]]
-              (assoc (into {} term-tf-idf) "item_id" (double id)))})))
-
+         db
+         nil
+         {}
+         {:as-arrays? true
+          :row-fn (fn [[id term-tf-idf]]
+                    (assoc (into {} term-tf-idf) "item_id" (double id)))})))
 
 (defn saved-items-tf-idf-terms [db]
   (first (second (sql/saved-items-tf-idf-terms

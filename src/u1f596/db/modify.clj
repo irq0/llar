@@ -93,14 +93,14 @@
        :data (store-item-data! tx id item)})))
 
 (extend-protocol
-    ItemPersistency
+ ItemPersistency
   PostgresqlDataStore
   (store-item! [this item args] (store-item-and-data! this item args)))
 
 ;; ----------
 
 (extend-protocol
-    ItemTagsPersistency
+ ItemTagsPersistency
   PostgresqlDataStore
 
   (item-set-tags! [this item-id tags]

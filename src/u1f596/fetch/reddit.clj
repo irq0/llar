@@ -68,7 +68,6 @@
     (->> (get-in reddit [:data :children])
          (map #(get-in % [:data :score])))))
 
-
 (defn reddit-ts-to-zoned-date-time [t]
   (when (number? t)
     (time/zoned-date-time (time/instant (* 1000 (long t))) (time/zone-id "UTC"))))
@@ -80,10 +79,10 @@
     [:ul
      (when (some? (:subreddit_name_prefixed c))
        [:li {:class "item-key-subreddit"}
-             [:span {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
+        [:span {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
      [:li {:class "item-key-score"} [:span {:class "key"} "Score: "] (:score c)]
      [:li {:class "item-key-timestamp"}
-           [:span {:class "key"} "Time: "] (reddit-ts-to-zoned-date-time (:created_utc c))]
+      [:span {:class "key"} "Time: "] (reddit-ts-to-zoned-date-time (:created_utc c))]
      [:li {:class "item-key-url"} [:a {:href (:url c)} "URL"]]
      [:li {:class "item-key-comments-url"}
       [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]

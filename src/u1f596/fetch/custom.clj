@@ -40,7 +40,6 @@
   (post-process-item [item src state] (assoc item :foo src))
   (filter-item [item src state] false))
 
-
 (extend-protocol CouchItem
   CustomItem
   (to-couch [item]

@@ -34,8 +34,8 @@
 (deftest read-what-you-print
   (testing "propsfile"
     (let [in {:orig-urls #{(uri/uri "https://media.wired.com/photos/5bfc71a83ee8d605f3dd0edc/master/w_942,c_limit/googlepixel_top.jpg")}
-                 :hits 1,
-                 :mime-type "image/jpeg"}
+              :hits 1,
+              :mime-type "image/jpeg"}
           out (-> in
                   uut/print-propsfile
                   uut/read-edn-propsfile)]

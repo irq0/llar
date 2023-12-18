@@ -63,7 +63,6 @@
     (catch Throwable th
       (log/error th "Error fetching " (str src)))))
 
-
 (def current-clustered-saved-items (atom {}))
 
 (defn make-saved-dataset []
@@ -194,9 +193,9 @@
                         (filter #(contains? (:tags %) :music))
                         (map :key))
         items (persistency/get-items-recent backend-db
-               {:with-source-keys music-srcs
-                :limit 512
-                :with-tag :unread})]
+                                            {:with-source-keys music-srcs
+                                             :limit 512
+                                             :with-tag :unread})]
     (->> items
          (map (juxt :id :title :url))
          (filter (fn [[_ _ url]]

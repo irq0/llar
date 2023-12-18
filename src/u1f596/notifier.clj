@@ -12,7 +12,6 @@
   :start (tbot/create (:telegram creds))
   :stop (tbot/close @telegram-bot))
 
-
 (def notify-groups {:vac -698725621
                     :me 158641116})
 

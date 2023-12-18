@@ -34,8 +34,8 @@
   (GenericWebsite. (uri/uri url) (merge +http-default-args+ args)))
 
 (s/defrecord Custom
-    [id :- s/Keyword
-     fn :- schema/Func]
+             [id :- s/Keyword
+              fn :- schema/Func]
 
   Object
   (toString [src] (str "[Custom: " (name (:id src)) "]")))
@@ -43,7 +43,6 @@
 (defn custom
   [id fn]
   (Custom. id fn))
-
 
 (s/defrecord PaywalledWebsite
              [url :- schema/URL
@@ -178,16 +177,16 @@
     listing :- s/Keyword]
    (reddit subreddit listing :week))
   ([subreddit :- schema/NotEmptyStr
-   listing :- s/Keyword
-   timeframe :- s/Keyword]
-  (when-not (contains? reddit-supported-listings listing)
-    (throw+ {:type ::invalid-reddit-listing :supported reddit-supported-listings}))
-  (when-not (contains? reddit-supported-timeframes timeframe)
-    (throw+ {:type ::invalid-reddit-timeframe :supported reddit-supported-timeframes}))
-  (->Reddit
-   subreddit
-   (name listing)
-   (name timeframe))))
+    listing :- s/Keyword
+    timeframe :- s/Keyword]
+   (when-not (contains? reddit-supported-listings listing)
+     (throw+ {:type ::invalid-reddit-listing :supported reddit-supported-listings}))
+   (when-not (contains? reddit-supported-timeframes timeframe)
+     (throw+ {:type ::invalid-reddit-timeframe :supported reddit-supported-timeframes}))
+   (->Reddit
+    subreddit
+    (name listing)
+    (name timeframe))))
 
 (s/defrecord ImapMailbox
              [uri :- schema/URL
@@ -223,7 +222,6 @@
   [story-feed
    & {:keys [throttle-secs]}]
   (->HackerNews story-feed {:throttle-secs (or throttle-secs 120)}))
-
 
 (defn feed? [src]
   (some #(instance? % src) [Feed SelectorFeed WordpressJsonFeed Reddit]))

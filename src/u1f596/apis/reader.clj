@@ -30,7 +30,6 @@
    [clojure.set :as set])
   (:import [org.apache.commons.text StringEscapeUtils]))
 
-
 ;; NEXT
 ;; set read, saved
 ;; show only unread
@@ -308,7 +307,7 @@
               :href (make-site-href [(:uri x)] x)}
           (icon "fas fa-step-backward")]
          [:a {:class "navbar-toggler btn-mark-view-read"
-               :href "#"}
+              :href "#"}
           (icon "fas fa-glasses")]
          [:a {:class "navbar-toggler"
               :data-toggle "collapse"
@@ -385,7 +384,6 @@
           (for [btn +tag-buttons+]
             (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
           next-item-button])]]]))
-
 
 (defn group-list
   "Group Item List - Tags, etc."
@@ -611,29 +609,29 @@
        (when (some? vid)
          (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
                hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
-                max-thumb (try-blobify-url! maxres-url)
-                thumb (if (= max-thumb maxres-url)
-                        (try-blobify-url! hq-url)
-                        max-thumb)]
-            [:div {:class "embed-responsive embed-responsive-4by3"}
-             [:div {:id (str "youtube-container-" (last vid))}
-              [:img {:class "lazy-youtube embed-responsive-item"
-                     :data-vid (last vid)
-                     :data-target (str "youtube-container-" (last vid))
-                     :src thumb}]]])))
+               max-thumb (try-blobify-url! maxres-url)
+               thumb (if (= max-thumb maxres-url)
+                       (try-blobify-url! hq-url)
+                       max-thumb)]
+           [:div {:class "embed-responsive embed-responsive-4by3"}
+            [:div {:id (str "youtube-container-" (last vid))}
+             [:img {:class "lazy-youtube embed-responsive-item"
+                    :data-vid (last vid)
+                    :data-target (str "youtube-container-" (last vid))
+                    :src thumb}]]])))
 
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]
-        [:div {:class "item-preview"} [:img {:src twit-pic}]])
+       [:div {:class "item-preview"} [:img {:src twit-pic}]])
 
      (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
        (when (not (or (string/blank? image-url)
                       (= image-url "self")
                       (= image-url "default")))
-          [:div {:class (str "item-preview-small"
-                             (when (every? options [:main-list-use-description
-                                                    :short-word-cloud])
-                               " float-md-left"))}
-           [:img {:src image-url}]])))))
+         [:div {:class (str "item-preview-small"
+                            (when (every? options [:main-list-use-description
+                                                   :short-word-cloud])
+                              " float-md-left"))}
+          [:img {:src image-url}]])))))
 
 (defn get-html-content
   "Show Item Helper: Get best content to display in full"
@@ -718,9 +716,9 @@
        [:div {:class "col-11"}
         [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
          (if-let [html-content (if (and (= (-> x :active-sources first :type) :item-type/document)
-                                    (nil? selected-data) (nil? selected-content-type))
-                                (get-html-content item :description "text/html")
-                                (get-html-content item selected-data selected-content-type))]
+                                        (nil? selected-data) (nil? selected-content-type))
+                                 (get-html-content item :description "text/html")
+                                 (get-html-content item selected-data selected-content-type))]
            html-content
            (render-special-item-content item #{}))
          [:div {:id "minimap" :class "col-1 sticky-top"}]]]]]]))
@@ -861,12 +859,8 @@
       (format "▤ %s/%s"
               (name group-item) (name source-key)))))
 
-
 ;; todo - add number of images
 ;; add number of nouns
-
-
-
 
 (defn main-list-item
   "Main Item List - Word Cloud Style"
@@ -891,7 +885,7 @@
     [:div {:id (str "item-" id)
            :class (str "feed-item "
                        (string/join " "
-                        (map #(str "option-" (name %)) options)))}
+                                    (map #(str "option-" (name %)) options)))}
      [:h4 {:class "h4"}
       [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                  {:mark :read} x)}
@@ -1171,32 +1165,32 @@
 
       (and (= group-name :default) (= group-item :all) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                 {:with-preview-data? (contains?
-                                                                       (get-in sources [source-key :options])
-                                                                       :main-list-use-description)
-                                                  :with-source-keys [source-key]}))
+                                                       {:with-preview-data? (contains?
+                                                                             (get-in sources [source-key :options])
+                                                                             :main-list-use-description)
+                                                        :with-source-keys [source-key]}))
 
       (and (= group-name :item-tags) (keyword? group-item) (= source-key :all))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                 {:with-tag group-item}))
+                                                       {:with-tag group-item}))
 
       (and (= group-name :item-tags) (keyword? group-item) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                 {:with-preview-data? (contains?
-                                                                       (get-in sources [source-key :options])
-                                                                       :main-list-use-description)
-                                                  :with-source-keys [source-key]
-                                                  :with-tag group-item}))
+                                                       {:with-preview-data? (contains?
+                                                                             (get-in sources [source-key :options])
+                                                                             :main-list-use-description)
+                                                        :with-source-keys [source-key]
+                                                        :with-tag group-item}))
 
       (and (= group-name :source-tag) (keyword? group-item) (= source-key :all))
       (let [selected-sources (->> sources
-                              vals
-                              (filter #(contains? (:tags %) group-item)))]
+                                  vals
+                                  (filter #(contains? (:tags %) group-item)))]
         (persistency/get-items-recent frontend-db (merge common-args
-                                                   {:with-preview-data? (some #(contains? (:options %)
-                                                                                          :main-list-use-description)
-                                                                              selected-sources)
-                                                    :with-source-ids (map :id selected-sources)})))
+                                                         {:with-preview-data? (some #(contains? (:options %)
+                                                                                                :main-list-use-description)
+                                                                                    selected-sources)
+                                                          :with-source-ids (map :id selected-sources)})))
 
       (and (= group-name :source-tag) (keyword? group-item) (keyword? source-key))
       (if (->> sources
@@ -1206,23 +1200,23 @@
                          (= (:key %) source-key)))
                not-empty)
         (persistency/get-items-recent frontend-db (merge common-args
-                                                   {:with-preview-data? (contains?
-                                                                         (get-in sources [source-key :options])
-                                                                         :main-list-use-description)
-                                                    :with-source-keys [source-key]}))
+                                                         {:with-preview-data? (contains?
+                                                                               (get-in sources [source-key :options])
+                                                                               :main-list-use-description)
+                                                          :with-source-keys [source-key]}))
         [])
 
       (and (= group-name :type) (keyword? group-item) (= source-key :all))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                 {:with-type group-item}))
+                                                       {:with-type group-item}))
 
       (and (= group-name :type) (keyword? group-item) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                 {:with-source-keys [source-key]
-                                                  :with-preview-data? (contains?
-                                                                       (get-in sources [source-key :options])
-                                                                       :main-list-use-description)
-                                                  :with-type group-item}))
+                                                       {:with-source-keys [source-key]
+                                                        :with-preview-data? (contains?
+                                                                             (get-in sources [source-key :options])
+                                                                             :main-list-use-description)
+                                                        :with-type group-item}))
 
       :else
       [])))
@@ -1426,7 +1420,6 @@
               "&nbsp;"
               title]])]]])]]])
 
-
 (defmethod lab-view-handler
   :dump-data-structure
   [x]
@@ -1446,7 +1439,7 @@
                   (persistency/search frontend-db query {:with-source-key with-source-key
                                                          :time-ago-period (when-not (string/blank? days-ago)
                                                                             (time/days (some-> days-ago
-                                                                                                Integer/parseInt)))})
+                                                                                               Integer/parseInt)))})
                   (persistency/search frontend-db query))]
     [:main {:role "main"
             :class "col-xs-12 col-md-6 col-lg-8"}
@@ -1667,16 +1660,16 @@
         source-key :<< as-keyword]
 
        (POST "/update" []
-             (update-sources {:uri (:uri req)
-                              :group-name group-name
-                              :group-item group-item
-                              :source-key source-key}))
+         (update-sources {:uri (:uri req)
+                          :group-name group-name
+                          :group-item group-item
+                          :source-key source-key}))
 
        (GET "/update" []
-             (update-sources-status {:uri (:uri req)
-                                     :group-name group-name
-                                     :group-item group-item
-                                     :source-key source-key}))
+         (update-sources-status {:uri (:uri req)
+                                 :group-name group-name
+                                 :group-item group-item
+                                 :source-key source-key}))
 
        (GET "/items"
          [id :<< as-int

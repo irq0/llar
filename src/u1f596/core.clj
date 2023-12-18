@@ -103,11 +103,11 @@
                       :db store/backend-db
                       :migration-dir "migrations/"
                       :init-script "init.sql"}]
-         (log/info "Starting DB migrations" config)
-         (log/info (migratus/init config))
-         (log/info (migratus/migrate config)))
-       (log/info "Finished DB migrations. Exiting")
-       (System/exit 0))
+          (log/info "Starting DB migrations" config)
+          (log/info (migratus/init config))
+          (log/info (migratus/migrate config)))
+        (log/info "Finished DB migrations. Exiting")
+        (System/exit 0))
 
       (not (:dry options))
       (doseq [[key db-config] (:postgresql appconfig/appconfig)
@@ -117,7 +117,8 @@
                   key
                   (vec (persistency/get-table-row-counts store)))))
 
-   (when-not (:dry options)
-     (http/update-domain-blocklist!))
+    (when-not (:dry options)
+      (http/update-domain-blocklist!))
 
-   (log/info "🖖")))
+    (log/info "🖖")
+    (log/debug "Startup options: " options)))

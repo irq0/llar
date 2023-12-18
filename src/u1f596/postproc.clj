@@ -35,7 +35,6 @@
          rm (constantly false)}}]
   (Processing. post pre rm))
 
-
 ;;;; Postprocessing utility functions
 
 (defn add-tag [tag]
@@ -83,7 +82,6 @@
                   "Scott Galloway"
                   "Kara Swisher"])))
 
-
 (defn all-items-process-first [item _ state]
   (log/trace "All items processor (first)" (str item))
   (-> item
@@ -113,9 +111,7 @@
   (post-process-item [item src state] "Postprocess item")
   (filter-item [item src state] "Filter items"))
 
-
 ;;; Postprocessing utilities
-
 
 (defn- wrap-proc-fn [item func hint]
   (fn [& args]
@@ -136,9 +132,7 @@
       (when-not out? item))
     item))
 
-
 ;;; API
-
 
 (defn process-feedless-item
   "Postprocess and filter item produced without a feed"

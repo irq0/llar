@@ -11,7 +11,6 @@
 
 ;;;; Live source logic. Similar to update, but running continuously in background
 
-
 ;; newstories
 ;; topstories
 ;; beststories

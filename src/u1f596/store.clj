@@ -35,4 +35,4 @@
               (for [[type items] by-type]
                 (do (log/debugf "Persisting %s items" type)
                     (remove nil? (map #(persistency/store-item! backend-db
-                                        (persistency/to-couch %) args) items)))))))))
+                                                                (persistency/to-couch %) args) items)))))))))

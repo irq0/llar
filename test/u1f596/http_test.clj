@@ -174,7 +174,7 @@
 
 (deftest absolutify-url
   (testing
-      "Basics"
+   "Basics"
     (are [x y] (= (str x) (str y))
       "https://example.com/squeezing-cybersecurity-lemons-–-labeling-regime-iot-products"
       (uut/absolutify-url "/squeezing-cybersecurity-lemons-%E2%80%93-labeling-regime-iot-products" "https://example.com")
@@ -191,7 +191,7 @@
       "http://example.com/foo" (uut/absolutify-url "/foo" "http://example.com")
       "http://example.com/foo/bar" (uut/absolutify-url "/foo/bar" "http://example.com")))
   (testing
-      "leave special urls alone"
+   "leave special urls alone"
     (are [x] (= (str x) (str (uut/absolutify-url x "http://example.com/")))
       "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ=="
       "data:text/html,<script>alert('hi');</script>"
@@ -203,7 +203,7 @@
       "mailto:?to=joe@example.com&cc=bob@example.com&body=hello"))
 
   (testing
-      "Half kaputt, but quirks-mode parsable"
+   "Half kaputt, but quirks-mode parsable"
 
     (is (= "http://www.google.com/search?hl=en&q=2^20 * 2^12 bytes in GB"
            (str (uut/absolutify-url "http://www.google.com/search?hl=en&q=2^20+*+2^12+bytes+in+GB" nil))))
@@ -214,7 +214,7 @@
     (is (= "https://example.com/972"
            (str (uut/absolutify-url "(https://example.com/972)" nil)))))
   (testing
-      "Absolute urls"
+   "Absolute urls"
     (is
      (= "http://example.com/" (str (uut/absolutify-url "http://example.com"
                                                        "http://some-other-base-url.com")))
@@ -232,7 +232,7 @@
 
   (testing "don't mess with filenames"
     (is (= "https://example.com/baz/foo.txt"
-         (str (uut/absolutify-url "foo.txt" "https://example.com/baz/")))))
+           (str (uut/absolutify-url "foo.txt" "https://example.com/baz/")))))
 
   (testing "path traversing should top at top level (quirk)"
     (is (= "https://example.com/foo/bar"

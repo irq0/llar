@@ -56,11 +56,10 @@
         val))))
 
 (defrecord PostgresqlDataStore
-    [datasource]
+           [datasource]
   Object
   (toString [this] (format "PostgresqlDataSource{->%s}"
                            (.toString (:datasource this)))))
-
 
 (defn make-postgresql-pooled-datastore [config]
   (->PostgresqlDataStore (hikari/make-datasource config)))

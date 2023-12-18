@@ -81,7 +81,6 @@
     (log/info ts (type ts))
     (time/zoned-date-time ts "UTC")))
 
-
 (extend-protocol fetch/FetchSource
   u1f596.src.ImapMailbox
   (fetch-source [src]

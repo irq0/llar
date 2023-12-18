@@ -64,3 +64,8 @@ repos:
     -   id: stylelint
         args: ["--fix"]
         additional_dependencies: ['stylelint@16.0.2', 'stylelint-config-standard@35.0.0']
+
+  - repo: https://github.com/allie-jo/cljfmt-docker
+    rev: v0.9.1
+    hooks:
+     - id: cljfmt-docker

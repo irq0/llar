@@ -11,7 +11,6 @@
 
 ;;; Base "Types"
 
-
 (defschema Func
   (s/pred function?))
 
@@ -82,7 +81,6 @@
 (defschema URLRelaxed
   (s/cond-pre
    UniformResourceIdentifier))
-
 
 ;;; *Items
 
@@ -196,9 +194,7 @@
               (s/optional-key "text/html") s/Str}
    :descriptions {(s/required-key "text/plain") (s/maybe s/Str)}})
 
-
 ;;; Twitter API (incoming)
-
 
 (defschema TweetEntityIndices
   [(s/one PosInt "s") (s/one PosInt "e")])

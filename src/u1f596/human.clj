@@ -36,6 +36,6 @@
 (defn filesize [bytes]
   (let [units  [\space \K \M \G \T \P]
         pow (min (count units)
-              (int (Math/floor (/ (Math/log bytes) (Math/log 1024)))))
+                 (int (Math/floor (/ (Math/log bytes) (Math/log 1024)))))
         val (float (/ bytes (Math/pow 1024 pow)))]
     (format "%.2f%c%c" val (nth units pow) \B)))
