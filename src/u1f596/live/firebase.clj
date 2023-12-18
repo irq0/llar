@@ -4,9 +4,7 @@
    [clojure.tools.logging :as log])
   (:import (com.firebase.client Firebase ValueEventListener DataSnapshot FirebaseError Logger Logger$Level)))
 
-
 ;;;; Firebase API clojure wrapper
-
 
 (defn make-firebase-logger
   "Return a com.firebase.client.Logger that forwards log entries to
@@ -35,6 +33,8 @@
   []
   (Firebase/setDefaultConfig
    (doto (Firebase/getDefaultConfig)
+     (.setPersistenceEnabled false)
+     (.setAndroidContext nil)
      (.setLogger (make-firebase-logger :debug)))))
 
 (defn make-value-event-listener
@@ -64,6 +64,7 @@
 (defn make-ref
   "Make firebase ref from url"
   [base]
+  (init-firebase)
   (Firebase. base))
 
 (defn make-path
