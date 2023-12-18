@@ -114,9 +114,6 @@
                  [org.apache.tika/tika-langdetect-optimaize "2.6.0"]
                  [org.apache.tika/tika-core "2.6.0" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
-                 [io.github.nextjournal/clerk "0.12.707"
-                  :exclusions [hiccup org.clojure/data.priority-map org.clojure/tools.analyzer.jvm
-                               org.clojure/data.json net.java.dev.jna/jna]]])
 
 
 
