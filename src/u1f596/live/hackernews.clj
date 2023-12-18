@@ -1,17 +1,18 @@
 (ns u1f596.live.hackernews
   (:require
-   [u1f596.schema :as schema]
-   [u1f596.postproc :as postproc]
-   [u1f596.persistency :as persistency]
-   [u1f596.live.common :refer :all]
-   [u1f596.live.firebase :refer :all]
+   [clojure.core.async :refer [>!!] :as async]
+   [clojure.tools.logging :as log]
+   [digest :as digest]
    [hiccup.core :refer [html]]
-   [schema.core :as s]
-   [java-time :as time]
+   [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
+   [schema.core :as s]
    [slingshot.slingshot :refer [try+]]
-   [clojure.core.async :refer [>!! <!!] :as async]
-   [clojure.tools.logging :as log]))
+   [u1f596.live.common :refer [LiveSource make-meta]]
+   [u1f596.live.firebase :as firebase]
+   [u1f596.persistency :as persistency]
+   [u1f596.postproc :as postproc]
+   [u1f596.schema :as schema]))
 
 ;;;; Hacker News Firebase API live source
 
@@ -38,9 +39,9 @@
 
 (extend-protocol postproc/ItemProcessor
   HackerNewsItem
-  (post-process-item [item src state]
+  (post-process-item [item _ _]
     (assoc-in item [:meta :canary] :fooo))
-  (filter-item [item src state] false))
+  (filter-item [_ _ _] false))
 
 (extend-protocol persistency/CouchItem
   HackerNewsItem
@@ -89,16 +90,16 @@
 
 (s/defn get-hn-entry :- schema/HackerNewsEntry
   [id :- schema/PosInt]
-  (let [ref (make-path (make-ref hacker-news-base-url) "item" id)
-        raw (get-value ref)]
+  (let [ref (firebase/make-path (firebase/make-ref hacker-news-base-url) "item" id)
+        raw (firebase/get-value ref)]
     (make-hn-entry raw)))
 
 (defn- hn-item-resolver
   "Deref item to HackerNewsEntry"
   [hn-ref src state id]
   (log/tracef "HackerNews (%s): resolving id %s" hn-ref id)
-  (let [path (make-path hn-ref "item" id)
-        raw (get-value path)
+  (let [path (firebase/make-path hn-ref "item" id)
+        raw (firebase/get-value path)
         entry (make-hn-entry raw)]
     (try+
      (->HackerNewsItem
@@ -122,8 +123,8 @@
       (let [[v ch] (async/alts!! [in-chan term-chan])]
         (if (identical? ch in-chan)
           (when (number? v)
-            (async/put! out-chan (resolver v))
-            (recur)))))
+            (async/put! out-chan (resolver v)))
+          (recur))))
     (log/debug "HackerNews: Stopping resolver" resolver)))
 
 (extend-protocol LiveSource
@@ -131,13 +132,13 @@
   (start-collecting! [src state item-chan]
     (let [story-feed (:story-feed src)
           status (:status @state)
-          hn (make-ref hacker-news-base-url)
-          ref (make-path hn story-feed)]
+          hn (firebase/make-ref hacker-news-base-url)
+          ref (firebase/make-path hn story-feed)]
 
       (if-not (= status :running)
         (let [resolve-chan (async/chan (async/sliding-buffer 1000))
               resolve-term-chan (async/chan)
-              resolver-thread (hn-resolver-thread (partial hn-item-resolver hn src state) resolve-chan resolve-term-chan item-chan)
+              _resolver-thread (hn-resolver-thread (partial hn-item-resolver hn src state) resolve-chan resolve-term-chan item-chan)
 
               listener-f (fn [ids]
                            (try+
@@ -158,7 +159,7 @@
                               (swap! state assoc :last-exception e)
                               (log/error e "Exception in listener"))))
 
-              listener (listen-value-changes ref listener-f)]
+              listener (firebase/listen-value-changes ref listener-f)]
 
           (swap! state merge {:firebase {:listener listener
                                          :resolve-term-chan resolve-term-chan
@@ -168,7 +169,7 @@
                               :status :running}))
         @state)))
 
-  (stop-collecting! [src state]
+  (stop-collecting! [_src state]
     (let [status (:status @state)
           listener (get-in @state [:firebase :listener])
           ref (get-in @state [:firebase :story-ref])]

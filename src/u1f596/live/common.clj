@@ -2,7 +2,7 @@
   (:require
    [u1f596.schema :as schema]
    [schema.core :as s]
-   [java-time :as time]))
+   [java-time.api :as time]))
 
 (def state-template
   "New sources start with this template"
@@ -11,15 +11,6 @@
    :last-exception nil
    :start-ts nil
    :last-update-ts nil})
-
-(defn item-to-string [item]
-  (format "[%s: %s/%s/%s]"
-          (.getSimpleName (class item))
-          (str (get-in item [:meta :source]))
-          (if-not (nil? (get-in item [:summary :ts]))
-            (time/format :iso-instant (get-in item [:summary :ts]))
-            "?")
-          (str (get-in item [:summary :title]))))
 
 (defprotocol LiveSource
   "Protocol to work with live sources"

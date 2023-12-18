@@ -3,7 +3,7 @@
             [org.bovinegenius [exploding-fish :as uri]]
             [clojure.test :refer [function?]]
             [clojure.string :as string]
-            [java-time :as time]
+            [java-time.api :as time]
             [clojure.java.io :as io])
   (:import (org.bovinegenius.exploding_fish UniformResourceIdentifier)))
 

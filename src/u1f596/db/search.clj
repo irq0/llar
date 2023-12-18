@@ -1,25 +1,14 @@
 (ns u1f596.db.search
   (:require
-   [u1f596.db.sql :as sql]
-   [u1f596.persistency :refer [DataStoreSearch]]
-   [u1f596.db.core]
+   [cheshire.core :refer :all]
+   [clojure.java.jdbc :as j]
    [digest]
    [java-time :as time]
-   [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.string :as string]
-   [clojure.java.jdbc :as j]
-   [mpg.core :as mpg]
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [byte-streams :refer [to-byte-buffer]]
-   [cheshire.core :refer :all]
-   [mount.core :refer [defstate]]
-   [org.bovinegenius [exploding-fish :as uri]]
-   [hikari-cp.core :as hikari]
-   [hugsql.core :as hugsql]
-   [cheshire.generate :as json :refer [encode-str]])
-  (:import (u1f596.db.core PostgresqlDataStore)))
+   [u1f596.db.core]
+   [u1f596.db.sql :as sql]
+   [u1f596.persistency :refer [DataStoreSearch]])
+  (:import
+   (u1f596.db.core PostgresqlDataStore)))
 
 (defn- refresh-search-index [db]
   (j/execute! db ["refresh materialized view search_index"]))

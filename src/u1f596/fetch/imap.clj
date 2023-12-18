@@ -11,7 +11,7 @@
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
-   [java-time :as time]
+   [java-time.api :as time]
    [schema.core :as s])
   (:import
    [javax.mail Session]))
@@ -63,10 +63,10 @@
 
 (extend-protocol postproc/ItemProcessor
   ImapItem
-  (post-process-item [item src state]
+  (post-process-item [item _ _]
     (let [nlp (analysis/analyze-entry (:entry item))]
       (update item :entry merge (:entry item) nlp)))
-  (filter-item [item src state] false))
+  (filter-item [_ _ _] false))
 
 (extend-protocol persistency/CouchItem
   ImapItem

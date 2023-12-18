@@ -1,16 +1,17 @@
 (ns u1f596.sched
   (:require
-   [java-time :as time]
-   [u1f596.update :refer [update!] :as feed-update]
-   [u1f596.lab :as u1f596-lab]
-   [u1f596.persistency :as persistency]
-   [u1f596.store :refer [backend-db]]
-   [u1f596.metrics :as metrics]
-   [u1f596.src :as src]
    [chime.core :as chime]
    [clojure.tools.logging :as log]
-   [mount.core :refer [defstate]])
-  (:import [java.time Instant Duration LocalDateTime ZonedDateTime ZoneId]))
+   [java-time.api :as time]
+   [mount.core :refer [defstate]]
+   [u1f596.lab :as u1f596-lab]
+   [u1f596.metrics :as metrics]
+   [u1f596.persistency :as persistency]
+   [u1f596.src :as src]
+   [u1f596.store :refer [backend-db]]
+   [u1f596.update :refer [update!] :as feed-update])
+  (:import
+   [java.time Duration ZoneId ZonedDateTime]))
 
 (defn- today-at [hour minute]
   (.toInstant

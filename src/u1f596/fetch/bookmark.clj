@@ -1,19 +1,12 @@
 (ns u1f596.fetch.bookmark
   (:require
-   [u1f596.fetch :refer [make-item-hash]]
-   [u1f596.http :as http]
-   [u1f596.src :as src]
-   [u1f596.postproc :as proc]
-   [u1f596.human :as human]
-   [slingshot.slingshot :refer [try+]]
-   [schema.core :as s]
-   [clojure.tools.logging :as log]
-   [clj-http.client :as http-client]
-   [hickory.core :as hick]
-   [java-time :as time]
    [hiccup.core :refer [html]]
-   [hickory.render :as hick-r]
-   [org.bovinegenius [exploding-fish :as uri]]))
+   [java-time.api :as time]
+   [org.bovinegenius [exploding-fish :as uri]]
+   [u1f596.fetch :refer [make-item-hash]]
+   [u1f596.human :as human]
+   [u1f596.postproc :as proc]
+   [u1f596.src :as src]))
 
 ;;; Bookmarks
 
@@ -33,7 +26,9 @@
     [:p (get-in i [:entry :descriptions "text/plain"])]]
    [:div {:class "nlp"}
     [:h2 "Names / Places"]
-    [:p (map (fn [name] [:span [:a {:href (str "https://www.startpage.com/do/search?query=" name)} (str " " name " ")] "&nbsp;"]) (get-in i [:entry :nlp :names]))]]
+    [:p (map (fn [name]
+               [:span [:a {:href (str "https://www.startpage.com/do/search?query=" name)} (str " " name " ")] "&nbsp;"])
+             (get-in i [:entry :nlp :names]))]]
    [:h1 "Content"]))
 
 (defn make-readability-bookmark-feed [url]

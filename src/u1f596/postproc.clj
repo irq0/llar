@@ -1,12 +1,11 @@
 (ns u1f596.postproc
   (:require
-   [u1f596.schema :as schema]
-   [schema.core :as s]
-   [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.set :refer [union intersection]]
+   [clojure.set :refer [intersection union]]
    [clojure.string :as string]
-   [clojure.java.shell :as shell]))
+   [clojure.tools.logging :as log]
+   [schema.core :as s]
+   [slingshot.slingshot :refer [throw+ try+]]
+   [u1f596.schema :as schema]))
 
 ;;;; Postprocessing and Filtering
 

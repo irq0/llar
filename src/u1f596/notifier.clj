@@ -1,9 +1,8 @@
 (ns u1f596.notifier
   (:require
-   [mount.core :as mount]
-   [clojure.tools.logging :as log]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
+   [mount.core :as mount]
    [telegrambot-lib.core :as tbot]))
 
 (def creds (edn/read-string (slurp (io/resource "credentials.edn"))))

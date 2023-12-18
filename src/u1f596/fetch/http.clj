@@ -91,7 +91,7 @@
 
 (extend-protocol ItemProcessor
   GenericWebsiteItem
-  (post-process-item [item src state]
+  (post-process-item [item src _state]
     (let [nlp (analysis/analyze-entry (:entry item))
           urls (get-in nlp [:nlp :urls])
           tags (set
@@ -106,7 +106,7 @@
           (update-in [:meta :tags] into tags)
           (update :entry merge (:entry item) nlp)
           (tag-items src))))
-  (filter-item [item src state] false))
+  (filter-item [_ _ _] false))
 
 (extend-protocol CouchItem
   GenericWebsiteItem

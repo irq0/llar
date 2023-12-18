@@ -28,7 +28,7 @@
             [clj-rome.reader :as rome]
             [clj-http.client :as http]
             [cheshire.core :as cheshire]
-            [java-time :as time])
+            [java-time.api :as time])
   (:import (u1f596.src Feed)))
 
 (s/defrecord FeedItem
@@ -348,7 +348,7 @@
 
 (extend-protocol ItemProcessor
   FeedItem
-  (post-process-item [item src state]
+  (post-process-item [item src _state]
     (let [nlp (analysis/analyze-entry (:entry item))
 
           urls (get-in nlp [:nlp :urls])

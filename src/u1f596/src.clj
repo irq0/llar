@@ -3,7 +3,6 @@
             [u1f596.schema :as schema]
             [slingshot.slingshot :refer [throw+]]
             [org.bovinegenius [exploding-fish :as uri]]
-            [twitter.oauth]
             [twitter.oauth :refer [make-oauth-creds]]
             [twitter.api.restful :as twitter-rest])
   (:import [twitter.oauth OauthCredentials]))
@@ -169,7 +168,7 @@
               listing :- schema/NotEmptyStr
               timeframe :- schema/NotEmptyStr]
   Object
-  (toString [src] (format "[Reddit: r/%s/%s]" (:subreddit src) (:listing src) (:timeframe src))))
+  (toString [src] (format "[Reddit: r/%s/%s/%s]" (:subreddit src) (:listing src) (:timeframe src))))
 
 (s/defn reddit :- Reddit
   "Fetch URL using Mercury Web Parser API"

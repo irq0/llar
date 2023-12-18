@@ -2,7 +2,7 @@
   (:require
    [mount.core :as mount]
    [clojure.tools.logging :as log]
-   [u1f596.logging :as logging]
+   [u1f596.logging]
    [u1f596.appconfig :as appconfig]
    [u1f596.persistency :as persistency]
    [u1f596.store :as store]

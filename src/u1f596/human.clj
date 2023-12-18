@@ -1,9 +1,9 @@
 (ns u1f596.human
   (:require
    [clojure.string :as string]
-   [slingshot.slingshot :refer [try+ throw+]]
+   [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
-   [java-time :as time]))
+   [slingshot.slingshot :refer [try+]]))
 
 (def +ellipsis+ "…")
 

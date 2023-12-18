@@ -23,7 +23,7 @@
                            ^Logger$Level level
                            ^String tag
                            ^String message
-                           ^long ts]
+                           ^long _ts]
         (log/log (get firebase-to-taoensso level) tag message))
       (^Logger$Level getLogLevel [_]
         firebase-level))))

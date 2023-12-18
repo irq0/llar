@@ -12,7 +12,6 @@
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]
-   [clj-http.client :as http]
    [java-time :as time]
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -30,7 +29,7 @@
 
 (extend-protocol ItemProcessor
   MercuryItem
-  (post-process-item [item src state]
+  (post-process-item [item _src _state]
     (let [nlp (analysis/analyze-entry (:entry item))
           tags (set
                 (remove nil?
@@ -43,7 +42,7 @@
           (update-in [:meta :tags] into tags)
           (update :entry merge (:entry item) nlp))))
 
-  (filter-item [item src state] false))
+  (filter-item [_ _ _] false))
 
 (extend-protocol CouchItem
   MercuryItem

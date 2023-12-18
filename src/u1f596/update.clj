@@ -1,18 +1,16 @@
 (ns u1f596.update
   (:require
-   [u1f596.config :as config]
-   [u1f596.appconfig :as appconfig]
-   [u1f596.fetch :as fetch]
-   [u1f596.store :refer [store-items!]]
-   [u1f596.postproc :as proc]
-   [u1f596.converter :as converter]
-   [java-time :as time]
-   [clojure.edn :as edn]
-   [slingshot.slingshot :refer [throw+ try+]]
    [clojure.tools.logging :as log]
+   [java-time :as time]
    [mount.core :refer [defstate]]
-   [clojure.java.io :as io]
-   [nio2.core :as nio2]))
+   [nio2.core :as nio2]
+   [slingshot.slingshot :refer [throw+ try+]]
+   [u1f596.appconfig :as appconfig]
+   [u1f596.config :as config]
+   [u1f596.converter :as converter]
+   [u1f596.fetch :as fetch]
+   [u1f596.postproc :as proc]
+   [u1f596.store :refer [store-items!]]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
@@ -44,9 +42,6 @@
                  [k @v]
                  [k v]))
              @state)))
-
-(defn sources-merge-in-state [sources]
-  (merge-with merge sources (get-current-state)))
 
 (def src-state-template
   "New sources start with this template"
@@ -85,7 +80,6 @@
 
   (let [feed (config/get-source k)
         state (get @state k)
-        now (time/zoned-date-time)
         {:keys [src]} feed
         retry-count (or (get-in feed [:state :retry-count]) 0)]
     (try+

@@ -1,26 +1,17 @@
 (ns u1f596.db.modify
   (:require
-   [digest]
-   [u1f596.db.sql :as sql]
-   [u1f596.db.core]
-   [u1f596.persistency :refer [ItemTagsPersistency ItemPersistency]]
-   [u1f596.contentdetect :as contentdetect]
-   [java-time :as time]
-   [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.string :as string]
-   [clojure.java.jdbc :as j]
-   [mpg.core :as mpg]
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
    [byte-streams :refer [to-byte-buffer]]
    [cheshire.core :refer :all]
-   [mount.core :refer [defstate]]
-   [org.bovinegenius [exploding-fish :as uri]]
-   [hikari-cp.core :as hikari]
-   [hugsql.core :as hugsql]
-   [cheshire.generate :as json :refer [encode-str]])
-  (:import (u1f596.db.core PostgresqlDataStore)))
+   [clojure.java.jdbc :as j]
+   [clojure.string :as string]
+   [digest]
+   [java-time :as time]
+   [u1f596.contentdetect :as contentdetect]
+   [u1f596.db.core]
+   [u1f596.db.sql :as sql]
+   [u1f596.persistency :refer [ItemPersistency ItemTagsPersistency]])
+  (:import
+   (u1f596.db.core PostgresqlDataStore)))
 
 (def item-data-table-entries
   "Item entries stored in the item_data table, rather than in the items entry column"

@@ -1,36 +1,35 @@
 (ns u1f596.config
   (:require
+   [clj-http.client :as http-client]
+   [clj-http.cookies :as http-cookies]
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.string :as string]
+   [clojure.tools.logging :as log]
+   [hickory.core :as hick]
+   [hickory.render :refer [hickory-to-html]]
+   [hickory.select :as S]
+   [java-time.api :as time]
+   [org.bovinegenius [exploding-fish :as uri]]
+   [schema.core :as s]
+   [u1f596.converter :as converter]
    [u1f596.fetch :refer [make-item-hash] :as fetch]
+   [u1f596.fetch.custom]
    [u1f596.fetch.feed]
    [u1f596.fetch.http]
    [u1f596.fetch.imap]
    [u1f596.fetch.mercury]
    [u1f596.fetch.reddit]
    [u1f596.fetch.twitter]
-   [u1f596.fetch.custom]
-   [u1f596.live.hackernews]
-   [u1f596.src :as src]
-   [u1f596.fetchutils :refer [make-reddit-proc make-category-filter-deny make-hacker-news-filter mercury-contents parse-date-to-zoned-data-time parse-date-time-to-zoned-data-time]]
-   [clojure.tools.logging :as log]
+   [u1f596.fetchutils :refer [make-category-filter-deny
+                              make-hacker-news-filter make-reddit-proc mercury-contents
+                              parse-date-to-zoned-data-time]]
    [u1f596.http :as http]
-   [u1f596.converter :as converter]
-   [u1f596.notifier :as notifier]
    [u1f596.human :as human]
-   [java-time :as time]
-   [clojure.set :refer [intersection]]
-   [hiccup.core :refer [html]]
-   [hickory.select :as S]
-   [schema.core :as s]
-   [slingshot.slingshot :refer [try+]]
-   [clj-http.client :as http-client]
-   [clj-http.cookies :as http-cookies]
-   [hickory.core :as hick]
-   [hickory.render :refer [hickory-to-html]]
+   [u1f596.live.hackernews]
+   [u1f596.notifier :as notifier]
    [u1f596.postproc :as proc]
-   [clojure.string :as string]
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [org.bovinegenius [exploding-fish :as uri]]))
+   [u1f596.src :as src]))
 
 (def creds (edn/read-string (slurp (io/resource "credentials.edn"))))
 
@@ -63,23 +62,22 @@
 (defmacro fetch
   [src-key src & body]
   (let [{:keys [options tags post pre rm post-fns pre-fns rm-fn]
-         :or {options #{} tags #{}}
-         :as params}
+         :or {options #{} tags #{}}}
         (apply hash-map body)
 
         src-kw (keyword src-key)
 
         pre (cond (some? pre-fns) pre-fns
                   (some? pre) [`(wrap-proc ~src-kw ~tags ~options ~pre)]
-                  :default nil)
+                  :else nil)
 
         post (cond (some? post-fns) post-fns
                    (some? post) [`(wrap-proc ~src-kw ~tags ~options ~post)]
-                   :default nil)
+                   :else nil)
 
         rm (cond (some? rm-fn) rm-fn
                  (some? rm) `(wrap-proc ~src-kw ~tags ~options ~rm)
-                 :default '(constantly false))]
+                 :else '(constantly false))]
 
     (s/validate #{s/Keyword} tags)
     (s/validate #{s/Keyword} options)

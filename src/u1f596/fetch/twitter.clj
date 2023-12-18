@@ -9,7 +9,7 @@
             [twitter.api.restful :as twitter]
             [schema.core :as s]
             [org.bovinegenius [exploding-fish :as uri]]
-            [java-time :as time]))
+            [java-time.api :as time]))
 
 (s/defrecord TweetItem
              [meta :- schema/Metadata
@@ -179,9 +179,9 @@
 
 (extend-protocol ItemProcessor
   TweetItem
-  (post-process-item [item src state]
+  (post-process-item [item _src _state]
     (update item :entry merge (:entry item) (analysis/analyze-entry (:entry item))))
-  (filter-item [item src state] false))
+  (filter-item [_ _ _] false))
 
 (extend-protocol CouchItem
   TweetItem

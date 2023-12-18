@@ -1,19 +1,14 @@
 (ns u1f596.db.core
   (:require
-   [digest]
-   [java-time :as time]
-   [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.string :as string]
-   [clojure.java.jdbc :as j]
-   [mpg.core :as mpg]
-   [byte-streams :refer [to-byte-buffer]]
    [cheshire.core :refer :all]
-   [org.bovinegenius [exploding-fish :as uri]]
+   [cheshire.generate :as json :refer [encode-str]]
+   [clojure.java.jdbc :as j]
+   [clojure.string :as string]
+   [digest]
    [hikari-cp.core :as hikari]
-   [hugsql.core :as hugsql]
-   [cheshire.generate :as json :refer [encode-str]])
-  (:import (org.bovinegenius.exploding_fish Uri UniformResourceIdentifier)))
+   [mpg.core :as mpg])
+  (:import
+   (org.bovinegenius.exploding_fish UniformResourceIdentifier Uri)))
 
 (mpg/patch {:default-map :hstore})
 

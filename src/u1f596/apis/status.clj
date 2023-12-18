@@ -1,24 +1,24 @@
 (ns u1f596.apis.status
   (:require
-   [u1f596.config :as config]
-   [u1f596.update :as update]
-   [java-time :as time]
-   [u1f596.live :as live]
-   [u1f596.persistency :as persistency]
-   [u1f596.appconfig :as appconfig]
-   [u1f596.apis.reader :refer [frontend-db]]
-   [u1f596.metrics :as metrics]
-   [u1f596.human :as human]
-   [compojure.core :refer [routes GET]]
+   [clj-stacktrace.core :as stacktrace]
+   [clj-stacktrace.repl :as stacktrace-repl]
+   [compojure.core :refer [GET routes]]
    [compojure.route :as route]
    [hiccup.core :refer [html]]
    [iapetos.export :as prometheus-export]
-   [mount.core :as mount :refer [defstate]]
-   [clj-stacktrace.core :as stacktrace]
-   [clj-stacktrace.repl :as stacktrace-repl]
-   [puget.printer :as puget])
-  (:import [org.bovinegenius.exploding_fish Uri]
-           [org.apache.commons.text StringEscapeUtils]))
+   [java-time :as time]
+   [mount.core :as mount]
+   [puget.printer :as puget]
+   [u1f596.apis.reader :refer [frontend-db]]
+   [u1f596.config :as config]
+   [u1f596.human :as human]
+   [u1f596.live :as live]
+   [u1f596.metrics :as metrics]
+   [u1f596.persistency :as persistency]
+   [u1f596.update :as update])
+  (:import
+   [org.apache.commons.text StringEscapeUtils]
+   [org.bovinegenius.exploding_fish Uri]))
 
 (defn html-header []
   [:head
@@ -103,7 +103,7 @@
                (cond (= :perm-fail status) "table-danger"
                      (= :bug status) "table-info"
                      (contains? #{:updating :running} status) "table-success"
-                     (or (= :temp-fail status) (and (not (= :running status)))) "table-warning"
+                     (or (= :temp-fail status) (not (= :running status))) "table-warning"
                      :else "")}
           [:td {:class "details-control"}]
           [:td {:class "col-xs-1"} k]
@@ -120,8 +120,7 @@
                                             human/datetime-ago)]]))]]))
 
 (defn source-details [k]
-  (let [state (get-state (keyword k))
-        status (:status state)]
+  (let [state (get-state (keyword k))]
     (html
      [:div
       [:h5 "State Structure"]

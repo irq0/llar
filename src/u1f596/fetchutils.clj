@@ -1,25 +1,15 @@
 (ns u1f596.fetchutils
   (:require
-   [u1f596.fetch :refer [make-item-hash] :as fetch]
-   [u1f596.src :as src]
-   [clojure.tools.logging :as log]
-   [u1f596.converter :as converter]
-   [u1f596.notifier :as notifier]
-   [java-time :as time]
    [clojure.set :refer [intersection]]
-   [hiccup.core :refer [html]]
-   [hickory.select :as S]
-   [slingshot.slingshot :refer [try+ throw+]]
-   [clj-http.client :as http-client]
-   [clj-http.cookies :as http-cookies]
-   [hickory.core :as hick]
-   [hickory.render :refer [hickory-to-html]]
-
-   [u1f596.postproc :as proc]
    [clojure.string :as string]
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [org.bovinegenius [exploding-fish :as uri]]))
+   [clojure.tools.logging :as log]
+   [java-time.api :as time]
+   [org.bovinegenius [exploding-fish :as uri]]
+   [slingshot.slingshot :refer [try+]]
+   [u1f596.fetch :as fetch]
+   [u1f596.fetch.reddit :as reddit]
+   [u1f596.postproc :as proc]
+   [u1f596.src :as src]))
 
 (defn parse-date-to-zoned-data-time [fmt s]
   (time/zoned-date-time
@@ -106,7 +96,7 @@
 (defonce reddit-scores (atom {}))
 
 (defn- update-reddit-cutoff-score! [k src]
-  (let [s (u1f596.fetch.reddit/reddit-get-scores src)
+  (let [s (reddit/reddit-get-scores src)
         next {:top-n-score (nth (sort s) (- (count s) (num (* (count s) 0.05))))
               :update-ts (time/zoned-date-time)}]
     (swap! reddit-scores assoc k next)

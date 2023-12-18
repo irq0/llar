@@ -9,7 +9,7 @@
    [digest]
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
-   [java-time :as time]
+   [java-time.api :as time]
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
    [org.bovinegenius [exploding-fish :as uri]]
@@ -25,10 +25,10 @@
 
 (extend-protocol postproc/ItemProcessor
   RedditItem
-  (post-process-item [item src state]
+  (post-process-item [item _src _state]
     (let [nlp (analysis/analyze-entry (:entry item))]
       (update item :entry merge (:entry item) nlp)))
-  (filter-item [item src state] false))
+  (filter-item [_ _ _] false))
 
 (extend-protocol persistency/CouchItem
   RedditItem

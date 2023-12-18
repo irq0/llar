@@ -1,6 +1,6 @@
 (ns u1f596.contentdetect
   (:import [org.apache.tika Tika]
-           [org.apache.tika.mime MimeTypes MimeType MediaType]))
+           [org.apache.tika.mime MimeTypes MediaType]))
 
 (def ^Tika tika (Tika.))
 (def ^MimeTypes mime-types (MimeTypes/getDefaultMimeTypes))

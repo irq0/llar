@@ -1,18 +1,17 @@
 (ns u1f596.converter
   (:require
-   [u1f596.appconfig :as appconfig]
-   [u1f596.contentdetect :as contentdetect]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [clojure.java.io :as io]
-   [clojure.string :as string]
-   [org.bovinegenius.exploding-fish]
-   [org.bovinegenius [exploding-fish :as uri]]
-   [java-time :as time]
-   [clojure.tools.logging :as log]
    [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
+   [clojure.string :as string]
+   [java-time.api :as time]
+   [org.bovinegenius [exploding-fish :as uri]]
    [puget.printer :as puget]
-   [clojure.java.shell :as shell])
-  (:import [org.bovinegenius.exploding_fish Uri]))
+   [slingshot.slingshot :refer [throw+]]
+   [u1f596.appconfig :as appconfig]
+   [u1f596.contentdetect :as contentdetect])
+  (:import
+   [org.bovinegenius.exploding_fish Uri]))
 
 (defn html-to-text-command [tool]
   (get {:pandoc [(appconfig/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
@@ -45,7 +44,7 @@
 
 (defmulti base64-decode class)
 
-(defmethod base64-decode nil [data]
+(defmethod base64-decode nil [_]
   nil)
 
 (defmethod base64-decode String [data]

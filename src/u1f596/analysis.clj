@@ -1,15 +1,14 @@
 (ns u1f596.analysis
   (:require
-   [u1f596.appconfig :as appconfig]
    [clojure.java.io :as io]
-   [opennlp.nlp :as nlp]
-   [clojure.java.shell :as shell]
-   [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
-   [opennlp.tools.filters :as nlp-filter])
-  (:import [org.apache.tika.langdetect.optimaize OptimaizeLangDetector]
-           [org.apache.tika.language.detect LanguageDetector]))
+   [clojure.tools.logging :as log]
+   [opennlp.nlp :as nlp]
+   [opennlp.tools.filters :as nlp-filter]
+   [slingshot.slingshot :refer [try+]])
+  (:import
+   [org.apache.tika.langdetect.optimaize OptimaizeLangDetector]
+   [org.apache.tika.language.detect LanguageDetector]))
 
 (def ^LanguageDetector language-detector (-> (OptimaizeLangDetector.) .loadModels))
 
