@@ -171,7 +171,8 @@
                                           (drop 1)
                                           first
                                           hickory-to-html
-                                          (converter/html2text))
+                                          (converter/html2text)
+                                          (string/trim))
                                      70))
 
                            :ts #(->> %
