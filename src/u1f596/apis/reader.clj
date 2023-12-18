@@ -599,9 +599,7 @@
   "Renders item content that is somehow unique to a source and benefits from special rendering
   (e.g youtube videos, twitter images)"
   [item options]
-  (let [{:keys [id source-key title ts author tags
-                nwords names entry url urls top-words]} item
-        url-site (some-> url uri/uri uri/host)
+  (let [{:keys [entry url]} item
         youtube-url (parse-youtube-url url)]
     (html
      (when-let [vid youtube-url]
@@ -719,8 +717,7 @@
                                  (get-html-content item :description "text/html")
                                  (get-html-content item selected-data selected-content-type))]
            html-content
-           (render-special-item-content item #{}))
-         [:div {:id "minimap" :class "col-1 sticky-top"}]]]]]]))
+           (render-special-item-content item #{}))]]]]]))
 
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
@@ -793,7 +790,7 @@
        (and (string/includes? site "github") (= path-len 2))
        [:span (icon "fab fa-github") "&nbsp;" (subs path 1)]
 
-       (and (string/includes? site "twitter"))
+       (string/includes? site "twitter")
        (if (= path-len 1)
          [:span (icon "fab fa-twitter") "&nbsp;" (first path-seq)]
          [:span (icon "fab fa-twitter") "&nbsp;" (first path-seq) "(status)"])
@@ -801,7 +798,7 @@
        (string/includes? site "spotify")
        [:span (icon "fab fa-spotify") "&nbsp;" path-last]
 
-       (and (string/includes? site "facebook"))
+       (string/includes? site "facebook")
        (cond
          (= path-len 1)
          [:span (icon "fab fa-facebook-f") "&nbsp;" (first path-seq)]
@@ -874,8 +871,8 @@
                               (> (count word) 20)
                               (re-find #"^(\W{1,2}|[a-z0-9]\.)" word)
                               (re-find +boring-words-regex+ word))))
-        words (take 50 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
-        names (take 50 (filter boring-filter names))
+        words (take 15 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
+        names (take 5 (filter boring-filter names))
         options (cond-> (set (:options source))
                   (< (+ (count words) (count names) (count urls)) 10)
                   (conj :short-word-cloud))
@@ -995,7 +992,7 @@
                                        (name group-name)
                                        (name group-item)
                                        (name source-key))
-                   {:keys [id source-key title ts tags nwords url]} item
+                   {:keys [id source-key title ts tags url]} item
                    source (get sources (keyword source-key))]]
          [:tr {:data-id id}
           [:td {:class "source"}
@@ -1039,7 +1036,7 @@
 (defn gallery-list-items
   "Main Item List - Gallery Style"
   [x]
-  (let [{:keys [group-name group-item source-key sources items]} x]
+  (let [{:keys [group-name group-item source-key items]} x]
     [:div {:class "card-columns" :id "gallery"}
      (for [item items
            :let [link-prefix (format "/reader/group/%s/%s/source/%s"
@@ -1534,27 +1531,26 @@
                                :group-key (:view params)
                                :item-tags @item-tags
                                :mode :lab
-                               :filter orig-fltr})]
+                               :filter orig-fltr})
+         nav-bar (nav-bar params)
+         view (lab-view-handler params)
+         group-nav (group-nav params)
+         title (short-page-headline params)
 
-     (let [nav-bar (nav-bar params)
-           view (lab-view-handler params)
-           group-nav (group-nav params)
-           title (short-page-headline params)
-
-           html (metrics/with-prom-exec-time
-                  :render-html
-                  (html
-                   [:html {:lang "en"}
-                    (html-header title (:mode params) (some-> params :items first))
-                    [:body
-                     (concat
-                      [nav-bar]
-                      [[:div {:class "container-fluid"}
-                        [:div {:class "row"}
-                         group-nav
-                         view]]]
-                      (html-footer))]]))]
-       html))))
+         html (metrics/with-prom-exec-time
+                :render-html
+                (html
+                 [:html {:lang "en"}
+                  (html-header title (:mode params) (some-> params :items first))
+                  [:body
+                   (concat
+                    [nav-bar]
+                    [[:div {:class "container-fluid"}
+                      [:div {:class "row"}
+                       group-nav
+                       view]]]
+                    (html-footer))]]))]
+     html)))
 
 (defn fetch-preview
   "Preview Mode Entrypoint"
@@ -1586,10 +1582,10 @@
       :body {:item {:meta (:meta item)
                     :id item-id
                     :title (get-in item [:summary :title])}}})
-   (catch Throwable th
-     (log/warn th "add-url failed: " feed)
+   (catch Throwable e
+     (log/warn e "add-url failed: " feed)
      {:status 500
-      :body {:error (str th)}})))
+      :body {:error (str e)}})))
 
 (defn reader-item-modify
   "Item Modification (e.g Set Tag) Entry Point"
@@ -1638,7 +1634,7 @@
            :raw-bookmark (add-thing
                           (bookmark/make-raw-bookmark-feed url)
                           :bookmark))
-         (catch java.net.MalformedURLException ex
+         (catch java.net.MalformedURLException _
            {:status 400
             :body {:error (str "Malformed URL: " url)}})))
 

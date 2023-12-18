@@ -1,0 +1,2 @@
+{:lint-as {mount.core/defstate clojure.core/def}
+ :linters {:unresolved-symbol {:exclude [(slingshot.slingshot/try+ [e &throw-context _])]}}}

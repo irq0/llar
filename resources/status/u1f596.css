@@ -110,10 +110,6 @@ div.item-content .orig-content {
     padding-bottom: 1.5em;
     overflow: hidden;
   }
-
-  div.item-content-body p {
-    text-align: justify;
-  }
 }
 
 /* tablet  */
@@ -134,10 +130,6 @@ div.item-content .orig-content {
     text-align: left;
     font-weight: 600;
   }
-
-  div.item-content-body p {
-    text-align: justify;
-  }
 }
 
 /* standard desktop */
@@ -147,10 +139,6 @@ div.item-content .orig-content {
     line-height: 1.9;
     max-width: 60ch;
     margin: auto;
-  }
-
-  div.item-content-body p {
-    text-align: justify;
   }
 
   div.item-content-body h1,
@@ -173,10 +161,6 @@ div.item-content .orig-content {
     margin-right: 5em;
     overflow-x: scroll;
     height: calc(100vh - 9em);
-  }
-
-  div.item-content-body p {
-    text-align: justify;
   }
 
   div.item-content-body h1,
@@ -249,10 +233,6 @@ div.item-content-body p > code {
 
 .hyphenate {
   hyphens: auto;
-}
-
-.hyphenate p {
-  text-align: justify;
 }
 
 .feather {
@@ -689,13 +669,6 @@ table.exception-chain tr {
   vertical-align: top;
 }
 
-/* phone */
-@media (width <= 768px) {
-  #minimap {
-    display: none;
-  }
-}
-
 @media (width >= 800px) {
   .item-content-nav {
     top: 43px;
@@ -704,15 +677,6 @@ table.exception-chain tr {
     background: white;
     font-weight: 300;
     position: sticky;
-  }
-
-  #minimap {
-    top: calc(43px + 3.2em);
-    height: calc(100vh - 48px);
-
-    /* stylelint-disable color-no-invalid-hex */
-    background: element(#item-content-body) no-repeat center / contain;
-    filter: opacity(80%);
   }
 
   nav {
