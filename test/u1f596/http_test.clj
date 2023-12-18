@@ -222,7 +222,7 @@
   (testing "Meaningless input should throw"
     (is (thrown+? [:type :u1f596.http/absolutify-impossible
                    :reason :u1f596.http/base-url-useless]
-                  (uut/absolutify-url nil "")))
+                  (uut/absolutify-url "/foo" "")))
     (is (thrown+? [:type :u1f596.http/absolutify-impossible
                    :reason :u1f596.http/base-url-relative]
                   (uut/absolutify-url "/example.com" "/foo"))))
@@ -242,5 +242,5 @@
 
   (testing "Path traversing should be resolved"
     (is (= "https://example.com/baz"
-           (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar/")))))
-  )
+           (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar/"))))))
+

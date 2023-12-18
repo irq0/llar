@@ -98,6 +98,10 @@
     ;;  (string/replace (uri/path uri) #"[^a-zA-Z0-9\.\-_~!&'\(\)*+,;=:@/]" ""))
     ;; Why? unicode chars are actually allowed in url paths
 
+    (uri/path uri)
+    (uri/path
+     (string/replace (uri/path uri) #"['\"]+$" ""))
+
     (= (uri/scheme-relative uri) "//")
     (uri/scheme-relative "/")
 
@@ -118,9 +122,9 @@
 
 (defn parse-href [s]
   (let [decoded (or (swallow-exceptions (java.net.URLDecoder/decode s)) s)]
-  (when-let [url (or (swallow-exceptions (parse-url decoded))
-                     (swallow-exceptions (parse-url (str "/" decoded))))]
-    url)))
+    (when-let [url (or (swallow-exceptions (parse-url decoded))
+                       (swallow-exceptions (parse-url (str "/" decoded))))]
+      url)))
 
 (defn- append-path-if-not-exist [url]
   (if (nil? (uri/path url))
@@ -351,8 +355,8 @@
                      :img :src}
         remove-by-attrs {:data-app-hidden "true"  ;; spiegel online
                          :class "lazytrigger"  ;; spiegel online
-                         :data-component "AffiliateBox" ;; spiegen online
-                         }
+                         :data-component "AffiliateBox"} ;; spiegel online
+
         remove-tags #{:header :script :noscript :footer :button}]
     (loop [loc zipper]
       (if (zip/end? loc)
