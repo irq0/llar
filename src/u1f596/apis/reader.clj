@@ -6,6 +6,7 @@
    [compojure.coercions :refer [as-int]]
    [compojure.core :refer [context GET POST routes]]
    [compojure.route :as route]
+   [hiccup.page :refer [html5]]
    [hiccup.core :refer [html]]
    [java-time.api :as time]
    [mount.core :refer [defstate]]
@@ -1327,7 +1328,7 @@
 
             html (metrics/with-prom-exec-time
                    :render-html
-                   (html
+                   (html5
                     [:html {:lang "en"}
                      (html-header title (:mode params) (some-> params :items first))
                      [:body
@@ -1538,7 +1539,7 @@
 
          html (metrics/with-prom-exec-time
                 :render-html
-                (html
+                (html5
                  [:html {:lang "en"}
                   (html-header title (:mode params) (some-> params :items first))
                   [:body
@@ -1554,7 +1555,7 @@
 (defn fetch-preview
   "Preview Mode Entrypoint"
   []
-  (html
+  (html5
    [:html {:lang "en"}
     (html-header "preview" "preview" nil)
     [:body
