@@ -32,33 +32,6 @@ function tag_item_by_id(id, tag, icon_elem) {
   );
 }
 
-//
-// group action buttons
-//
-
-$(".btn-mark-view-read").click(function () {
-  var ids = jQuery.unique(
-    $("main")
-      .find("[data-id]")
-      .map(() => $(this).data("id")),
-  );
-
-  for (var id of ids) {
-    var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
-    tag_item_by_id(id, "unread", icon_elem);
-  }
-});
-
-$(".btn-update-sources-in-view").popover({
-  placement: "bottom",
-  container: "body",
-  offset: 10,
-  trigger: "manual",
-  html: true,
-  title: () => $(".btn-update-sources-in-view").data("result-title"),
-  content: () => $(".btn-update-sources-in-view").data("result-message"),
-});
-
 function show_update_sources_update_result(title, message) {
   var popover_root = $(".btn-update-sources-in-view");
   popover_root.data("result-title", "Update done");
@@ -144,93 +117,6 @@ function show_bookmark_add_result(title, message) {
   );
   popover_root.popover("show");
 }
-
-// bookmark / document add url
-$(".bookmark-submit").click(() => {
-  var x = $(this);
-  x.removeClass("btn-warning");
-  x.removeClass("btn-secondary");
-  x.addClass("btn-info");
-  $.post({
-    url: "/reader/bookmark/add",
-    data: { url: $(x.data("url-source")).val(), type: x.data("type") },
-    dataType: "json",
-    success: (data) => {
-      x.removeClass("btn-warning");
-      x.removeClass("btn-info");
-      $(x.data("url-source")).val("");
-      x.addClass("btn-secondary");
-      var item = data["item"];
-      var item_url =
-        "/reader/group/type/bookmark/source" +
-        "/" +
-        item["meta"]["source-key"] +
-        "/item/by-id" +
-        "/" +
-        item["id"];
-      var source_list_url =
-        "/reader/group/type/bookmark/source" +
-        "/" +
-        item["meta"]["source-key"] +
-        "/items";
-      show_bookmark_add_result(
-        "Added: " + item["title"],
-        `<a href="${item_url}">go</a>&nbsp;<a href="${source_list_url}">others</a>`,
-      );
-      return false;
-    },
-  }).fail((data) => {
-    x.addClass("btn-warning");
-    x.removeClass("btn-secondary");
-    x.removeClass("btn-info");
-    show_bookmark_add_result("Fail", data);
-  });
-  return false;
-});
-
-$("#add-thing").popover({
-  placement: "right",
-  container: "body",
-  offset: 10,
-  boundary: $("#groupnav"),
-  trigger: "manual",
-  html: true,
-  title: () => $("#add-thing").data("result-title"),
-  content: () => $("#add-thing").data("result-message"),
-});
-
-// click on youtube preview image to start player
-$(".lazy-youtube").click(() => {
-  var vid = $(this).data("vid");
-  var target = $(this).data("target");
-  $("#" + target).html(
-    '<iframe class="embed-responsive-item"' +
-      ' src="https://www.youtube.com/embed/' +
-      vid +
-      '" allowfullscreen="true">',
-  );
-});
-
-// main list: mark on view, toggle read
-$(".option-mark-read-on-view").waypoint({
-  offset: "bottom-in-view",
-  handler: () => {
-    var x = $("#" + this.element.id + " .direct-tag-buttons .btn-tag-unread");
-    console.log(x);
-    $.post(
-      "/reader/item/by-id/" + x.data("id"),
-      {
-        action: "del",
-        tag: x.data("tag"),
-      },
-      () => {
-        var icon = x.find("i");
-        x.data("is-set", false);
-        icon.attr("class", x.data("icon-unset"));
-      },
-    );
-  },
-});
 
 // document structure aware page forward scrolling
 $("#item-content-body").ready(() => {
@@ -473,3 +359,114 @@ if (is_touch_device()) {
     $("body").animate({ scrollTop: scroll_to.offset().top - main_top - 5 });
   });
 }
+
+$(document).ready(function () {
+  $(".btn-mark-view-read").click(function () {
+    var ids = jQuery.unique(
+      $("main")
+        .find("[data-id]")
+        .map(() => $(this).data("id")),
+    );
+
+    for (var id of ids) {
+      var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
+      tag_item_by_id(id, "unread", icon_elem);
+    }
+  });
+
+  $(".btn-update-sources-in-view").popover({
+    placement: "bottom",
+    container: "body",
+    offset: [10, 20],
+    trigger: "manual",
+    html: true,
+    title: () => $(".btn-update-sources-in-view").data("result-title"),
+    content: () => $(".btn-update-sources-in-view").data("result-message"),
+  });
+  // bookmark / document add url
+  $(".bookmark-submit").click(() => {
+    var x = $(this);
+    x.removeClass("btn-warning");
+    x.removeClass("btn-secondary");
+    x.addClass("btn-info");
+    $.post({
+      url: "/reader/bookmark/add",
+      data: { url: $(x.data("url-source")).val(), type: x.data("type") },
+      dataType: "json",
+      success: (data) => {
+        x.removeClass("btn-warning");
+        x.removeClass("btn-info");
+        $(x.data("url-source")).val("");
+        x.addClass("btn-secondary");
+        var item = data["item"];
+        var item_url =
+          "/reader/group/type/bookmark/source" +
+          "/" +
+          item["meta"]["source-key"] +
+          "/item/by-id" +
+          "/" +
+          item["id"];
+        var source_list_url =
+          "/reader/group/type/bookmark/source" +
+          "/" +
+          item["meta"]["source-key"] +
+          "/items";
+        show_bookmark_add_result(
+          "Added: " + item["title"],
+          `<a href="${item_url}">go</a>&nbsp;<a href="${source_list_url}">others</a>`,
+        );
+        return false;
+      },
+    }).fail((data) => {
+      x.addClass("btn-warning");
+      x.removeClass("btn-secondary");
+      x.removeClass("btn-info");
+      show_bookmark_add_result("Fail", data);
+    });
+    return false;
+  });
+
+  $("#add-thing").popover({
+    placement: "right",
+    container: "body",
+    offset: [10, 20],
+    boundary: $("#groupnav"),
+    trigger: "manual",
+    html: true,
+    title: () => $("#add-thing").data("result-title"),
+    content: () => $("#add-thing").data("result-message"),
+  });
+
+  // click on youtube preview image to start player
+  $(".lazy-youtube").click(() => {
+    var vid = $(this).data("vid");
+    var target = $(this).data("target");
+    $("#" + target).html(
+      '<iframe class="embed-responsive-item"' +
+        ' src="https://www.youtube.com/embed/' +
+        vid +
+        '" allowfullscreen="true">',
+    );
+  });
+
+  // main list: mark on view, toggle read
+  $(".option-mark-read-on-view").waypoint({
+    offset: "bottom-in-view",
+    handler: () => {
+      var x = $("#" + this.element.id + " .direct-tag-buttons .btn-tag-unread");
+      console.log(x);
+      $.post(
+        "/reader/item/by-id/" + x.data("id"),
+        {
+          action: "del",
+          tag: x.data("tag"),
+        },
+        () => {
+          var icon = x.find("i");
+          x.data("is-set", false);
+          icon.attr("class", x.data("icon-unset"));
+        },
+      );
+    },
+  });
+});
