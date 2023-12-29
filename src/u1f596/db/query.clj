@@ -151,7 +151,7 @@
                   (conj (sql/cond-with-source-keys {:keys
                                                     (map name with-source-keys)}))
 
-                  (coll? with-source-ids)
+                  (and (coll? with-source-ids) (not-empty with-source-ids))
                   (conj (sql/cond-with-source-ids {:ids with-source-ids}))
 
                   (some? simple-filter)
