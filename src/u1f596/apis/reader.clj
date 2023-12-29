@@ -256,7 +256,7 @@
        :data-icon-set icon-set
        :data-icon-unset icon-unset
        :data-tag (name tag)
-       :data-is-set is-set?}
+       :data-is-set (str (boolean is-set?))}
    (if is-set?
      (icon icon-set)
      (icon icon-unset))])
@@ -374,7 +374,7 @@
 
           [:a {:class "btn btn-secondary btn-update-sources-in-view"
                :title "Update sources in view"
-               :data-bs-target (make-site-href [link-prefix "update"] x)
+               :data-target (make-site-href [link-prefix "update"] x)
                :data-items (make-site-href [(:uri x)] x)
                :href "#"}
            (icon "fas fa-download")]]
@@ -568,35 +568,38 @@
           src
           active-source))]]]))
 
+(defn tags-button-modal [item-id tags]
+  [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1"}
+   [:div {:class "modal-dialog"}
+    [:div {:class "modal-content"}
+     [:div {:class "modal-header"}
+      [:h5 "Edit Tags"]
+      [:button {:type "button" :class "close"
+                :data-bs-dismiss "modal"}
+       [:span "&times;"]]]
+     [:div {:class "modal-body"}
+      [:ul {:class "list-group list-group-flush"}
+       (for [tag tags]
+         [:li {:class "list-group-item"}
+          (tag-button item-id {:tag tag
+                               :icon-set "fas fa-check-circle icon-is-set"
+                               :icon-unset "far fa-circle"
+                               :is-set? true})
+          "&nbsp;"
+          tag])]
+      [:form {:class "add-custom-tag" :data-id item-id}
+       [:div {:class "input-group mb-3"}
+        [:div {:class "form-floating"}
+         [:input {:class "form-control" :id (str "add-tag-" item-id)}]
+         [:label {:for (str "add-tag-" item-id)} "Custom Tag"]]
+        [:button {:class "btn btn-primary" :data-bs-modal (str "#add-custom-tag-" item-id) :type "submit"} "Add"]]]]]]])
+
 (defn tags-button-group [item-id tags]
   [:div {:class "btn-group btn-group-sm"}
    [:a {:class "btn"
         :data-bs-toggle "modal"
         :data-bs-target (str "#add-custom-tag-" item-id)}
-    "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]
-   [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1"}
-    [:div {:class "modal-dialog"}
-     [:div {:class "modal-content"}
-      [:div {:class "modal-header"}
-       [:h5 "Edit Tags"]
-       [:button {:type "button" :class "close"
-                 :data-bs-dismiss "modal"}
-        [:span "&times;"]]]
-      [:div {:class "modal-body"}
-       [:ul
-        (for [tag tags]
-          [:li
-           (tag-button item-id {:tag tag
-                                :icon-set "fas fa-check-circle icon-is-set"
-                                :icon-unset "far fa-circle"
-                                :is-set? true})
-           "&nbsp;"
-           tag])]
-       [:form {:class "add-custom-tag" :data-id item-id}
-        [:div {:class "form-group"}
-         [:label {:for (str "add-tag-" item-id)} "Add Custom Tag"]
-         [:input {:class "form-control" :id (str "add-tag-" item-id)}]]
-        [:input {:class "btn btn-primary" :data-bs-modal (str "#add-custom-tag-" item-id) :type "submit"}]]]]]]])
+    "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]])
 
 (defn render-special-item-content
   "Renders item content that is somehow unique to a source and benefits from special rendering
@@ -658,6 +661,7 @@
                (:language entry)
                "en")]
     [:div {:class "item-content" :id "item-content"}
+     (tags-button-modal id tags)
      [:div {:class "d-none"
             :id "item-meta"
             :data-id id}]
@@ -963,6 +967,7 @@
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
        (tags-button-group id tags)
+       (tags-button-modal id tags)
        [:a {:class "btn" :href url}
         "&nbsp;" (icon "fas fa-external-link-alt")]
        [:a {:class "btn"

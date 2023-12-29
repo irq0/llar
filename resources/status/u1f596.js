@@ -322,9 +322,11 @@ $(document).ready(function () {
     var ids = jQuery.unique(
       $("main")
         .find("[data-id]")
-        .map(() => $(this).data("id")),
+        .map(function () {
+          return $(this).data("id");
+        }),
     );
-
+    console.log(ids);
     for (var id of ids) {
       var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
       tag_item_by_id(id, "unread", icon_elem);
@@ -411,7 +413,6 @@ $(document).ready(function () {
     offset: "bottom-in-view",
     handler: function () {
       var x = $("#" + this.element.id + " .direct-tag-buttons .btn-tag-unread");
-      console.log(x);
       $.post(
         "/reader/item/by-id/" + x.data("id"),
         {
@@ -428,6 +429,7 @@ $(document).ready(function () {
   });
   $(".btn-update-sources-in-view").on("click", function () {
     var target = $(this).data("target");
+    $(this).find("i").addClass("icon-is-set");
     $.post(target, (data, status) => {
       if (status == "success") {
         setTimeout(update_sources_update_state, 5000, target);
@@ -437,11 +439,11 @@ $(document).ready(function () {
 
   // tag toggle buttons
   $(".ajax-toggle").on("click", function () {
+    var x = $(this);
     var action = "set";
-    if ($(this).data("is-set")) {
+    if (x.data("is-set")) {
       action = "del";
     }
-    var x = $(this);
     var id = x.data("id");
     var tag = x.data("tag");
     $.post("/reader/item/by-id/" + id, { action: action, tag: tag }, () => {
@@ -453,6 +455,7 @@ $(document).ready(function () {
         x.data("is-set", true);
         icon.attr("class", x.data("icon-set"));
       }
+      location.reload();
     });
   });
 
