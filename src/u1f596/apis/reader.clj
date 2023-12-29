@@ -1606,11 +1606,6 @@
   (when-not (nil? s)
     (time/zoned-date-time (time/formatter :iso-date-time) s)))
 
-(defn as-url
-  "Compojure Helper: Parse string into URL"
-  [s]
-  (uri/uri s))
-
 (def app
   "Compojure Routes"
   (routes
