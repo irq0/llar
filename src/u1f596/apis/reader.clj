@@ -294,8 +294,8 @@
            :class "navbar navbar-dark navbar-expand-md sticky-top bg-dark flex-md-nowrap p-0"}
      [:div {:class "navbar-toggler"}
       [:a {:class "navbar-toggler"
-           :data-toggle "collapse"
-           :data-target "#navbar"}
+           :data-bs-toggle "collapse"
+           :data-bs-target "#navbar"}
        (icon "fas fa-bars")]
       (cond
         (= mode :list-items)
@@ -310,11 +310,11 @@
               :href "#"}
           (icon "fas fa-glasses")]
          [:a {:class "navbar-toggler"
-              :data-toggle "collapse"
+              :data-bs-toggle "collapse"
               :href "#groupnav"}
           (icon "fas fa-compass")]
          [:a {:class "navbar-toggler"
-              :data-toggle "collapse"
+              :data-bs-toggle "collapse"
               :href "#sourcenav"}
           (icon "fas fa-list")]]
 
@@ -374,7 +374,7 @@
 
           [:a {:class "btn btn-secondary btn-update-sources-in-view"
                :title "Update sources in view"
-               :data-target (make-site-href [link-prefix "update"] x)
+               :data-bs-target (make-site-href [link-prefix "update"] x)
                :data-items (make-site-href [(:uri x)] x)
                :href "#"}
            (icon "fas fa-download")]]
@@ -427,6 +427,7 @@
         [:div {:class "input-group-append"}
          [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
                    :type "submit"
+                   :data-bs-title "Add Bookmark with readability engine"
                    :data-url-source "#add-url-1"
                    :data-success "#add-url-1-status"
                    :data-type "readability-bookmark"}
@@ -434,6 +435,7 @@
           "R"]
          [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
                    :type "submit"
+                   :data-bs-title "Add Bookmark with raw content"
                    :data-url-source "#add-url-1"
                    :data-success "#add-url-1-status"
                    :data-type "raw-bookmark"}
@@ -569,8 +571,8 @@
 (defn tags-button-group [item-id tags]
   [:div {:class "btn-group btn-group-sm"}
    [:a {:class "btn"
-        :data-toggle "modal"
-        :data-target (str "#add-custom-tag-" item-id)}
+        :data-bs-toggle "modal"
+        :data-bs-target (str "#add-custom-tag-" item-id)}
     "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]
    [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1" :role "dialog"}
     [:div {:class "modal-dialog modal-dialog-centered"}
@@ -578,7 +580,7 @@
       [:div {:class "modal-header"}
        [:h5 "Edit Tags"]
        [:button {:type "button" :class "close"
-                 :data-dismiss "modal"}
+                 :data-bs-dismiss "modal"}
         [:span "&times;"]]]
       [:div {:class "Modal-body"}
        [:ul
@@ -615,7 +617,7 @@
             [:div {:id (str "youtube-container-" (last vid))}
              [:img {:class "lazy-youtube embed-responsive-item"
                     :data-vid (last vid)
-                    :data-target (str "youtube-container-" (last vid))
+                    :data-bs-target (str "youtube-container-" (last vid))
                     :src thumb}]]])))
 
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]
@@ -694,7 +696,7 @@
               :href "#"
               :role "button"
               :id "item-data-select"
-              :data-toggle "dropdown"}
+              :data-bs-toggle "dropdown"}
           "Content Type"]
 
          [:div {:class "dropdown-menu"}
@@ -1058,8 +1060,8 @@
                          thumb)))]
           [:div
            [:a {:type "button"
-                :data-target (str "#full-img-" id)
-                :data-toggle "modal"}
+                :data-bs-target (str "#full-img-" id)
+                :data-bs-toggle "modal"}
             [:img {:src image :class "card-img-top"}]]
 
            [:div {:class "modal " :id (str "full-img-" id) :tabindex "-1" :role "dialog"}
