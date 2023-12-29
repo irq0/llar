@@ -555,14 +555,6 @@ div.item-content-body p > code {
   }
 }
 
-#leaflet-map {
-  height: 500px;
-}
-
-.leaflet-icon {
-  font-size: 2em;
-}
-
 .icon-is-set {
   color: #f83;
 }

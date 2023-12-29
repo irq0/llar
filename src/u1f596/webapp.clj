@@ -3,7 +3,6 @@
    [clojure.tools.logging :as log]
    [u1f596.apis.status :as status]
    [u1f596.apis.reader :as reader]
-   [u1f596.apis.dataworkbench :as datawb]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [clj-stacktrace.core :as stacktrace]
@@ -67,18 +66,6 @@
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception))
 
-(def data-app
-  (->
-   datawb/app
-   ring.middleware.json/wrap-json-response
-   ring.middleware.keyword-params/wrap-keyword-params
-   ring.middleware.params/wrap-params
-   ring.middleware.json/wrap-json-params
-   ring.middleware.gzip/wrap-gzip
-   ring.middleware.not-modified/wrap-not-modified
-   wrap-exception
-   ring.middleware.lint/wrap-lint))
-
 (defn try-start-app [app port]
   (try+
    (run-jetty app {:port port :join? false})
@@ -96,7 +83,3 @@
 (defstate reader
   :start (try-start-app reader-app 8023)
   :stop (try-stop-app reader))
-
-(defstate datawb
-  :start (try-start-app data-app 8042)
-  :stop (try-stop-app data-app))

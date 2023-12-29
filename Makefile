@@ -41,12 +41,7 @@ datatables:
 	wget -O resources/status/datatables/jquery.dataTables.min.css "https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css"
 	wget -O resources/status/datatables/jquery.dataTables.min.js "https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"
 
-leaflet:
-	mkdir -p resources/status/leaflet
-	wget -O resources/status/leaflet/leaflet.js "https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
-	wget -O resources/status/leaflet/leaflet.css "https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
-
-web-3rd-party: leaflet datatables popper annotator waypoints hammer-js jquery bootstrap fontawesome ibmplex
+web-3rd-party: datatables popper waypoints hammer-js jquery bootstrap fontawesome ibmplex
 
 
 uberjar:
