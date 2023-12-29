@@ -72,7 +72,7 @@
        #'webapp/status
        #'webapp/reader)
 
-      :default
+      :else
       (mount/start
        #'appconfig/appconfig
 
@@ -103,7 +103,7 @@
                       :db store/backend-db
                       :migration-dir "migrations/"
                       :init-script "init.sql"}]
-          (log/info "Starting DB migrations" config)
+          (log/info "Initializing database" config)
           (log/info (migratus/init config))
           (log/info (migratus/migrate config)))
         (log/info "Finished DB migrations. Exiting")
@@ -116,6 +116,11 @@
         (log/info "Smoke testing database: "
                   key
                   (vec (persistency/get-table-row-counts store)))))
+
+    (let [config {:store :database
+                  :db store/backend-db
+                  :migration-dir "migrations/"}]
+      (log/info "Running database migrations" (migratus/migrate config)))
 
     (when-not (:dry options)
       (http/update-domain-blocklist!))
