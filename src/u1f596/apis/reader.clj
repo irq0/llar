@@ -70,9 +70,9 @@
    :today ["today" "fas fa-calendar-day"]})
 
 (def +reading-estimate-badge+
-  {:easy "badge-success"
-   :medium "badge-warning"
-   :hard "badge-danger"})
+  {:easy "text-bg-success"
+   :medium "text-bg-warning"
+   :hard "text-bg-danger"})
 
 (def +favorites+
   [[:all :default]
@@ -429,7 +429,7 @@
                    :type "submit"
                    :data-bs-title "Add Bookmark with readability engine"
                    :data-url-source "#add-url-1"
-                   :data-success "#add-url-1-status"
+                   :data-bs-success "#add-url-1-status"
                    :data-type "readability-bookmark"}
 
           "R"]
@@ -437,7 +437,7 @@
                    :type "submit"
                    :data-bs-title "Add Bookmark with raw content"
                    :data-url-source "#add-url-1"
-                   :data-success "#add-url-1-status"
+                   :data-bs-success "#add-url-1-status"
                    :data-type "raw-bookmark"}
 
           "B"]]]]
@@ -574,15 +574,15 @@
         :data-bs-toggle "modal"
         :data-bs-target (str "#add-custom-tag-" item-id)}
     "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]
-   [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1" :role "dialog"}
-    [:div {:class "modal-dialog modal-dialog-centered"}
+   [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1"}
+    [:div {:class "modal-dialog"}
      [:div {:class "modal-content"}
       [:div {:class "modal-header"}
        [:h5 "Edit Tags"]
        [:button {:type "button" :class "close"
                  :data-bs-dismiss "modal"}
         [:span "&times;"]]]
-      [:div {:class "Modal-body"}
+      [:div {:class "modal-body"}
        [:ul
         (for [tag tags]
           [:li
@@ -596,7 +596,7 @@
         [:div {:class "form-group"}
          [:label {:for (str "add-tag-" item-id)} "Add Custom Tag"]
          [:input {:class "form-control" :id (str "add-tag-" item-id)}]]
-        [:input {:class "btn btn-primary" :data-modal (str "#add-custom-tag-" item-id) :type "submit"}]]]]]]])
+        [:input {:class "btn btn-primary" :data-bs-modal (str "#add-custom-tag-" item-id) :type "submit"}]]]]]]])
 
 (defn render-special-item-content
   "Renders item content that is somehow unique to a source and benefits from special rendering
@@ -665,9 +665,8 @@
       [:div {:class "btn-toolbar " :role "toolbar"}
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:class "btn"}
-         (icon "far file-word")
-         [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
-          (:estimate reading-estimate) "m"]
+         (icon "far fa-file-word")
+         (:estimate reading-estimate) "m"
          "&nbsp;-&nbsp;"
          nwords "&nbsp;words"]
         (tags-button-group id tags)]
@@ -1039,14 +1038,14 @@
   "Main Item List - Gallery Style"
   [x]
   (let [{:keys [group-name group-item source-key items]} x]
-    [:div {:class "card-columns" :id "gallery"}
+    [:div {:class "row row-cols-1 row-cols-md-2 g-4" :id "gallery"}
      (for [item items
            :let [link-prefix (format "/reader/group/%s/%s/source/%s"
                                      (name group-name)
                                      (name group-item)
                                      (name source-key))
                  {:keys [id source-key title  ts tags entry url]} item]]
-       [:div {:class "card"}
+       [:div {:class "col"}
         (let [image (or
                      (first (get-in entry [:entities :photos]))
                      (:lead-image-url entry)
@@ -1058,7 +1057,8 @@
                                      (try-blobify-url! hq-url)
                                      max-thumb)]
                          thumb)))]
-          [:div
+          [:div {:class "card"}
+           [:div {:class "card-header"} source-key]
            [:a {:type "button"
                 :data-bs-target (str "#full-img-" id)
                 :data-bs-toggle "modal"}
@@ -1068,25 +1068,24 @@
             [:div {:class "modal-dialog modal-dialog-centered modal-lg"}
              [:div {:class "modal-content"}
               [:img {:src image :class "card-img-top"
-                     :data-dismiss "modal"}]]]]
+                     :data-bs-dismiss "modal"}]]]]
 
            [:div {:class "card-body"}
-            [:h5 {:class "card-title"}
+            [:p {:class "card-title"}
              [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                         {:mark :read} x)}
               (if (string/blank? title)
                 "(no title)"
-                title)]
-             [:p {:class "card-text"}]
-             [:p {:class= "card-text"} [:small {:class "text-muted"} source-key]]
-             [:p {:class= "card-text"} [:small {:class "text-muted"} (human/datetime-ago ts)]]
-             [:p {:class "card-text toolbox"}
-              (concat
-               [[:a {:class "btn" :href url}
-                 (icon "fas fa-external-link-alt")]]
-               (for [btn +tag-buttons+]
-                 (tag-button id
-                             (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]]]])])]))
+                title)]]
+            [:p {:class "card-text"}
+             [:small {:class "text-muted"} (human/datetime-ago ts)]]]
+           [:div {:class "card-footer toolbox"}
+            (concat
+             [[:a {:class "btn" :href url}
+               (icon "fas fa-external-link-alt")]]
+             (for [btn +tag-buttons+]
+               (tag-button id
+                           (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]])])]))
 
 (defn main-list-items
   "Generate Mail Item List"
