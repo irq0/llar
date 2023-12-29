@@ -722,7 +722,6 @@
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
   [k v]
-  (log/info (name k))
   [:li (icon "far fa-file") [:strong (str k)] "&nbsp;"
    (cond
      (nil? v)
