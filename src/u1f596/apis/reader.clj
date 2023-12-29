@@ -234,18 +234,18 @@
    [:link {:rel "icon" :type "image/png" :sizes "32x32" :href "/static/img/favicon-32x32.png"}]
    [:link {:rel "icon" :type "image/png" :sizes "16x16" :href "/static/img/favicon-16x16.png"}]
    [:link {:rel "manifest" :href "/static/img/site.webmanifest"}]
-   [:link {:rel "stylesheet" :href "/static/bootstrap/bootstrap-4.6.0-dist/css/bootstrap.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fontawesome/fontawesome-free-5.15.3-web/css/all.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
    [:link {:rel "stylesheet" :href "/static/u1f596.css"}]])
 
 (defn html-footer []
-  [[:script {:src "/static/jquery/jquery-3.6.0.min.js"}]
+  [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/hammer/hammer.min.js"}]
    [:script {:src "/static/hammer/jquery.hammer.js"}]
-   [:script {:src "/static/waypoints/imakewebthings-waypoints-34d9f6d/lib/jquery.waypoints.min.js"}]
+   [:script {:src "/static/waypoints/jquery.waypoints.min.js"}]
    [:script {:src "/static/popper/popper.min.js"}]
-   [:script {:src "/static/bootstrap/bootstrap-4.6.0-dist/js/bootstrap.min.js"}]
+   [:script {:src "/static/bootstrap/js/bootstrap.min.js"}]
    [:script {:src "/static/u1f596.js"}]])
 
 (defn tag-button [id {:keys [tag is-set? icon-set icon-unset]}]

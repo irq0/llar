@@ -26,16 +26,16 @@
    [:meta {:http-equiv "X-UA-Compatible" :content "IE=edge"}]
    [:meta {:name "viewport" :content "width=device-width, initial-scale=1, shrink-to-fit=no"}]
    [:title "u1f596 🔢 🔥 🚧"]
-   [:link {:rel "stylesheet" :href "/static/bootstrap/bootstrap-4.6.0-dist/css/bootstrap.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fontawesome/fontawesome-free-5.15.3-web/css/all.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
    [:link {:rel "stylesheet" :href "/static/datatables/jquery.dataTables.min.css"}]
    [:link {:rel "stylesheet" :href "/static/u1f596.css"}]])
 
 (defn html-footer []
-  [[:script {:src "/static/jquery/jquery-3.6.0.min.js"}]
+  [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/datatables/jquery.dataTables.min.js"}]
-   [:script {:src "/static/bootstrap/bootstrap-4.6.0-dist/js/bootstrap.min.js"}]
+   [:script {:src "/static/bootstrap//js/bootstrap.min.js"}]
    [:script {:src "/static/u1f596-status.js"}]])
 
 (defn wrap-body [body]
@@ -71,6 +71,7 @@
 (defn pprint-html [x]
   [:pre {:class "clj-pprint"}
    (let [pr-str-orig pr-str
+         #_:clj-kondo/ignore
          pr-str  (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
      (puget/pprint-str
       x
