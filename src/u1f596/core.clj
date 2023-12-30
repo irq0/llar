@@ -79,7 +79,6 @@
        #'api-reader/frontend-db
        #'store/backend-db
 
-       #'http/domain-blocklist
        #'blobstore/locks
 
        #'update/state

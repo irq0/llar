@@ -58,6 +58,7 @@
                  [jarohen/chime "0.3.3" :exclusions [org.clojure/tools.logging]]
                  [robert/hooke "1.3.0"]
                  [slingshot "0.12.2"]
+                 [io.github.clj-kondo/config-slingshot-slingshot "1.0.0"]
                  [org.apache.commons/commons-text "1.11.0"]
                  [commons-io/commons-io "2.15.1"]
                  [com.sun.activation/jakarta.activation "2.0.1"]

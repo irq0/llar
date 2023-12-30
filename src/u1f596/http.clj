@@ -6,9 +6,7 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-http.client :as http]
    [schema.core :as s]
-   [clojure.set :refer [intersection]]
    [u1f596.schema :as schema]
-   [u1f596.converter :as conv]
    [clojure.set :as clojure-set]
    [hickory.core :as hick]
    [hickory.select :as hick-s]
@@ -17,13 +15,12 @@
    [clojure.tools.logging :as log]
    [clojure.string :as string]
    [clojure.zip :as zip]
-   [mount.core :refer [defstate]]
    [org.bovinegenius [exploding-fish :as uri]]
-   [java-time :as time]))
+   [java-time.api :as time]))
 
 ;; 🖖 HTTP Fetch utility
 
-(defonce domain-blocklist (atom #{}))
+(defonce ^:dynamic *domain-blocklist* (atom #{}))
 
 (def +http-user-agent+
   {:bot "Mozilla/5.0 (compatible); Googlebot/2.1; +http://www.google.com/bot.html)"
@@ -60,7 +57,7 @@
                public-blocklists)))
 
 (defn update-domain-blocklist! []
-  (reset! domain-blocklist (fetch-domain-blocklists)))
+  (reset! *domain-blocklist* (fetch-domain-blocklists)))
 
 (defn extract-http-title
   [parsed-html]
@@ -76,8 +73,8 @@
   [resp]
   (let [{:keys [headers]} resp]
     (try+
-     (or (conv/parse-http-ts (get headers "Last-Modified"))
-         (conv/parse-http-ts (get headers "Date")))
+     (or (converter/parse-http-ts (get headers "Last-Modified"))
+         (converter/parse-http-ts (get headers "Date")))
      (catch Object _
        (time/zoned-date-time)))))
 
@@ -272,7 +269,7 @@
        (let [content-hash (blobstore/add-from-url! url)
              blobstore-url (str "/blob/" content-hash)]
          blobstore-url)
-       (catch Object e
+       (catch Object _
          (str url))))))
 
 (defn blobify-image [loc]
@@ -309,29 +306,6 @@
              (zip/next (edit-tag tag loc)))
             (recur (zip/next loc))))))))
 
-;; remove all nested div and span - hellishly expensive, lots of copying!
-(defn simplify-expensive [root]
-  (let [zipper (hick-z/hickory-zip root)]
-    (loop [loc zipper]
-      (if (zip/end? loc)
-        (zip/root loc)
-        (recur
-         (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
-           (if (and (= type :element) (some? content)
-                    (some #(contains? #{:div :span} (:tag %)) content))
-             (zip/replace loc
-                           ;; elevate any div/span content to this node
-                          (let [new-content (mapcat (fn [cont]
-                                                      (let [{:keys [tag type attrs content]} cont]
-                                                        (if (and (= type :element)
-                                                                 (some? content)
-                                                                 (contains? #{:div :span} tag))
-                                                          content
-                                                          [cont])))
-                                                    content)]
-                            (assoc node :content new-content)))
-             (zip/next loc))))))))
-
 (defn simplify [root]
   (let [zipper (hick-z/hickory-zip root)]
     (loop [loc zipper]
@@ -339,7 +313,7 @@
         (zip/root loc)
         (recur
          (zip/next
-          (let [{:keys [tag type attrs content] :as node} (zip/node loc)]
+          (let [{:keys [tag type _attrs _content] :as node} (zip/node loc)]
             (if (and (= type :element)
                      (contains? #{:div :span} tag))
               (zip/replace loc (assoc node :attrs nil))
@@ -377,8 +351,8 @@
                                 (assoc :content [])
                                 (assoc :attrs {:note "cleared by u1f596 html sanitizer"}))))
 
-                (and (= tag :a) (some-> attrs :href #(or (string/starts-with? % "mailto:")
-                                                         (string/starts-with? % "data:"))))
+                (and (= tag :a) (some-> attrs :href (#(or (string/starts-with? % "mailto:")
+                                                          (string/starts-with? % "data:")))))
                 loc
 
                 (= tag :font)
@@ -396,9 +370,7 @@
                 (zip/edit loc
                           (fn [node]
                             (-> node
-                                (assoc-in [:attrs :style] nil)
-                                (assoc-in [:attrs :orig-style]
-                                          (:style attrs)))))
+                                (assoc-in [:attrs :style] nil))))
 
                 (and (= tag :img) (string/starts-with? (or (:srcset attrs) "") "data:"))
                 (zip/edit loc
@@ -415,7 +387,7 @@
                      (try+
                       (let [url (parse-url (get attrs (get url-attribs tag)))
                             host (uri/host url)
-                            in-blocklist (contains? @domain-blocklist host)]
+                            in-blocklist (contains? @*domain-blocklist* host)]
                         in-blocklist)
                       (catch Object _
                         (log/debug "SANITIZE: Swallowing exception during sanitize uri: "
@@ -462,9 +434,9 @@
                   :title (extract-http-title parsed-html)}
         :hickory parsed-html})
 
-     (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
+     (catch (fn [resp] (#{400 401 402 403 404 405 406 410} (:status resp)))
             {:keys [headers body status]}
-       (log/warnf "Client error probably due to broken request (%s): %s %s"
+       (log/warnf "Client error probably due to broken request (%s): %s %s %s"
                   status headers body user-agent)
        (throw+ {:type ::request-error
                 :code status
@@ -472,8 +444,8 @@
                 :base-url base-url
                 :message (converter/html2text body :tool :html2text)}))
 
-     (catch (contains? #{500 501 502 503 504} (get % :status))
-            {:keys [headers body status] :as orig}
+     (catch (fn [resp] (#{500 501 502 503 504} (:status resp)))
+            {:keys [headers body status]}
        (log/warnf "Server Error (%s): %s %s" status headers body)
        (throw+ {:type ::server-error-retry-later
                 :code status
@@ -490,47 +462,47 @@
                 :base-url base-url
                 :message (converter/html2text body :tool :html2text)}))
 
-     (catch java.net.UnknownHostException ex
-       (log/error ex "Host resolution error" url)
+     (catch java.net.UnknownHostException e
+       (log/error e "Host resolution error" url)
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url}))
 
-     (catch javax.net.ssl.SSLHandshakeException ex
+     (catch javax.net.ssl.SSLHandshakeException e
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url
-                :message (str "SSL Handshake failed: " (ex-message ex))}))
+                :message (str "SSL Handshake failed: " (ex-message e))}))
 
-     (catch java.net.ConnectException ex
+     (catch java.net.ConnectException e
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url
-                :message (str "Connection refused (gone?): " (ex-message ex))}))
+                :message (str "Connection refused (gone?): " (ex-message e))}))
 
-     (catch java.security.cert.CertificateExpiredException ex
+     (catch java.security.cert.CertificateExpiredException e
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url
-                :message (str "Certificate expired: " (ex-message ex))}))
+                :message (str "Certificate expired: " (ex-message e))}))
 
-     (catch javax.net.ssl.SSLPeerUnverifiedException ex
+     (catch javax.net.ssl.SSLPeerUnverifiedException e
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url
-                :message (str "SSL Peer verification error: " (ex-message ex))}))
+                :message (str "SSL Peer verification error: " (ex-message e))}))
 
-     (catch java.net.SocketException ex
+     (catch java.net.SocketException e
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url
-                :message (str "SocketException: " (ex-message ex))}))
+                :message (str "SocketException: " (ex-message e))}))
 
-     (catch java.io.EOFException ex
+     (catch java.io.EOFException e
        (throw+ {:type ::server-error-retry-later
                 :url url
                 :base-url base-url
-                :message (str "EOF Exception: " (ex-message ex))}))
+                :message (str "EOF Exception: " (ex-message e))}))
 
      (catch Object _
        (log/error "Unexpected error: " (:throwable &throw-context) url)
