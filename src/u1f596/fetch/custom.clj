@@ -1,18 +1,24 @@
 (ns u1f596.fetch.custom
   (:require
-   [schema.core :as s]
+   [clojure.spec.alpha :as s]
+   [u1f596.item]
    [u1f596.fetch :refer [FetchSource item-to-string make-item-hash make-meta]]
    [u1f596.persistency :refer [CouchItem]]
-   [u1f596.postproc :refer [ItemProcessor]]
-   [u1f596.schema :as schema]))
+   [u1f596.postproc :refer [ItemProcessor]]))
 
-(s/defrecord CustomItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              entry :- s/Any
-              hash :- schema/Hash]
+(defrecord CustomItem
+           [meta
+            summary
+            entry
+            hash]
   Object
   (toString [item] (item-to-string item)))
+
+(defn make-custom-item [meta summary hash entry]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->CustomItem meta summary entry hash))
 
 (extend-protocol FetchSource
   u1f596.src.Custom
@@ -20,11 +26,11 @@
     (let [{:keys [fn]} src]
       (doall
        (for [{:keys [summary entry _]} (fn)]
-         (map->CustomItem
-          {:meta (make-meta src)
-           :summary summary
-           :hash (make-item-hash (:title summary))
-           :entry entry}))))))
+         (make-custom-item
+          (make-meta src)
+          summary
+          (make-item-hash (:title summary))
+          entry))))))
 
 (extend-protocol ItemProcessor
   CustomItem

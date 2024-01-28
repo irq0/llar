@@ -1,11 +1,10 @@
 (ns u1f596.fetch
   (:require
-   [u1f596.schema :as schema]
-   [digest]
-   [java-time :as time]
+   [clojure.spec.alpha :as s]
+   [digest :as digest]
+   [java-time.api :as time]
    [clojure.tools.logging :as log]
-   [clojure.string :as string]
-   [schema.core :as s]))
+   [clojure.string :as string]))
 
 ;;;; Fetcher - Fetch a Source (infowars.src) to get *Items
 ;;;; Items have types depending on their sources (e.g Http -> HttpItem)
@@ -23,19 +22,19 @@
 
 ;;; Constructors
 
-(s/defn make-item-hash :- schema/Hash
+(defn make-item-hash
   "Make hash to use in *Item"
   [& args]
+  {:pre [(s/valid? (s/coll-of string?) args)]
+   :post [(s/valid? :irq0/item-hash %)]}
   (str "SHA-256:" (-> args string/join digest/sha-256)))
 
-(s/defn make-meta :- schema/Metadata
+(defn make-meta
   "Make meta entry from source and optional initial tags"
-  [src :- s/Any]
+  [src]
   {:source src
    :source-name (str src)
    :source-key :unknown  ; get added later by postprocessing
-   :app "u1f596"
-   :ns (str *ns*)
    :fetch-ts (time/zoned-date-time)
    :tags #{}
    :version 2})

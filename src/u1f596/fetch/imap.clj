@@ -1,7 +1,7 @@
 (ns u1f596.fetch.imap
   (:require
    [u1f596.fetch :as fetch]
-   [u1f596.schema :as schema]
+   [u1f596.item]
    [u1f596.persistency :as persistency]
    [u1f596.postproc :as postproc]
    [u1f596.analysis :as analysis]
@@ -12,18 +12,24 @@
    [slingshot.slingshot :refer [try+]]
    [clojure.string :as string]
    [java-time.api :as time]
-   [schema.core :as s])
+   [clojure.spec.alpha :as s])
   (:import
    [javax.mail Session]))
 
-(s/defrecord ImapItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              hash :- schema/Hash
-              raw :- s/Any
-              entry :- schema/MailEntry]
+(defrecord ImapItem
+           [meta
+            summary
+            hash
+            raw
+            entry]
   Object
   (toString [item] (fetch/item-to-string item)))
+
+(defn make-imap-item [meta summary hash entry raw]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->ImapItem meta summary hash entry raw))
 
 (defn try-get-base-type [content-type]
   (try+
@@ -85,11 +91,10 @@
   u1f596.src.ImapMailbox
   (fetch-source [src]
     (for [m (get-new-messages (uri/uri (:uri src)) (:creds src))]
-      (->ImapItem
+      (make-imap-item
        (fetch/make-meta src)
        {:ts (mail-ts m) :title (:subject m)}
        (fetch/make-item-hash (:subject m) (:body m))
-       m
        {:title (:subject m)
         :id (some-> (filter (fn [x] (= (some-> x first key string/lower-case) "message-id"))
                             (:headers m))
@@ -100,4 +105,5 @@
         :sent-ts (:date-sent m)
         :authors (map #(format "%s <%s>" (:name %) (:address %)) (:from m))
         :descriptions {"text/plain" ""}
-        :contents (:body m)}))))
+        :contents (:body m)}
+       m))))

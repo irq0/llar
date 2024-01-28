@@ -1,14 +1,19 @@
 (ns u1f596.src
-  (:require [schema.core :as s]
-            [u1f596.schema :as schema]
+  (:require [clojure.spec.alpha :as spec]
+            [u1f596.specs]
             [slingshot.slingshot :refer [throw+]]
             [org.bovinegenius [exploding-fish :as uri]]
             [twitter.oauth :refer [make-oauth-creds]]
-            [twitter.api.restful :as twitter-rest])
-  (:import [twitter.oauth OauthCredentials]))
+            [twitter.api.restful :as twitter-rest]))
 
 ;;;; Sources - Containers for information needed by the Fetcher / Live
 ;;;; to retrieve Items
+
+(defprotocol Source
+  (source-type [this]))
+
+(defn source? [src]
+  (satisfies? Source src))
 
 ;;; Http
 
@@ -20,108 +25,156 @@
    :deep? false
    :force-update? false})
 
-(s/defrecord GenericWebsite
-             [url :- schema/URL
-              args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
+(spec/def :irq0-src-args/user-agent (spec/or :default keyword?
+                                             :custom string?))
+(spec/def :irq0-src-args/deep? boolean?)
+(spec/def :irq0-src-args/force-update? boolean?)
+
+(defrecord GenericWebsite [url args]
+  Source
+  (source-type [_] ::fetch)
 
   Object
   (toString [src] (str "[GenericWebsite: " (:url src) "]")))
 
 (defn website
-  [url
-   & {:keys [user-agent] :as args}]
+  [url & {:as args}]
+  {:pre [(spec/valid? :irq0/url-str url)
+         (spec/valid? (spec/or :none nil?
+                               :args (spec/keys :opt-un [:irq0-src-args/user-agent])) args)]
+   :post [(spec/valid? source? %)]}
   (GenericWebsite. (uri/uri url) (merge +http-default-args+ args)))
 
-(s/defrecord Custom
-             [id :- s/Keyword
-              fn :- schema/Func]
+(defrecord Custom [id fn]
+  Source
+  (source-type [_] ::fetch)
 
   Object
   (toString [src] (str "[Custom: " (name (:id src)) "]")))
 
 (defn custom
   [id fn]
+  {:pre [(spec/valid? keyword? id)
+         (spec/valid? fn? fn)]
+   :post [(spec/valid? source? %)]}
   (Custom. id fn))
 
-(s/defrecord PaywalledWebsite
-             [url :- schema/URL
-              cookie-getter :- s/Any
-              args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
+(defrecord PaywalledWebsite
+           [url cookie-getter args]
+  Source
+  (source-type [_] ::fetch)
+
   Object
   (toString [src] (str "[PaywalledWebsite: " (:url src) "]")))
 
 (defn website+paywall
   [url
    cookie-getter
-   & {:keys [user-agent] :as args}]
+   & {:as args}]
+  {:pre [(spec/valid? :irq0/url-str url)
+         (spec/valid? fn? cookie-getter)
+         (spec/valid? (spec/or :none nil?
+                               :args (spec/keys :opt-un [:irq0-src-args/user-agent])) args)]
+   :post [(spec/valid? source? %)]}
   (PaywalledWebsite. (uri/uri url) cookie-getter (merge +http-default-args+ args)))
 
 ;;; Feed
 
-(s/defrecord Feed
-             [url :- schema/URL
-              args :- {:deep? s/Bool
-                       :force-update? s/Bool
-                       :user-agent (s/cond-pre s/Str s/Keyword)}]
+(defrecord Feed
+           [url args]
+  Source
+  (source-type [_] ::fetch)
+
   Object
   (toString [src] (str "[Feed: " (:url src) "]")))
 
 (defn feed
-  [url
-   & {:keys [deep? force-update? user-agent]
-      :as args}]
+  [url & {:as args}]
+  {:pre [(spec/valid? :irq0/url-str url)
+         (spec/valid? (spec/or
+                       :none nil?
+                       :args (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/deep? :irq0-src-args/force-update?])) args)]
+   :post [(spec/valid? source? %)]}
   (->Feed (uri/uri url) (merge +feed-default-args+ args)))
 
-(s/defrecord SelectorFeed
-             [url :- schema/URL
-              selectors :- {:urls s/Any
-                            :ts s/Any
-                            :author s/Any
-                            :content s/Any
-                            :description s/Any}
-              extractors :- {:urls s/Any
-                             :ts s/Any
-                             :author s/Any
-                             :content s/Any
-                             :description s/Any}
-              args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
+(defrecord SelectorFeed
+           [url selectors extractors args]
+  Source
+  (source-type [_] ::fetch)
+
   Object
   (toString [src] (str "[SelectorFeed: " (:url src) "]")))
 
+(spec/def :irq0-src-selectors/urls fn?)
+(spec/def :irq0-src-selectors/ts fn?)
+(spec/def :irq0-src-selectors/title fn?)
+(spec/def :irq0-src-selectors/author fn?)
+(spec/def :irq0-src-selectors/content fn?)
+(spec/def :irq0-src-selectors/description fn?)
+(spec/def :irq0-src-selectors/selectors
+  (spec/keys
+   :req-un [:irq0-src-selectors/urls]
+   :opt-un [:irq0-src-selectors/ts
+            :irq0-src-selectors/title
+            :irq0-src-selectors/author
+            :irq0-src-selectors/content
+            :irq0-src-selectors/description]))
+(spec/def :irq0-src-selectors/extractors
+  (spec/keys
+   :opt-un [:irq0-src-selectors/urls
+            :irq0-src-selectors/ts
+            :irq0-src-selectors/title
+            :irq0-src-selectors/author
+            :irq0-src-selectors/content
+            :irq0-src-selectors/description]))
+
 (defn selector-feed
-  [url selectors extractors & {:keys [user-agent]
-                               :as args}]
+  [url selectors extractors args]
+  {:pre [(spec/valid? :irq0/url-str url)
+         (spec/valid? :irq0-src-selectors/selectors selectors)
+         (spec/valid? :irq0-src-selectors/extractors extractors)
+         (spec/valid? (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/deep? :irq0-src-args/force-update?]) args)]
+   :post [(spec/valid? source? %)]}
   (->SelectorFeed (uri/uri url) selectors extractors (merge +http-default-args+ args)))
 
-(s/defrecord WordpressJsonFeed
-             [url :- schema/URL
-              args :- {:user-agent (s/cond-pre s/Str s/Keyword)}]
+(defrecord WordpressJsonFeed [url args]
+  Source
+  (source-type [_] ::fetch)
+
   Object
   (toString [src] (str "[WpJsonFeed: " (:url src) "]")))
 
 (defn wp-json
-  [url
-   & {:keys [user-agent]
-      :as args}]
+  [url & {:as args}]
+  {:pre [(spec/valid? :irq0/url-str url)
+         (spec/valid? (spec/or :none nil?
+                               :args (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/deep? :irq0-src-args/force-update?])) args)]
+   :post [(spec/valid? source? %)]}
   (->WordpressJsonFeed (uri/uri url) (merge +http-default-args+ args)))
 
-(def TwitterCreds
-  {:app-key schema/NotEmptyStr
-   :app-secret schema/NotEmptyStr
-   :user-token schema/NotEmptyStr
-   :user-token-secret schema/NotEmptyStr})
+(spec/def :irq0-src-twitter/credentials
+  (spec/keys
+   :req-un [:irq0-src-twitter/app-key
+            :irq0-src-twitter/app-secret
+            :irq0-src-twitter/user-token
+            :irq0-src-twitter/user-token-secret]))
 
-(s/defrecord TwitterSearch
-             [query :- schema/NotEmptyStr
-              url :- schema/URL
-              oauth-creds :- OauthCredentials]
+(defrecord TwitterSearch
+           [query
+            url
+            oauth-creds]
+  Source
+  (source-type [_] ::fetch)
   Object
   (toString [src] (str "[TwitterSearch: " (:query src) "]")))
 
-(s/defn twitter-search :- TwitterSearch
+(defn twitter-search
   "Search twitter https://dev.twitter.com/rest/public/search"
-  [query :- schema/NotEmptyStr
-   oauth-creds :- TwitterCreds]
+  [query
+   oauth-creds]
+  {:pre [(spec/valid? string? query)
+         (spec/valid? :irq0-src-twitter/credentials oauth-creds)]
+   :post [(spec/valid? source? %)]}
   (->TwitterSearch
    query
    (uri/uri (str "https://twitter.com/search?q=" query))
@@ -131,16 +184,21 @@
     (:user-token oauth-creds)
     (:user-token-secret oauth-creds))))
 
-(s/defrecord TwitterApi
-             [api-fn :- schema/Func
-              params :- s/Any
-              oauth-creds :- OauthCredentials]
+(defrecord TwitterApi
+           [api-fn
+            params
+            oauth-creds]
+  Source
+  (source-type [_] ::fetch)
   Object
-  (toString [src] (format "[TwitterApi/%s: %s]" api-fn params)))
+  (toString [src] (format "[TwitterApi/%s: %s]" (:api-fn src) (:params src))))
 
-(s/defn twitter-timeline :- TwitterApi
+(defn twitter-timeline
   [oauth-creds]
+  {:pre [(spec/valid? :irq0-src-twitter/credentials oauth-creds)]
+   :post [(spec/valid? source? %)]}
   (->TwitterApi
+   #_:clj-kondo/ignore
    twitter-rest/statuses-home-timeline
    {:count 200}
    (make-oauth-creds
@@ -149,35 +207,45 @@
     (:user-token oauth-creds)
     (:user-token-secret oauth-creds))))
 
-(s/defrecord MercuryWebParser
-             [url :- schema/URL]
+(defrecord MercuryWebParser
+           [url]
+  Source
+  (source-type [_] ::fetch)
   Object
   (toString [src] (str "[MercuryWebParser: " (:url src) "]")))
 
-(s/defn mercury :- MercuryWebParser
+(defn mercury
   "Fetch URL using Mercury Web Parser API"
-  [url :- schema/NotEmptyStr]
+  [url]
+  {:pre [(spec/valid? :irq0/url-str url)]
+   :post [(spec/valid? source? %)]}
   (->MercuryWebParser
    (uri/uri url)))
 
 (def reddit-supported-listings #{:controversial :best :hot :new :random :rising :top})
 (def reddit-supported-timeframes #{:hour :day :week :month :year :all})
 
-(s/defrecord Reddit
-             [subreddit :- schema/NotEmptyStr
-              listing :- schema/NotEmptyStr
-              timeframe :- schema/NotEmptyStr]
+(defrecord Reddit
+           [subreddit
+            listing
+            timeframe]
+  Source
+  (source-type [_] ::fetch)
   Object
   (toString [src] (format "[Reddit: r/%s/%s/%s]" (:subreddit src) (:listing src) (:timeframe src))))
 
-(s/defn reddit :- Reddit
+(defn reddit
   "Fetch URL using Mercury Web Parser API"
-  ([subreddit :- schema/NotEmptyStr
-    listing :- s/Keyword]
+  ([subreddit
+    listing]
    (reddit subreddit listing :week))
-  ([subreddit :- schema/NotEmptyStr
-    listing :- s/Keyword
-    timeframe :- s/Keyword]
+  ([subreddit
+    listing
+    timeframe]
+   {:pre [(spec/valid? string? subreddit)
+          (spec/valid? reddit-supported-listings listing)
+          (spec/valid? reddit-supported-timeframes timeframe)]
+    :post [(spec/valid? source? %)]}
    (when-not (contains? reddit-supported-listings listing)
      (throw+ {:type ::invalid-reddit-listing :supported reddit-supported-listings}))
    (when-not (contains? reddit-supported-timeframes timeframe)
@@ -187,20 +255,28 @@
     (name listing)
     (name timeframe))))
 
-(s/defrecord ImapMailbox
-             [uri :- schema/URL
-              creds :- {:username schema/NotEmptyStr
-                        :password schema/NotEmptyStr}]
+(spec/def :irq0-src-mailbox/credentials
+  (spec/keys
+   :req-un [:irq0-src-mailbox/username
+            :irq0-src-mailbox/password]))
+
+(defrecord ImapMailbox
+           [url
+            creds]
+  Source
+  (source-type [_] ::fetch)
+
   Object
   (toString [src] (format "[IMAP: %s]" (:uri src))))
 
-(s/defn imap :- ImapMailbox
+(defn imap
   "Fetch from IMAP Mailbox"
-  [uri-str :- schema/NotEmptyStr
-   creds :- {:username schema/NotEmptyStr
-             :password schema/NotEmptyStr}]
-
-  (let [uri (uri/uri uri-str)]
+  [url-str
+   creds]
+  {:pre [(spec/valid? string? url-str)
+         (spec/valid? :irq0-src-mailbox/credentials creds)]
+   :post [(spec/valid? source? %)]}
+  (let [uri (uri/uri url-str)]
     (when-not (#{"imap" "imaps"} (uri/scheme uri))
       (throw+ {:type ::invalid-protocol :uri uri}))
     (when (some? (uri/query uri))
@@ -209,17 +285,21 @@
      uri
      creds)))
 
-;;; Live
-
-(s/defrecord HackerNews
-             [story-feed :- schema/NotEmptyStr
-              args :- {:throttle-secs schema/PosInt}]
+(defrecord HackerNews
+           [story-feed
+            args]
+  Source
+  (source-type [_] ::live)
   Object
   (toString [src] (str "[HackerNews: " (:story-feed src) "(" (:state src) ")]")))
 
 (defn hn
   [story-feed
    & {:keys [throttle-secs]}]
+  {:pre [(spec/valid? string? story-feed)
+         (spec/valid? (spec/or :default nil?
+                               :value pos-int?) throttle-secs)]
+   :post [(spec/valid? source? %)]}
   (->HackerNews story-feed {:throttle-secs (or throttle-secs 120)}))
 
 (defn feed? [src]

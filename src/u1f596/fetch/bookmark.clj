@@ -4,6 +4,7 @@
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
    [u1f596.fetch :refer [make-item-hash]]
+   [u1f596.item]
    [u1f596.human :as human]
    [u1f596.postproc :as proc]
    [u1f596.src :as src]))

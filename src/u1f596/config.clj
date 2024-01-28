@@ -2,6 +2,7 @@
   (:require
    [clj-http.client :as http-client]
    [clj-http.cookies :as http-cookies]
+   [clojure.spec.alpha :as s]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as string]
@@ -12,7 +13,6 @@
    [hickory.select :as S]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
-   [schema.core :as s]
    [u1f596.converter :as converter]
    [u1f596.fetch :refer [make-item-hash] :as fetch]
    [u1f596.fetch.custom]
@@ -80,8 +80,8 @@
                  (some? rm) `(wrap-proc ~src-kw ~tags ~options ~rm)
                  :else '(constantly false))]
 
-    (s/validate #{s/Keyword} tags)
-    (s/validate #{s/Keyword} options)
+    (s/valid? (s/coll-of keyword? :kind set?) tags)
+    (s/valid? (s/coll-of keyword? :kind set?) options)
 
     `(do (swap! srcs assoc (keyword '~src-key)
                 {:src ~src
@@ -96,8 +96,8 @@
   [src & body]
   (let [{:keys [options tags min-score dynamic?]
          :or {options #{} tags #{} min-score 0 dynamic? true}} (apply hash-map body)]
-    (s/validate #{s/Keyword} tags)
-    (s/validate #{s/Keyword} options)
+    (s/valid? (s/coll-of keyword? :kind set?) tags)
+    (s/valid? (s/coll-of keyword? :kind set?) options)
 
     `(do (let [src-key# (keyword (str "reddit-" (string/lower-case (:subreddit ~src))))]
            (swap! srcs assoc src-key#
@@ -143,7 +143,8 @@
                                      (parse-date-to-zoned-data-time "MMMM d, yyyy"))
                            :author (fn [l] (map #(->> % :attrs :title) l))
                            :title (fn [l] (->> l first :content first))
-                           :content (fn [l] (log/spy l) (->> l first :content))})
+                           :content (fn [l] (log/spy l) (->> l first :content))}
+                          {})
 
        :tags #{:deep-tech :sci})
 
@@ -155,7 +156,7 @@
                            :title (S/tag :li)
                            :content (S/tag :li)}
                           {:content  #(->> % first :content (drop 1))
-                           :author "fefe"
+                           :author (constantly ["fefe"])
                            :urls (fn [l] (map (fn [x] (->> x :attrs :href uri/uri)) l))
                            :title (fn [l]
                                     (human/truncate-ellipsis
@@ -173,7 +174,8 @@
                                      first
                                      :content
                                      first
-                                     (parse-date-to-zoned-data-time "EEE MMM d yyyy"))})
+                                     (parse-date-to-zoned-data-time "EEE MMM d yyyy"))}
+                          {})
        :tags #{:blog})
 
 (fetch paulgraham (src/selector-feed "http://www.paulgraham.com/articles.html"
@@ -189,7 +191,7 @@
                                                 (S/tag :td)
                                                 (S/tag :font))}
                                      {:content  #(->> % first :content (drop 1))
-                                      :author "Paul Graham"
+                                      :author (constantly ["Paul Graham"])
                                       :urls (fn [l] (take 10 (map (fn [x] (->> x :attrs :href uri/uri)) l)))
                                       :ts #(->> %
                                                 first
@@ -199,7 +201,8 @@
                                                 first
                                                 ((fn [maybe-ts] (if (nil? maybe-ts) "January 0001" maybe-ts)))
                                                 (str "1 ")
-                                                (parse-date-to-zoned-data-time "d MMMM yyyy"))})
+                                                (parse-date-to-zoned-data-time "d MMMM yyyy"))}
+                                     {})
        :tags #{:blog})
 
 (fetch xahteiwi (src/feed "https://xahteiwi.eu/feeds/all.atom.xml")
@@ -758,7 +761,8 @@
                :ts (fn [hick]
                      (let [raw (->> hick first :content first)]
                        (when (string? raw)
-                         (parse-date-to-zoned-data-time (time/formatter :iso-date) raw))))})
+                         (parse-date-to-zoned-data-time (time/formatter :iso-date) raw))))}
+              {})
        :post (assoc $item :hash (make-item-hash (some-> $url uri/uri)))
        :tags #{:blog})
 

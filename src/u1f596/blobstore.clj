@@ -4,17 +4,16 @@
    [u1f596.regex :as regex-collection]
    [u1f596.appconfig :as appconfig]
    [u1f596.contentdetect :as contentdetect]
+   [digest :as digest]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
    [clj-http.client :as http2]
    [java-time.api :as time]
-   [schema.core :as s]
+   [clojure.spec.alpha :as s]
    [slingshot.slingshot :refer [throw+ try+]]
    [mount.core :refer [defstate]]
    [org.bovinegenius [exploding-fish :as uri]]
-   [nio2.core :as nio2]
-   [digest :as digest])
-  (:import [org.bovinegenius.exploding_fish UniformResourceIdentifier]))
+   [nio2.core :as nio2]))
 
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
@@ -75,10 +74,13 @@
        (spit propsfile (conv/print-propsfile new-props))
        new-props))))
 
-(s/defn create-url-index-entry-for-url :- s/Str
+(defn create-url-index-entry-for-url
   "Create secondary url index entry: url -> hash"
-  [content-hash :- s/Str
-   url :- UniformResourceIdentifier]
+  [content-hash
+   url]
+  {:pre [(s/valid? string? content-hash)
+         (s/valid? :irq0/url url)]
+   :post [(s/valid? string? %)]}
   (let [file-abs (blob-file (appconfig/blob-store-dir) content-hash)
         url-hash (digest/sha-256 (str url))
         dupe-file (-> (blob-file (appconfig/blob-store-dupes-dir) url-hash) io/as-file .toPath)
@@ -97,7 +99,7 @@
     (try+
      (nio2/create-sym-link link-props propsfile)
      (nio2/create-sym-link link file)
-     (catch java.nio.file.FileAlreadyExistsException e
+     (catch java.nio.file.FileAlreadyExistsException _
        (log/debug "Symlink already exists" {:content-hash content-hash
                                             :url-hash url-hash
                                             :url url
@@ -195,11 +197,11 @@
          (create-url-index-entry-for-url content-hash url)))
      content-hash)
    (catch client-error?
-          {:keys [headers body status]}
+          {:keys [_ _ status]}
      (log/debug "BLOBSTORE Client Error (-> perm-fail):" status url)
      (throw+ {:type ::fetch-fail}))
    (catch server-error?
-          {:keys [headers body status]}
+          {:keys [_ _ status]}
      (log/debug "BLOBSTORE Server Error (-> temp-fail):" status url)
      (throw+ {:type ::fetch-fail}))
    (catch java.net.MalformedURLException _
@@ -226,8 +228,10 @@
 
     [file propsfile url-files]))
 
-(s/defn add-from-url! :- s/Str
-  [url :- UniformResourceIdentifier]
+(defn add-from-url!
+  [url]
+  {:pre [(s/valid? :irq0/url url)]
+   :post [(s/valid? string? %)]}
   (or (find-in-url-index url)
       (download-and-add! url)))
 

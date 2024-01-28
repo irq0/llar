@@ -1,18 +1,17 @@
 (ns u1f596.live.hackernews
   (:require
    [clojure.core.async :refer [>!!] :as async]
+   [clojure.spec.alpha :as s]
    [clojure.tools.logging :as log]
    [digest :as digest]
    [hiccup.core :refer [html]]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
-   [schema.core :as s]
    [slingshot.slingshot :refer [try+]]
    [u1f596.live.common :refer [LiveSource make-meta]]
    [u1f596.live.firebase :as firebase]
    [u1f596.persistency :as persistency]
-   [u1f596.postproc :as postproc]
-   [u1f596.schema :as schema]))
+   [u1f596.postproc :as postproc]))
 
 ;;;; Hacker News Firebase API live source
 
@@ -28,14 +27,20 @@
           (str (get-in item [:summary :title]))
           (str (get-in item [:entry :id]))))
 
-(s/defrecord HackerNewsItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              hash :- schema/Hash
-              raw :- s/Any
-              entry :- schema/HackerNewsEntry]
+(defrecord HackerNewsItem
+           [meta
+            summary
+            hash
+            raw
+            entry]
   Object
   (toString [item] (hn-item-to-string item)))
+
+(defn make-hn-item [meta summary hash raw entry]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->HackerNewsItem meta summary hash raw entry))
 
 (extend-protocol postproc/ItemProcessor
   HackerNewsItem
@@ -51,8 +56,8 @@
         (assoc-in [:meta :source :args] nil)
         (assoc :type :link))))
 
-(s/defn make-hn-summary :- schema/Summary
-  [hn-entry :- schema/HackerNewsEntry]
+(defn make-hn-summary
+  [hn-entry]
   (let [{:keys [title pub-ts]} hn-entry]
     {:ts pub-ts
      :title title}))
@@ -88,12 +93,6 @@
      :contents {"text/plain" (str (get item "title") "\n"  (get item "text"))
                 "text/html" (hn-html-summary item)}}))
 
-(s/defn get-hn-entry :- schema/HackerNewsEntry
-  [id :- schema/PosInt]
-  (let [ref (firebase/make-path (firebase/make-ref hacker-news-base-url) "item" id)
-        raw (firebase/get-value ref)]
-    (make-hn-entry raw)))
-
 (defn- hn-item-resolver
   "Deref item to HackerNewsEntry"
   [hn-ref src state id]
@@ -102,7 +101,7 @@
         raw (firebase/get-value path)
         entry (make-hn-entry raw)]
     (try+
-     (->HackerNewsItem
+     (make-hn-item
       (make-meta src @state)
       (make-hn-summary entry)
       (str "SHA-256:" (digest/sha-256 (str id)))

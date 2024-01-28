@@ -7,29 +7,19 @@
    [u1f596.fetch :as fetch]
    [cheshire.core :as json]
    [u1f596.postproc :as proc]
-   [u1f596.update :as update]
    [u1f596.blobstore :as blobstore]
    [u1f596.appconfig :as appconfig]
    [u1f596.contentdetect :as contentdetect]
    [clj-http.client :as http]
    [slingshot.slingshot :refer [throw+ try+]]
-   [java-time :as time]
    [clojure.tools.logging :as log]
    [clojure.java.io :as io]
    [clojure.string :as string]
-   [schema.core :as s]
-   [cheshire.core :as json]
-   [org.bovinegenius [exploding-fish :as uri]]
    [clojure.java.shell :as shell]
-   [mount.core :refer [defstate]]
-   [clojure.edn :as edn]
-   [nrepl.server :refer [start-server stop-server]]
    [clj-ml.clusterers :as ml-clusterers]
    [clj-ml.data :as ml-data]))
 
 ;;;; Namespace to interact with u1f596 from the REPL
-
-(s/set-fn-validation! true)
 
 (def +current-fetch-preview+ (atom nil))
 

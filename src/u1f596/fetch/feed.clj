@@ -16,30 +16,37 @@
                                  sanitize
                                  resolve-user-agent]]
             [u1f596.analysis :as analysis]
-            [u1f596.schema :as schema]
             [u1f596.converter :as conv]
-            [schema.core :as s]
             [org.bovinegenius [exploding-fish :as uri]]
             [slingshot.slingshot :refer [throw+ try+]]
             [clojure.tools.logging :as log]
             [hickory.core :as hick]
             [hickory.select :as hick-s]
             [hickory.render :as hick-r]
+            [u1f596.item]
             [clj-rome.reader :as rome]
             [clj-http.client :as http]
+            [clojure.spec.alpha :as s]
             [cheshire.core :as cheshire]
             [java-time.api :as time])
   (:import (u1f596.src Feed)))
 
-(s/defrecord FeedItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              hash :- schema/Hash
-              entry :- schema/FeedEntry
-              raw :- s/Any
-              feed :- schema/Feed]
+(defrecord FeedItem
+           [meta
+            summary
+            hash
+            entry
+            raw
+            feed]
   Object
   (toString [item] (item-to-string item)))
+
+(defn make-feed-item [meta summary hash entry raw feed]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)
+         (s/valid? :irq0/feed feed)]}
+  (->FeedItem meta summary hash entry raw feed))
 
 (defn extract-feed-authors
   "Extract feed author from rome feed item"
@@ -158,21 +165,19 @@
                           :categories (some->> re :categories
                                                (map :name) (remove nil?))
                           :title (-> re :title)}]
-          (map->FeedItem
-           (-> http-item
-               (dissoc :hash :hickory :summary :body)
-               (merge {:meta (merge (make-meta src)
-                                    {:source-name (:title feed)})
-                       :raw re
-                       :feed feed
-                       :entry (merge base-entry
-                                     {:authors authors
-                                      :contents contents
-                                      :descriptions descriptions})
-                       :hash (make-item-hash
-                              (:title re) (:link re))
-                       :summary {:ts timestamp
-                                 :title (:title re)}}))))))))
+          (make-feed-item
+           (merge (make-meta src)
+                  {:source-name (:title feed)})
+           {:ts timestamp
+            :title (:title re)}
+           (make-item-hash
+            (:title re) (:link re))
+           (merge base-entry
+                  {:authors authors
+                   :contents contents
+                   :descriptions descriptions})
+           re
+           feed))))))
 
 (defn default-selector-feed-extractor [hick]
   (-> hick first :content first))
@@ -255,21 +260,20 @@
                         :item "title"
                         :value title}))
 
-             (map->FeedItem
-              (-> item
-                  (dissoc :meta :hash :hickory :summary :body)
-                  (merge {:meta meta
-                          :feed feed
-                          :hash (make-item-hash title (str item-url) content-html)
-                          :entry {:pub-ts pub-ts
-                                  :url item-url
-                                  :title title
-                                  :authors author
-                                  :descriptions {"text/plain" description}
-                                  :contents {"text/html" content-html
-                                             "text/plain" (conv/html2text content-html)}}
-                          :summary {:title title
-                                    :ts pub-ts}}))))
+             (make-feed-item
+              meta
+              {:title title
+               :ts pub-ts}
+              (make-item-hash title (str item-url) content-html)
+              {:pub-ts pub-ts
+               :url item-url
+               :title title
+               :authors author
+               :descriptions {"text/plain" description}
+               :contents {"text/html" content-html
+                          "text/plain" (conv/html2text content-html)}}
+              nil
+              feed))
            (catch Throwable th
              (log/warn th "SelectorFeed item processing failed. Skipping:"
                        raw-item-url))))))))
@@ -309,7 +313,7 @@
                                    (http/get url
                                              {:as :json
                                               :headers {:user-agent user-agent}}))))
-                        (catch (contains? #{403 404} (get % :status))
+                        (catch (fn [resp] (#{403 404} (:status resp)))
                                {:keys [headers body status]}
                           (log/debug "Could not fetch article's authors endpoint:"
                                      headers body status (get-in post [:_links :self]))
@@ -327,24 +331,22 @@
                                   sanitize
                                   blobify
                                   (hick-r/hickory-to-html))]
-
-           (map->FeedItem
-            {:meta (make-meta src)
-             :raw {:site (:body site)
-                   :post post}
-             :feed {:title (get-in site [:body :name])
-                    :url (get-in site [:body :home])
-                    :feed-type "wp-json"}
-             :hash (make-item-hash title pub-ts url)
-             :entry {:pub-ts pub-ts
-                     :url url
-                     :title title
-                     :authors authors
-                     :descriptions {"text/plain" description}
-                     :contents {"text/html" sanitized-html
-                                "text/plain" (conv/html2text sanitized-html)}}
-             :summary {:title title
-                       :ts pub-ts}})))))))
+           (make-feed-item
+            (make-meta src)
+            {:title title :ts pub-ts}
+            (make-item-hash title pub-ts url)
+            {:pub-ts pub-ts
+             :url url
+             :title title
+             :authors authors
+             :descriptions {"text/plain" description}
+             :contents {"text/html" sanitized-html
+                        "text/plain" (conv/html2text sanitized-html)}}
+            {:site (:body site)
+             :post post}
+            {:title (get-in site [:body :name])
+             :url (get-in site [:body :home])
+             :feed-type "wp-json"})))))))
 
 (extend-protocol ItemProcessor
   FeedItem

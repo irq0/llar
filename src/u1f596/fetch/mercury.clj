@@ -3,7 +3,6 @@
    [u1f596.converter :as conv]
    [u1f596.fetch :as fetch :refer [FetchSource]]
    [u1f596.postproc :refer [ItemProcessor]]
-   [u1f596.schema :as schema]
    [u1f596.persistency :refer [CouchItem]]
    [u1f596.analysis :as analysis]
    [u1f596.http :refer [absolutify-url absolutify-links-in-hick get-base-url-with-path blobify try-blobify-url! sanitize]]
@@ -12,20 +11,27 @@
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]
-   [java-time :as time]
+   [u1f596.item]
+   [java-time.api :as time]
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
-   [schema.core :as s]
+   [clojure.spec.alpha :as s]
    [clojure.java.shell :as shell]
    [cheshire.core :as json]))
 
-(s/defrecord MercuryItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              hash :- schema/Hash
-              entry :- schema/MercuryEntry]
+(defrecord MercuryItem
+           [meta
+            summary
+            hash
+            entry]
   Object
   (toString [item] (fetch/item-to-string item)))
+
+(defn make-mercury-item [meta summary hash entry]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->MercuryItem meta summary hash entry))
 
 (extend-protocol ItemProcessor
   MercuryItem
@@ -53,8 +59,9 @@
         (assoc-in [:meta :source :args] nil)
         (assoc :type :bookmark))))
 
-(s/defn mercury-local
-  [url :- schema/URL]
+(defn mercury-local
+  [url]
+  {:pre [(s/valid? :irq0/url url)]}
   (try+
    (let [url (uri/uri url)
          {:keys [exit out err]} (shell/sh (appconfig/command :mercury-parser) (str url))
@@ -101,7 +108,7 @@
                   (string? (:title mercu)) (:title mercu)
                   (vector? (:title mercu)) (first (:title mercu))
                   :else "")]
-      [(->MercuryItem
+      [(make-mercury-item
         (fetch/make-meta src)
         {:ts pub-ts :title title}
         (fetch/make-item-hash (:content mercu))

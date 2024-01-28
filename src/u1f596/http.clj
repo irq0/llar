@@ -5,8 +5,7 @@
    [u1f596.regex :as regex-collection]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-http.client :as http]
-   [schema.core :as s]
-   [u1f596.schema :as schema]
+   [clojure.spec.alpha :as s]
    [clojure.set :as clojure-set]
    [hickory.core :as hick]
    [hickory.select :as hick-s]
@@ -127,9 +126,12 @@
     (uri/path url "/")
     url))
 
-(s/defn absolutify-url :- (s/maybe schema/AbsolutifiedURL)
-  [raw-href :- (s/cond-pre schema/NotEmptyStr schema/URLRelaxed)
-   raw-base-url :- (s/maybe (s/cond-pre s/Str schema/URLRelaxed))]
+(defn absolutify-url
+  [raw-href
+   raw-base-url]
+  {:pre [(s/valid? (s/or :string string? :url :irq0/url) raw-href)
+         (s/valid? (s/or :none nil? :string string? :url :irq0/url) raw-base-url)]
+   :post (s/valid? :irq0/absolute-url %)}
   (let [url (parse-href raw-href)
         scheme (uri/scheme url)]
     (cond
@@ -177,12 +179,20 @@
           :else
           (uri/uri (uri/resolve-uri base-url (str url))))))))
 
-(s/defn get-base-url :- (s/constrained schema/URLWithAbsPath uri/absolute? "Absolute URL")
-  [url :- schema/URL]
+(defn get-base-url
+  [url]
+  {:pre [(s/valid? :irq0/url url)]
+   :post (s/valid? :irq0/absolute-url %)}
+  (-> url
+      (uri/query nil)
+      (uri/fragment nil)
+      (append-path-if-not-exist))
   (uri/path url "/"))
 
-(s/defn get-base-url-with-path :- (s/constrained schema/URLWithAbsPath uri/absolute? "Absolute URL")
-  [url :- schema/URL]
+(defn get-base-url-with-path
+  [url]
+  {:pre [(s/valid? :irq0/url url)]
+   :post (s/valid? :irq0/absolute-url %)}
   (-> url
       (uri/query nil)
       (uri/fragment nil)

@@ -1,14 +1,11 @@
 (ns u1f596.converter-test
   (:require
-   [u1f596.converter :as uut]
-   [clojure.test :refer :all]
+   [clojure.test :refer [deftest is testing]]
+   [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
-   [clojure.set :refer [union intersection]]
-   [clojure.string :as string]
-   [java-time :as time]
-   [slingshot.test :refer :all]
-   [mount.core :as mount])
-  (:import (org.bovinegenius.exploding_fish Uri)))
+   [u1f596.converter :as uut])
+  (:import
+   (org.bovinegenius.exploding_fish Uri)))
 
 (deftest read-edn-propsfile
   (is (= {:orig-urls #{(uri/uri "http://files.explosm.net/thumbs/videos/splash-5f344ac96cfc2.png")}

@@ -2,23 +2,29 @@
   (:require [u1f596.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
             [u1f596.postproc :refer [ItemProcessor]]
             [u1f596.persistency :refer [CouchItem]]
-            [u1f596.schema :as schema]
             [u1f596.analysis :as analysis]
+            [u1f596.item]
             [clojure.tools.logging :as log]
             [u1f596.http :refer [try-blobify-url!]]
             [twitter.api.restful :as twitter]
-            [schema.core :as s]
+            [clojure.spec.alpha :as s]
             [org.bovinegenius [exploding-fish :as uri]]
             [java-time.api :as time]))
 
-(s/defrecord TweetItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              hash :- schema/Hash
-              raw :- schema/Tweet
-              entry :- schema/TweetEntry]
+(defrecord TweetItem
+           [meta
+            summary
+            hash
+            raw
+            entry]
   Object
   (toString [item] (item-to-string item)))
+
+(defn make-tweet-item [meta summary hash entry raw]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->TweetItem meta summary hash entry raw))
 
 (defn- parse-twitter-ts [ts]
   (when-not (nil? ts)
@@ -145,15 +151,15 @@
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]
-        (map->TweetItem
-         {:raw tweet
-          :meta (make-meta src)
-          :summary {:ts (get entry :pub-ts)
-                    :title (tweet-title content)}
-          :hash (make-item-hash
-                 (first (get entry :authors))
-                 content)
-          :entry entry})))))
+        (make-tweet-item
+         (make-meta src)
+         {:ts (get entry :pub-ts)
+          :title (tweet-title content)}
+         (make-item-hash
+          (first (get entry :authors))
+          content)
+         entry
+         tweet)))))
 
 (extend-protocol FetchSource
   u1f596.src.TwitterApi
@@ -167,15 +173,15 @@
       (for [tweet tweets
             :let [entry (tweet-to-entry tweet)
                   content (get-in entry [:contents "text/plain"])]]
-        (map->TweetItem
-         {:raw tweet
-          :meta (make-meta src)
-          :summary {:ts (get entry :pub-ts)
-                    :title (tweet-title content)}
-          :hash (make-item-hash
-                 (first (get entry :authors))
-                 content)
-          :entry entry})))))
+        (make-tweet-item
+         (make-meta src)
+         {:ts (get entry :pub-ts)
+          :title (tweet-title content)}
+         (make-item-hash
+          (first (get entry :authors))
+          content)
+         entry
+         tweet)))))
 
 (extend-protocol ItemProcessor
   TweetItem

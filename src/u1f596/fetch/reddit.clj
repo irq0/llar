@@ -1,27 +1,34 @@
 (ns u1f596.fetch.reddit
   (:require
    [u1f596.fetch :as fetch]
-   [u1f596.schema :as schema]
+   [u1f596.specs]
    [u1f596.persistency :as persistency]
    [u1f596.postproc :as postproc]
    [u1f596.analysis :as analysis]
+   [u1f596.item]
    [u1f596.http :as u1f596-http]
+   [clojure.spec.alpha :as s]
    [digest]
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
    [java-time.api :as time]
    [clojure.tools.logging :as log]
    [slingshot.slingshot :refer [throw+ try+]]
-   [org.bovinegenius [exploding-fish :as uri]]
-   [schema.core :as s]))
+   [org.bovinegenius [exploding-fish :as uri]]))
 
-(s/defrecord RedditItem
-             [meta :- schema/Metadata
-              summary :- schema/Summary
-              hash :- schema/Hash
-              entry :- schema/RedditEntry]
+(defrecord RedditItem
+           [meta
+            summary
+            hash
+            entry]
   Object
   (toString [item] (fetch/item-to-string item)))
+
+(defn make-reddit-item [meta summary hash entry]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->RedditItem meta summary hash entry))
 
 (extend-protocol postproc/ItemProcessor
   RedditItem
@@ -45,11 +52,11 @@
                              :as :json
                              :headers {:user-agent "java:u1f596:23: (by /u/irq0x00)"}})]
      (:body resp))
-   (catch (contains? #{500 501 502 503 504} (get % :status))
+   (catch (fn [resp] (#{500 501 502 503 504} (:status resp)))
           {:keys [headers body status]}
      (log/errorf "Server Error (%s): %s %s" status headers body)
      (throw+ {:type  :u1f596.http/server-error-retry-later}))
-   (catch (contains? #{400 401 402 403 404 405 406 410} (get % :status))
+   (catch (fn [resp] (#{400 401 402 403 404 405 406 410} (:status resp)))
           {:keys [headers body status]}
      (log/errorf "Client error probably due to broken request (%s): %s %s"
                  status headers body)
@@ -108,9 +115,8 @@
                                      (:subreddit src) (:listing src) (:timeframe src)))]
       (for [child (get-in reddit [:data :children])
             :let [item (:data child)]]
-        (->RedditItem
+        (make-reddit-item
          (fetch/make-meta src)
          {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}
-;          (fetch/make-item-hash (:title item) (:selftext item))
          (fetch/make-item-hash (:id item))
          (make-reddit-entry item))))))

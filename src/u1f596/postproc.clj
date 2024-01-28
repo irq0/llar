@@ -3,19 +3,17 @@
    [clojure.set :refer [intersection union]]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
-   [schema.core :as s]
-   [slingshot.slingshot :refer [throw+ try+]]
-   [u1f596.schema :as schema]))
+   [slingshot.slingshot :refer [throw+ try+]]))
 
 ;;;; Postprocessing and Filtering
 
 ;;; Processing data structure
 
 ;; Every source may have a processing record
-(s/defrecord Processing
-             [post :- schema/FuncList
-              pre :- schema/FuncList
-              filter :- schema/Func])
+(defrecord Processing
+           [post
+            pre
+            filter])
 
 (defn make
   "Make new Processing record"
