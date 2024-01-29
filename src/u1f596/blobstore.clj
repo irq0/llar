@@ -209,8 +209,11 @@
    (catch java.net.ConnectException e
      (log/debug "BLOBSTORE Server Error (-> temp-fail):" e url)
      (throw+ {:type ::fetch-fail}))
+   (catch java.io.IOException e
+     (log/warnf "BLOBSTORE ADD url %s failed with IO ERROR: %s" url (ex-message e))
+     (throw+ {:type ::undefined-error :url url}))
    (catch Object _
-     (log/warn (:throwable &throw-context) "BLOBSTORE ADD failed" url)
+     (log/warn (:throwable &throw-context) "BLOBSTORE ADD failed" url (:message &throw-context))
      (throw+ {:type ::undefined-error :url url}))))
 
 (defn blob-info [content-hash]
