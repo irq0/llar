@@ -1,0 +1,22 @@
+
+<rss xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:slash="http://purl.org/rss/1.0/modules/slash/" xmlns:georss="http://www.georss.org/georss" xmlns:geo="http://www.w3.org/2003/01/geo/wgs84_pos#" xmlns:media="http://search.yahoo.com/mrss/" version="2.0">
+<channel>
+<title>🄸🅁🅀␀</title>
+<link>https://irq0.org/</link>
+<language>en-us</language>
+<generator>Hugo -- gohugo.io</generator>
+<webMaster>ml (plus) blog (at) irq0 (dot) org (Marcel Lauhoff)</webMaster>
+<description>irq0.org</description>
+<lastBuildDate>Mon, 30 Jan 2023 14:18:55 +0100</lastBuildDate>
+<atom:link href="https://irq0.org/index.xml" rel="self" type="application/rss+xml"/>
+<item>
+<title>Test</title>
+<link>https://irq0.org/test/</link>
+<author>Marcel Lauhoff</author>
+<pubDate>Thu, 03 Nov 2022 12:38:58 +0100</pubDate>
+<guid isPermaLink="false">https://irq0.org/test/</guid>
+<description/>
+<content> </content>
+</item>
+</channel>
+</rss>

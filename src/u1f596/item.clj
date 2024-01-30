@@ -12,7 +12,6 @@
 (s/def :irq0-fetch-item/language string?)
 (s/def :irq0-fetch-item/ts #(instance? java.time.ZonedDateTime %))
 (s/def :irq0-fetch-item/title string?)
-(s/def :irq0-fetch-item/title string?)
 (s/def :irq0-fetch-item/feed-type string?)
 (s/def :irq0-fetch-item/pub-ts :irq0/ts)
 (s/def :irq0-fetch-item/updated-ts :irq0/ts)

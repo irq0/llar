@@ -87,8 +87,9 @@
 (defn- extract-feed-timestamp
   "Extract feed entry timestamp"
   [e http]
-  (or (some-> e :published-date)
-      (some-> e :updated-date)
+  {:post [(s/valid? :irq0/ts %)]}
+  (or (some-> e :published-date feed-date-to-zoned-date-time)
+      (some-> e :updated-date feed-date-to-zoned-date-time)
       (get-in http [:meta :fetch-ts])))
 
 (defn http-get-feed-content [url]
@@ -291,6 +292,22 @@
     ts)
    (time/zone-id "UTC")))
 
+(s/def :irq0-src-wp-json/rendered string?)
+(s/def :irq0-src-wp-json/self :irq0/url-str)
+(s/def :irq0-src-wp-json/link :irq0/url-str)
+(s/def :irq0-src-wp-json/title (s/keys :req-un [:irq0-src-wp-json/rendered]))
+(s/def :irq0-src-wp-json/excerpt (s/keys :req-un [:irq0-src-wp-json/rendered]))
+(s/def :irq0-src-wp-json/content (s/keys :req-un [:irq0-src-wp-json/rendered]))
+(s/def :irq0-src-wp-json/_links (s/keys :req-un [:irq0-src-wp-json/self]))
+(s/def :irq0-src-wp-json/date_gmt :irq0/iso-date-time-str)
+
+(s/def :irq0-src-wp-json/post (s/keys :req-un [:irq0-src-wp-json/title
+                                               :irq0-src-wp-json/excerpt
+                                               :irq0-src-wp-json/content
+                                               :irq0-src-wp-json/link
+                                               :irq0-src-wp-json/_links
+                                               :irq0-src-wp-json/date_gmt]))
+
 (extend-protocol FetchSource
   u1f596.src.WordpressJsonFeed
   (fetch-source [src]
@@ -305,48 +322,51 @@
                                          :headers {:user-agent user-agent}})
                     :body (cheshire/parse-stream true))]
       (doall
-       (for [post posts]
-         (let [authors (try+
-                        (doall
-                         (for [url (map :href (get-in post [:_links :author]))]
-                           (get-in [:body :name]
-                                   (http/get url
-                                             {:as :json
-                                              :headers {:user-agent user-agent}}))))
-                        (catch (fn [resp] (#{403 404} (:status resp)))
-                               {:keys [headers body status]}
-                          (log/debug "Could not fetch article's authors endpoint:"
-                                     headers body status (get-in post [:_links :self]))
-                          [""]))
-               url (uri/uri (get post :link))
-               base-url (get-base-url url)
-               title (get-in post [:title :rendered])
-               pub-ts (some-> post :date_gmt parse-utc-without-timezone)
-               description (get-in post [:excerpt :rendered])
-               content-html (get-in post [:content :rendered])
-               sanitized-html (-> content-html
-                                  hick/parse
-                                  hick/as-hickory
-                                  (absolutify-links-in-hick base-url)
-                                  sanitize
-                                  blobify
-                                  (hick-r/hickory-to-html))]
-           (make-feed-item
-            (make-meta src)
-            {:title title :ts pub-ts}
-            (make-item-hash title pub-ts url)
-            {:pub-ts pub-ts
-             :url url
-             :title title
-             :authors authors
-             :descriptions {"text/plain" description}
-             :contents {"text/html" sanitized-html
-                        "text/plain" (conv/html2text sanitized-html)}}
-            {:site (:body site)
-             :post post}
-            {:title (get-in site [:body :name])
-             :url (get-in site [:body :home])
-             :feed-type "wp-json"})))))))
+       (for [post posts
+             :let [conform (s/conform :irq0-src-wp-json/post post)]]
+         (if (s/invalid? conform)
+           (log/warn "Invalid post: " conform (s/explain-str :irq0-src-wp-json/post post))
+           (let [authors (try+
+                          (doall
+                           (for [url (map :href (get-in post [:_links :author]))]
+                             (get-in [:body :name]
+                                     (http/get url
+                                               {:as :json
+                                                :headers {:user-agent user-agent}}))))
+                          (catch (fn [resp] (#{403 404} (:status resp)))
+                                 {:keys [headers body status]}
+                            (log/debug "Could not fetch article's authors endpoint:"
+                                       headers body status (get-in post [:_links :self]))
+                            [""]))
+                 url (uri/uri (get post :link))
+                 base-url (get-base-url url)
+                 title (get-in post [:title :rendered])
+                 pub-ts (some-> post :date_gmt parse-utc-without-timezone)
+                 description (get-in post [:excerpt :rendered])
+                 content-html (get-in post [:content :rendered])
+                 sanitized-html (-> content-html
+                                    hick/parse
+                                    hick/as-hickory
+                                    (absolutify-links-in-hick base-url)
+                                    sanitize
+                                    blobify
+                                    (hick-r/hickory-to-html))]
+             (make-feed-item
+              (make-meta src)
+              {:title title :ts pub-ts}
+              (make-item-hash title (str pub-ts) (str url))
+              {:pub-ts pub-ts
+               :url url
+               :title title
+               :authors authors
+               :descriptions {"text/plain" description}
+               :contents {"text/html" sanitized-html
+                          "text/plain" (conv/html2text sanitized-html)}}
+              {:site (:body site)
+               :post post}
+              {:title (get-in site [:body :name])
+               :url (uri/uri (get-in site [:body :home]))
+               :feed-type "wp-json"}))))))))
 
 (extend-protocol ItemProcessor
   FeedItem

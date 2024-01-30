@@ -13,6 +13,8 @@
                                 :data-url #(= "data" (uri/scheme %))
                                 :mailto-url #(= "mailto" (uri/scheme %))))
 (s/def :irq0/ts #(instance? java.time.ZonedDateTime %))
+(def iso-date-time-regex #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z|)$")
+(s/def :irq0/iso-date-time-str (s/and string? #(re-matches iso-date-time-regex %)))
 
 ;; (def url-gen
 ;;   (gen/let [path (gen/not-empty (gen/list (gen/fmap string/lower-case
