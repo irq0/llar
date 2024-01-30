@@ -92,8 +92,23 @@
              :excerpt {:rendered ""}
              :content {:rendered "<html><head></head><body></body></html>"}}]))}))
 
+(defn fake-http-get-reddit [_url & _args]
+  {:body
+   {:data {:children [{:data {:url "https://www.example.com"
+                              :permalink "/asdf"
+                              :thumbnail "https://www.example.com/image"
+                              :created_utc 1
+                              :title "Foo"
+                              :author "Bar"
+                              :id "2342"
+                              :score 1337
+                              :selftext "text text text"}}]}}})
+
 (def basic-tests
-  [{:src (src/feed "http://example.com/feed.xml")
+  [{:src (src/reddit "does-not-exists-23-42" :top)
+    :fake-http-get #'fake-http-get-reddit
+    :n-items 1}
+   {:src (src/feed "http://example.com/feed.xml")
     :fake-fetch #'fake-fetch-rss
     :n-items 1}
    {:src (src/selector-feed "http://example.com/index.html"

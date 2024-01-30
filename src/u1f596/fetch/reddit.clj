@@ -108,15 +108,37 @@
               "text/html" (reddit-html-summary c)}
    :descriptions {"text/plain" ""}})
 
+(s/def :irq0-src-reddit/title string?)
+(s/def :irq0-src-reddit/created_utc number?)
+(s/def :irq0-src-reddit/url :irq0/url-str)
+(s/def :irq0-src-reddit/permalink string?)
+(s/def :irq0-src-reddit/thumbnail string?)
+(s/def :irq0-src-reddit/author string?)
+(s/def :irq0-src-reddit/id string?)
+(s/def :irq0-src-reddit/score number?)
+(s/def :irq0-src-reddit/selftext string?)
+(s/def :irq0-src-reddit/item (s/keys :req-un [:irq0-src-reddit/title
+                                              :irq0-src-reddit/created_utc
+                                              :irq0-src-reddit/url
+                                              :irq0-src-reddit/permalink
+                                              :irq0-src-reddit/thumbnail
+                                              :irq0-src-reddit/author
+                                              :irq0-src-reddit/id
+                                              :irq0-src-reddit/score
+                                              :irq0-src-reddit/selftext]))
+
 (extend-protocol fetch/FetchSource
   u1f596.src.Reddit
   (fetch-source [src]
     (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100&t=%s"
                                      (:subreddit src) (:listing src) (:timeframe src)))]
       (for [child (get-in reddit [:data :children])
-            :let [item (:data child)]]
-        (make-reddit-item
-         (fetch/make-meta src)
-         {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}
-         (fetch/make-item-hash (:id item))
-         (make-reddit-entry item))))))
+            :let [item (:data child)
+                  c (s/conform :irq0-src-reddit/item item)]]
+        (if (s/invalid? c)
+          (log/warn "Invalid reddit item: " c (s/explain-str :irq0-src-reddit/item item))
+          (make-reddit-item
+           (fetch/make-meta src)
+           {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}
+           (fetch/make-item-hash (str (:id item)))
+           (make-reddit-entry item)))))))
