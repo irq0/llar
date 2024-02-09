@@ -29,6 +29,6 @@ ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
-RUN mkdir -p /opt/u1f596
-COPY target/u1f596-0.1.0-SNAPSHOT-standalone.jar /opt/u1f596/standalone.jar
-CMD ["nice", "java", "-Xmx4g", "-server", "-XX:-OmitStackTraceInFastThrow", "-jar", "/opt/u1f596/standalone.jar"]
+RUN mkdir -p /opt/llar
+COPY target/llar-0.1.0-SNAPSHOT-standalone.jar /opt/llar/standalone.jar
+CMD ["nice", "java", "-Xmx4g", "-server", "-XX:-OmitStackTraceInFastThrow", "-jar", "/opt/llar/standalone.jar"]

@@ -1,4 +1,4 @@
 {:lint-as {mount.core/defstate clojure.core/def
-           u1f596.config/fetch clojure.core/def}
- :linters {:unresolved-symbol {:exclude [(u1f596.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])]}
+           llar.config/fetch clojure.core/def}
+ :linters {:unresolved-symbol {:exclude [(llar.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])]}
            :unresolved-var {:exclude [digest]}}}

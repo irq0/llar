@@ -1,8 +1,8 @@
 {:update-max-retires 5
- :postgresql {:database-name "u1f596"
+ :postgresql {:database-name "livelongandread"
               :adapter "postgresql"
               :server-name "localhost"
-              :username "u1f596"
+              :username "llar"
               :auto-commit        true
               :read-only          false
               :connection-timeout 30000
@@ -12,5 +12,5 @@
               :minimum-idle       10
               :maximum-pool-size  20
               :register-mbeans    false
-              :pool-name          "u1f596-pool"
+              :pool-name          "llar-pool"
               :password ""}}

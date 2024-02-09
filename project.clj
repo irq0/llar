@@ -1,8 +1,8 @@
-(defproject u1f596 "0.1.0-SNAPSHOT"
+(defproject llar "0.1.0-SNAPSHOT"
   :profiles {:uberjar {:omit-source true
                        :aot :all}}
-  :description "u1f596 - information processor"
-  :url ""
+  :description "LLAR - Live Long and Read 🖖"
+  :url "https://llar.dev"
   :jvm-opts ["-Xmx4g"
              "-server"
              "-XX:-OmitStackTraceInFastThrow"
@@ -13,7 +13,7 @@
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
 
   :aot :all
-  :main u1f596.core
+  :main llar.core
   :plugins [[lein-cljfmt "0.6.8"]]
   :license {:name "None"
             :url ""}
