@@ -1,0 +1,65 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: changeme
+    volumes:
+      - llar-postgresql:/var/lib/postgresql/data
+      - ./initdb.d:/docker-entrypoint-initdb.d
+    shm_size: '246MB'
+  llar-init-db:
+    image: ghcr.io/irq0/llar:latest
+    links:
+      - db
+    depends_on:
+      db:
+        condition: service_started
+    volumes:
+      - llar-state:/var/lib/llar
+      - ./docker-config.edn:/var/lib/llar/config.edn
+    entrypoint:
+      - "/bin/bash"
+      - "-c"
+      - >
+        set -x;
+        if [[ -r "/var/lib/llar/db-initialized" ]]; then
+           exit 0
+        fi;
+        sleep 5;
+        if java -jar /opt/llar/standalone.jar --init-db; then
+           date -u +"%Y-%m-%dT%H:%M:%SZ" > /var/lib/llar/db-initialized;
+        else
+           set +x
+           echo "Database initialization failed :("
+           exit 23
+        fi;
+    environment:
+      LLAR_CONFIG: /var/lib/llar/config.edn
+  llar:
+    image: ghcr.io/irq0/llar:latest
+    links:
+      - db
+    depends_on:
+      db:
+        condition: service_started
+      llar-init-db:
+        condition: service_completed_successfully
+    volumes:
+      - llar-state:/var/lib/llar
+      - llar-blobstore:/var/lib/llar/blobs
+      - ./docker-config.edn:/var/lib/llar/config.edn
+    command: --dry
+    mem_limit: 4g
+    ports:
+      - "8023:8023"
+      - "9999:9999"
+      - "42000:42000"
+    environment:
+      LLAR_CONFIG: /var/lib/llar/config.edn
+
+volumes:
+  llar-postgresql:
+  llar-blobstore:
+  llar-state:

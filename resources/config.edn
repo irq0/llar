@@ -1,5 +1,5 @@
 {:update-max-retry 5
- :state-dir "/var/lib/🖖/state"
+ :state-dir "/var/lib/llar"
  :commands {:mercury-parser "postlight-parser"
             :youtube-dl "youtube-dl"
             :pdftocairo "pdftocairo"
@@ -8,4 +8,4 @@
             :w3m "w3m"
             :lynx "lynx"
             :html2text "html2text"}
- :blob-store-dir "/var/lib/🖖/blobs"}
+ :blob-store-dir "/var/lib/llar/blobs"}

@@ -1,0 +1,40 @@
+{:state-dir "/var/lib/llar/"
+ :blob-store-dir "/var/lib/llar/blobs"
+ :commands {:mercury-parser "/usr/local/bin/postlight-parser"
+            :youtube-dl "yt-dlp"
+            :pdftocairo "pdftocairo"
+            :pdf2htmlex "pdf2htmlEX"
+            :pandoc "pandoc"
+            :w3m "w3m"
+            :lynx "lynx"
+            :html2text "html2text"}
+ :postgresql {:frontend {:database-name "llar"
+                         :adapter "postgresql"
+                         :server-name "db"
+                         :username "llar"
+                         :auto-commit        true
+                         :read-only          false
+                         :connection-timeout 30000
+                         :validation-timeout 5000
+                         :idle-timeout       600000
+                         :max-lifetime       1800000
+                         :minimum-idle       5
+                         :maximum-pool-size  5
+                         :register-mbeans    false
+                         :pool-name          "frontend"
+                         :password "changeme"}
+              :backend {:database-name "llar"
+                        :adapter "postgresql"
+                        :server-name "db"
+                        :username "llar"
+                        :auto-commit        true
+                        :read-only          false
+                        :connection-timeout 30000
+                        :validation-timeout 5000
+                        :idle-timeout       600000
+                        :max-lifetime       1800000
+                        :minimum-idle       10
+                        :maximum-pool-size  10
+                        :register-mbeans    false
+                        :pool-name          "backend"
+                        :password "changeme"}}}

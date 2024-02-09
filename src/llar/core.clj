@@ -26,7 +26,7 @@
   (:gen-class))
 
 (def cli-options
-  [[nil "--init-db" "Initialize new database"]
+  [[nil "--init-db" "Initialize new database and exit"]
    [nil "--dry" "Start without live, schedulers, etc"]
    [nil "--nrepl" "Start nrepl server"]
    ["-h" "--help"]])
