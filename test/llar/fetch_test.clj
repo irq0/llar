@@ -1,14 +1,17 @@
 (ns llar.fetch-test
   (:require
+   [llar.appconfig :as appconfig]
    [llar.fetch :as uut]
    [llar.fetch.custom]
    [llar.fetch.http]
    [llar.fetch.imap]
    [llar.fetch.mercury]
+   [llar.fetch.feed]
    [hickory.select :as S]
    [llar.fetch.reddit]
    [llar.fetch.twitter]
    [llar.http :as http]
+   [mount.core :as mount]
    [hickory.core :as hick]
    [cheshire.core :as cheshire]
    [hickory.render :as hick-r]
@@ -121,6 +124,7 @@
     :n-items 1}])
 
 (deftest basics-test
+  (mount/start #'appconfig/appconfig)
   (doseq [{:keys [src fake-fetch fake-http-get n-items]} basic-tests]
     (testing (str src)
       (with-redefs [http/fetch fake-fetch
@@ -129,4 +133,4 @@
               item (first fetched)]
           (is (= n-items (count fetched)))
           (is (every? #(= (get-in % [:meta :source]) src) fetched))
-          (log/error item))))))
+          (log/info "Test item:" item))))))

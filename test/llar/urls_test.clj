@@ -3,6 +3,7 @@
    [clojure.test :refer [are deftest is testing]]
    [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.test :refer :all]
+   [llar.specs]
    [llar.http :as uut]))
 
 (deftest absolutify-url
