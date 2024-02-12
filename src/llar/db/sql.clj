@@ -33,7 +33,15 @@
  get-tag-stats
  get-tags
  get-type-stats
- get-table-row-counts)
+ get-table-row-counts
+ search-item
+ saved-items-tf-idf
+ saved-items-tf-idf-terms
+ conflict-items-overwrite-snip
+ conflict-items-ignore-dupe-snip
+ tag-cond-by-id
+ tag-cond-by-source-id-in
+ tag-cond-le-ts)
 
 (hugsql/def-db-fns (io/resource "sql/items.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/sources.sql") {:quoting :ansi})

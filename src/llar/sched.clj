@@ -9,7 +9,7 @@
    [llar.persistency :as persistency]
    [llar.src :as src]
    [llar.store :refer [backend-db]]
-   [llar.update :refer [update!] :as feed-update])
+   [llar.update :as feed-update])
   (:import
    [java.time Duration ZoneId ZonedDateTime]))
 

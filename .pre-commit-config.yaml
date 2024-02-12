@@ -22,7 +22,8 @@ repos:
       - id: forbid-binary
         exclude: >-
           (?x)^(
-            resources/status/img/.*
+            resources/status/img/.*|
+            resources/nlp/models.*
           )$
       - id: git-check
 
@@ -30,7 +31,7 @@ repos:
     rev: v2.2.6
     hooks:
       - id: codespell
-        args: ["--ignore-words-list", "edn,juxt"]
+        args: ["--ignore-words-list", "edn,juxt", "--ignore-regex=.*codespell-ignore$"]
         exclude: >-
           (?x)^(
             resources/stopwords_.*|

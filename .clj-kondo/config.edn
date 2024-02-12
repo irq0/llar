@@ -1,5 +1,8 @@
 {:lint-as {mount.core/defstate clojure.core/def
            llar.config/fetch clojure.core/def
+           llar.sched/defsched clojure.core/def
+           llar.sched/defsched-feed-by-filter clojure.core/def
            opennlp.tools.filters/pos-filter clojure.core/def}
- :linters {:unresolved-symbol {:exclude [thrown+? (llar.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])]}
-           :unresolved-var {:exclude [digest opennlp.tools.filters/nouns]}}}
+ :linters {:unresolved-symbol {:exclude [thrown+? (llar.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])
+                                         (llar.sched/defsched-feed-by-filter [$TAGS $SRC $KEY])]}
+           :unresolved-var {:exclude [digest opennlp.tools.filters/nouns twitter.api.restful/search-tweets]}}}

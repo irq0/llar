@@ -1,6 +1,5 @@
 (ns llar.db.search
   (:require
-   [cheshire.core :refer :all]
    [clojure.java.jdbc :as j]
    [digest]
    [java-time :as time]

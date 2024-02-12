@@ -1,7 +1,7 @@
 (ns llar.update
   (:require
    [clojure.tools.logging :as log]
-   [java-time :as time]
+   [java-time.api :as time]
    [mount.core :refer [defstate]]
    [nio2.core :as nio2]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -124,7 +124,7 @@
      (catch [:type :llar.http/unexpected-error] _
        (make-next-state state :bug 0 &throw-context))
 
-     (catch java.lang.OutOfMemoryError ex
+     (catch java.lang.OutOfMemoryError _ex
        (log/warn (:throwable &throw-context) "Out of memory! Adjust resource limits? (-> temp fail) " (str src))
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
 
@@ -153,7 +153,7 @@
 (defn reset-all-failed!
   "Reset all feed states to :new"
   []
-  (doseq [[k v] (config/get-sources)]
+  (doseq [[k _v] (config/get-sources)]
     (set-status! k :new)))
 
 ;;; Update API
@@ -240,14 +240,14 @@
          (filter #(contains? (:tags (val %)) tag) (updateable-sources)))))
 
 (defn update-failed! [& args]
-  (let [failed-source-keys (map key (filter (fn [[k v]]
+  (let [failed-source-keys (map key (filter (fn [[_k v]]
                                               (contains? #{:perm-fail :temp-fail} (:status v)))
                                             @state))
         failed-sources (select-keys (updateable-sources) failed-source-keys)]
     (doall (pmap #(apply update! (key %) args) failed-sources))))
 
 (defn update-bugged! [& args]
-  (let [failed-source-keys (map key (filter (fn [[k v]]
+  (let [failed-source-keys (map key (filter (fn [[_k v]]
                                               (contains? #{:bug} (:status v)))
                                             @state))
         failed-sources (select-keys (updateable-sources) failed-source-keys)]
@@ -256,6 +256,6 @@
 
 (defn update-unfetched! [& args]
   (let [sources-and-state (merge-with merge (updateable-sources) @state)
-        unfetched-keys (map key (filter (fn [[k v]] (nil? (:status v))) sources-and-state))
+        unfetched-keys (map key (filter (fn [[_k v]] (nil? (:status v))) sources-and-state))
         result (doall (pmap #(apply update! % args) unfetched-keys))]
     result))

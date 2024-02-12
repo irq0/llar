@@ -3,7 +3,7 @@
    [llar.config :as config]
    [llar.postproc :as proc]
    [llar.store :refer [store-items!]]
-   [llar.live.common :refer :all]
+   [llar.live.common :refer [LiveSource start-collecting! state-template stop-collecting!]]
    [clojure.core.async :as async]
    [mount.core :refer [defstate]]
    [slingshot.slingshot :refer [try+]]
@@ -78,7 +78,7 @@
                    :result (processor mix-ch term-ch)}})
   :stop (do
           (async/put! (get-in live [:proc :term-ch]) :terminate)
-          (doall (for [[k {:keys [state ch feed]}] (:sources live)]
+          (doall (for [[_k {:keys [state ch feed]}] (:sources live)]
                    (do
                      (async/toggle (:mix live) {ch {:mute true
                                                     :pause false

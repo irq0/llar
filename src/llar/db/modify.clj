@@ -1,11 +1,10 @@
 (ns llar.db.modify
   (:require
    [byte-streams :refer [to-byte-buffer]]
-   [cheshire.core :refer :all]
    [clojure.java.jdbc :as j]
    [clojure.string :as string]
    [digest]
-   [java-time :as time]
+   [java-time.api :as time]
    [llar.contentdetect :as contentdetect]
    [llar.db.core]
    [llar.db.sql :as sql]

@@ -1,4 +1,5 @@
 (ns llar.urls-test
+  #_{:clj-kondo/ignore [:refer-all]}
   (:require
    [clojure.test :refer [are deftest is testing]]
    [org.bovinegenius [exploding-fish :as uri]]

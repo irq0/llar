@@ -1,6 +1,5 @@
 (ns llar.db.core
   (:require
-   [cheshire.core :refer :all]
    [cheshire.generate :as json :refer [encode-str]]
    [clojure.java.jdbc :as j]
    [clojure.string :as string]
