@@ -293,8 +293,9 @@
    (time/zone-id "UTC")))
 
 (s/def :irq0-src-wp-json/rendered string?)
-(s/def :irq0-src-wp-json/self :irq0/url-str)
+(s/def :irq0-src-wp-json/href :irq0/url-str)
 (s/def :irq0-src-wp-json/link :irq0/url-str)
+(s/def :irq0-src-wp-json/self (s/coll-of (s/keys :req-un [:irq0-src-wp-json/href])))
 (s/def :irq0-src-wp-json/title (s/keys :req-un [:irq0-src-wp-json/rendered]))
 (s/def :irq0-src-wp-json/excerpt (s/keys :req-un [:irq0-src-wp-json/rendered]))
 (s/def :irq0-src-wp-json/content (s/keys :req-un [:irq0-src-wp-json/rendered]))

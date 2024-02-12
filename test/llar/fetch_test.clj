@@ -90,7 +90,7 @@
           (cheshire/generate-string
            [{:title {:rendered "Test Title"}
              :link "http://example.com/POSTS/1"
-             :_links {:self "http://example.com/POSTS/1"}
+             :_links {:self [{:href "http://example.com/POSTS/1"}]}
              :date_gmt "2024-01-30T23:35:35+01:00"
              :excerpt {:rendered ""}
              :content {:rendered "<html><head></head><body></body></html>"}}]))}))
