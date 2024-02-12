@@ -69,6 +69,7 @@
                  [nrepl "1.1.0"]
                  [org.clojure/core.async "1.6.681" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
                  [byte-streams "0.2.4" :exclusions [riddley]]
+                 [com.nextjournal/beholder "1.0.2"]
 
                  ;; schema
                  [prismatic/schema "1.4.1"]
@@ -107,9 +108,6 @@
                  [hiccup "1.0.5"]
                  [hickory "0.7.1" :exclusions [org.jsoup/jsoup]]
                  [org.bovinegenius/exploding-fish "0.3.6"]
-
-                 ;; fetch source configuration
-                 [org.babashka/sci "0.8.41"]
 
                  ;; data processing and analysis
                  [clojure-opennlp "0.5.0"]

@@ -1,5 +1,7 @@
 {:update-max-retry 5
  :state-dir "/var/lib/llar"
+ :credentials-file "/var/lib/llar/credentials.edn"
+ :runtime-config-dir "/var/lib/llar/config"
  :commands {:mercury-parser "postlight-parser"
             :youtube-dl "youtube-dl"
             :pdftocairo "pdftocairo"

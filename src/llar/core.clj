@@ -4,6 +4,7 @@
    [clojure.tools.logging :as log]
    [llar.logging]
    [llar.appconfig :as appconfig]
+   [llar.config :as config]
    [llar.persistency :as persistency]
    [llar.store :as store]
    [llar.db.core :as db]
@@ -57,6 +58,7 @@
       (:dry options)
       (mount/start
        #'appconfig/appconfig
+       #'config/change-watcher
 
        #'api-reader/frontend-db
        #'store/backend-db
@@ -72,6 +74,7 @@
       :else
       (mount/start
        #'appconfig/appconfig
+       #'config/change-watcher
 
        #'api-reader/frontend-db
        #'store/backend-db
@@ -119,5 +122,6 @@
     (when-not (:dry options)
       (http/update-domain-blocklist!))
 
+    (config/load-all)
     (log/info "🖖")
     (log/debug "Startup options: " options)))

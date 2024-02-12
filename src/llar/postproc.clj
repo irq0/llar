@@ -32,38 +32,6 @@
          rm (constantly false)}}]
   (Processing. post pre rm))
 
-;;;; Postprocessing utility functions
-
-(defn add-tag [tag]
-  (fn [item]
-    (update-in item [:meta :tags] conj tag)))
-
-(defn add-tag-filter [tag fltr]
-  (fn [item]
-    (if (fltr item)
-      (update-in item [:meta :tags] conj tag)
-      item)))
-
-(defn copy [src dst]
-  (fn [item]
-    (let [src-val (get-in item src)]
-      (assoc-in item dst src-val))))
-
-(defn move [src dst]
-  (fn [item]
-    (let [src-val (get-in item src)]
-      (-> item
-          (assoc-in dst src-val)
-          (assoc-in src nil)))))
-
-(defn exchange [src dst]
-  (fn [item]
-    (let [src-val (get-in item src)
-          dst-val (get-in item dst)]
-      (-> item
-          (assoc-in dst src-val)
-          (assoc-in src dst-val)))))
-
 (declare process-feedless-item)
 
 ;; All item processors

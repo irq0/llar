@@ -6,8 +6,10 @@
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.slingshot :refer [try+]]
+   [hickory.core :as hick]
    [llar.fetch :as fetch]
    [llar.fetch.reddit :as reddit]
+   [llar.http :as http]
    [llar.postproc :as proc]
    [llar.src :as src]))
 
@@ -19,7 +21,7 @@
   (time/zoned-date-time
    (time/local-date-time (time/formatter fmt) s) (time/zone-id "UTC")))
 
-(def +mercury-site-blacklist+
+(def +mercury-site-denylist+
   #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
 
 (defn- replace-contents-with-mercury [item keep-orig?]
@@ -57,8 +59,8 @@
         (update-in item [:entry :contents "text/html"]
                    str "<img src=\"" (get-in item [:entry :url]) "\"/>")
 
-        ;; blacklisted sites
-        (re-find +mercury-site-blacklist+ site)
+        ;; denylisted sites
+        (re-find +mercury-site-denylist+ site)
         item
 
         ;; rest: replace with mercury
@@ -88,10 +90,10 @@
                   site)
          (>= score min-score-match)))))))
 
-(defn make-category-filter-deny [blacklist]
+(defn make-category-filter-deny [denylist]
   (fn [item]
     (let [categories (set (get-in item [:entry :categories]))]
-      (>= (count (intersection categories (set blacklist))) 1))))
+      (>= (count (intersection categories (set denylist))) 1))))
 
 (defonce reddit-scores (atom {}))
 
@@ -129,3 +131,31 @@
                              str "<img src=\"" (get-in item [:entry :url]) "\"/>")
                   (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
                   :else ((mercury-contents :keep-orig? true) item))))])))
+
+(defn add-tag [tag]
+  (fn [item]
+    (update-in item [:meta :tags] conj tag)))
+
+(defn add-tag-filter [tag fltr]
+  (fn [item]
+    (if (fltr item)
+      (update-in item [:meta :tags] conj tag)
+      item)))
+
+(defn exchange [src dst]
+  (fn [item]
+    (let [src-val (get-in item src)
+          dst-val (get-in item dst)]
+      (-> item
+          (assoc-in dst src-val)
+          (assoc-in src dst-val)))))
+
+(defn html-to-hickory [raw-html]
+  (some-> raw-html
+          hick/parse
+          hick/as-hickory))
+
+(defn hickory-sanitize-blobify [h]
+  (some-> h
+          (http/sanitize :remove-css? true)
+          (http/blobify)))

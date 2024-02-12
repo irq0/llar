@@ -46,5 +46,16 @@
 (defn blob-store-dupes-dir []
   (str (get appconfig :blob-store-dir) "/url-dupe-content-index"))
 
+(defn runtime-config-dir []
+  (get appconfig :runtime-config-dir))
+
 (defn command [name]
   (get-in appconfig [:commands name]))
+
+(defn credentials [name]
+  (try
+    (let [credentials (edn/read-string (slurp (get appconfig :credentials-file)))]
+      (get credentials name))
+    (catch Exception e
+      (log/error e "[Config] Failed to read credentials from " (get appconfig :credentials-file))
+      {})))

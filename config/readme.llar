@@ -1,0 +1,67 @@
+;; Runtime "fetch" configuration
+;; Most of clojure and additional libraries are available
+
+;; Fetch feed
+;; (fetch SOURCE-KEY SOURCE & BODY)
+;; BODY: :options, :tags, :post, :pre, :rm, :post-fns, :pre-fns, :rm-fn
+;; :options - a set of options passed to the UI
+;;    :mark-read-on-view - mark items as read when viewed
+;;    :main-list-use-desciption - use description instead of word cloud in main list
+;; :tags - a set of tags to be associated with the source
+;; :post - a function to be called after filtering
+;; :post-fns - a vec of functions to be called after filtering
+;; :pre - a function to be called before filtering
+;; :pre-fns - a vec of functions to be called before filtering
+;; :rm - a function to be called to remove items
+;; :rm-fn - a vec of functions to remove items
+;;
+;; All filter/pre/post functions are called with special context variables:
+;; $item - the item
+;; $key - the source key
+;; $title - the title of the item
+;; $authors - the authors of the item
+;; $tags - the tags of the item
+;; $raw - the raw item (not all sources support this)
+;; $url - the url of the item
+;; $html - the html of the item
+;; $text - the text of the item
+;; $options - the options of the source
+;; $entry - the entry of the item
+
+;; Processing functions have additional helper functions available:
+;; $credentials - access credentials from credentials.edn
+;; $html2text - convert html to text
+;; $ellipsify - truncate text with eppipsis
+;; $parse-date - parse date to zoned date time. first parameter is the format. e.g (time/format :rfc_1123-date)
+;; $hn-filter - filter hacker news items
+;; $category-rm - remove items by category. usually avaiale for feed items
+;; $extract - run article extraction on html content
+;; $add-tag - add an item tag
+;; $add-tag-filter - add a tag to items matching a filter
+;; $exchange - exchange part of an item with another. usually to replace descriptions with contents
+;; $html-to-hickory - convert html to hickory
+;; $hickory-sanitize-blobify - run llar html sanitize and blobify on hickory
+;; $make-item-hash - create item hash
+;; $parse-href - parse href to URI
+;; $hickory-to-html - convert hickory to html
+;; $as-uri - convert string to URI
+;; $uri-path - get path from URI
+;; $http-cookie-store - create HTTP cookie store for clj-http.client
+;; $http-get - clj-http.client get
+;; $http-post - clj-http.client post
+
+;; And the following namespaces:
+;; clojure.string as string
+;; hickory.select as S
+;; java-time.api as time
+
+;; Example:
+
+(fetch irq0 (src/feed "http://irq0.org/index.xml")
+       :tags #{:blog})
+
+;; Reddit fetch have an additional parameter :min-score
+
+;; (fetch-reddit (src/reddit "games" :top) :min-score 2000
+;;               :options #{:mark-read-on-view}
+;;               :tags #{:gaming})

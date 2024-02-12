@@ -22,8 +22,7 @@
   (let [by-type (group-by type mixed-items)]
     (when (>= (count mixed-items) 1)
       (log/debugf "Persisting %d items with types (overwrite:%s): %s"
-                  overwrite?
-                  (count mixed-items) (keys by-type))
+                  (count mixed-items) overwrite? (keys by-type))
       (doall
        (apply concat
               (for [[type items] by-type]
