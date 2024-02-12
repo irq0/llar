@@ -28,7 +28,6 @@
    [llar.http :as http]
    [llar.human :as human]
    [llar.live.hackernews]
-   [llar.notifier :as notifier]
    [llar.postproc :as proc]
    [llar.src :as src]))
 
@@ -960,27 +959,3 @@
        :post-fns [(mercury-contents)]
        :options #{:mark-read-on-view :main-list-use-description}
        :tags #{:news})
-
-(comment
-  :impfcenter-berlin {:last-state (atom {})
-                      :src (src/custom :impfcenter (fn [] (let [data (:body (http-client/get "https://www.joerss.dev/api/ampel/" {:as :json}))
-                                                                color-num-to-kw {0 :red 1 :amber 2 :green}]
-                                                            (for [{:keys [ciz color updateDateTime]} data]
-                                                              {:summary {:title (str "Impfcenter " ciz)
-                                                                         :ts (time/zoned-date-time (time/formatter :iso-date-time) updateDateTime)}
-                                                               :entry [ciz (get color-num-to-kw color)]}))))
-                      :proc (proc/make
-                             :filter (constantly true)
-                             :pre [(fn [item]
-                                     (let [[name new-state] (:entry item)
-                                           last-state-atom (get-in (get-sources) [(get-in item [:meta :source-key])
-                                                                                  :last-state])
-                                           last-state (get @last-state-atom name)]
-                                       (log/info name last-state "->" new-state)
-                                       (when (and (#{:red :amber} last-state) (= :green new-state))
-                                         (notifier/notify :vac (str "Go! " name ": " last-state " -> " new-state)))
-                                       (when (and (= :green last-state) (#{:red :amber} new-state))
-                                         (notifier/notify :vac (str "Don't go "  name ": " last-state " -> " new-state)))
-                                       (swap! last-state-atom assoc name new-state)
-;;                                        (notifier/notify :vac (str name ": " last-state " -> " new-state))
-                                       item))])})

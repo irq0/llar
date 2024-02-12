@@ -79,7 +79,6 @@
                  [com.clojure-goes-fast/clj-memory-meter "0.3.0"]
 
                  ;; apis
-                 [telegrambot-lib "2.11.0" :exclusions [org.clojure/data.priority-map org.clojure/tools.logging]]
                  [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
                  [clj-http "3.12.3" :exclusions [org.apache.httpcomponents/httpcore]]
                  [clj-rome "0.4.0"]

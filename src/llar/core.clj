@@ -18,7 +18,6 @@
    [llar.http :as http]
    [llar.blobstore :as blobstore]
    [llar.live :as live]
-   [llar.notifier :as notifier]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
@@ -67,8 +66,6 @@
        #'update/state
        #'metrics/prom-registry
 
-       #'notifier/telegram-bot
-
        #'webapp/status
        #'webapp/reader)
 
@@ -85,8 +82,6 @@
        #'metrics/prom-registry
 
        #'live/live
-
-       #'notifier/telegram-bot
 
        #'webapp/status
        #'webapp/reader
