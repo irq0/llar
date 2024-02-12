@@ -31,8 +31,8 @@
 (nlp-filter/pos-filter not-punctuation #"^[A-Z]+")
 
 (def pos-tagger
-  {:en (nlp/make-pos-tagger (io/resource "nlp/models/en-pos-maxent.bin"))
-   :de (nlp/make-pos-tagger (io/resource "nlp/models/de-pos-perceptron.bin"))})
+  {:en (nlp/make-pos-tagger (io/resource "nlp/models/en-pos.bin"))
+   :de (nlp/make-pos-tagger (io/resource "nlp/models/de-pos.bin"))})
 
 (defn find-names [lang tokens]
   (try+
