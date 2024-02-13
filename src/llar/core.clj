@@ -4,7 +4,6 @@
    [clojure.tools.logging :as log]
    [llar.logging]
    [llar.appconfig :as appconfig]
-   [llar.config :as config]
    [llar.persistency :as persistency]
    [llar.store :as store]
    [llar.db.core :as db]
@@ -19,6 +18,7 @@
    [llar.http :as http]
    [llar.blobstore :as blobstore]
    [llar.live :as live]
+   [llar.config :as config]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
@@ -48,18 +48,15 @@
 
     (when (:nrepl options)
       (mount/start #'repl/nrepl-server))
+    (mount/start #'appconfig/appconfig)
 
     (cond
       (:init-db options)
       (mount/start
-       #'appconfig/appconfig
        #'store/backend-db)
 
       (:dry options)
       (mount/start
-       #'appconfig/appconfig
-       #'config/change-watcher
-
        #'api-reader/frontend-db
        #'store/backend-db
 
@@ -67,15 +64,13 @@
 
        #'update/state
        #'metrics/prom-registry
+       #'config/change-watcher
 
        #'webapp/status
        #'webapp/reader)
 
       :else
       (mount/start
-       #'appconfig/appconfig
-       #'config/change-watcher
-
        #'api-reader/frontend-db
        #'store/backend-db
 
@@ -89,6 +84,7 @@
        #'webapp/status
        #'webapp/reader
 
+       #'config/change-watcher
        #'update/remove-unread-tags
        #'lab/lab-sched))
 
@@ -115,8 +111,9 @@
 
     (let [config {:store :database
                   :db store/backend-db
-                  :migration-dir "migrations/"}]
-      (log/info "Running database migrations" (migratus/migrate config)))
+                  :migration-dir "migrations/"}
+          result (migratus/migrate config)]
+      (log/info "Running database migrations: " (if (nil? result) "ok" result)))
 
     (when-not (:dry options)
       (http/update-domain-blocklist!))

@@ -1,10 +1,10 @@
 (ns llar.config
   (:require
+   [llar.appconfig :refer [appconfig]]
    [clojure.spec.alpha :as s]
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
-   [llar.appconfig :as appconfig]
    [mount.core :refer [defstate] :as mount]
    [nextjournal.beholder :as beholder]
    [llar.fetchutils :refer [make-reddit-proc]]
@@ -182,7 +182,7 @@
       (try
         (log/debugf "loading scheduler \"%s\"" (second form))
         (let [sched (eval form)]
-          (log/info "scheduler: " sched)
+          (log/debug "creating scheduler: " sched)
           (swap! fetch-scheds assoc (keyword (second form)) sched)
           (mount/start (vals @fetch-scheds)))
         (catch Exception e
@@ -199,12 +199,12 @@
 
 (defn- get-config-files []
   (filter #(string/ends-with? (.getName %) ".llar")
-          (-> (appconfig/runtime-config-dir) io/file file-seq)))
+          (-> (:runtime-config-dir appconfig) io/file file-seq)))
 
 (defn- load-config [files]
   (doseq [file files
           :let [forms (read-config file)]]
-    (log/infof "config file %s: read %d defs" file (count forms))
+    (log/infof "evaluating config file %s: %d defs" file (count forms))
     (doseq [form forms]
       (eval-config-form form))))
 
@@ -215,6 +215,10 @@
 (defn load-all []
   (load-config (get-config-files)))
 
+(defn start-watcher []
+  ;; (log/info (get appconfig :runtime-config-dir) (mount/running-states))
+  (beholder/watch handle-config-dir-change (get appconfig :runtime-config-dir)))
+
 (defstate change-watcher
-  :start (beholder/watch handle-config-dir-change (appconfig/runtime-config-dir))
+  :start (start-watcher)
   :stop (beholder/stop change-watcher))

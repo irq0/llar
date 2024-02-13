@@ -16,11 +16,11 @@
    (io/file (System/getProperty "config"))])
 
 (defn try-read-config [file]
-  (log/info "Reading config from" file)
+  (log/info "reading config from" file)
   (try
     (edn/read-string (slurp file))
     (catch Exception e
-      (log/error e "[Config] Failed to read config from " file)
+      (log/error e "failed to read config from " file)
       {})))
 
 (s/def :irq0-appconfig/state-dir :irq0/path-writable-dir)
@@ -88,9 +88,6 @@
 
 (defn blob-store-dupes-dir []
   (str (get appconfig :blob-store-dir) "/url-dupe-content-index"))
-
-(defn runtime-config-dir []
-  (get appconfig :runtime-config-dir))
 
 (defn command [name]
   (get-in appconfig [:commands name]))
