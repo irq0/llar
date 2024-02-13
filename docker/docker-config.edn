@@ -1,5 +1,7 @@
 {:state-dir "/var/lib/llar/"
  :blob-store-dir "/var/lib/llar/blobs"
+ :credentials-file "/var/lib/llar/credentials.edn"
+ :runtime-config-dir "/var/lib/llar/config"
  :commands {:mercury-parser "/usr/local/bin/postlight-parser"
             :youtube-dl "yt-dlp"
             :pdftocairo "pdftocairo"

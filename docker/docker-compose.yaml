@@ -50,6 +50,8 @@ services:
       - llar-state:/var/lib/llar
       - llar-blobstore:/var/lib/llar/blobs
       - ./docker-config.edn:/var/lib/llar/config.edn
+      - ./credentials.edn:/var/lib/llar/credentials.edn
+      - ../config:/var/lib/llar/config/
     command: --dry
     mem_limit: 4g
     ports:
