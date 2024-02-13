@@ -46,6 +46,7 @@
 (def status-app
   (->
    status/app
+   ring.middleware.json/wrap-json-body
    ring.middleware.json/wrap-json-response
    ring.middleware.keyword-params/wrap-keyword-params
    ring.middleware.params/wrap-params

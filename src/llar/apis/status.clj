@@ -2,7 +2,7 @@
   (:require
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
-   [compojure.core :refer [GET POST routes]]
+   [compojure.core :refer [GET POST routes context]]
    [compojure.route :as route]
    [hiccup.core :refer [html]]
    [hiccup.page :refer [html5]]
@@ -30,22 +30,26 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/datatables/jquery.dataTables.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/datatables/dataTables.bootstrap5.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/datatables/buttons.bootstrap5.min.css"}]
    [:link {:rel "stylesheet" :href "/static/llar.css"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
+   [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/datatables/jquery.dataTables.min.js"}]
-   [:script {:src "/static/bootstrap//js/bootstrap.bundle.min.js"}]
+   [:script {:src "/static/datatables/dataTables.bootstrap5.min.js"}]
+   [:script {:src "/static/datatables/dataTables.buttons.min.js"}]
+   [:script {:src "/static/datatables/buttons.bootstrap5.min.js"}]
    [:script {:src "/static/llar-status.js"}]])
 
 (defn wrap-body [body]
-  (html [:html {:lang "en"}
-         (html-header)
-         [:body
-          (concat
-           body
-           (html-footer))]]))
+  (html5 [:html {:lang "en"}
+          (html-header)
+          [:body
+           (concat
+            body
+            (html-footer))]]))
 
 (defn- get-state [k]
   (cond
@@ -83,45 +87,44 @@
        :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
        :color-markup :html-inline}))])
 
-(defn source-status []
+(defn source-tab []
   (html
    [:h2 "Sources"]
-   [:table {:id "sources-datatable"}
+   [:table {:id "sources-datatable" :class "table"}
     [:thead
      [:tr
-      [:th ""]
       [:th "Key"]
       [:th "Status"]
-      [:th ""]
       [:th "Source"]
       [:th "Last Exception"]
       [:th "Last Success / Update"]
-      [:th "Last Attempt / Start"]]]
+      [:th "Last Attempt / Start"]
+      [:th "Actions"]]]]))
 
-    [:tbody
-     (for [[k src] (config/get-sources)]
-       (let [state (get-state k)
-             status (:status state)]
-         [:tr {:class
-               (cond (= :perm-fail status) "table-danger"
-                     (= :bug status) "table-info"
-                     (contains? #{:updating :running} status) "table-success"
-                     (or (= :temp-fail status) (not (= :running status))) "table-warning"
-                     :else "")}
-          [:td {:class "details-control"}]
-          [:td {:class "col-xs-1"} k]
-          [:td {:class "col-xs-1"} (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")")))]
-          [:td {:class "col-xs-1 update-source"} [:i {:class "fas fa-download"} "&thinsp;"]]
-          [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
-           (str (:src src))]
-          [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
-           (get-in state [:last-exception :object :type])]
-          [:td {:class "col-xs-1"}  (some-> (or (:last-successful-fetch-ts state)
-                                                (:last-update-ts state))
-                                            human/datetime-ago)]
-          [:td {:class "col-xs-1"}  (some-> (or (:last-attempt-ts state)
-                                                (:start-ts state))
-                                            human/datetime-ago)]]))]]))
+(comment    [:tbody
+             (for [[k src] (config/get-sources)]
+               (let [state (get-state k)
+                     status (:status state)]
+                 [:tr {:class
+                       (cond (= :perm-fail status) "table-danger"
+                             (= :bug status) "table-info"
+                             (contains? #{:updating :running} status) "table-success"
+                             (or (= :temp-fail status) (not (= :running status))) "table-warning"
+                             :else "")}
+                  [:td {:class "details-control"}]
+                  [:td {:class "col-xs-1"} k]
+                  [:td {:class "col-xs-1"} (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")")))]
+                  [:td {:class "col-xs-1 update-source"} [:i {:class "fas fa-download"} "&thinsp;"]]
+                  [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
+                   (str (:src src))]
+                  [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
+                   (get-in state [:last-exception :object :type])]
+                  [:td {:class "col-xs-1"}  (some-> (or (:last-successful-fetch-ts state)
+                                                        (:last-update-ts state))
+                                                    human/datetime-ago)]
+                  [:td {:class "col-xs-1"}  (some-> (or (:last-attempt-ts state)
+                                                        (:start-ts state))
+                                                    human/datetime-ago)]]))])
 
 (defn source-details [k]
   (let [state (get-state (keyword k))]
@@ -141,7 +144,7 @@
            [:li [:pre formatted]])]]))))
 
 (defn list-to-table [header data]
-  [:table {:class "datatable"}
+  [:table {:class "datatable table"}
    [:thead
     [:tr
      (for [h header]
@@ -152,10 +155,10 @@
        (for [cell row]
          [:td cell])])]])
 
-(defn memory-stats []
+(defn memory-tab []
   (html
    [:h4 "Memory Stats"]
-   [:table {:class "datatable"}
+   [:table {:class "datatable table"}
     [:thead
      [:tr
       [:th "Metric"]
@@ -171,10 +174,10 @@
         [:td name]
         [:td value]])]]))
 
-(defn database-stats []
+(defn database-tab []
   (html
    [:h4 "Word Count Groups"]
-   [:table {:class "datatable"}
+   [:table {:class "datatable table"}
     [:thead
      [:tr
       [:th "Group"]
@@ -194,7 +197,7 @@
    [:h4 "Types"]
    (list-to-table ["Type" "# Documents"] (persistency/get-type-stats frontend-db))))
 
-(defn state-stats []
+(defn state-tab []
   (let [states (mount/find-all-states)
         running (mount/running-states)]
     (html
@@ -212,10 +215,10 @@
           [:td (some? (some #{state} running))]
           [:td (mount/current-state state)]])]])))
 
-(defn thread-stats []
+(defn thread-tab []
   (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]
     [:h2 "Current Threads"]
-    [:table {:id "threads-datatable"}
+    [:table {:id "threads-datatable" :class "table"}
      [:thead
       [:tr
        [:th ""]
@@ -239,19 +242,22 @@
          [:td {:class "col-xs-1"} [:pre (.getState th)]]
          [:td {:class "col-xs-4"} [:pre (first stack)]]])]]))
 
-(defn home-tab [])
+(defn metrics-tab []
+  [:p
+   [:h2 "Metrics"]
+   [:a {:href "/metrics"} "Prometheus Metrics"]])
 
 (def tabs
-  {:home home-tab
-   :memory memory-stats
-   :database database-stats
-   :state state-stats
-   :threads thread-stats
-   :sources source-status})
+  {:sources source-tab
+   :memory memory-tab
+   :database database-tab
+   :state state-tab
+   :metrics metrics-tab
+   :threads thread-tab})
 
 (defn status-index []
   (wrap-body
-   (html5 [:h1 "llar 🔢 🔥 🚧"]
+   (html5 [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
           [:div {:class "contianer-fluid"}
            [:ul {:class "nav nav-tabs"}
             (for [[k _] tabs
@@ -260,7 +266,7 @@
                         tab-href (str "#" tab-name)]]
 
               [:li {:class "nav-item"}
-               [:a {:class (str "nav-link" (when (= k :home) " active"))
+               [:a {:class (str "nav-link" (when (= k :sources) " active"))
                     :id tab-id
                     :data-bs-toggle "tab"
                     :role "tab"
@@ -271,21 +277,87 @@
             (for [[k func] tabs
                   :let [tab-name (name k)
                         cont-id tab-name]]
-              [:div {:class (str "tab-pane" (when (= k :home) " fade show active"))
+              [:div {:class (str "tab-pane" (when (= k :sources) " fade show active"))
                      :id cont-id
                      :role "tabpanel"}
                (func)])]])))
 
-(defn update-source [k]
-  {:future (future (update/update! (keyword k) :force true))})
+(def update-futures (atom {}))
+
+(defn update-source [str-k]
+  (let [k (keyword str-k)
+        src (get (config/get-sources) k)
+        existing-fut (get @update-futures k)]
+    (cond
+      (nil? src)
+      {:status 404
+       :body {:source-key k
+              :status :not-found}}
+
+      (and existing-fut (not (future-done? existing-fut)))
+      {:status 200
+       :body {:source-key k
+              :future existing-fut
+              :status :already-updating}}
+
+      :else
+      (let [fut (future (update/update! k :force true))]
+        (swap! update-futures assoc (keyword k) fut)
+        {:status 200
+         :body {:source-key k
+                :status :updating
+                :future (str fut)}}))))
+
+(defn- source-status-row [k src state]
+  (let [status (:status state)]
+    [k ; key
+     (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")"))) ; status for humans
+     (str (:src src)) ; source name
+     (get-in state [:last-exception :object :type]) ; last exception
+     (some-> (or (:last-successful-fetch-ts state) ; last success or update
+                 (:last-update-ts state))
+             human/datetime-ago)
+     (some-> (or (:last-attempt-ts state) ; last attempt or start
+                 (:start-ts state))
+             human/datetime-ago)]))
+
+(defn source-status [str-k]
+  (let [k (keyword str-k)
+        fut (get @update-futures k)
+        src (get (config/get-sources) k)
+        state (get-state k)]
+    (if state
+      {:status 200
+       :body {:source-key k
+              :row (source-status-row k src state)
+              :update-status {:future (str fut)
+                              :done (future-done? fut)
+                              :result (when (future-done? fut) @fut)}}}
+      {:status 404
+       :body {:source-key k
+              :error :not-found}})))
+
+(defn all-sources-status []
+  {:status 200
+   :body {:data
+          (for [[k src] (config/get-sources)]
+            (let [state (get-state k)]
+              (source-status-row k src state)))}})
 
 (def app
   (routes
 
    (GET "/" [] (status-index))
 
-   (POST "/update/:source-key" [source-key]
-     (update-source source-key))
+   (context "/api" []
+     (POST "/update/:source-key" [source-key]
+       (update-source source-key))
+
+     (GET "/source/:source-key" [source-key]
+       (source-status source-key))
+
+     (GET "/sources" []
+       (all-sources-status)))
 
    (GET "/source-details/:key" [key] (source-details key))
 
