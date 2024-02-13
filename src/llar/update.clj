@@ -295,22 +295,19 @@
 
 (defmacro defsched-feed-by-filter [sched-name chime-times pred]
   `(defstate ~sched-name
-     :start (let [chime-times# (if (keyword? ~chime-times)
-                                 (get sched/canned-scheds ~chime-times)
-                                 ~chime-times)]
-              (chime/chime-at
-               chime-times#
-               (fn [~'$TIME]
-                 (metrics/with-log-exec-time-named ~sched-name
-                   (let [sources# (updateable-sources)
-                         filtered# (filter (fn [[k# source#]]
-                                             (let [~'$KEY k#
-                                                   ~'$SRC (:src source#)
-                                                   ~'$TAGS (:tags source#)]
-                                               ~pred))
-                                           sources#)
-                         keys# (mapv first filtered#)
-                         result# (pmap update! keys#)]
-                     (log/infof "Scheduled feed update %s: %s"
-                                '~sched-name (vec (interleave keys# result#))))))))
+     :start (chime/chime-at
+             (sched/resolve-chime-times ~chime-times)
+             (fn [~'$TIME]
+               (metrics/with-log-exec-time-named ~sched-name
+                 (let [sources# (updateable-sources)
+                       filtered# (filter (fn [[k# source#]]
+                                           (let [~'$KEY k#
+                                                 ~'$SRC (:src source#)
+                                                 ~'$TAGS (:tags source#)]
+                                             ~pred))
+                                         sources#)
+                       keys# (mapv first filtered#)
+                       result# (pmap update! keys#)]
+                   (log/infof "Scheduled feed update %s: %s"
+                              '~sched-name (vec (interleave keys# result#)))))))
      :stop (.close ~sched-name)))

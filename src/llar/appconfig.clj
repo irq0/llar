@@ -7,8 +7,7 @@
    [hikari-cp.core :as hikari]
    [clojure.edn :as edn]
    [clojure.tools.logging :as log]
-   [clojure.java.io :as io])
-  (:import [java.time ZoneId]))
+   [clojure.java.io :as io]))
 
 (def +config-locations+
   [(io/resource "config.edn")
@@ -28,7 +27,6 @@
 (s/def :irq0-appconfig/credentials-file :irq0/path-exists)
 (s/def :irq0-appconfig/runtime-config-dir :irq0/path-exists-is-dir)
 (s/def :irq0-appconfig/command :irq0/path)
-(s/def :irq0-appconfig/timezone (s/and string? #(ZoneId/of %)))
 (s/def :irq0-appconfig/commands (s/map-of keyword :irq0-appconfig/command))
 (s/def :irq0-appconfig/postgresql-pool hikari/validate-options)
 (s/def :irq0-appconfig/frontend :irq0-appconfig/postgresql-pool)
@@ -41,7 +39,6 @@
                    :irq0-appconfig/blob-store-dir
                    :irq0-appconfig/credentials-file
                    :irq0-appconfig/runtime-config-dir
-                   :irq0-appconfig/timezone
                    :irq0-appconfig/commands
                    :irq0-appconfig/postgresql]))
 

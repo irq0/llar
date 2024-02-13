@@ -2,50 +2,55 @@
   #_{:clj-kondo/ignore [:unused-namespace]}
   (:require
    [chime.core :as chime]
-   [llar.appconfig :refer [appconfig]]
    [mount.core :refer [defstate]]
+   [slingshot.slingshot :refer [throw+]]
    [llar.metrics :as metrics]
    [clojure.tools.logging :as log]
    [llar.src])
   (:import
    [java.time Duration ZoneId ZonedDateTime]))
 
-(defstate canned-scheds
-  :start {:during-daytime
-          (->>
-           (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
-                                                 (ZoneId/of (:timezone appconfig)))
-                               (Duration/ofHours 1))
-           (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
-           (chime/without-past-times))
-          :sundays
-          (->>
-           (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
-                                                 (ZoneId/of (:timezone appconfig)))
-                               (Duration/ofDays 1))
-           (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
-           (chime/without-past-times))
-          :early-morning
-          (->>
-           (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
-                                                 (ZoneId/of (:timezone appconfig)))
-                               (Duration/ofDays 1))
-           (chime/without-past-times))
-          :hourly
-          (->>
-           (chime/periodic-seq  (-> (java.time.LocalDate/now)
-                                    (.atStartOfDay (ZoneId/of (:timezone appconfig))))
-                                (Duration/ofHours 1))
-           (chime/without-past-times))})
+(defn canned-scheds [kw]
+  (case kw
+    :during-daytime
+    (->>
+     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
+                                           (ZoneId/systemDefault))
+                         (Duration/ofHours 1))
+     (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
+     (chime/without-past-times))
+    :sundays
+    (->>
+     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
+                                           (ZoneId/systemDefault))
+                         (Duration/ofDays 1))
+     (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
+     (chime/without-past-times))
+    :early-morning
+    (->>
+     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
+                                           (ZoneId/systemDefault))
+                         (Duration/ofDays 1))
+     (chime/without-past-times))
+    :hourly
+    (->>
+     (chime/periodic-seq  (-> (java.time.LocalDate/now)
+                              (.atStartOfDay (ZoneId/systemDefault)))
+                          (Duration/ofHours 1)))))
+
+(defn resolve-chime-times [chime-times-or-keyword]
+  (if (keyword? chime-times-or-keyword)
+    (if-let [canned (canned-scheds chime-times-or-keyword)]
+      canned
+      (throw+ {:type ::unknown-canned-sched
+               :keyword chime-times-or-keyword}))
+    chime-times-or-keyword))
 
 (defmacro defsched [sched-name chime-times-or-keyword & body]
   `(defstate ~sched-name
-     :start (let [chime-times# (if (keyword? ~chime-times-or-keyword)
-                                 (get canned-scheds ~chime-times-or-keyword)
-                                 ~chime-times-or-keyword)]
-              (chime/chime-at
-               chime-times#
-               (fn [~'$TIME]
-                 (metrics/with-log-exec-time
-                   (do ~@body)))))
+     :start (chime/chime-at
+             (resolve-chime-times ~chime-times-or-keyword)
+             (fn [~'$TIME]
+               (metrics/with-log-exec-time
+                 (do ~@body))))
      :stop (.close ~sched-name)))
