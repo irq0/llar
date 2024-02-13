@@ -1,7 +1,7 @@
 (ns llar.webapp
   (:require
    [clojure.tools.logging :as log]
-   [llar.apis.status :as status]
+   [llar.apis.dashboard :as status]
    [llar.apis.reader :as reader]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
@@ -43,7 +43,7 @@
         (log/error ex "Exception during request" request)
         (exception-response request ex)))))
 
-(def status-app
+(def dashboard-app
   (->
    status/app
    ring.middleware.json/wrap-json-body
@@ -77,9 +77,9 @@
   (when-not (nil? jetty)
     (.stop jetty)))
 
-(defstate status
-  :start (try-start-app status-app 9999)
-  :stop (try-stop-app status))
+(defstate dashboard
+  :start (try-start-app dashboard-app 9999)
+  :stop (try-stop-app dashboard))
 
 (defstate reader
   :start (try-start-app reader-app 8023)

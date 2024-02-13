@@ -1,4 +1,4 @@
-(ns llar.apis.status
+(ns llar.apis.dashboard
   (:require
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
