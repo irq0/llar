@@ -33,7 +33,7 @@
 
 (defstate state
   :start (atom (startup-read-state))
-  :stop (spit (.resolve (appconfig/state-dir) "state.edn") (converter/print-state @state)))
+  :stop (spit (nio2/resolve (appconfig/state-dir) "state.edn") (converter/print-state @state)))
 
 (defn get-current-state []
   (into {}
@@ -53,12 +53,18 @@
    :last-exception nil
    :retry-count 0})
 
+(defn- calc-last-duration [state]
+  (if (nil? (:last-attempt-ts state))
+    nil
+    (time/duration (:last-attempt-ts state) (time/zoned-date-time))))
+
 (defn- make-next-state
   ([state ok-status stats]
    (let [now (time/zoned-date-time)]
      (merge state
-            {:last-attempt-ts now
+            {:last-finished-ts now
              :last-successful-fetch-ts now
+             :last-duration (calc-last-duration state)
              :status ok-status
              :stats stats
              :last-exception nil
@@ -66,7 +72,8 @@
   ([state next-status next-retry-count last-exception]
    (let [now (time/zoned-date-time)]
      (merge state
-            {:last-attempt-ts now
+            {:last-finished-ts now
+             :last-duration (calc-last-duration state)
              :status next-status
              :last-exception last-exception
              :retry-count next-retry-count}))))
@@ -195,6 +202,9 @@
       :bug
       (log/debug "Skipping feed that triggered a bug: " k)
 
+      :updating
+      (log/debug "Update already running: " k)
+
       (log/debugf "Unknown status \"%s\": %s" cur-status k))
 
     (when force
@@ -207,6 +217,7 @@
       (if update?
         (do
           (swap! state update k assoc :status :updating)
+          (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
           (let [kw-args (mapcat identity (dissoc args :force))
                 new-state (apply update-feed! k kw-args)
                 new-status (:status new-state)]
