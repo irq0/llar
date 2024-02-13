@@ -1,4 +1,5 @@
-{:update-max-retry 5
+{:timezone "UTC"
+ :update-max-retry 5
  :state-dir "/var/lib/llar"
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"

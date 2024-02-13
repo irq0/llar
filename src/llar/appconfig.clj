@@ -1,17 +1,20 @@
 (ns llar.appconfig
   (:require
    [mount.core :refer [defstate]]
+   [clojure.spec.alpha :as s]
+   [llar.specs]
+   [slingshot.slingshot :refer [throw+]]
+   [hikari-cp.core :as hikari]
    [clojure.edn :as edn]
    [clojure.tools.logging :as log]
-   [clojure.java.io :as io]))
+   [clojure.java.io :as io])
+  (:import [java.time ZoneId]))
 
 (def +config-locations+
   [(io/resource "config.edn")
    (io/file (System/getenv "LLAR_CONFIG"))
    (io/file (System/getProperty "config"))])
 
-;; TODO run config through schema
-;; TODO check that :commands all exists and work!
 (defn try-read-config [file]
   (log/info "Reading config from" file)
   (try
@@ -20,8 +23,50 @@
       (log/error e "[Config] Failed to read config from " file)
       {})))
 
+(s/def :irq0-appconfig/state-dir :irq0/path-writable-dir)
+(s/def :irq0-appconfig/blob-store-dir :irq0/path-writable-dir)
+(s/def :irq0-appconfig/credentials-file :irq0/path-exists)
+(s/def :irq0-appconfig/runtime-config-dir :irq0/path-exists-is-dir)
+(s/def :irq0-appconfig/command :irq0/path)
+(s/def :irq0-appconfig/timezone (s/and string? #(ZoneId/of %)))
+(s/def :irq0-appconfig/commands (s/map-of keyword :irq0-appconfig/command))
+(s/def :irq0-appconfig/postgresql-pool hikari/validate-options)
+(s/def :irq0-appconfig/frontend :irq0-appconfig/postgresql-pool)
+(s/def :irq0-appconfig/backend :irq0-appconfig/postgresql-pool)
+(s/def :irq0-appconfig/postgresql (s/keys :req-un [:irq0-appconfig/frontend
+                                                   :irq0-appconfig/backend]))
+
+(s/def :irq0-llar/appconfig
+  (s/keys :req-un [:irq0-appconfig/state-dir
+                   :irq0-appconfig/blob-store-dir
+                   :irq0-appconfig/credentials-file
+                   :irq0-appconfig/runtime-config-dir
+                   :irq0-appconfig/timezone
+                   :irq0-appconfig/commands
+                   :irq0-appconfig/postgresql]))
+
+(defn verify-config [config]
+  (let [conform (s/conform :irq0-llar/appconfig config)]
+    (if (s/invalid? conform)
+      (let [err {:spec conform
+                 :explain (s/explain-str :irq0-llar/appconfig config)
+                 :type ::config-verification-failed
+                 :config config}]
+        (log/error "Config verification error: " err)
+        (throw+ err))
+      (do
+        (log/info "application config successfully verified")
+        (log/debug "application config: " config)
+        config))))
+
+;; TODO run config through schema
+;; TODO check that :commands all exists and work!
+;; TODO check that dirs and files exist
 (defn read-config []
-  (apply merge (map try-read-config (remove nil? +config-locations+))))
+  (->> (remove nil? +config-locations+)
+       (map try-read-config)
+       (apply merge)
+       (verify-config)))
 
 (defstate appconfig
   :start (read-config))
@@ -51,6 +96,9 @@
 
 (defn command [name]
   (get-in appconfig [:commands name]))
+
+(defn timezone []
+  (ZoneId/of (get appconfig :timezone)))
 
 (defn credentials [name]
   (try

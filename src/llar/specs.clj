@@ -2,6 +2,7 @@
   (:require
    [clojure.spec.alpha :as s]
    [org.bovinegenius.exploding-fish :as uri]
+   [nio2.core :as nio2]
    [clojure.java.io :as io]))
 
 (s/def :irq0/url-str (s/and string? #(try (io/as-url %) (catch Exception _ false))))
@@ -15,6 +16,11 @@
 (s/def :irq0/ts #(instance? java.time.ZonedDateTime %))
 (def iso-date-time-regex #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z|)$")
 (s/def :irq0/iso-date-time-str (s/and string? #(re-matches iso-date-time-regex %)))
+(def posix-path-regex #"[^\\0]+")
+(s/def :irq0/path (s/and string? #(re-matches posix-path-regex %)))
+(s/def :irq0/path-exists (s/and :irq0/path #(io/file %) #(nio2/exists? (.toPath (io/file %)))))
+(s/def :irq0/path-exists-is-dir (s/and :irq0/path-exists #(.isDirectory (io/file %))))
+(s/def :irq0/path-writable-dir (s/and :irq0/path-exists-is-dir #(.canWrite (io/file %))))
 
 ;; (def url-gen
 ;;   (gen/let [path (gen/not-empty (gen/list (gen/fmap string/lower-case
