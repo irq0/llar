@@ -81,6 +81,7 @@
      (puget/pprint-str
       x
       {:width 60
+       :seq-limit 5
        :sort-keys true
        :print-color true
        :print-handlers +pprint-handlers+
