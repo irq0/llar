@@ -209,11 +209,12 @@
         [:th "Running?"]
         [:th "Current"]]]
       [:tbody
-       (for [state states]
+       (for [state states
+             :let [val (pprint-html (mount/current-state state))]]
          [:tr
           [:td state]
           [:td (some? (some #{state} running))]
-          [:td (mount/current-state state)]])]])))
+          [:td val]])]])))
 
 (defn thread-tab []
   (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]
@@ -248,12 +249,12 @@
    [:a {:href "/metrics"} "Prometheus Metrics"]])
 
 (def tabs
-  {:sources source-tab
-   :memory memory-tab
-   :database database-tab
-   :state state-tab
-   :metrics metrics-tab
-   :threads thread-tab})
+  {:sources #'source-tab
+   :memory #'memory-tab
+   :database #'database-tab
+   :state #'state-tab
+   :metrics #'metrics-tab
+   :threads #'thread-tab})
 
 (defn status-index []
   (wrap-body
