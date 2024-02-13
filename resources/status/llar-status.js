@@ -28,6 +28,15 @@ $(document).ready(function () {
       });
     }
   });
+  $("#sources-datatable").on("click", "td.update-source", function () {
+    var tr = $(this).closest("tr");
+    var row = sources_datatable.row(tr);
+    var k = tr.children()[1].innerText;
+
+    $.post("/update/" + k, {}, (msg) => {
+      row.child(msg).show();
+    });
+  });
   $("#threads-datatable").on("click", "td.details-control", function () {
     var tr = $(this).closest("tr");
     var row = threads_datatable.row(tr);

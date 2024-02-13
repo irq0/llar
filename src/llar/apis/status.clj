@@ -2,14 +2,15 @@
   (:require
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
-   [compojure.core :refer [GET routes]]
+   [compojure.core :refer [GET POST routes]]
    [compojure.route :as route]
    [hiccup.core :refer [html]]
+   [hiccup.page :refer [html5]]
    [iapetos.export :as prometheus-export]
    [java-time :as time]
    [mount.core :as mount]
    [puget.printer :as puget]
-   [llar.apis.reader :refer [frontend-db]]
+   [llar.apis.reader :refer [frontend-db] :as reader]
    [llar.config :as config]
    [llar.human :as human]
    [llar.live :as live]
@@ -35,7 +36,7 @@
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/datatables/jquery.dataTables.min.js"}]
-   [:script {:src "/static/bootstrap//js/bootstrap.min.js"}]
+   [:script {:src "/static/bootstrap//js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-status.js"}]])
 
 (defn wrap-body [body]
@@ -91,6 +92,7 @@
       [:th ""]
       [:th "Key"]
       [:th "Status"]
+      [:th ""]
       [:th "Source"]
       [:th "Last Exception"]
       [:th "Last Success / Update"]
@@ -109,6 +111,7 @@
           [:td {:class "details-control"}]
           [:td {:class "col-xs-1"} k]
           [:td {:class "col-xs-1"} (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")")))]
+          [:td {:class "col-xs-1 update-source"} [:i {:class "fas fa-download"} "&thinsp;"]]
           [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
            (str (:src src))]
           [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
@@ -248,35 +251,41 @@
 
 (defn status-index []
   (wrap-body
-   (html [:h1 "llar 🔢 🔥 🚧"]
-         [:div {:class "contianer-fluid"}
-          [:ul {:class "nav nav-tabs"}
-           (for [[k _] tabs
-                 :let [tab-name (name k)
-                       tab-id (str tab-name "-tab")
-                       tab-href (str "#" tab-name)]]
+   (html5 [:h1 "llar 🔢 🔥 🚧"]
+          [:div {:class "contianer-fluid"}
+           [:ul {:class "nav nav-tabs"}
+            (for [[k _] tabs
+                  :let [tab-name (name k)
+                        tab-id (str tab-name "-tab")
+                        tab-href (str "#" tab-name)]]
 
-             [:li {:class "nav-item"}
-              [:a {:class (str "nav-link" (when (= k :home) " active"))
-                   :id tab-id
-                   :data-toggle "tab"
-                   :role "tab"
-                   :href tab-href}
-               tab-name]])]
-          [:div {:class "tab-content"
-                 :id "nav-tab-content"}
-           (for [[k func] tabs
-                 :let [tab-name (name k)
-                       cont-id tab-name]]
-             [:div {:class (str "tab-pane" (when (= k :home) " fade show active"))
-                    :id cont-id
-                    :role "tabpanel"}
-              (func)])]])))
+              [:li {:class "nav-item"}
+               [:a {:class (str "nav-link" (when (= k :home) " active"))
+                    :id tab-id
+                    :data-bs-toggle "tab"
+                    :role "tab"
+                    :href tab-href}
+                tab-name]])]
+           [:div {:class "tab-content"
+                  :id "nav-tab-content"}
+            (for [[k func] tabs
+                  :let [tab-name (name k)
+                        cont-id tab-name]]
+              [:div {:class (str "tab-pane" (when (= k :home) " fade show active"))
+                     :id cont-id
+                     :role "tabpanel"}
+               (func)])]])))
+
+(defn update-source [k]
+  {:future (future (update/update! (keyword k) :force true))})
 
 (def app
   (routes
 
    (GET "/" [] (status-index))
+
+   (POST "/update/:source-key" [source-key]
+     (update-source source-key))
 
    (GET "/source-details/:key" [key] (source-details key))
 
