@@ -9,11 +9,11 @@
 (s/def :irq0-fetch-item/fetch-ts #(instance? java.time.ZonedDateTime %))
 (s/def :irq0-fetch-item/tags  (s/coll-of keyword? :kind set?))
 (s/def :irq0-fetch-item/version int?)
-(s/def :irq0-fetch-item/language string?)
+(s/def :irq0-fetch-item/language (s/nilable string?))
 (s/def :irq0-fetch-item/ts #(instance? java.time.ZonedDateTime %))
 (s/def :irq0-fetch-item/title string?)
 (s/def :irq0-fetch-item/feed-type string?)
-(s/def :irq0-fetch-item/pub-ts :irq0/ts)
+(s/def :irq0-fetch-item/pub-ts (s/nilable :irq0/ts))
 (s/def :irq0-fetch-item/updated-ts :irq0/ts)
 (s/def :irq0-fetch-item/descriptions map?)
 
