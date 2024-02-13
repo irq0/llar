@@ -57,7 +57,7 @@
 
       (:dry options)
       (->
-       (mount/except [#'live/live #'lab/lab-sched #'config/change-watcher #'update/remove-unread-tags])
+       (mount/except [#'live/live #'lab/lab-sched #'config/change-watcher #'update/remove-unread-tags #'update/persist-state])
        (mount/except lab/lab-sched)
        mount/start)
 

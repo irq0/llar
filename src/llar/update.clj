@@ -25,19 +25,25 @@
         backup-file (.resolve state-dir
                               (str "llar_state.edn."
                                    (time/format :iso-instant (time/zoned-date-time))))]
-    (log/info "Using state file" state-file)
+    (log/info "using state file" state-file)
     (when (nio2/exists? state-file)
-      (log/info "State file exists. Creating backup copy in " backup-file)
+      (log/info "state file exists. creating backup copy in " backup-file)
       (nio2/copy-file state-file backup-file))
     (try+
-     (converter/read-edn-state (slurp state-file))
-     (catch java.lang.RuntimeException _
-       (log/warn "Failed to read state file. Starting with clean state")
+     (converter/read-edn-state (slurp (.toFile state-file)))
+     (catch java.lang.RuntimeException e
+       (log/warn e "failed to read state file. starting with clean state")
        {}))))
+
+(defn persist-state! [state]
+  (spit (.toFile (.resolve (appconfig/state-dir) "state.edn")) (converter/print-state state)))
 
 (defstate state
   :start (atom (startup-read-state))
-  :stop (spit (nio2/resolve (appconfig/state-dir) "state.edn") (converter/print-state @state)))
+  :stop (persist-state! @state))
+
+(defsched persist-state :hourly
+  (persist-state! @state))
 
 (defn get-current-state []
   (into {}
