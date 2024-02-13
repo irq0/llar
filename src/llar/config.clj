@@ -5,7 +5,7 @@
    [clojure.string :as string]
    [clojure.tools.logging :as log]
    [llar.appconfig :as appconfig]
-   [mount.core :refer [defstate]]
+   [mount.core :refer [defstate] :as mount]
    [nextjournal.beholder :as beholder]
    [llar.fetchutils :refer [make-reddit-proc]]
    [llar.fetch.custom]
@@ -19,6 +19,10 @@
 
 ;; contains all loaded sources
 (defonce srcs (atom {}))
+
+;; contains all schedulers created from configuration
+;; see llar.sched for other schedulers
+(defonce fetch-scheds (atom {}))
 
 (defn get-sources [] @srcs)
 
@@ -92,6 +96,25 @@
                                                           :dynamic? ~dynamic?})})
            (keyword src-key#)))))
 
+;; autoread feature: remove unread tag after a certain time
+
+(defonce autoread (atom {}))
+
+(defn get-autoread-scheds [] @autoread)
+
+(defmacro wrap-predicate [& body]
+  (when-not (nil? body)
+    `(fn [[k# source#]]
+       (let [~'$KEY k#
+             ~'$SRC (:src source#)
+             ~'$TAGS (:tags source#)]
+         (do ~@body)))))
+
+(defmacro defsched-remove-unread-tag [sched-key period pred]
+  `(swap! autoread assoc (keyword '~sched-key)
+          {:period ~period
+           :pred (wrap-predicate ~pred)}))
+
 (fetch bookmark nil :tags #{:bookmark})
 
 (defn- read-config [path]
@@ -99,8 +122,8 @@
     (let [reader (java.io.PushbackReader. r)]
       (loop [forms []]
         (let [form (try (read reader nil :eof)
-                        (catch Exception _
-                          (log/error "Error reading config file" path)
+                        (catch Exception e
+                          (log/error e "Error reading config file" path)
                           :eof))]
           (if (= form :eof)
             forms
@@ -117,7 +140,8 @@
                              with-redefs-fn])
     (require
      '[llar.appconfig :refer [credentials] :rename {credentials $credentials}]
-     '[llar.config :refer [fetch fetch-reddit srcs]]
+     '[llar.config :refer [fetch fetch-reddit srcs defsched-remove-unread-tag]
+       :rename {defsched-remove-unread-tag autoread}]
      '[llar.converter :refer [html2text] :rename {html2text $html2text}]
      '[llar.human :refer [truncate-ellipsis] :rename {truncate-ellipsis $ellipsify}]
      '[llar.fetchutils :refer [parse-date-to-zoned-data-time mercury-contents make-hacker-news-filter make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
@@ -133,7 +157,9 @@
      '[llar.fetch :refer [make-item-hash] :rename {make-item-hash $make-item-hash}]
      '[llar.http :refer [fetch parse-href] :rename {fetch $fetch parse-href $parse-href}]
      '[llar.src :as src]
+     '[llar.update :refer [defsched-feed-by-filter] :rename {defsched-feed-by-filter sched-fetch}]
      '[clojure.string :as string]
+     '[clojure.tools.logging :as log]
      '[hickory.select :as S]
      '[hickory.render :refer [hickory-to-html] :rename {hickory-to-html $hickory-to-html}]
      '[org.bovinegenius.exploding-fish :refer [uri path] :rename {uri $as-uri path $uri-path}]
@@ -146,10 +172,30 @@
                 post $http-post}])
     (cond
       (and (list? form) (#{'fetch 'fetch-reddit} (first form)))
-      (do (log/debugf "loading fetch \"%s\"" (second form))
-          (eval form))
+      (try
+        (log/tracef "loading fetch \"%s\"" (second form))
+        (eval form)
+        (catch Exception e
+          (log/error e "failed to load fetch def" (second form))))
+
+      (and (list? form) (#{'sched-fetch} (first form)))
+      (try
+        (log/debugf "loading scheduler \"%s\"" (second form))
+        (let [sched (eval form)]
+          (log/info "scheduler: " sched)
+          (swap! fetch-scheds assoc (keyword (second form)) sched)
+          (mount/start (vals @fetch-scheds)))
+        (catch Exception e
+          (log/error e "failed to load scheduler def" (second form))))
+
+      (and (list? form) (#{'autoread} (first form)))
+      (try
+        (log/debugf "loading autoread scheduler configuration \"%s\"" (second form))
+        (eval form)
+        (catch Exception e
+          (log/error e "failed to load autoread scheduler def" (second form))))
       :else
-      (log/warnf "unknown fetch config definition \"%s\". Skipping." (second form)))))
+      (log/warnf "unknown fetch config definition \"%s\". Skipping." form))))
 
 (defn- get-config-files []
   (filter #(string/ends-with? (.getName %) ".llar")

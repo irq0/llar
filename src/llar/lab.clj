@@ -4,6 +4,7 @@
    [llar.store :refer [backend-db]]
    [llar.db.search :as db-search]
    [llar.config :as config]
+   [llar.sched :refer [defsched canned-scheds]]
    [llar.fetch :as fetch]
    [cheshire.core :as json]
    [llar.postproc :as proc]
@@ -257,3 +258,31 @@
        (remove #(some (partial = "Massage") (map :name (:categories %))))
        (map #(merge (select-keys % [:district :name :location])
                     {:categories (string/join ", " (map :name (:categories %)))}))))
+
+(defsched update-db-search-indices
+  (:early-morning (canned-scheds))
+  (persistency/update-index! backend-db))
+
+(defsched update-clustered-saved-items
+  (:early-morning (canned-scheds))
+  (log/info "Updating saved items cluster")
+  (reset!
+   current-clustered-saved-items
+   (cluster-saved)))
+
+(defsched download-tagged-items
+  (:hourly (canned-scheds))
+  (log/info
+   "Downloaded tagged links:"
+   (vec (download-tagged-stuff))))
+
+(defsched copy-wallpapers
+  (:hourly (canned-scheds))
+  (log/info
+   "New Wallpaper: "
+   (copy-wallpapers-to-home)))
+
+(def lab-sched [#'update-db-search-indices
+                #'download-tagged-items
+                #'copy-wallpapers
+                #'update-clustered-saved-items])

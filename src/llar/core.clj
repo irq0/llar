@@ -14,7 +14,7 @@
    [llar.repl :as repl]
    [llar.update :as update]
    [llar.metrics :as metrics]
-   [llar.sched :as sched]
+   [llar.lab :as lab]
    [llar.apis.reader :as api-reader]
    [llar.http :as http]
    [llar.blobstore :as blobstore]
@@ -89,9 +89,8 @@
        #'webapp/status
        #'webapp/reader
 
-       #'sched/db-sched
-       #'sched/misc-sched
-       #'sched/feed-sched))
+       #'update/remove-unread-tags
+       #'lab/lab-sched))
 
     (cond
       (:init-db options)

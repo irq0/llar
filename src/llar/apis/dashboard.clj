@@ -207,14 +207,17 @@
        [:tr
         [:th "State"]
         [:th "Running?"]
-        [:th "Current"]]]
+        [:th "Type"]
+        [:th "Value"]]]
       [:tbody
        (for [state states
-             :let [val (pprint-html (mount/current-state state))]]
+             :let [val (mount/current-state state)
+                   pretty (if (= "#'llar.update/state" state) "..omitted.." (pprint-html val))]]
          [:tr
           [:td state]
           [:td (some? (some #{state} running))]
-          [:td val]])]])))
+          [:td (type val)]
+          [:td pretty]])]])))
 
 (defn thread-tab []
   (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]

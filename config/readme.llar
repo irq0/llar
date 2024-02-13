@@ -1,7 +1,8 @@
-;; Runtime "fetch" configuration
+;; Runtime configuration
 ;; Most of clojure and additional libraries are available
 
-;; Fetch feed
+;; Fetch a source with optional processing
+;;
 ;; (fetch SOURCE-KEY SOURCE & BODY)
 ;; BODY: :options, :tags, :post, :pre, :rm, :post-fns, :pre-fns, :rm-fn
 ;; :options - a set of options passed to the UI
@@ -54,6 +55,7 @@
 ;; clojure.string as string
 ;; hickory.select as S
 ;; java-time.api as time
+;; clojure.tools.logging as log
 
 ;; Example:
 
@@ -65,3 +67,42 @@
 ;; (fetch-reddit (src/reddit "games" :top) :min-score 2000
 ;;               :options #{:mark-read-on-view}
 ;;               :tags #{:gaming})
+
+
+;;
+;; Define schedules
+;;
+;; Fetch feeds by using filter predicates
+;;
+;; (sched-fetch SCHED-NAME CHIME-TIMES PREDICATE)
+;; SCHED-NAME - schedule identifier
+;; CHIME-TIMES - a chime periodic seq to run fetches at
+;;   either chime/periodic-seq or a keyword:
+;;     :during-daytime - Daily at 10:00, 12:00, 13:00, 14:00, 16:00, 18:00
+;;     :sundays - Sunday at 5:00
+;;     :early-morning - Daily at 7:00
+;;     :hourly - Every hour
+;; PREDICATE - a filter applied to all fetchable sources
+;;   context variables available:
+;;     $KEY - source key as keyword (fetch SOURCE-KEY). e.g (fetch irq0) -> :irq0
+;;     $SRC - source - to use with src/PREDICATES like src/mailbox?, src/reddit?, src/twitter?, src/feed?
+;;     $TAGS - a set of source tags
+
+;; Example:
+
+(sched-fetch
+  morning-news
+  :early-morning
+  (some #{:morning-news} $TAGS))
+
+
+;;
+;; Automatically set items read after a while
+;;
+;; (autoread SCHED-NAME PERIOD PREDICATE)
+;; SCHED-NAME - schedule identifier
+;; PERIOD - a java time Period. e.g (time/weeks 2)
+;; PREDICATE - a filter applied to all fetchable sources
+
+;; Example:
+(autoread reddit-ages-fast (time/weeks 4) (some #{:reddit} $TAGS))

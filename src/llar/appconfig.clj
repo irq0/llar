@@ -59,9 +59,7 @@
         (log/debug "application config: " config)
         config))))
 
-;; TODO run config through schema
 ;; TODO check that :commands all exists and work!
-;; TODO check that dirs and files exist
 (defn read-config []
   (->> (remove nil? +config-locations+)
        (map try-read-config)
@@ -97,8 +95,8 @@
 (defn command [name]
   (get-in appconfig [:commands name]))
 
-(defn timezone []
-  (ZoneId/of (get appconfig :timezone)))
+(defmacro timezone []
+  `(ZoneId/of (get appconfig :timezone)))
 
 (defn credentials [name]
   (try

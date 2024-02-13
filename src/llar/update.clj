@@ -5,12 +5,16 @@
    [mount.core :refer [defstate]]
    [nio2.core :as nio2]
    [slingshot.slingshot :refer [throw+ try+]]
+   [chime.core :as chime]
+   [llar.metrics :as metrics]
    [llar.appconfig :as appconfig]
    [llar.config :as config]
    [llar.converter :as converter]
    [llar.fetch :as fetch]
    [llar.postproc :as proc]
-   [llar.store :refer [store-items!]]))
+   [llar.sched :refer [defsched] :as sched]
+   [llar.store :as store :refer [store-items!]]
+   [llar.persistency :as persistency]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
@@ -270,3 +274,37 @@
         unfetched-keys (map key (filter (fn [[_k v]] (nil? (:status v))) sources-and-state))
         result (doall (pmap #(apply update! % args) unfetched-keys))]
     result))
+
+(defsched remove-unread-tags (:early-morning (sched/canned-scheds))
+  (doseq [[sched-name {:keys [period pred]}] (config/get-autoread-scheds)
+          :let [sources (updateable-sources)
+                filtered (filter pred sources)
+                keys (mapv first filtered)]]
+    (log/infof "[remove-unread-tags] %s keys to untag if older then %s: %s"
+               sched-name period keys)
+    (persistency/remove-unread-for-items-of-source-older-then!
+     store/backend-db
+     keys
+     (time/minus (time/zoned-date-time) period))))
+
+(defmacro defsched-feed-by-filter [sched-name chime-times pred]
+  (let [chime-times (if (keyword? chime-times)
+                      (get sched/canned-scheds chime-times)
+                      chime-times)]
+    `(defstate ~sched-name
+       :start (chime/chime-at
+               ~chime-times
+               (fn [~'$TIME]
+                 (metrics/with-log-exec-time-named ~sched-name
+                   (let [sources# (updateable-sources)
+                         filtered# (filter (fn [[k# source#]]
+                                             (let [~'$KEY k#
+                                                   ~'$SRC (:src source#)
+                                                   ~'$TAGS (:tags source#)]
+                                               ~pred))
+                                           sources#)
+                         keys# (mapv first filtered#)
+                         result# (pmap update! keys#)]
+                     (log/infof "Scheduled feed update %s: %s"
+                                '~sched-name (vec (interleave keys# result#)))))))
+       :stop (.close ~sched-name))))
