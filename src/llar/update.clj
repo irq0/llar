@@ -275,7 +275,7 @@
         result (doall (pmap #(apply update! % args) unfetched-keys))]
     result))
 
-(defsched remove-unread-tags (:early-morning (sched/canned-scheds))
+(defsched remove-unread-tags :early-morning
   (doseq [[sched-name {:keys [period pred]}] (config/get-autoread-scheds)
           :let [sources (updateable-sources)
                 filtered (filter pred sources)
@@ -288,12 +288,12 @@
      (time/minus (time/zoned-date-time) period))))
 
 (defmacro defsched-feed-by-filter [sched-name chime-times pred]
-  (let [chime-times (if (keyword? chime-times)
-                      (get sched/canned-scheds chime-times)
-                      chime-times)]
-    `(defstate ~sched-name
-       :start (chime/chime-at
-               ~chime-times
+  `(defstate ~sched-name
+     :start (let [chime-times# (if (keyword? ~chime-times)
+                                 (get sched/canned-scheds ~chime-times)
+                                 ~chime-times)]
+              (chime/chime-at
+               chime-times#
                (fn [~'$TIME]
                  (metrics/with-log-exec-time-named ~sched-name
                    (let [sources# (updateable-sources)
@@ -306,5 +306,5 @@
                          keys# (mapv first filtered#)
                          result# (pmap update! keys#)]
                      (log/infof "Scheduled feed update %s: %s"
-                                '~sched-name (vec (interleave keys# result#)))))))
-       :stop (.close ~sched-name))))
+                                '~sched-name (vec (interleave keys# result#))))))))
+     :stop (.close ~sched-name)))

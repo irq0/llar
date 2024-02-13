@@ -4,7 +4,7 @@
    [llar.store :refer [backend-db]]
    [llar.db.search :as db-search]
    [llar.config :as config]
-   [llar.sched :refer [defsched canned-scheds]]
+   [llar.sched :refer [defsched]]
    [llar.fetch :as fetch]
    [cheshire.core :as json]
    [llar.postproc :as proc]
@@ -260,24 +260,24 @@
                     {:categories (string/join ", " (map :name (:categories %)))}))))
 
 (defsched update-db-search-indices
-  (:early-morning (canned-scheds))
+  :early-morning
   (persistency/update-index! backend-db))
 
 (defsched update-clustered-saved-items
-  (:early-morning (canned-scheds))
+  :early-morning
   (log/info "Updating saved items cluster")
   (reset!
    current-clustered-saved-items
    (cluster-saved)))
 
 (defsched download-tagged-items
-  (:hourly (canned-scheds))
+  :hourly
   (log/info
    "Downloaded tagged links:"
    (vec (download-tagged-stuff))))
 
 (defsched copy-wallpapers
-  (:hourly (canned-scheds))
+  :hourly
   (log/info
    "New Wallpaper: "
    (copy-wallpapers-to-home)))

@@ -12,17 +12,17 @@
    [llar.db.search]
    [llar.repl :as repl]
    [llar.update :as update]
-   [llar.metrics :as metrics]
+   [llar.metrics]
    [llar.lab :as lab]
-   [llar.apis.reader :as api-reader]
+   [llar.apis.reader]
    [llar.http :as http]
-   [llar.blobstore :as blobstore]
+   [llar.blobstore]
    [llar.live :as live]
    [llar.config :as config]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
-   [llar.webapp :as webapp])
+   [llar.webapp])
   (:gen-class))
 
 (def cli-options
@@ -56,37 +56,13 @@
        #'store/backend-db)
 
       (:dry options)
-      (mount/start
-       #'api-reader/frontend-db
-       #'store/backend-db
-
-       #'blobstore/locks
-
-       #'update/state
-       #'metrics/prom-registry
-       #'config/change-watcher
-
-       #'webapp/status
-       #'webapp/reader)
+      (->
+       (mount/except [#'live/live #'lab/lab-sched #'config/change-watcher #'update/remove-unread-tags])
+       (mount/except lab/lab-sched)
+       mount/start)
 
       :else
-      (mount/start
-       #'api-reader/frontend-db
-       #'store/backend-db
-
-       #'blobstore/locks
-
-       #'update/state
-       #'metrics/prom-registry
-
-       #'live/live
-
-       #'webapp/status
-       #'webapp/reader
-
-       #'config/change-watcher
-       #'update/remove-unread-tags
-       #'lab/lab-sched))
+      (mount/start))
 
     (cond
       (:init-db options)
@@ -95,17 +71,17 @@
                       :db store/backend-db
                       :migration-dir "migrations/"
                       :init-script "init.sql"}]
-          (log/info "Initializing database" config)
+          (log/info "initializing database" config)
           (log/info (migratus/init config))
           (log/info (migratus/migrate config)))
-        (log/info "Finished DB migrations. Exiting")
+        (log/info "finished DB migrations. exiting")
         (System/exit 0))
 
       (not (:dry options))
       (doseq [[key db-config] (:postgresql appconfig/appconfig)
               :let [db-spec (db/make-postgresql-dbspec db-config)
                     store (db/make-postgresql-datastore db-spec)]]
-        (log/info "Smoke testing database: "
+        (log/info "smoke testing database: "
                   key
                   (vec (persistency/get-table-row-counts store)))))
 
@@ -113,11 +89,12 @@
                   :db store/backend-db
                   :migration-dir "migrations/"}
           result (migratus/migrate config)]
-      (log/info "Running database migrations: " (if (nil? result) "ok" result)))
+      (log/info "database migrations: " (if (nil? result) "ok" result)))
 
     (when-not (:dry options)
-      (http/update-domain-blocklist!))
+      (http/update-domain-blocklist!)
+      (config/load-all))
 
-    (config/load-all)
     (log/info "🖖")
+    (log/debug "Running states: " (mount/running-states))
     (log/debug "Startup options: " options)))

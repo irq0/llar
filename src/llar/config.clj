@@ -130,7 +130,7 @@
             (recur (conj forms form))))))))
 
 (defn- eval-config-form [form]
-  (binding [*ns* (create-ns (gensym 'llar.config.eval))]
+  (binding [*ns* (create-ns 'llar.config.eval)]
     ;; exclude list based on clojail blacklist-symbols
     (refer-clojure :exclude [eval read alter-var-root intern
                              load-string load-reader ns-resolve resolve find-var
@@ -180,7 +180,7 @@
 
       (and (list? form) (#{'sched-fetch} (first form)))
       (try
-        (log/debugf "loading scheduler \"%s\"" (second form))
+        (log/debugf "loading scheduler \"%s\": %s" (second form) form)
         (let [sched (eval form)]
           (log/debug "creating scheduler: " sched)
           (swap! fetch-scheds assoc (keyword (second form)) sched)

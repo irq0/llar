@@ -92,9 +92,6 @@
 (defn command [name]
   (get-in appconfig [:commands name]))
 
-(defmacro timezone []
-  `(ZoneId/of (get appconfig :timezone)))
-
 (defn credentials [name]
   (try
     (let [credentials (edn/read-string (slurp (get appconfig :credentials-file)))]
