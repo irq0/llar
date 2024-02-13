@@ -26,6 +26,10 @@
       "http://example.com/foo" (uut/absolutify-url "/foo" "http://example.com")
       "http://example.com/foo/bar" (uut/absolutify-url "/foo/bar" "http://example.com")))
   (testing
+   "fragments"
+    (are [x y] (= (str x) (str (uut/absolutify-url y "http://example.com/")))
+      "#fn-1" "#fn-1"))
+  (testing
    "leave special urls alone"
     (are [x] (= (str x) (str (uut/absolutify-url x "http://example.com/")))
       "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ=="

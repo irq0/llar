@@ -100,7 +100,7 @@
     (= (uri/scheme-relative uri) "//")
     (uri/scheme-relative "/")
 
-    (nil? (uri/scheme uri))
+    (and (uri/host uri) (nil? (uri/scheme uri)))
     (uri/scheme "https")))
 
 (defn parse-url [s]
@@ -138,6 +138,10 @@
       ;; do not touch data / mailto urls!
       (contains? #{"data" "mailto"} scheme)
       (uri/uri raw-href)
+
+      ;; try to leave fragment only uris alone - they are mostly used for in-page navigation
+      (and (nil? (uri/host url)) (string/starts-with? (uri/path url) "#"))
+      (uri/uri url)
 
       (uri/absolute? url)
       (append-path-if-not-exist url)
