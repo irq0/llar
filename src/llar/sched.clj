@@ -1,6 +1,7 @@
 (ns llar.sched
   (:require
    [chime.core :as chime]
+   [llar.appconfig :as appconfig]
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [mount.core :refer [defstate]]
@@ -11,12 +12,12 @@
    [llar.store :refer [backend-db]]
    [llar.update :as feed-update])
   (:import
-   [java.time Duration ZoneId ZonedDateTime]))
+   [java.time Duration ZonedDateTime]))
 
 (defn- today-at [hour minute]
   (.toInstant
    (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime hour minute))
-                     (ZoneId/of "Europe/Berlin"))))
+                     (appconfig/timezone))))
 
 (defmacro defsched [sched-name chime-times & body]
   `(defstate ~sched-name
@@ -111,7 +112,7 @@
 (def during-daytime
   (->>
    (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
-                                         (ZoneId/of "Europe/Berlin"))
+                                         (appconfig/timezone))
                        (Duration/ofHours 1))
    (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
    (chime/without-past-times)))
@@ -119,7 +120,7 @@
 (def sundays
   (->>
    (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
-                                         (ZoneId/of "Europe/Berlin"))
+                                         (appconfig/timezone))
                        (Duration/ofDays 1))
    (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
    (chime/without-past-times)))
@@ -127,7 +128,7 @@
 (def early-morning
   (->>
    (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
-                                         (ZoneId/of "Europe/Berlin"))
+                                         (appconfig/timezone))
                        (Duration/ofDays 1))
    (chime/without-past-times)))
 
@@ -135,7 +136,7 @@
   (->>
    (chime/periodic-seq  (-> (java.time.LocalDate/now)
                             (.atStartOfDay
-                             (ZoneId/of "Europe/Berlin")))
+                             (appconfig/timezone)))
                         (Duration/ofHours 1))
    (chime/without-past-times)))
 
