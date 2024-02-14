@@ -48,9 +48,14 @@
 
 (defmacro defsched [sched-name chime-times-or-keyword & body]
   `(defstate ~sched-name
-     :start (chime/chime-at
-             (resolve-chime-times ~chime-times-or-keyword)
-             (fn [~'$TIME]
-               (metrics/with-log-exec-time
-                 (do ~@body))))
+     :start (vary-meta (chime/chime-at
+                        (resolve-chime-times ~chime-times-or-keyword)
+                        (fn [~'$TIME]
+                          (metrics/with-log-exec-time
+                            (do ~@body))))
+                       merge
+                       {:sched-name (str '~sched-name)
+                        :chime-times (when (keyword? ~chime-times-or-keyword) ~chime-times-or-keyword)
+                        :sched-type :defsched
+                        :pred (quote ~body)})
      :stop (.close ~sched-name)))

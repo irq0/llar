@@ -295,19 +295,24 @@
 
 (defmacro defsched-feed-by-filter [sched-name chime-times pred]
   `(defstate ~sched-name
-     :start (chime/chime-at
-             (sched/resolve-chime-times ~chime-times)
-             (fn [~'$TIME]
-               (metrics/with-log-exec-time-named ~sched-name
-                 (let [sources# (updateable-sources)
-                       filtered# (filter (fn [[k# source#]]
-                                           (let [~'$KEY k#
-                                                 ~'$SRC (:src source#)
-                                                 ~'$TAGS (:tags source#)]
-                                             ~pred))
-                                         sources#)
-                       keys# (mapv first filtered#)
-                       result# (pmap update! keys#)]
-                   (log/infof "Scheduled feed update %s: %s"
-                              '~sched-name (vec (interleave keys# result#)))))))
+     :start (vary-meta (chime/chime-at
+                        (sched/resolve-chime-times ~chime-times)
+                        (fn [~'$TIME]
+                          (metrics/with-log-exec-time-named ~sched-name
+                            (let [sources# (updateable-sources)
+                                  filtered# (filter (fn [[k# source#]]
+                                                      (let [~'$KEY k#
+                                                            ~'$SRC (:src source#)
+                                                            ~'$TAGS (:tags source#)]
+                                                        ~pred))
+                                                    sources#)
+                                  keys# (mapv first filtered#)
+                                  result# (pmap update! keys#)]
+                              (log/infof "Scheduled feed update %s: %s"
+                                         '~sched-name (vec (interleave keys# result#)))))))
+                       merge
+                       {:sched-name (str '~sched-name)
+                        :chime-times (when (keyword? ~chime-times) ~chime-times)
+                        :sched-type :update-feed-by-filter
+                        :pred (quote ~pred)})
      :stop (.close ~sched-name)))

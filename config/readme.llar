@@ -68,7 +68,6 @@
 ;;               :options #{:mark-read-on-view}
 ;;               :tags #{:gaming})
 
-
 ;;
 ;; Define schedules
 ;;

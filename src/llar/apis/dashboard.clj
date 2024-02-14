@@ -252,10 +252,36 @@
    [:h2 "Metrics"]
    [:a {:href "/metrics"} "Prometheus Metrics"]])
 
+(defn schedule-tab []
+  (let [states (mount/find-all-states)]
+    (html
+     [:h2 "State"]
+     [:table {:class "table"}
+      [:thead
+       [:tr
+        [:th "Schedule Name"]
+        [:th "State Name"]
+        [:th "Type"]
+        [:th "Canned Schedule"]
+        [:th "Code"]]]
+      [:tbody
+       (for [state-name states
+             :let [state (mount/current-state state-name)
+                   {:keys [sched-name sched-type chime-times pred]} (meta state)]
+             :when (re-find #"chime\.core" (str state))]
+
+         [:tr
+          [:td sched-name]
+          [:td state-name]
+          [:td sched-type]
+          [:td chime-times]
+          [:td (pprint-html pred)]])]])))
+
 (def tabs
   {:sources #'source-tab
    :memory #'memory-tab
    :database #'database-tab
+   :schedules #'schedule-tab
    :state #'state-tab
    :metrics #'metrics-tab
    :threads #'thread-tab})
