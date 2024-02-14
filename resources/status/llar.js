@@ -401,7 +401,7 @@ $(document).ready(function () {
     var vid = $(this).data("vid");
     var target = $(this).data("target");
     $("#" + target).html(
-      '<iframe class="embed-responsive-item"' +
+      '<iframe class="img-fluid"' +
         ' src="https://www.youtube.com/embed/' +
         vid +
         '" allowfullscreen="true">',

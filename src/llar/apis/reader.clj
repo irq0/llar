@@ -616,11 +616,11 @@
                thumb (if (= max-thumb maxres-url)
                        (try-blobify-url! hq-url)
                        max-thumb)]
-           [:div {:class "embed-responsive embed-responsive-4by3"}
+           [:div {:class "ratio ratio 4x3"}
             [:div {:id (str "youtube-container-" (last vid))}
-             [:img {:class "lazy-youtube embed-responsive-item"
+             [:img {:class "lazy-youtube img-fluid"
                     :data-vid (last vid)
-                    :data-bs-target (str "youtube-container-" (last vid))
+                    :data-target (str "youtube-container-" (last vid))
                     :src thumb}]]])))
 
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]
