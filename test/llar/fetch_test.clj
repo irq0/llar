@@ -124,7 +124,19 @@
     :n-items 1}])
 
 (deftest basics-test
-  (mount/start #'appconfig/appconfig)
+  (mount/start-with {#'appconfig/appconfig {:update-max-retry 5
+                                            :state-dir "/tmp"
+                                            :credentials-file "/tmp/credentials.edn"
+                                            :runtime-config-dir "/tmp"
+                                            :commands {:mercury-parser "/bin/true"
+                                                       :youtube-dl "/bin/true"
+                                                       :pdftocairo "/bin/true"
+                                                       :pdf2htmlex "/bin/true"
+                                                       :pandoc "/bin/true"
+                                                       :w3m "/bin/true"
+                                                       :lynx "/bin/true"
+                                                       :html2text "/bin/true"}
+                                            :blob-store-dir "/tmp"}})
   (doseq [{:keys [src fake-fetch fake-http-get n-items]} basic-tests]
     (testing (str src)
       (with-redefs [http/fetch fake-fetch
