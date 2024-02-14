@@ -10,6 +10,7 @@
    [llar.appconfig :as appconfig]
    [llar.config :as config]
    [llar.converter :as converter]
+   [iapetos.core :as prometheus]
    [llar.fetch :as fetch]
    [llar.postproc :as proc]
    [llar.sched :refer [defsched] :as sched]
@@ -70,20 +71,22 @@
 
 (defn- make-next-state
   ([state ok-status stats]
-   (let [now (time/zoned-date-time)]
+   (let [now (time/zoned-date-time)
+         duration (calc-last-duration state)]
      (merge state
             {:last-finished-ts now
              :last-successful-fetch-ts now
-             :last-duration (calc-last-duration state)
+             :last-duration duration
              :status ok-status
              :stats stats
              :last-exception nil
              :retry-count 0})))
   ([state next-status next-retry-count last-exception]
-   (let [now (time/zoned-date-time)]
+   (let [now (time/zoned-date-time)
+         duration (calc-last-duration state)]
      (merge state
             {:last-finished-ts now
-             :last-duration (calc-last-duration state)
+             :last-duration duration
              :status next-status
              :last-exception last-exception
              :retry-count next-retry-count}))))
@@ -231,6 +234,11 @@
           (let [kw-args (mapcat identity (dissoc args :force))
                 new-state (apply update-feed! k kw-args)
                 new-status (:status new-state)]
+            (when-let [dur (:last-duration new-state)]
+              (prometheus/observe metrics/prom-registry
+                                  :llar/update-duration-millis
+                                  {:source (str k)}
+                                  (.toMillis dur)))
             (log/debugf "[%s] State: %s -> %s " k
                         cur-status new-status)
             (swap! state (fn [current]

@@ -10,14 +10,17 @@
              (jvm/initialize)
              (ring/initialize)
              (prometheus/register
-              (prometheus/histogram :compile-sources)
-              (prometheus/histogram :download-item-content)
-              (prometheus/histogram :active-sources)
-              (prometheus/histogram :blobstore-get)
-              (prometheus/histogram :tag-list)
-              (prometheus/histogram :render-html)
-              (prometheus/histogram :render-download)
-              (prometheus/histogram :items-current-view))))
+              (prometheus/gauge :llar/update-duration-millis
+                                {:description "Time it took to fetch and process a source"
+                                 :labels [:source]})
+              (prometheus/histogram :llar/compile-sources)
+              (prometheus/histogram :llar/download-item-content)
+              (prometheus/histogram :llar/active-sources)
+              (prometheus/histogram :llar/blobstore-get)
+              (prometheus/histogram :llar/tag-list)
+              (prometheus/histogram :llar/render-html)
+              (prometheus/histogram :llar/render-download)
+              (prometheus/histogram :llar/items-current-view))))
 
 (defmacro with-log-exec-time [& body]
   `(let [start# (java.lang.System/nanoTime)

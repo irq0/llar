@@ -1254,16 +1254,16 @@
 (defn download-item-content
   "Download Selected Item Content"
   [params]
-  (let [sources (metrics/with-prom-exec-time :compile-sources
+  (let [sources (metrics/with-prom-exec-time :llar/compile-sources
                   (persistency/get-sources frontend-db (config/get-sources)))
 
-        items (metrics/with-prom-exec-time :items-current-view
+        items (metrics/with-prom-exec-time :llar/items-current-view
                 (get-items-for-current-view sources params))
         item (first items)
 
         data (get-in item [:data (:data params) (:content-type params)])
 
-        body (metrics/with-prom-exec-time :render-download
+        body (metrics/with-prom-exec-time :llar/render-download
                (cond (string? data) data
                      (instance? (Class/forName "[B") data) (java.io.ByteArrayInputStream. data)
                      :else nil))]
@@ -1290,15 +1290,15 @@
                          override
                          orig-fltr))
 
-         item-tags (future (metrics/with-prom-exec-time :tag-list
+         item-tags (future (metrics/with-prom-exec-time :llar/tag-list
                              (doall (persistency/get-tags frontend-db))))
 
-         sources (metrics/with-prom-exec-time :compile-sources
+         sources (metrics/with-prom-exec-time :llar/compile-sources
                    (doall (persistency/get-sources frontend-db (config/get-sources))))
-         items (future (metrics/with-prom-exec-time :items-current-view
+         items (future (metrics/with-prom-exec-time :llar/items-current-view
                          (doall (get-items-for-current-view sources params))))
          ;; right sidebar
-         active-sources (metrics/with-prom-exec-time :active-sources
+         active-sources (metrics/with-prom-exec-time :llar/active-sources
                           (doall
                            (persistency/sources-merge-in-tags-counts
                             frontend-db
@@ -1333,7 +1333,7 @@
             title (short-page-headline params)
 
             html (metrics/with-prom-exec-time
-                   :render-html
+                   :llar/render-html
                    (html5
                     [:html {:lang "en"}
                      (html-header title (:mode params) (some-> params :items first))
@@ -1363,9 +1363,9 @@
 (def update-futures (atom {}))
 
 (defn update-sources [params]
-  (let [sources (metrics/with-prom-exec-time :compile-sources
+  (let [sources (metrics/with-prom-exec-time :llar/compile-sources
                   (doall (persistency/get-sources frontend-db (config/get-sources))))
-        active-sources (metrics/with-prom-exec-time :active-sources
+        active-sources (metrics/with-prom-exec-time :llar/active-sources
                          (doall
                           (persistency/sources-merge-in-tags-counts
                            frontend-db
@@ -1379,9 +1379,9 @@
             :future (str fut)}}))
 
 (defn update-sources-status [params]
-  (let [sources (metrics/with-prom-exec-time :compile-sources
+  (let [sources (metrics/with-prom-exec-time :llar/compile-sources
                   (doall (persistency/get-sources frontend-db (config/get-sources))))
-        active-sources (metrics/with-prom-exec-time :active-sources
+        active-sources (metrics/with-prom-exec-time :llar/active-sources
                          (doall
                           (persistency/sources-merge-in-tags-counts
                            frontend-db
@@ -1529,7 +1529,7 @@
                          override
                          orig-fltr))
 
-         item-tags (future (metrics/with-prom-exec-time :tag-list
+         item-tags (future (metrics/with-prom-exec-time :llar/tag-list
                              (doall (persistency/get-tags frontend-db))))
 
          params (merge params {:sources {}
@@ -1544,7 +1544,7 @@
          title (short-page-headline params)
 
          html (metrics/with-prom-exec-time
-                :render-html
+                :llar/render-html
                 (html5
                  [:html {:lang "en"}
                   (html-header title (:mode params) (some-> params :items first))
@@ -1759,7 +1759,7 @@
 
    (GET "/blob/:h" [h]
      (try+
-      (let [blob (metrics/with-prom-exec-time :blobstore-get
+      (let [blob (metrics/with-prom-exec-time :llar/blobstore-get
                    (blobstore/get-blob h))]
         {:status 200
          :headers {"Content-Type" (:mime-type blob)
