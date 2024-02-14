@@ -9,6 +9,8 @@
    [clj-stacktrace.repl :as stacktrace-repl]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
+   [iapetos.collector.ring :refer [wrap-instrumentation]]
+   [llar.metrics :as metrics]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
 (defn exception-response [request ex]
@@ -43,7 +45,7 @@
         (log/error ex "Exception during request" request)
         (exception-response request ex)))))
 
-(def dashboard-app
+(defn dashboard-app []
   (->
    status/app
    ring.middleware.json/wrap-json-body
@@ -56,7 +58,7 @@
    wrap-exception
    ring.middleware.lint/wrap-lint))
 
-(def reader-app
+(defn reader-app []
   (->
    reader/app
    ring.middleware.json/wrap-json-response
@@ -65,7 +67,8 @@
    ring.middleware.json/wrap-json-params
    ring.middleware.gzip/wrap-gzip
    ring.middleware.not-modified/wrap-not-modified
-   wrap-exception))
+   wrap-exception
+   (wrap-instrumentation metrics/prom-registry)))
 
 (defn try-start-app [app port]
   (try+
@@ -78,9 +81,9 @@
     (.stop jetty)))
 
 (defstate dashboard
-  :start (try-start-app dashboard-app 9999)
+  :start (try-start-app (dashboard-app) 9999)
   :stop (try-stop-app dashboard))
 
 (defstate reader
-  :start (try-start-app reader-app 8023)
+  :start (try-start-app (reader-app) 8023)
   :stop (try-stop-app reader))

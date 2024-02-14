@@ -1,10 +1,14 @@
 (ns llar.metrics
   (:require
    [iapetos.core :as prometheus]
+   [iapetos.collector.jvm :as jvm]
+   [iapetos.collector.ring :as ring]
    [mount.core :refer [defstate]]))
 
 (defstate prom-registry
   :start (-> (prometheus/collector-registry)
+             (jvm/initialize)
+             (ring/initialize)
              (prometheus/register
               (prometheus/histogram :compile-sources)
               (prometheus/histogram :download-item-content)

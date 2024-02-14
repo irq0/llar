@@ -76,6 +76,7 @@
                  [prismatic/schema-generators "0.1.5"]
 
                  ;; monitoring
+                 [io.prometheus/simpleclient_hotspot "0.16.0"]
                  [clj-commons/iapetos "0.1.13"]
                  [com.clojure-goes-fast/clj-memory-meter "0.3.0"]
 
