@@ -32,6 +32,9 @@
       (nio2/copy-file state-file backup-file))
     (try+
      (converter/read-edn-state (slurp (.toFile state-file)))
+     (catch java.io.FileNotFoundException _
+       (log/warn "state file not found. starting with clean state")
+       {})
      (catch java.lang.RuntimeException e
        (log/warn e "failed to read state file. starting with clean state")
        {}))))
