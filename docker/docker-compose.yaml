@@ -52,7 +52,6 @@ services:
       - ./docker-config.edn:/var/lib/llar/config.edn
       - ./credentials.edn:/var/lib/llar/credentials.edn
       - ../config:/var/lib/llar/config/
-    command: --dry
     mem_limit: 4g
     ports:
       - "8023:8023"
