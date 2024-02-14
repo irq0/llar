@@ -171,9 +171,17 @@
        :rename {get $http-get
                 post $http-post}])
     (cond
+      (and (list? form) (#{'highlight} (first form)) (#{'words 'authors} (second form)))
+      (try
+        (log/debugf "loading highlight config \"%s\"" form)
+        (swap! proc/highlight-matches assoc (keyword (second form))
+               (into #{} (map string/lower-case (drop 2 form))))
+        (catch Exception e
+          (log/error e "failed to load highlight def" (second form))))
+
       (and (list? form) (#{'fetch 'fetch-reddit} (first form)))
       (try
-        (log/tracef "loading fetch \"%s\"" (second form))
+        (log/debugf "loading fetch \"%s\"" (second form))
         (eval form)
         (catch Exception e
           (log/error e "failed to load fetch def" (second form))))
@@ -195,7 +203,7 @@
         (catch Exception e
           (log/error e "failed to load autoread scheduler def" (second form))))
       :else
-      (log/warnf "unknown fetch config definition \"%s\". Skipping." form))))
+      (log/warnf "unknown config definition \"%s\". Skipping." form))))
 
 (defn- get-config-files []
   (filter #(string/ends-with? (.getName %) ".llar")

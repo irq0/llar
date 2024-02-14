@@ -37,15 +37,8 @@
 ;; All item processors
 ;; first = first in chain, last = last in chain
 
-(def +highlight-words+
-  #{"quobyte" "marcel lauhoff" "ceph" "ionos" "fscrypt" "suse" "irq0"})
-
-(def +highlight-authors+
-  (into #{} (map string/lower-case
-                 ["Sascha Lobo"
-                  "Sibylle Berg"
-                  "Scott Galloway"
-                  "Kara Swisher"])))
+(defonce highlight-matches
+  (atom {}))
 
 (defn all-items-process-first [item _ state]
   (log/trace "All items processor (first)" (str item))
@@ -63,8 +56,8 @@
                                                       (get-in item [:entry :authors])
                                                       (remove nil?)
                                                       (map string/lower-case)))
-                                           +highlight-authors+)) 0)
-                   (> (count (intersection names-and-nouns +highlight-words+)) 0))]
+                                           (:authors @highlight-matches))) 0)
+                   (> (count (intersection names-and-nouns (:words @highlight-matches))) 0))]
     (cond-> item highlight (update-in [:meta :tags] conj :highlight))))
 
 ;;; Item postprocessing protocol

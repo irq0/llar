@@ -94,7 +94,6 @@
   :early-morning
   (some #{:morning-news} $TAGS))
 
-
 ;;
 ;; Automatically set items read after a while
 ;;
@@ -105,3 +104,10 @@
 
 ;; Example:
 (autoread reddit-ages-fast (time/weeks 4) (some #{:reddit} $TAGS))
+
+;;
+;; Highlight - add tag :highlight if a word, author matches
+;;
+
+(highlight words "llar" "rss")
+(highlight authors "Kara Swisher")
