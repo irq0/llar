@@ -4,6 +4,7 @@
                                 make-meta
                                 make-item-hash
                                 tag-items]]
+            [clojure.spec.alpha :as s]
             [llar.src]
             [llar.postproc :refer [ItemProcessor]]
             [llar.persistency :refer [CouchItem]]
@@ -27,7 +28,6 @@
             [llar.item]
             [clj-rome.reader :as rome]
             [clj-http.client :as http]
-            [clojure.spec.alpha :as s]
             [cheshire.core :as cheshire]
             [java-time.api :as time])
   (:import (llar.src Feed)))
@@ -231,11 +231,13 @@
 
       (log/debug (str src) " Parsed URLs: " {:base-url base-url
                                              :urls item-urls})
-      (when-not (coll? item-urls)
-        (throw+ {:type ::selector-found-shit
-                 :extractor item-extractor
-                 :urls item-urls
-                 :selector (:urls selectors)}))
+      (let [conform (s/conform (s/coll-of :irq0/url) item-urls)]
+        (when (s/invalid? conform)
+          (throw+ {:type ::selector-found-shit
+                   :spec-explain (s/explain-str (s/coll-of :irq0/url) item-urls)
+                   :extractor item-extractor
+                   :urls item-urls
+                   :selector (:urls selectors)})))
       (doall
        (for [raw-item-url item-urls
              :let [base-url (get-base-url-with-path raw-item-url)
