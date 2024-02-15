@@ -50,6 +50,8 @@ $(document).ready(function () {
         $(row).addClass("table-success");
       } else if (data[1] == ":temp-fail") {
         $(row).addClass("table-warning");
+      } else if (data[1] == ":updating") {
+        $(row).addClass("table-info");
       } else if (data[1] == ":perm-fail") {
         $(row).addClass("table-danger");
       } else if (data[1] == ":bug") {
@@ -86,6 +88,12 @@ $(document).ready(function () {
         row.child(msg).show();
       });
     }
+  });
+
+  $("#sources-datatable").on("click", "tr", function () {
+    var tr = $(this);
+    var row = sources_datatable.row(tr);
+    row.child.hide();
   });
 
   $("#sources-datatable").on("click", ".btn-update-source", function () {
