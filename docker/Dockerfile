@@ -1,8 +1,14 @@
 FROM ubuntu:jammy
 
+ARG VERSION
+
 LABEL org.opencontainers.image.source=https://github.com/irq0/llar
-LABEL org.opencontainers.image.description="LLAR - Live Long and Read: Container Image"
-LABEL org.opencontainers.image.licenses=GPL
+LABEL org.opencontainers.image.url=https://llar.dev
+LABEL org.opencontainers.image.title="llar"
+LABEL org.opencontainers.image.description="Live Long and Read: Container Image"
+LABEL org.opencontainers.image.authors="ml+llar@irq0.org"
+LABEL org.opencontainers.image.licenses=AGPLv3
+LABEL org.opencontainers.image.version=$VERSION
 
 RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
@@ -36,7 +42,7 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
 RUN mkdir -p /opt/llar
-COPY target/llar-0.1.0-SNAPSHOT-standalone.jar /opt/llar/standalone.jar
+COPY target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
 ENV LLAR_CONFIG /var/lib/llar/config.edn
 ENV JDK_JAVA_OPTIONS "-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"

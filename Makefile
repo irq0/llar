@@ -96,4 +96,4 @@ target/llar-$(LLAR_VERSION)-standalone.jar: $(CLOJURE_FILES)
 uberjar: target/llar-$(LLAR_VERSION)-standalone.jar
 
 docker-image: uberjar docker/Dockerfile
-	docker build --network host -t ghcr.io/irq0/llar:latest -f docker/Dockerfile .
+	docker build --build-arg VERSION=$(LLAR_VERSION) --network host -t ghcr.io/irq0/llar:snapshot -f docker/Dockerfile .
