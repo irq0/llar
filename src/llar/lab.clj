@@ -283,6 +283,6 @@
    (copy-wallpapers-to-home)))
 
 (def lab-sched [#'update-db-search-indices
-                #'download-tagged-items
-                #'copy-wallpapers
+                ;; #'download-tagged-items
+                ;; #'copy-wallpapers
                 #'update-clustered-saved-items])
