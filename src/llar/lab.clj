@@ -270,19 +270,5 @@
    current-clustered-saved-items
    (cluster-saved)))
 
-(defsched download-tagged-items
-  :hourly
-  (log/info
-   "Downloaded tagged links:"
-   (vec (download-tagged-stuff))))
-
-(defsched copy-wallpapers
-  :hourly
-  (log/info
-   "New Wallpaper: "
-   (copy-wallpapers-to-home)))
-
 (def lab-sched [#'update-db-search-indices
-                ;; #'download-tagged-items
-                ;; #'copy-wallpapers
                 #'update-clustered-saved-items])
