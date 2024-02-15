@@ -1,13 +1,28 @@
+function set_row_color_by_status(row, status) {
+  if (status == "ok") {
+    $(row).addClass("table-success");
+  } else if (status != null && status.startsWith("temp-fail")) {
+    $(row).addClass("table-warning");
+  } else if (status == "updating") {
+    $(row).addClass("table-info");
+  } else if (status == "perm-fail") {
+    $(row).addClass("table-danger");
+  } else if (status == "bug") {
+    $(row).addClass("table-dark");
+  } else if (status == "new") {
+    $(row).addClass("table-primary");
+  }
+}
+
 function update_source_row(url, source_key, row) {
   $.getJSON(url, (result) => {
     var new_row = result["row"];
     var actions_html = sources_row_actions_html(source_key);
     var msg = "Updating";
-    $(row.node()).addClass("table-info");
     console.log(result);
+    set_row_color_by_status(row.node(), result["update-status"]["result"]);
     if (result["update-status"]["done"]) {
       msg = "<p>Update: " + result["update-status"]["result"] + "</p>";
-      $(row.node()).removeClass("table-info");
     } else {
       setTimeout(update_source_row, 1000, url, source_key, row);
     }
@@ -46,20 +61,9 @@ $(document).ready(function () {
     },
     dom: "Bfrtip",
     rowCallback: function (row, data) {
-      if (data[1] == ":ok") {
-        $(row).addClass("table-success");
-      } else if (data[1] == ":temp-fail") {
-        $(row).addClass("table-warning");
-      } else if (data[1] == ":updating") {
-        $(row).addClass("table-info");
-      } else if (data[1] == ":perm-fail") {
-        $(row).addClass("table-danger");
-      } else if (data[1] == ":bug") {
-        $(row).addClass("table-dark");
-      } else if (data[1] == ":new") {
-        $(row).addClass("table-primary");
-      }
+      set_row_color_by_status(row, data[1]);
     },
+
     buttons: [
       {
         text: '<i class="fas fa-refresh">&thinsp;</i>',

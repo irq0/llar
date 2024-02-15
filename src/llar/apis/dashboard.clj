@@ -325,7 +325,7 @@
 (defn- source-status-row [k src state]
   (let [status (:status state)]
     [k ; key
-     (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")"))) ; status for humans
+     (str (if status (name status) "?") (when (= :temp-fail status) (str " (" (:retry-count state) ")"))) ; status for humans
      (str (:src src)) ; source name
      (get-in state [:last-exception :object :type]) ; last exception
      (some-> (or (:last-successful-fetch-ts state) ; last success or update
