@@ -71,6 +71,11 @@
 (defstate appconfig
   :start (read-config))
 
+(defn appconfig-redact-secrets []
+  (-> appconfig
+      (assoc-in [:postgresql :frontend :password] "--secret removed--")
+      (assoc-in [:postgresql :backend :password] "--secret removed--")))
+
 (defn update-max-retry []
   (get appconfig :update-max-retry))
 

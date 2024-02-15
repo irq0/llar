@@ -10,7 +10,8 @@
    [java-time :as time]
    [mount.core :as mount]
    [puget.printer :as puget]
-   [llar.apis.reader :refer [frontend-db] :as reader]
+   [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
+   [llar.appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.human :as human]
    [llar.live :as live]
@@ -277,6 +278,12 @@
           [:td chime-times]
           [:td (pprint-html pred)]])]])))
 
+(defn config-tab []
+  (html
+   [:h2 "Home"]
+   [:div [:h3 "Application Config"]
+    (map-to-tree (appconfig-redact-secrets))]))
+
 (def tabs
   {:sources #'source-tab
    :memory #'memory-tab
@@ -284,7 +291,8 @@
    :schedules #'schedule-tab
    :state #'state-tab
    :metrics #'metrics-tab
-   :threads #'thread-tab})
+   :threads #'thread-tab
+   :config #'config-tab})
 
 (defn status-index []
   (wrap-body

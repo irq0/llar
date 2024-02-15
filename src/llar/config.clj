@@ -224,7 +224,6 @@
   (load-config (get-config-files)))
 
 (defn start-watcher []
-  ;; (log/info (get appconfig :runtime-config-dir) (mount/running-states))
   (beholder/watch handle-config-dir-change (get appconfig :runtime-config-dir)))
 
 (defstate change-watcher
