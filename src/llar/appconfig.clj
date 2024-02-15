@@ -56,12 +56,17 @@
         (log/debug "application config: " config)
         config))))
 
+(defn read-version []
+  (edn/read-string (slurp (io/resource "version.edn"))))
+
 ;; TODO check that :commands all exists and work!
 (defn read-config []
-  (->> (remove nil? +config-locations+)
-       (map try-read-config)
-       (apply merge)
-       (verify-config)))
+  (->
+   (->> (remove nil? +config-locations+)
+        (map try-read-config)
+        (apply merge)
+        (verify-config))
+   (assoc :version (read-version))))
 
 (defstate appconfig
   :start (read-config))

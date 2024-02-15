@@ -1,4 +1,4 @@
-(defproject llar "0.1.0-SNAPSHOT"
+(defproject llar "_"
   :profiles {:uberjar {:omit-source true
                        :aot :all}}
   :description "LLAR - Live Long and Read 🖖"
@@ -14,9 +14,26 @@
 
   :aot :all
   :main llar.core
-  :plugins [[lein-cljfmt "0.6.8"]]
+  :plugins [[lein-cljfmt "0.6.8"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]]
   :license {:name "None"
             :url ""}
+  :git-version {:status-to-version
+                (fn [{:keys [tag ref-short ahead ahead? dirty?]}]
+                  (assert (re-find #"\d+\.\d+\.\d+" tag)
+                          "Tag is assumed to be a raw SemVer version")
+                  (letfn [(release? [] (and tag (not ahead?) (not dirty?)))
+                          (snapshot-version []
+                            (let [[major minor patch] (->> tag
+                                                           (re-find #"(\d+)\.(\d+)\.(\d+)")
+                                                           (drop 1)
+                                                           (map #(Long/parseLong %)))
+                                  patch+ (inc patch)]
+                              (format "%d.%d.%d-SNAPSHOT.%d+%s" major minor patch+ ahead ref-short)))]
+                    (if (release?) tag (snapshot-version))))
+
+                :version-file "resources/version.edn"
+                :version-file-keys [:ref :version :timestamp :ref-short :tag]}
+
   :exclusions [org.slf4j/slf4j-nop]
   :dependencies [[org.clojure/clojure "1.11.1"]
                  ;; logging

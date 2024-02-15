@@ -5,6 +5,7 @@ jquery_version := 3.7.1
 jquery_datatables_version := 1.13.10
 datatables_buttons_version := 2.4.2
 
+LLAR_VERSION := $(shell lein pprint :version)
 CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
 
 all: web-3rd-party uberjar
@@ -87,12 +88,12 @@ clean-web-3rd-party:
 	rm -rf resources/status/fontawesome
 	rm -rf resources/status/ibmplex
 
-target/llar-0.1.0-SNAPSHOT-standalone.jar: $(CLOJURE_FILES)
-	@echo "Building uberjar"
+target/llar-$(LLAR_VERSION)-standalone.jar: $(CLOJURE_FILES)
+	@echo "Building uberjar with version $(LLAR_VERSION)"
 	@echo "Clojure files: $(CLOJURE_FILES)"
 	lein uberjar
 
-uberjar: target/llar-0.1.0-SNAPSHOT-standalone.jar
+uberjar: target/llar-$(LLAR_VERSION)-standalone.jar
 
 docker-image: uberjar docker/Dockerfile
 	docker build --network host -t ghcr.io/irq0/llar:latest -f docker/Dockerfile .
