@@ -103,31 +103,6 @@
       [:th "Last Attempt / Start"]
       [:th "Actions"]]]]))
 
-(comment    [:tbody
-             (for [[k src] (config/get-sources)]
-               (let [state (get-state k)
-                     status (:status state)]
-                 [:tr {:class
-                       (cond (= :perm-fail status) "table-danger"
-                             (= :bug status) "table-info"
-                             (contains? #{:updating :running} status) "table-success"
-                             (or (= :temp-fail status) (not (= :running status))) "table-warning"
-                             :else "")}
-                  [:td {:class "details-control"}]
-                  [:td {:class "col-xs-1"} k]
-                  [:td {:class "col-xs-1"} (str status (when (= :temp-fail status) (str " (" (:retry-count state) ")")))]
-                  [:td {:class "col-xs-1 update-source"} [:i {:class "fas fa-download"} "&thinsp;"]]
-                  [:td {:class "col-xs-3" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
-                   (str (:src src))]
-                  [:td {:class "col-xs-4" :style "overflow: hidden; text-overflow: ellipsis; max-width: 30em;"}
-                   (get-in state [:last-exception :object :type])]
-                  [:td {:class "col-xs-1"}  (some-> (or (:last-successful-fetch-ts state)
-                                                        (:last-update-ts state))
-                                                    human/datetime-ago)]
-                  [:td {:class "col-xs-1"}  (some-> (or (:last-attempt-ts state)
-                                                        (:start-ts state))
-                                                    human/datetime-ago)]]))])
-
 (defn source-details [k]
   (let [state (get-state (keyword k))]
     (html
