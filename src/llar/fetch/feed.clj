@@ -91,7 +91,7 @@
   {:post [(s/valid? :irq0/ts %)]}
   (or (some-> e :published-date feed-date-to-zoned-date-time)
       (some-> e :updated-date feed-date-to-zoned-date-time)
-      (get-in http [:meta :fetch-ts])))
+      (get-in http [:summary :ts])))
 
 (defn http-get-feed-content [url]
   (log/debug "Fetching feed item content of " url)
