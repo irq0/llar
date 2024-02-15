@@ -34,9 +34,10 @@
      (chime/without-past-times))
     :hourly
     (->>
-     (chime/periodic-seq  (-> (java.time.LocalDate/now)
-                              (.atStartOfDay (ZoneId/systemDefault)))
-                          (Duration/ofHours 1)))))
+     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                           (ZoneId/systemDefault))
+                         (Duration/ofHours 1))
+     (chime/without-past-times))))
 
 (defn resolve-chime-times [chime-times-or-keyword]
   (if (keyword? chime-times-or-keyword)
