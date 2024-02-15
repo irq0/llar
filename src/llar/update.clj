@@ -141,6 +141,9 @@
      (catch [:type :llar.http/server-error-retry-later] _
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
 
+     (catch [:type :llar.http/client-error-retry-later] _
+       (make-next-state state :temp-fail (inc retry-count) &throw-context))
+
      (catch [:type :llar.http/request-error] _
        (make-next-state state :perm-fail 0 &throw-context))
 
