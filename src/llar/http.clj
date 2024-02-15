@@ -103,7 +103,7 @@
     (and (uri/host uri) (nil? (uri/scheme uri)))
     (uri/scheme "https")))
 
-(defn parse-url [s]
+(defn- parse-url [s]
   (if-let [url (or (sensible-uri-or-nil (uri/uri s))
                    (sensible-uri-or-nil (uri/uri
                                          (second (re-find regex-collection/url s))))
@@ -115,7 +115,7 @@
                :reason ::unparsable-url
                :url s} nil))))
 
-(defn parse-href [s]
+(defn- parse-href [s]
   (let [decoded (or (swallow-exceptions (java.net.URLDecoder/decode s)) s)]
     (when-let [url (or (swallow-exceptions (parse-url decoded))
                        (swallow-exceptions (parse-url (str "/" decoded))))]
@@ -127,61 +127,63 @@
     url))
 
 (defn absolutify-url
-  [raw-href
-   raw-base-url]
-  {:pre [(s/valid? (s/or :string string? :url :irq0/url) raw-href)
-         (s/valid? (s/or :none nil? :string string? :url :irq0/url) raw-base-url)]
-   :post (s/valid? :irq0/absolute-url %)}
-  (let [url (parse-href raw-href)
-        scheme (uri/scheme url)]
-    (cond
-      ;; do not touch data / mailto urls!
-      (contains? #{"data" "mailto"} scheme)
-      (uri/uri raw-href)
+  ([raw-href]
+   (absolutify-url raw-href nil))
+  ([raw-href
+    raw-base-url]
+   {:pre [(s/valid? (s/or :string string? :url :irq0/url) raw-href)
+          (s/valid? (s/or :none nil? :string string? :url :irq0/url) raw-base-url)]
+    :post (s/valid? :irq0/absolute-url %)}
+   (let [url (parse-href raw-href)
+         scheme (uri/scheme url)]
+     (cond
+       ;; do not touch data / mailto urls!
+       (contains? #{"data" "mailto"} scheme)
+       (uri/uri raw-href)
 
-      ;; try to leave fragment only uris alone - they are mostly used for in-page navigation
-      (and (nil? (uri/host url)) (string/starts-with? (uri/path url) "#"))
-      (uri/uri url)
+       ;; try to leave fragment only uris alone - they are mostly used for in-page navigation
+       (and (nil? (uri/host url)) (string/starts-with? (uri/path url) "#"))
+       (uri/uri url)
 
-      (uri/absolute? url)
-      (append-path-if-not-exist url)
+       (uri/absolute? url)
+       (append-path-if-not-exist url)
 
-      :else
-      (let [base-url (parse-url raw-base-url)]
-        (cond
-          (or (nil? base-url) (and (string? raw-base-url) (string/blank? raw-base-url)))
-          (throw+ {:type ::absolutify-impossible
-                   :reason ::base-url-useless
-                   :raw-href raw-href :raw-base-url raw-base-url
-                   :url url :base-url base-url
-                   :msg "relative url requires absolute base-url"})
+       :else
+       (let [base-url (parse-url raw-base-url)]
+         (cond
+           (or (nil? base-url) (and (string? raw-base-url) (string/blank? raw-base-url)))
+           (throw+ {:type ::absolutify-impossible
+                    :reason ::base-url-useless
+                    :raw-href raw-href :raw-base-url raw-base-url
+                    :url url :base-url base-url
+                    :msg "relative url requires absolute base-url"})
 
-          (not (uri/absolute? base-url))
-          (throw+ {:type ::absolutify-impossible
-                   :reason ::base-url-relative
-                   :raw-href raw-href :raw-base-url raw-base-url
-                   :url url :base-url base-url
-                   :msg "base-url must be absolute"})
+           (not (uri/absolute? base-url))
+           (throw+ {:type ::absolutify-impossible
+                    :reason ::base-url-relative
+                    :raw-href raw-href :raw-base-url raw-base-url
+                    :url url :base-url base-url
+                    :msg "base-url must be absolute"})
 
-          (nil? (uri/host url))
-          (try+
-           (let [resolved (-> (uri/resolve-path base-url url)
-                              (uri/query (uri/query url))
-                              (uri/fragment (uri/fragment url)))]
+           (nil? (uri/host url))
+           (try+
+            (let [resolved (-> (uri/resolve-path base-url url)
+                               (uri/query (uri/query url))
+                               (uri/fragment (uri/fragment url)))]
 
-             (if (uri/absolute-path? resolved)
-               resolved
-               (update resolved :path #(str "/" %))))
-           (catch Object _
-             (throw+ {:type ::absolutify-broken
-                      :raw-href raw-href
-                      :raw-base-url raw-base-url
-                      :url url
-                      :scheme scheme
-                      :base-url base-url})))
+              (if (uri/absolute-path? resolved)
+                resolved
+                (update resolved :path #(str "/" %))))
+            (catch Object _
+              (throw+ {:type ::absolutify-broken
+                       :raw-href raw-href
+                       :raw-base-url raw-base-url
+                       :url url
+                       :scheme scheme
+                       :base-url base-url})))
 
-          :else
-          (uri/uri (uri/resolve-uri base-url (str url))))))))
+           :else
+           (uri/uri (uri/resolve-uri base-url (str url)))))))))
 
 (defn get-base-url
   [url]

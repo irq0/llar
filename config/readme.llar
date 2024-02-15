@@ -43,9 +43,8 @@
 ;; $html-to-hickory - convert html to hickory
 ;; $hickory-sanitize-blobify - run llar html sanitize and blobify on hickory
 ;; $make-item-hash - create item hash
-;; $parse-href - parse href to URI
+;; $parse-url - parse string to URI
 ;; $hickory-to-html - convert hickory to html
-;; $as-uri - convert string to URI
 ;; $uri-path - get path from URI
 ;; $http-cookie-store - create HTTP cookie store for clj-http.client
 ;; $http-get - clj-http.client get

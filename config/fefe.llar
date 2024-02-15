@@ -7,7 +7,7 @@
                            :content (S/tag :li)}
                           {:content  #(->> % first :content (drop 1))
                            :author (constantly ["fefe"])
-                           :urls (fn [l] (map (fn [x] (->> x :attrs :href $parse-href)) l))
+                           :urls (fn [l] (map (fn [x] (->> x :attrs :href $parse-url)) l))
                            :title (fn [l]
                                     ($ellipsify
                                      (->> l
