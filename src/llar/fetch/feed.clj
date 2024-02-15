@@ -14,7 +14,8 @@
                                get-base-url-with-path
                                blobify
                                sanitize
-                               resolve-user-agent]]
+                               resolve-user-agent
+                               with-http-exception-handler]]
             [llar.analysis :as analysis]
             [llar.converter :as conv]
             [org.bovinegenius [exploding-fish :as uri]]
@@ -315,30 +316,41 @@
     (let [wp-json-url (str (:url src))
           user-agent (resolve-user-agent
                       (get-in src [:args :user-agent]))
-          site (http/get wp-json-url
-                         {:as :json
-                          :headers {"User-Agent" user-agent}})
+          site (with-http-exception-handler
+                 {:url wp-json-url
+                  :request :wp-json-site
+                  :user-agent user-agent}
+                 (http/get wp-json-url
+                           {:as :json
+                            :headers {"User-Agent" user-agent}}))
           posts-url (get-posts-url (:body site))
-          posts (-> (http/get posts-url {:as :reader
-                                         :headers {:user-agent user-agent}})
+          posts (-> (with-http-exception-handler
+                      {:url posts-url
+                       :request ::wp-json-posts
+                       :user-agent user-agent}
+                      (http/get posts-url {:as :reader
+                                           :headers {:user-agent user-agent}}))
                     :body (cheshire/parse-stream true))]
       (doall
        (for [post posts
              :let [conform (s/conform :irq0-src-wp-json/post post)]]
          (if (s/invalid? conform)
            (log/warn "Invalid post: " conform (s/explain-str :irq0-src-wp-json/post post))
-           (let [authors (try+
-                          (doall
-                           (for [url (map :href (get-in post [:_links :author]))]
-                             (get-in [:body :name]
-                                     (http/get url
-                                               {:as :json
-                                                :headers {:user-agent user-agent}}))))
-                          (catch (fn [resp] (#{403 404} (:status resp)))
-                                 {:keys [headers body status]}
-                            (log/debug "Could not fetch article's authors endpoint:"
-                                       headers body status (get-in post [:_links :self]))
-                            [""]))
+           (let [authors (try
+                           (doall
+                            (for [url (map :href (get-in post [:_links :author]))]
+                              (get-in [:body :name]
+                                      (with-http-exception-handler
+                                        {:url url
+                                         :request ::wp-json-author
+                                         :user-agent user-agent}
+                                        (http/get url
+                                                  {:as :json
+                                                   :headers {:user-agent user-agent}})))))
+                           (catch Exception _
+                             (log/debugf "Could not fetch article's authors form endpoints %s. setting empty authors."
+                                         (get-in post [:_links :author]))
+                             [""]))
                  url (uri/uri (get post :link))
                  base-url (get-base-url url)
                  title (get-in post [:title :rendered])
