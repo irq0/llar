@@ -6,15 +6,16 @@
    [llar.postproc :as postproc]
    [llar.analysis :as analysis]
    [llar.item]
-   [llar.http :as llar-http]
+   [llar.http :as llar-http :refer [with-http-exception-handler]]
    [clojure.spec.alpha :as s]
    [digest]
    [hiccup.core :refer [html]]
    [clj-http.client :as http]
    [java-time.api :as time]
    [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
    [org.bovinegenius [exploding-fish :as uri]]))
+
+(def +reddit-user-agent+ "java:llar:23: (by /u/irq0x00")
 
 (defrecord RedditItem
            [meta
@@ -47,27 +48,15 @@
         (assoc-in [:meta :source :args] nil))))
 
 (defn reddit-get [url]
-  (try+
-   (let [resp (http/get url {:accept :json
-                             :as :json
-                             :headers {:user-agent "java:llar:23: (by /u/irq0x00)"}})]
-     (:body resp))
-   (catch (fn [resp] (#{500 501 502 503 504} (:status resp)))
-          {:keys [headers body status]}
-     (log/errorf "Server Error (%s): %s %s" status headers body)
-     (throw+ {:type  :llar.http/server-error-retry-later}))
-   (catch (fn [resp] (#{400 401 402 403 404 405 406 410} (:status resp)))
-          {:keys [headers body status]}
-     (log/errorf "Client error probably due to broken request (%s): %s %s"
-                 status headers body)
-     (throw+ {:type :llar.http/request-error}))
-   (catch java.net.UnknownHostException ex
-     (log/error ex "Host resolution error" url)
-     (throw+ {:type :llar.http/server-error-retry-later
-              :url url}))
-   (catch Object _
-     (log/error "Unexpected error: " (:throwable &throw-context))
-     (throw+ {:type :llar.http/unexpected-error}))))
+
+  (with-http-exception-handler
+    {:url url
+     :user-agent +reddit-user-agent+
+     :request ::reddit-get}
+    (let [resp  (http/get url {:accept :json
+                               :as :json
+                               :headers {:user-agent "java:llar:23: (by /u/irq0x00)"}})]
+      (:body resp))))
 
 (defn reddit-get-scores [src]
   (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100&t=%s"
