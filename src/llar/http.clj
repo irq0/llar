@@ -418,6 +418,81 @@
                 loc)))
             (recur (zip/next loc))))))))
 
+(defn http-resp-throw [ex context]
+  (let [{:keys [body headers status reason-phrase]} ex]
+    (cond
+      (#{400 401 402 403 404 405 406 410} status)
+      (let [message (converter/html2text body :tool :for-exceptions)]
+        (log/warnf "Client error probably due to broken request (%s): body:%s context:%s"
+                   status message context)
+        (throw+ (merge {:type ::request-error
+                        :code status
+                        :message (or message reason-phrase)}
+                       context)))
+      (#{500 501 502 503 504} status)
+      (let [message (converter/html2text body  :tool :for-exceptions)]
+        (log/warnf "Server Error (%s): %s %s" status headers body)
+        (throw+ (merge {:type ::server-error-retry-later
+                        :code status
+                        :message (or message reason-phrase)})
+                context))
+      (#{408 429} status)
+      (do
+        (log/warnf "Client Error (overloaded?) (%s): %s" status reason-phrase)
+        (throw+ (merge {:type ::client-error-retry-later
+                        :code status
+                        :reason (:reason-phrase ex)
+                        :message (converter/html2text body :tool :html2text)}
+                       context))))))
+
+(defmacro with-http-exception-handler [throw-extra & body]
+  `(try
+     ~@body
+     (catch clojure.lang.ExceptionInfo e#
+       (cond
+         (= (:type (ex-data e#)) :clj-http.client/unexceptional-status)
+         (http-resp-throw (ex-data e#) (merge ~throw-extra))
+         :else
+         (throw+ (merge {:type ::unexpected-error} ~throw-extra))))
+
+     (catch java.net.UnknownHostException e#
+       (log/error e# "Host resolution error" ~throw-extra)
+       (throw+ (merge {:type ::server-error-retry-later} ~throw-extra)))
+
+     (catch javax.net.ssl.SSLHandshakeException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :message (str "SSL Handshake failed: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.net.ConnectException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :message (str "Connection refused (gone?): " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.security.cert.CertificateExpiredException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :message (str "Certificate expired: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch javax.net.ssl.SSLPeerUnverifiedException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :message (str "SSL Peer verification error: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.net.SocketException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :message (str "SocketException: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.io.EOFException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :message (str "EOF Exception: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.lang.Throwable e#
+       (log/error e# "Unexpected error: " ~throw-extra)
+       (throw+ (merge {:type ::unexpected-error} ~throw-extra)))))
+
 (defn fetch
   "Generic HTTP fetcher"
   [url & {:keys [user-agent sanitize? remove-css? simplify? blobify? absolutify-urls?]
@@ -429,97 +504,22 @@
                simplify? false}}]
   (let [url (parse-url url)
         base-url (get-base-url-with-path url)]
-    (try+
-     (let [response (http/get (str url)
-                              {:headers {:user-agent (resolve-user-agent user-agent)}
-                               :decode-cookies false
-                               :cookie-policy :none})
-           parsed-html (cond-> (-> response
-                                   :body
-                                   hick/parse hick/as-hickory)
-                         absolutify-urls? (absolutify-links-in-hick base-url)
-                         sanitize? (sanitize :remove-css? remove-css?)
-                         simplify? (simplify)
-                         blobify? (blobify))]
-       (log/debugf "Fetched HTTP: %s -> %s bytes body" url (count (get response :body)))
-       {:raw response
-        :body (hick-r/hickory-to-html parsed-html)
-        :summary {:ts (extract-http-timestamp response)
-                  :title (extract-http-title parsed-html)}
-        :hickory parsed-html})
-
-     (catch (fn [resp] (#{400 401 402 403 404 405 406 410} (:status resp)))
-            {:keys [headers body status]}
-       (log/warnf "Client error probably due to broken request (%s): %s %s %s"
-                  status headers body user-agent)
-       (throw+ {:type ::request-error
-                :code status
-                :url url
-                :base-url base-url
-                :message (converter/html2text body :tool :html2text)}))
-
-     (catch (fn [resp] (#{500 501 502 503 504} (:status resp)))
-            {:keys [headers body status]}
-       (log/warnf "Server Error (%s): %s %s" status headers body)
-       (throw+ {:type ::server-error-retry-later
-                :code status
-                :url url
-                :base-url base-url
-                :message (converter/html2text body :tool :html2text)}))
-
-     (catch [:status 408]
-            {:keys [headers body status]}
-       (log/warnf "Client Error (%s): %s %s" status headers body)
-       (throw+ {:type :client-error-retry-later
-                :code status
-                :url url
-                :base-url base-url
-                :message (converter/html2text body :tool :html2text)}))
-
-     (catch java.net.UnknownHostException e
-       (log/error e "Host resolution error" url)
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url}))
-
-     (catch javax.net.ssl.SSLHandshakeException e
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url
-                :message (str "SSL Handshake failed: " (ex-message e))}))
-
-     (catch java.net.ConnectException e
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url
-                :message (str "Connection refused (gone?): " (ex-message e))}))
-
-     (catch java.security.cert.CertificateExpiredException e
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url
-                :message (str "Certificate expired: " (ex-message e))}))
-
-     (catch javax.net.ssl.SSLPeerUnverifiedException e
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url
-                :message (str "SSL Peer verification error: " (ex-message e))}))
-
-     (catch java.net.SocketException e
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url
-                :message (str "SocketException: " (ex-message e))}))
-
-     (catch java.io.EOFException e
-       (throw+ {:type ::server-error-retry-later
-                :url url
-                :base-url base-url
-                :message (str "EOF Exception: " (ex-message e))}))
-
-     (catch Object _
-       (log/error "Unexpected error: " (:throwable &throw-context) url)
-       (throw+ {:type ::unexpected-error
-                :url url
-                :base-url base-url})))))
+    (with-http-exception-handler
+      {:url url :base-url base-url}
+      (let [response (http/get (str url)
+                               {:headers {:user-agent (resolve-user-agent user-agent)}
+                                :decode-cookies false
+                                :cookie-policy :none})
+            parsed-html (cond-> (-> response
+                                    :body
+                                    hick/parse hick/as-hickory)
+                          absolutify-urls? (absolutify-links-in-hick base-url)
+                          sanitize? (sanitize :remove-css? remove-css?)
+                          simplify? (simplify)
+                          blobify? (blobify))]
+        (log/debugf "HTTP GET: %s -> %s bytes body" url (count (get response :body)))
+        {:raw response
+         :body (hick-r/hickory-to-html parsed-html)
+         :summary {:ts (extract-http-timestamp response)
+                   :title (extract-http-title parsed-html)}
+         :hickory parsed-html}))))
