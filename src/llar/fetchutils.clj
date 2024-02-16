@@ -9,6 +9,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.slingshot :refer [try+ throw+]]
    [hickory.core :as hick]
+   [hickory.render :as hick-r]
    [llar.fetch :as fetch]
    [llar.fetch.reddit :as reddit]
    [llar.http :as http]
@@ -87,6 +88,18 @@
         (parse-date-force-utc fmt s))))
    (catch [:type :datetime-unable-to-find-time] _
      (parse-date-force-utc fmt s))))
+
+(defn process-html-contents [base-url contents]
+  (if-let [html (get-in contents ["text/html"])]
+    (assoc contents "text/html"
+           (-> html
+               hick/parse
+               hick/as-hickory
+               (http/absolutify-links-in-hick base-url)
+               http/sanitize
+               http/blobify
+               (hick-r/hickory-to-html)))
+    contents))
 
 (def +mercury-site-denylist+
   #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")

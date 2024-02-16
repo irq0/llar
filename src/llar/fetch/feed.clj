@@ -4,6 +4,7 @@
                                 make-meta
                                 make-item-hash
                                 tag-items]]
+            [llar.fetchutils :as fetchutils]
             [clojure.spec.alpha :as s]
             [llar.src]
             [llar.postproc :refer [ItemProcessor]]
@@ -106,18 +107,6 @@
     {"text/html" body
      "text/plain" (conv/html2text body)}))
 
-(defn- process-feed-html-contents [base-url contents]
-  (if-let [html (get-in contents ["text/html"])]
-    (assoc contents "text/html"
-           (-> html
-               hick/parse
-               hick/as-hickory
-               (absolutify-links-in-hick base-url)
-               sanitize
-               blobify
-               (hick-r/hickory-to-html)))
-    contents))
-
 (extend-protocol FetchSource
   Feed
   (fetch-source [src]
@@ -158,9 +147,9 @@
                                (some? contents-url))
               contents (if deep-fetch?
                          (http-get-feed-content contents-url)
-                         (process-feed-html-contents contents-base-url in-feed-contents))
-              descriptions (process-feed-html-contents contents-base-url
-                                                       (extract-feed-description (:description re)))
+                         (fetchutils/process-html-contents contents-base-url in-feed-contents))
+              descriptions (fetchutils/process-html-contents contents-base-url
+                                                             (extract-feed-description (:description re)))
               base-entry {:updated-ts (some-> re :updated-date feed-date-to-zoned-date-time)
                           :pub-ts (some-> re :published-date feed-date-to-zoned-date-time)
                           :url contents-url
@@ -258,7 +247,7 @@
                  title (hick-select-extract-with-source src :title hickory (:title summary))
                  pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
                  description (hick-select-extract-with-source src :description hickory nil)
-                 sanitized (process-feed-html-contents base-url hickory)
+                 sanitized (fetchutils/process-html-contents base-url hickory)
                  content (if (some? (:content selectors))
                            (first (hick-s/select (:content selectors) sanitized))
                            (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))

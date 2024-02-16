@@ -261,7 +261,7 @@
             :irq0-src-mailbox/password]))
 
 (defrecord ImapMailbox
-           [url
+           [uri
             creds]
   Source
   (source-type [_] ::fetch)

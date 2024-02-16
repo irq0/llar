@@ -5,11 +5,12 @@
    [llar.persistency :as persistency]
    [llar.postproc :as postproc]
    [llar.analysis :as analysis]
+   [llar.fetchutils :as fetchutils]
    [clojure-mail.core :as mail-core]
    [org.bovinegenius [exploding-fish :as uri]]
    [clojure-mail.message :as mail-message]
    [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [try+]]
+   [slingshot.slingshot :refer [try+ throw+]]
    [clojure.string :as string]
    [java-time.api :as time]
    [clojure.spec.alpha :as s])
@@ -40,32 +41,48 @@
    (catch Object _
      content-type)))
 
-(defn mail-body-to-contents [m]
-  (into {} (map (fn [b] [(try-get-base-type (:content-type b)) (:body b)]) (:body m))))
+(def foo (atom []))
+
+(defn mail-to-contents [msg]
+  (let [bodies (:body msg)]
+    (if (seq? bodies)
+      (into {}
+            (for [{:keys [body content-type]} bodies]
+              {(try-get-base-type content-type) body}))
+      {(try-get-base-type (:content-type bodies)) (:body bodies)})))
 
 (defn get-new-messages [uri {:keys [username password]}]
-  (let [p (mail-core/as-properties {"mail.imap.starttls.enable" "true"
-                                    "mail.imap.ssl.checkserveridentity" "true"})
-        session (Session/getDefaultInstance p)
-        store (mail-core/store (uri/scheme uri) session (uri/host uri)
-                               username password)
-        msgs (doall (map (fn [id]
-                           (let [msg (mail-message/read-message id)]
-                             (if (nil? (:body msg))
-                               (log/warn "Failed to parse mail body:" msg)
-                               {:to (:id msg)
-                                :cc (:cc msg)
-                                :bcc (:bcc msg)
-                                :from (:from msg)
-                                :subject (:subject msg)
-                                :date-sent (:date-sent msg)
-                                :date-received (:date-received msg)
-                                :content-type (:content-type msg)
-                                :body (mail-body-to-contents msg)
-                                :headers (:headers msg)})))
-                         (mail-core/unread-messages store (subs (uri/path uri) 1))))]
-    (mail-core/close-store store)
-    msgs))
+  (try
+    (let [p (mail-core/as-properties {"mail.imap.starttls.enable" "true"
+                                      "mail.imap.ssl.checkserveridentity" "true"})
+          session (Session/getDefaultInstance p)
+          store (mail-core/store (uri/scheme uri) session (uri/host uri)
+                                 username password)
+          msgs (doall (map (fn [id]
+                             (let [msg (mail-message/read-message id)]
+                               (swap! foo conj msg)
+                               (if (nil? (:body msg))
+                                 (log/warn "Failed to parse mail body:" msg)
+                                 {:to (:id msg)
+                                  :cc (:cc msg)
+                                  :bcc (:bcc msg)
+                                  :from (:from msg)
+                                  :subject (:subject msg)
+                                  :date-sent (:date-sent msg)
+                                  :date-received (:date-received msg)
+                                  :content-type (:content-type msg)
+                                  :contents (mail-to-contents msg)
+                                  :headers (:headers msg)})))
+                           (mail-core/unread-messages store (subs (uri/path uri) 1))))]
+      (mail-core/close-store store)
+      msgs)
+    (catch javax.mail.AuthenticationFailedException ex
+      (throw+ {:type :llar.http/request-error
+               :message (ex-message ex)}))
+    (catch java.lang.Throwable ex
+      (log/error ex "Unexpected IMAP error")
+      (throw+ {:type :llar.http/unexpected-error
+               :message (ex-message ex)}))))
 
 (extend-protocol postproc/ItemProcessor
   ImapItem
@@ -84,26 +101,33 @@
 (defn mail-ts [m]
   (let [ts (or (:date-sent m)
                (:date-received m))]
-    (log/info ts (type ts))
     (time/zoned-date-time ts "UTC")))
 
 (extend-protocol fetch/FetchSource
   llar.src.ImapMailbox
   (fetch-source [src]
-    (for [m (get-new-messages (uri/uri (:uri src)) (:creds src))]
-      (make-imap-item
-       (fetch/make-meta src)
-       {:ts (mail-ts m) :title (:subject m)}
-       (fetch/make-item-hash (:subject m) (:body m))
-       {:title (:subject m)
-        :id (some-> (filter (fn [x] (= (some-> x first key string/lower-case) "message-id"))
-                            (:headers m))
-                    first
-                    first
-                    val)
-        :received-ts (:date-received m)
-        :sent-ts (:date-sent m)
-        :authors (map #(format "%s <%s>" (:name %) (:address %)) (:from m))
-        :descriptions {"text/plain" ""}
-        :contents (:body m)}
-       m))))
+    (let [messages (get-new-messages (:uri src) (:creds src))]
+      (log/debugf "[IMAP] new:%s" (count messages))
+      (for [m messages
+            :let [contents (fetchutils/process-html-contents nil (:contents m))]]
+        (do
+          (log/debug "[IMAP] processing: " (select-keys m [:subject :from :date-send]))
+          (make-imap-item
+           (fetch/make-meta src)
+           {:ts (mail-ts m) :title (:subject m)}
+           (fetch/make-item-hash (:subject m)
+                                 (or (get-in m [:contents "text/plain"])
+                                     (get-in m [:contents "text/html"])
+                                     ""))
+           {:title (:subject m)
+            :id (some-> (filter (fn [x] (= (some-> x first key string/lower-case) "message-id"))
+                                (:headers m))
+                        first
+                        first
+                        val)
+            :received-ts (:date-received m)
+            :sent-ts (:date-sent m)
+            :authors (map #(format "%s <%s>" (:name %) (:address %)) (:from m))
+            :descriptions {"text/plain" ""}
+            :contents contents}
+           m))))))
