@@ -13,6 +13,7 @@
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
    [llar.appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
+   [llar.converter]
    [llar.human :as human]
    [llar.live :as live]
    [llar.metrics :as metrics]
@@ -67,9 +68,14 @@
   {java.time.ZonedDateTime
    (puget/tagged-handler
     'inst (fn [x] (-> x time/instant str)))
-   clojure.lang.ExceptionInfo
+
+   llar.converter.ExceptionContext
    (puget/tagged-handler
-    'clojure.lang.ExceptionInfo.message (partial ex-message))
+    'llar-exception-context
+    (fn [x] (-> x
+                (select-keys [:message :data :cause])
+                (assoc :note "redacted - see below"))))
+
    Uri
    (puget/tagged-handler
     'uri str)})
@@ -113,7 +119,11 @@
                            stacktrace/parse-exception)]
        [:div
         [:h5 "Exception Details"]
-        [:pre (get-in state [:last-exception :object :message])]
+        [:ul
+         [:li "Exception Class: " [:pre (class (get-in state [:last-exception :throwable]))]]
+         [:li "Message: " [:pre (get-in state [:last-exception :message])]]
+         [:li "Cause: " [:pre (get-in state [:last-exception :cause])]]
+         [:li "Data: " (pprint-html (get-in state [:last-exception :data]))]]
         [:h6 "Stack Trace"]
         [:ol
          (for [s (:trace-elems th)
