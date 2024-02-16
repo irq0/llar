@@ -3,19 +3,14 @@
    [llar.config :as config]
    [llar.postproc :as proc]
    [llar.store :refer [store-items!]]
-   [llar.live.common :refer [LiveSource start-collecting! state-template stop-collecting!]]
+   [llar.src :as src]
+   [llar.live.common :refer [start-collecting! state-template stop-collecting!]]
    [clojure.core.async :as async]
    [mount.core :refer [defstate]]
    [slingshot.slingshot :refer [try+]]
    [clojure.tools.logging :as log]))
 
 ;;;; Live source logic. Similar to update, but running continuously in background
-
-;; newstories
-;; topstories
-;; beststories
-;; showstories
-;; askstories
 
 (declare live)
 
@@ -50,10 +45,7 @@
     (log/debug "Stopping live processor")))
 
 (defn live-feeds []
-  (into {}
-        (for [[k feed] (config/get-sources)
-              :when (satisfies? LiveSource (:src feed))]
-          [k feed])))
+  (into {} (filter (fn [[_ {:keys [src]}]] (and (some? src) (= (src/source-type src) :llar.src/live))) (config/get-sources))))
 
 (defstate live
   :start (let [mix-ch (async/chan (async/sliding-buffer 1000))

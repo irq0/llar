@@ -101,7 +101,6 @@
                  [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
                  [clj-http "3.12.3" :exclusions [org.apache.httpcomponents/httpcore]]
                  [clj-rome "0.4.0"]
-                 [com.firebase/firebase-client-jvm "2.5.2" :exclusions [com.fasterxml.jackson.core/jackson-databind]]
 
                  ;; email
                  [com.draines/postal "2.0.5"]
