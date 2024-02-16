@@ -4,6 +4,7 @@
    [mount.tools.graph :as mount-graph]
    [mount-up.core :as mount-up]
    [clojure.tools.logging :as log]
+   [clojure.spec.alpha :as s]
    [llar.appconfig :as appconfig]
    [llar.persistency :as persistency]
    [llar.store :as store]
@@ -54,6 +55,8 @@
     (mount/start #'appconfig/appconfig)
     (when (:nrepl options)
       (mount/start #'repl/nrepl-server))
+
+    (s/check-asserts true)
 
     (cond
       (:init-db options)

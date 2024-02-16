@@ -25,8 +25,8 @@
 (defn make-item-hash
   "Make hash to use in *Item"
   [& args]
-  {:pre [(s/valid? (s/coll-of string?) args)]
-   :post [(s/valid? :irq0/item-hash %)]}
+  {:pre [(s/assert (s/coll-of string?) args)]
+   :post [(s/assert :irq0/item-hash %)]}
   (str "SHA-256:" (-> args string/join digest/sha-256)))
 
 (defn make-meta

@@ -107,17 +107,16 @@
         retry-count (or (get-in feed [:state :retry-count]) 0)]
     (try+
      (let [fetched (fetch/fetch feed)
-           processed (try+
-                      (if-not skip-proc
-                        (proc/process feed state fetched)
-                        fetched)
-                      (catch Object _
-                        (throw+ {:type ::proc-error
-                                 :fetched (map #(select-keys %
-                                                             [:summary :meta])
-                                               fetched)
-                                 :feed feed
-                                 :skip skip-proc})))
+           processed (try
+                       (if-not skip-proc
+                         (proc/process feed state fetched)
+                         fetched)
+                       (catch clojure.lang.ExceptionInfo ex
+                         (throw+ (merge (ex-data ex)
+                                        {:fetched (map #(select-keys % [:summary :meta])
+                                                       fetched)
+                                         :feed feed
+                                         :skip skip-proc}))))
 
            dbks (try+
                  (if-not skip-store
@@ -153,6 +152,10 @@
      (catch [:type :llar.http/unexpected-error] _
        (make-next-state state :bug 0 &throw-context))
 
+     (catch [:clojure.spec.alpha/failure :assertion-failed] x
+       (log/error "Spec assertion failed. BUG!" x)
+       (make-next-state state :bug 0 &throw-context))
+
      (catch java.lang.OutOfMemoryError _ex
        (log/warn (:throwable &throw-context) "Out of memory! Adjust resource limits? (-> temp fail) " (str src))
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
@@ -166,6 +169,10 @@
      (catch java.net.ConnectException _
        (log/warn (:throwable &throw-context) "Connection error (-> temp-fail) for" (str src))
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
+
+     (catch java.lang.AssertionError _
+       (log/error (:throwable &throw-context) "ASSERTION! BUG! (spec?)" (str src))
+       (make-next-state state :bug 0 &throw-context))
 
      (catch Object _
        (log/error (:throwable &throw-context) "Unexpected error (-> bug) for " (str src) src)
