@@ -190,8 +190,9 @@
       (let [tree (hick-s/select selector hickory)]
         (try
           (extractor tree)
+          (catch clojure.lang.ExceptionInfo ex
+            (throw+ (assoc (ex-data ex) :tree tree)))
           (catch Throwable th
-            (log/warn th "Extractor crashed. Selected tree was:" tree)
             (throw+ th)))))))
 
 (defn hick-select-extract-with-source [src k hickory fallback]
@@ -204,11 +205,16 @@
           (log/debugf "Hickory selector %s for %s turned up nothing"
                       (str src) k))
         (or selected fallback))
-      (catch Throwable th
-        (log/warn th "Hick Extract failed :("
-                  src k)
+      (catch clojure.lang.ExceptionInfo ex
+        (throw+ (assoc {:type ::hickory-select-failed
+                        :src (str src)
+                        :key k
+                        :selector sel
+                        :extractor ext}
+                       :select-extract-error (ex-data ex))))
+      (catch Throwable _
         (throw+ {:type ::hickory-select-failed
-                 :src src
+                 :src (str src)
                  :key k
                  :selector sel
                  :extractor ext})))))
@@ -278,9 +284,12 @@
                           "text/plain" (conv/html2text content-html)}}
               nil
               feed))
+           (catch clojure.lang.ExceptionInfo ex
+             (log/warnf "SelectorFeed processing failed: raw-url:%s url:%s data:%s"
+                        raw-item-url item-url (ex-data ex)))
            (catch Throwable th
-             (log/warn th "SelectorFeed item processing failed. Skipping:"
-                       raw-item-url))))))))
+             (log/warnf th "SelectorFeed processing failed raw-url:%s url:%s with exception"
+                        raw-item-url item-url))))))))
 
 (defn- get-posts-url [json]
   (let [field (get-in json [:routes (keyword "/wp/v2/posts") :_links :self])]
