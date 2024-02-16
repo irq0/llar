@@ -72,6 +72,13 @@
       :else
       (mount/start))
 
+    (.addShutdownHook
+     (Runtime/getRuntime)
+     (Thread.
+      (fn []
+        (log/info "Shutting down...")
+        (mount/stop))))
+
     (cond
       (:init-db options)
       (do
