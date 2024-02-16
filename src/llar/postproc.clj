@@ -204,7 +204,11 @@
        (do
          (log/warn "Postprocess with empty items called" (str src))
          items))
+     (catch [:type :llar.http/client-error-retry-later] ex
+       (throw+ {:type ::postproc-temp-fail :items-count (count items)
+                :feed feed
+                :error ex}))
      (catch Object _
        (log/warn (:throwable &throw-context) "Postprocessing failed during parallel item proc: " (str src)
                  feed state items)
-       (throw+ {:type ::postproc-failed :itemsc (count items) :feed feed})))))
+       (throw+ {:type ::postproc-fail :itemsc (count items) :feed feed})))))
