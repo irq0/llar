@@ -16,6 +16,7 @@
        :post-fns [($exchange [:entry :descriptions] [:entry :contents])
                   (fn [item] (assoc-in item [:summary :ts] (get-in item [:feed :pub-ts])))])
 
+
 (fetch github-trending-clojure (src/feed "https://mshibanami.github.io/GitHubTrendingRSS/monthly/clojure.xml")
        :tags #{:trends :tech}
        :options #{:mark-read-on-view}
@@ -25,5 +26,5 @@
 (fetch github-trending-python (src/feed "https://mshibanami.github.io/GitHubTrendingRSS/monthly/python.xml")
        :tags #{:trends :tech}
        :options #{:mark-read-on-view}
-       :post [($exchange [:entry :descriptions] [:entry :contents])
-              (fn [item] (assoc-in item [:summary :ts] (get-in item [:feed :pub-ts])))])
+       :post-fns [($exchange [:entry :descriptions] [:entry :contents])
+                  (fn [item] (assoc-in item [:summary :ts] (get-in item [:feed :pub-ts])))])
