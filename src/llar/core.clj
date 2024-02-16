@@ -1,8 +1,9 @@
 (ns llar.core
   (:require
    [mount.core :as mount]
+   [mount.tools.graph :as mount-graph]
+   [mount-up.core :as mount-up]
    [clojure.tools.logging :as log]
-   [llar.logging]
    [llar.appconfig :as appconfig]
    [llar.persistency :as persistency]
    [llar.store :as store]
@@ -45,10 +46,14 @@
       (System/exit 1))
 
     (mount/in-clj-mode)
-
+    (mount-up/on-upndown :info mount-up/log :before)
+    (mount-up/on-up
+     :guard (mount-up/try-catch
+             (fn [ex state] (log/error ex "!! Error bringing up state " state)))
+     :wrap-in)
+    (mount/start #'appconfig/appconfig)
     (when (:nrepl options)
       (mount/start #'repl/nrepl-server))
-    (mount/start #'appconfig/appconfig)
 
     (cond
       (:init-db options)
@@ -96,5 +101,5 @@
       (config/load-all))
 
     (log/info "🖖")
-    (log/debug "Running states: " (mount/running-states))
+    (log/debug "Running states: " (mount-graph/states-with-deps))
     (log/debug "Startup options: " options)))
