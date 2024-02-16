@@ -48,14 +48,13 @@
         (assoc-in [:meta :source :args] nil))))
 
 (defn reddit-get [url]
-
   (with-http-exception-handler
     {:url url
      :user-agent +reddit-user-agent+
      :request ::reddit-get}
     (let [resp  (http/get url {:accept :json
                                :as :json
-                               :headers {:user-agent "java:llar:23: (by /u/irq0x00)"}})]
+                               :headers {:user-agent +reddit-user-agent+}})]
       (:body resp))))
 
 (defn reddit-get-scores [src]

@@ -285,22 +285,33 @@
      uri
      creds)))
 
+(spec/def :irq0-hn-filter/min-score pos-int?)
+(spec/def :irq0-hn-filter/min-comments pos-int?)
+(spec/def :irq0-hn-filter/created-after :irq0/ts)
+(spec/def :irq0-hn-filter/tags string?)
+(spec/def :irq0-hn-filter/filters string?)
+(spec/def :irq0-hn-filter/count pos-int?)
+(spec/def :irq0-hn-filter/query  string?)
+(spec/def :irq0-hn-filter/count  pos-int?)
+(spec/def :irq0-hn/tag (spec/and keyword? #(#{:front_page :comment :ask_hn :show_hn :job} %)))
+(spec/def :irq0-hn/args (spec/keys :opt-un [:irq0-hn-filter/query :irq0-hn-filter/count :irq0-hn-filter/filters :irq0-hn-filter/count :irq0-hn-filter/min-score :irq0-hn-filter/min-comments :irq0-hn-filter/created-after]))
+
 (defrecord HackerNews
-           [story-feed
-            args]
+           [tag args]
   Source
-  (source-type [_] ::live)
+  (source-type [_] ::fetch)
   Object
-  (toString [src] (str "[HackerNews: " (:story-feed src) "(" (:state src) ")]")))
+  (toString [src] (format "[HackerNews: %s (%s)]" (:tag src) (:args src))))
+
+(def +hn-default-args+
+  {:count 1000})
 
 (defn hn
-  [story-feed
-   & {:keys [throttle-secs]}]
-  {:pre [(spec/valid? string? story-feed)
-         (spec/valid? (spec/or :default nil?
-                               :value pos-int?) throttle-secs)]
+  [tag & {:as args}]
+  {:pre [(spec/valid? :irq0-hn/tag tag)
+         (spec/valid? (spec/nilable :irq0-hn/args) args)]
    :post [(spec/valid? source? %)]}
-  (->HackerNews story-feed {:throttle-secs (or throttle-secs 120)}))
+  (->HackerNews tag (merge +hn-default-args+ args)))
 
 (defn feed? [src]
   (some #(instance? % src) [Feed SelectorFeed WordpressJsonFeed Reddit]))

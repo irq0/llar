@@ -1,7 +1,6 @@
 (ns llar.fetchutils
   (:require
    [clojure.set :refer [intersection]]
-   [clojure.string :as string]
    [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]
    [java-time.api :as time]
@@ -150,25 +149,6 @@
          (catch [:type :llar.fetch.mercury/not-parsable] _
            (log/error (str item) "Mercury Error. Not replacing content with mercury")
            item))))))
-
-(defn make-hacker-news-filter [min-score min-score-match]
-  (fn [item]
-    (let [site (some-> item :entry :url uri/host)
-          score (get-in item [:entry :score])
-          title (some-> (get-in item [:summary :title]) string/lower-case)
-          type (get-in item [:entry :type])]
-      (not
-       (or
-        (and (= :story type)
-             (>= score min-score))
-        (and (= :story type)
-             (re-find #"clojure|lisp|book|alan kay|futurism|rob pike|germany|file system|quobyte|storage" title)
-             (>= score min-score-match))
-        (and
-         (some? site)
-         (re-find #"nautil\.us|theatlantic|medium|youtube|theguardian|washingtonpost|99percentinvisible|theverge|phys\.org|bbc\.com"
-                  site)
-         (>= score min-score-match)))))))
 
 (defn make-category-filter-deny [denylist]
   (fn [item]

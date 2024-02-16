@@ -15,6 +15,7 @@
    [llar.fetch.mercury]
    [llar.fetch.reddit]
    [llar.fetch.twitter]
+   [llar.fetch.hackernews]
    [llar.postproc :as proc]))
 
 ;; contains all loaded sources
@@ -144,9 +145,8 @@
        :rename {defsched-remove-unread-tag autoread}]
      '[llar.converter :refer [html2text] :rename {html2text $html2text}]
      '[llar.human :refer [truncate-ellipsis] :rename {truncate-ellipsis $ellipsify}]
-     '[llar.fetchutils :refer [parse-timestamp mercury-contents make-hacker-news-filter make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
+     '[llar.fetchutils :refer [parse-timestamp mercury-contents make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
        :rename {parse-timestamp $parse-ts
-                make-hacker-news-filter $hn-filter
                 make-category-filter-deny $category-rm
                 mercury-contents $extract
                 add-tag $add-tag

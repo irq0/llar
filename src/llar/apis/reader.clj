@@ -917,8 +917,7 @@
          (icon "fas fa-rss") source-key
          (when (= (:type item) :item-type/link)
            [:span "&nbsp;"
-            (when-let [comments-url (or (:hn-url entry)
-                                        (:comments-url entry))]
+            (when-let [comments-url (:comments-url entry)]
               [:a {:href comments-url} "(comments)"])
             " → " (human/host-identifier url)])
          (when (and (string? url) (string? (:url source))
