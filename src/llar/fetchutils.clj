@@ -3,9 +3,11 @@
    [clojure.set :refer [intersection]]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
+   [clojure.spec.alpha :as s]
    [java-time.api :as time]
+   [java-time.format :as time-format]
    [org.bovinegenius [exploding-fish :as uri]]
-   [slingshot.slingshot :refer [try+]]
+   [slingshot.slingshot :refer [try+ throw+]]
    [hickory.core :as hick]
    [llar.fetch :as fetch]
    [llar.fetch.reddit :as reddit]
@@ -13,13 +15,78 @@
    [llar.postproc :as proc]
    [llar.src :as src]))
 
-(defn parse-date-to-zoned-data-time [fmt s]
-  (time/zoned-date-time
-   (time/local-date (time/formatter fmt) s) 0 (time/zone-id "UTC")))
+(defmacro with-datetime-exception-handler [context & body]
+  `(try
+     ~@body
+     (catch clojure.lang.ExceptionInfo ex#
+       (let [java-ex# (ex-cause ex#)
+             arguments# (:arguments (ex-data ex#))]
+         (cond
+           (instance? java.time.format.DateTimeParseException java-ex#)
+           (do (log/debugf "Unparsable timestamp: %s" (ex-message java-ex#))
+               (throw+ (merge {:type :datetime-parse-exception
+                               :arguments arguments#}
+                              ~context)
+                       nil
+                       (ex-message java-ex#)))
+           (and (instance? java.time.DateTimeException java-ex#)
+                (re-find #"LocalDateTime from TemporalAccessor" (ex-message java-ex#)))
+           (throw+ (merge {:type :datetime-unable-to-find-time
+                           :arguments arguments#}
 
-(defn parse-date-time-to-zoned-data-time [fmt s]
-  (time/zoned-date-time
-   (time/local-date-time (time/formatter fmt) s) (time/zone-id "UTC")))
+                          ~context)
+                   nil
+                   (ex-message java-ex#))
+           (and (instance? java.time.DateTimeException java-ex#)
+                (re-find #"ZonedDateTime from TemporalAccessor" (ex-message java-ex#)))
+           (throw+ (merge {:type :datetime-no-timezone
+                           :arguments arguments#}
+                          ~context)
+                   nil
+                   (ex-message java-ex#))
+           (instance? java.time.DateTimeException java-ex#)
+           (throw+ (merge {:type :datetime-exception
+                           :arguments arguments#}
+                          ~context)
+                   nil
+                   (ex-message java-ex#)))))))
+
+(defn- parse-datetime-with-timezone [fmt s]
+  (with-datetime-exception-handler {:format fmt :string s}
+    (time/zoned-date-time (time/formatter fmt) s)))
+
+(defn- parse-datetime-force-utc [fmt s]
+  (with-datetime-exception-handler {:format fmt :string s}
+    (time/zoned-date-time
+     (time/local-date-time (time/formatter fmt) s) 0 (time/zone-id "UTC"))))
+
+(defn- parse-date-force-utc [fmt s]
+  (with-datetime-exception-handler {:format fmt :string s}
+    (time/zoned-date-time
+     (time/local-date (time/formatter fmt) s) 0 (time/zone-id "UTC"))))
+
+(def predefined-timestamp-formats (->>
+                                   time-format/predefined-formatters
+                                   keys
+                                   (map keyword)
+                                   (into #{})))
+
+(s/def :irq0/predefined-timestamp-format #(contains? predefined-timestamp-formats %))
+
+(defn parse-timestamp [fmt s]
+  {:pre [(s/valid? (s/or :format-string (s/and string?)
+                         :predefined (s/and keyword? :irq0/predefined-timestamp-format))
+                   fmt)
+         (s/valid? string? s)]}
+  (try+
+   (parse-datetime-with-timezone fmt s)
+   (catch [:type :datetime-no-timezone] _
+     (try+
+      (parse-datetime-force-utc fmt s)
+      (catch [:type :datetime-unable-to-find-time] _
+        (parse-date-force-utc fmt s))))
+   (catch [:type :datetime-unable-to-find-time] _
+     (parse-date-force-utc fmt s))))
 
 (def +mercury-site-denylist+
   #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")

@@ -33,7 +33,12 @@
 ;; $credentials - access credentials from credentials.edn
 ;; $html2text - convert html to text
 ;; $ellipsify - truncate text with eppipsis
-;; $parse-date - parse date to zoned date time. first parameter is the format. e.g (time/format :rfc_1123-date)
+;; $parse-ts - parse timestamp to zoned date time. first parameter is the format. second the string
+;;             either a java time format string or a keyword from java-time.format/predefined-formatters
+;;             common formatters:
+;;              - :iso-date "2024-02-16"
+;;		- :iso-date-time "2024-02-16T13:37:00Z"
+;;		- :rfc-1123-date-time
 ;; $hn-filter - filter hacker news items
 ;; $category-rm - remove items by category. usually avaiale for feed items
 ;; $extract - run article extraction on html content

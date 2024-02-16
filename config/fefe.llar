@@ -24,6 +24,6 @@
                                      first
                                      :content
                                      first
-                                     ($parse-date "EEE MMM d yyyy"))}
+                                     ($parse-ts "EEE MMM d yyyy"))}
                           {})
        :tags #{:blog})

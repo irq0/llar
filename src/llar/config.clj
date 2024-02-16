@@ -144,8 +144,8 @@
        :rename {defsched-remove-unread-tag autoread}]
      '[llar.converter :refer [html2text] :rename {html2text $html2text}]
      '[llar.human :refer [truncate-ellipsis] :rename {truncate-ellipsis $ellipsify}]
-     '[llar.fetchutils :refer [parse-date-to-zoned-data-time mercury-contents make-hacker-news-filter make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
-       :rename {parse-date-to-zoned-data-time $parse-date
+     '[llar.fetchutils :refer [parse-timestamp mercury-contents make-hacker-news-filter make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
+       :rename {parse-timestamp $parse-ts
                 make-hacker-news-filter $hn-filter
                 make-category-filter-deny $category-rm
                 mercury-contents $extract
