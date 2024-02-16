@@ -91,7 +91,7 @@
             {:last-finished-ts now
              :last-duration duration
              :status next-status
-             :last-exception last-exception
+             :last-exception (converter/make-exception-context-from-slingshot-throw-context last-exception)
              :retry-count next-retry-count}))))
 
 (defn- update-feed!

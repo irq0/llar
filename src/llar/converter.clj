@@ -119,16 +119,32 @@
 
 ;; feed fetch state
 
+(defrecord ExceptionContext [cause message stack-trace throwable data])
+
+(defn make-exception-context-from-slingshot-throw-context [throw-context]
+  (let [data (ex-data (:throwable throw-context))]
+    (->ExceptionContext
+     (:cause throw-context)
+     (ex-message (:message throw-context))
+     (:stack-trace throw-context)
+     (:throwable throw-context)
+     data)))
+
 (def +state-handlers+
   {java.time.ZonedDateTime
    (puget/tagged-handler
     'org.irq0.🖖/datetime
     #(time/format :iso-zoned-date-time %))
 
-   clojure.lang.Atom
+   llar.converter.ExceptionContext
    (puget/tagged-handler
-    'org.irq0.🖖/atom
-    (fn [value] (puget/pprint-str @value)))
+    'org.irq0.🖖/exception
+    (fn [val] (select-keys val [:message :cause :data])))
+
+   java.time.Duration
+   (puget/tagged-handler
+    'org.irq0.🖖/duration
+    #(str %))
 
    Uri
    (puget/tagged-handler
@@ -138,13 +154,18 @@
   (puget/render-str (puget/canonical-printer +state-handlers+)
                     state))
 
-(defrecord GenericTaggedValue [tag value])
-
 (defn read-edn-state [s]
   (edn/read-string
    {:readers {'org.irq0.🖖/datetime #(time/zoned-date-time (time/formatter :iso-zoned-date-time) %)
-              'org.irq0.🖖/url uri/uri
-              'org.irq0.🖖/atom (fn [x] (atom x))}}
+              'org.irq0.🖖/duration #(time/duration %)
+              'org.irq0.🖖/exception (fn [val] (when-not (nil? val)
+                                                 (->ExceptionContext
+                                                  (:cause val)
+                                                  (:message val)
+                                                  (make-array java.lang.StackTraceElement 0)
+                                                  nil
+                                                  (:data val))))
+              'org.irq0.🖖/url uri/uri}}
    s))
 
 (defn parse-http-ts [ts]
