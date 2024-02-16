@@ -115,10 +115,11 @@
                     (str item)))
       processed)))
 
+;; TODO spec validate item
 (defn check-intermediate [item where]
   (if (satisfies? ItemProcessor item)
     item
-    (log/errorf "Processing pipeline failure after %s. Intermediate result garbage: %s %s"
+    (log/errorf "Processing pipeline failure after %s. Intermediate result is not a processable item: type:%s value:%s"
                 where (type item) item)))
 
 (defn check-intermediate-maybe-coll [items where]
