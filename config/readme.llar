@@ -11,12 +11,13 @@
 ;; :tags - a set of tags to be associated with the source
 ;; :post - a function to be called after filtering
 ;; :post-fns - a vec of functions to be called after filtering
-;; :pre - a function to be called before filtering
+;; :pre - a function body to be called before filtering
 ;; :pre-fns - a vec of functions to be called before filtering
-;; :rm - a function to be called to remove items
+;; :rm - a function body to be called to remove items
 ;; :rm-fn - a vec of functions to remove items
 ;;
-;; All filter/pre/post functions are called with special context variables:
+;; All filter/pre/post functions bodies are called with special context variables:
+;; Note: this does not apply to post-fns, pre-fns, rm-fn which require a function def
 ;; $item - the item
 ;; $key - the source key
 ;; $title - the title of the item
@@ -28,6 +29,9 @@
 ;; $text - the text of the item
 ;; $options - the options of the source
 ;; $entry - the entry of the item
+;; $score - a score if source is reddit or hackernews
+;;
+;; All post-fns,pre-fns, rm-fn are called with the fetched item as single argument
 
 ;; Processing functions have additional helper functions available:
 ;; $credentials - access credentials from credentials.edn
@@ -39,7 +43,6 @@
 ;;              - :iso-date "2024-02-16"
 ;;		- :iso-date-time "2024-02-16T13:37:00Z"
 ;;		- :rfc-1123-date-time
-;; $hn-filter - filter hacker news items
 ;; $category-rm - remove items by category. usually avaiale for feed items
 ;; $extract - run article extraction on html content
 ;; $add-tag - add an item tag
@@ -66,11 +69,18 @@
 (fetch irq0 (src/feed "http://irq0.org/index.xml")
        :tags #{:blog})
 
-;; Reddit fetch have an additional parameter :min-score
+;; Reddit sources have an additional parameter :min-score
 
 ;; (fetch-reddit (src/reddit "games" :top) :min-score 2000
 ;;               :options #{:mark-read-on-view}
 ;;               :tags #{:gaming})
+
+;; Hacker News sources take a tag and optional filters
+
+;; (src/hn TAG MAP-OF-FILTERS)
+;; TAG is one of :front_page :comment :ask_hn :show_hn :job
+;; MAP-OF-FILTERS:
+;;  min-score, min-comments, created-after (timestamp), count, query (algolia query string)
 
 ;;
 ;; Define schedules
