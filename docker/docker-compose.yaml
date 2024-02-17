@@ -11,34 +11,41 @@ services:
     shm_size: '246MB'
   llar-init-db:
     image: ghcr.io/irq0/llar:latest
+    user: root
     links:
       - db
     depends_on:
       db:
         condition: service_started
     volumes:
-      - llar-state:/var/lib/llar
-      - ./docker-config.edn:/var/lib/llar/config.edn
+      - llar-state:/llar
+      - llar-blobstore:/llar/blobs
+      - ../config:/llar/config/
+      - ./docker-config.edn:/llar/config.edn
+      - ./credentials.edn:/llar/credentials.edn
     entrypoint:
       - "/bin/bash"
       - "-c"
       - >
         set -x;
-        if [[ -r "/var/lib/llar/db-initialized" ]]; then
+        if [[ -r "/llar/db-initialized" ]]; then
            exit 0
         fi;
         sleep 5;
+        chown -R llar:llar /llar/blobs;
+        chmod u+w /llar/blobs;
         if java -jar /opt/llar/standalone.jar --init-db; then
-           date -u +"%Y-%m-%dT%H:%M:%SZ" > /var/lib/llar/db-initialized;
+           date -u +"%Y-%m-%dT%H:%M:%SZ" > /llar/db-initialized;
         else
            set +x
            echo "Database initialization failed :("
            exit 23
         fi;
     environment:
-      LLAR_CONFIG: /var/lib/llar/config.edn
+      LLAR_CONFIG: /llar/config.edn
   llar:
     image: ghcr.io/irq0/llar:latest
+    user: llar
     links:
       - db
     depends_on:
@@ -47,18 +54,18 @@ services:
       llar-init-db:
         condition: service_completed_successfully
     volumes:
-      - llar-state:/var/lib/llar
-      - llar-blobstore:/var/lib/llar/blobs
-      - ./docker-config.edn:/var/lib/llar/config.edn
-      - ./credentials.edn:/var/lib/llar/credentials.edn
-      - ../config:/var/lib/llar/config/
+      - llar-state:/llar
+      - llar-blobstore:/llar/blobs
+      - ../config:/llar/config/
+      - ./docker-config.edn:/llar/config.edn
+      - ./credentials.edn:/llar/credentials.edn
     mem_limit: 4g
     ports:
       - "8023:8023"
       - "9999:9999"
       - "42000:42000"
     environment:
-      LLAR_CONFIG: /var/lib/llar/config.edn
+      LLAR_CONFIG: /llar/config.edn
 
 volumes:
   llar-postgresql:

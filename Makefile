@@ -97,4 +97,4 @@ $(llar_uberjar): $(CLOJURE_FILES)
 uberjar: $(llar_uberjar)
 
 docker-image: uberjar docker/Dockerfile
-	docker build --build-arg VERSION=$(LLAR_VERSION) --network host -t ghcr.io/irq0/llar:snapshot -f docker/Dockerfile .
+	docker build --build-arg VERSION=$(LLAR_VERSION) --network host -t ghcr.io/irq0/llar:latest -f docker/Dockerfile .

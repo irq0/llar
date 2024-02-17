@@ -41,11 +41,16 @@ ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
-RUN mkdir -p /opt/llar
+RUN mkdir -p /opt/llar /llar
 COPY target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
-ENV LLAR_CONFIG /var/lib/llar/config.edn
+ENV LLAR_CONFIG /llar/config.edn
 ENV JDK_JAVA_OPTIONS "-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
+
+RUN groupadd -g 42000 llar && \
+   useradd -u 42000 -g llar llar \
+   && chown -R llar:llar /llar
+USER llar:llar
 
 EXPOSE 8023
 EXPOSE 9999
