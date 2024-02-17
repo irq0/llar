@@ -1,12 +1,13 @@
+LLAR_VERSION := $(shell lein pprint --no-pretty -- :version)
+CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
+
 ibmplex_version := 6.3.0
 fontawesome_version := 6.5.1
 bootstrap_version := 5.3.2
 jquery_version := 3.7.1
 jquery_datatables_version := 1.13.10
 datatables_buttons_version := 2.4.2
-
-LLAR_VERSION := $(shell lein pprint :version)
-CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
+llar_uberjar := target/llar-$(LLAR_VERSION)-standalone.jar
 
 all: web-3rd-party uberjar
 
@@ -88,12 +89,12 @@ clean-web-3rd-party:
 	rm -rf resources/status/fontawesome
 	rm -rf resources/status/ibmplex
 
-target/llar-$(LLAR_VERSION)-standalone.jar: $(CLOJURE_FILES)
+$(llar_uberjar): $(CLOJURE_FILES)
 	@echo "Building uberjar with version $(LLAR_VERSION)"
 	@echo "Clojure files: $(CLOJURE_FILES)"
 	lein uberjar
 
-uberjar: target/llar-$(LLAR_VERSION)-standalone.jar
+uberjar: $(llar_uberjar)
 
 docker-image: uberjar docker/Dockerfile
 	docker build --build-arg VERSION=$(LLAR_VERSION) --network host -t ghcr.io/irq0/llar:snapshot -f docker/Dockerfile .
