@@ -52,7 +52,12 @@
      :guard (mount-up/try-catch
              (fn [ex state] (log/error ex "!! Error bringing up state " state)))
      :wrap-in)
-    (mount/start #'appconfig/appconfig)
+
+    (->
+     (mount/only #{#'appconfig/appconfig})
+     (mount/swap {#'appconfig/appconfig (appconfig/read-config-or-die)})
+     (mount/start))
+
     (when (:nrepl options)
       (mount/start #'repl/nrepl-server))
 

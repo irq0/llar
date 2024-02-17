@@ -19,7 +19,7 @@
   (try
     (edn/read-string (slurp file))
     (catch Exception e
-      (log/error e "failed to read config from " file)
+      (log/errorf "failed to read config from %s: %s" file (ex-message e))
       {})))
 
 (s/def :irq0-appconfig/state-dir :irq0/path-writable-dir)
@@ -67,6 +67,13 @@
         (apply merge)
         (verify-config))
    (assoc :version (read-version))))
+
+(defn read-config-or-die []
+  (try
+    (read-config)
+    (catch java.lang.Throwable _
+      (log/error "failed to read config. exiting")
+      (System/exit 1))))
 
 (defstate appconfig
   :start (read-config))
