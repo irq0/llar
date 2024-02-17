@@ -7,6 +7,7 @@
    [clojure.tools.logging :as log]
    [mount.core :refer [defstate] :as mount]
    [nextjournal.beholder :as beholder]
+   [slingshot.slingshot :refer [try+]]
    [llar.fetchutils :refer [make-reddit-proc]]
    [llar.fetch.custom]
    [llar.fetch.feed]
@@ -180,11 +181,17 @@
           (log/error e "failed to load highlight def" (second form))))
 
       (and (list? form) (#{'fetch 'fetch-reddit} (first form)))
-      (try
-        (log/debugf "loading fetch \"%s\"" (second form))
-        (eval form)
-        (catch Exception e
-          (log/error e "failed to load fetch def" (second form))))
+      (try+
+       (log/debugf "loading fetch \"%s\"" (second form))
+       (eval form)
+       #_{:clj-kondo/ignore [:unresolved-symbol]}
+       (catch [:clojure.spec.alpha/failure :assertion-failed] x
+         (log/errorf "failed to load fetch def %s. spec %s failed. value:%s problems:%s form:%s" (second form)
+                     (:clojure.spec.alpha/spec x) (:clojure.spec.alpha/value x) (:clojure.spec.alpha/problems x)
+                     form))
+       #_{:clj-kondo/ignore [:unresolved-symbol]}
+       (catch Object e
+         (log/errorf e "failed to load fetch def \"%s\"" (second form))))
 
       (and (list? form) (#{'sched-fetch} (first form)))
       (try
