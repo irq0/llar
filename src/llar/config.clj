@@ -37,13 +37,14 @@
     `(fn [item#]
        (let [~'$item item#
              ~'$key ~src-key
-             ~'$title (get-in item# [:summary :title])
-             ~'$authors (get-in item# [:entry :authors])
+             ~'$title (get-in item# [:summary :title] "")
+             ~'$authors (get-in item# [:entry :authors] "")
              ~'$tags ~tags
-             ~'$raw (get item# :raw)
-             ~'$url (get-in item# [:entry :url])
-             ~'$html (get-in item# [:entry :contents "text/html"])
-             ~'$text (get-in item# [:entry :contents "text/plain"])
+             ~'$raw (get item# :raw {})
+             ~'$url (get-in item# [:entry :url] "")
+             ~'$html (get-in item# [:entry :contents "text/html"] "")
+             ~'$text (get-in item# [:entry :contents "text/plain"] "")
+             ~'$score (get-in item# [:entry :score] -1)
              ~'$options ~options
              ~'$entry (:entry item#)]
          (do ~@body)))))
