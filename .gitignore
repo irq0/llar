@@ -12,3 +12,4 @@ pom.xml.asc
 /resources/nlp/models/*.bin
 /resources/credentials.edn
 .eastwood
+/resources/version.edn
