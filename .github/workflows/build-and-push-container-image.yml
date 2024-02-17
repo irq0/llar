@@ -44,7 +44,7 @@ jobs:
         tags: |
           type=semver,pattern={{version}},value=${{ env.VERSION }}
           type=sha
-
+          type=raw,value=latest,enable={{is_default_branch}}
     - name: build and push
       uses: docker/build-push-action@v5
       with:
