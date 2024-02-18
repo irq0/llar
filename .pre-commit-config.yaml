@@ -75,3 +75,19 @@ repos:
     rev: v2023.12.15
     hooks:
         - id: clj-kondo-docker
+
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v6.14.1
+    hooks:
+    - id: cspell
+      args:
+        - --no-must-find-files
+        - --no-progress
+        - --no-summary
+        - --gitignore
+        - --unique
+      files: >-
+          (?x)^(
+          doc/.*|
+          README\.md
+          )$

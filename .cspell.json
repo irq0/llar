@@ -1,0 +1,12 @@
+{
+   "dictionaries" : [
+      "llar"
+   ],
+   "dictionaryDefinitions" : [
+      {
+         "addWords" : "true",
+         "name" : "llar",
+         "path" : ".dicts/llar.dict"
+      }
+   ]
+}
