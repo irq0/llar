@@ -5,6 +5,7 @@
    [llar.metrics :as metrics]
    [llar.apis.dashboard :as dashboard]
    [llar.apis.reader :as reader]
+   [llar.appconfig :refer [appconfig]]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [clj-stacktrace.core :as stacktrace]
@@ -95,9 +96,15 @@
     (.stop jetty)))
 
 (defstate dashboard
-  :start (try-start-jetty (dashboard-app) 9999)
+  :start (if-let [port (get-in appconfig [:api :dashboard :port])]
+           (do (try-start-jetty (dashboard-app) port)
+               (log/infof "dashboard started on http://localhost:%s prometheus endpoint http://localhost:%s/metrics" port port))
+           (log/info "dashboard disabled in appconfig"))
   :stop (try-stop-app dashboard))
 
 (defstate ^{:depends-on [metrics/prom-registry reader/frontend-db]} reader
-  :start (try-start-jetty (reader-app metrics/prom-registry) 8023)
+  :start (if-let [port (get-in appconfig [:api :reader :port])]
+           (do (try-start-jetty (reader-app metrics/prom-registry) (get-in appconfig [:api :reader :port]))
+               (log/infof "reader started: http://localhost:%s/reader" port))
+           (log/info "reader disabled in appconfig"))
   :stop (try-stop-app reader))

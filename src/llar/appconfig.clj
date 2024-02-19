@@ -22,6 +22,11 @@
       (log/errorf "failed to read config from %s: %s" file (ex-message e))
       {})))
 
+(s/def :irq0-appconfig/port pos-int?)
+(s/def :irq0-appconfig/jetty-config (s/keys :req-un [:irq0-appconfig/port]))
+(s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
+(s/def :irq0-appconfig/reader :irq0-appconfig/jetty-config)
+(s/def :irq0-appconfig/api (s/keys :opt-un [:irq0-appconfig/reader :irq0-appconfig/dashboard]))
 (s/def :irq0-appconfig/state-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/blob-store-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/credentials-file :irq0/path-exists)
@@ -33,6 +38,11 @@
 (s/def :irq0-appconfig/backend :irq0-appconfig/postgresql-pool)
 (s/def :irq0-appconfig/postgresql (s/keys :req-un [:irq0-appconfig/frontend
                                                    :irq0-appconfig/backend]))
+(s/def :irq0-appconfig/list-view #{:headlines :gallery})
+(s/def :irq0-appconfig/default-list-view (s/map-of keyword? :irq0-appconfig/list-view))
+(s/def :irq0-appconfig/view-group #{:default :item-tags :source-tag :type})
+(s/def :irq0-appconfig/favorites (s/coll-of (s/tuple keyword? :irq0-appconfig/view-group)))
+(s/def :irq0-appconfig/ui (s/keys :opt-un [:irq0-appconfig/default-list-view :irq0-appconfig/favorites]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/state-dir
@@ -40,6 +50,8 @@
                    :irq0-appconfig/credentials-file
                    :irq0-appconfig/runtime-config-dir
                    :irq0-appconfig/commands
+                   :irq0-appconfig/api
+                   :irq0-appconfig/ui
                    :irq0-appconfig/postgresql]))
 
 (defn verify-config [config]

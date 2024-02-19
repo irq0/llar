@@ -2,6 +2,8 @@
  :state-dir "/var/lib/llar"
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"
+ :api {:dashboard {:port 9999}
+       :reader {:port 8023}}
  :ui {:default-list-view {:storage :headlines
                           :shopping :headlines
                           :tweet :gallery}
