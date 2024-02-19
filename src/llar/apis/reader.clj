@@ -10,10 +10,11 @@
    [hiccup.core :refer [html]]
    [java-time.api :as time]
    [mount.core :refer [defstate]]
+   [iapetos.core :as prometheus]
    [org.bovinegenius [exploding-fish :as uri]]
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
-   [llar.appconfig :as appconfig]
+   [llar.appconfig :refer [appconfig]]
    [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.core :as db]
@@ -42,7 +43,7 @@
 
 (defstate frontend-db
   :start (db/make-postgresql-pooled-datastore
-          (appconfig/postgresql-config :frontend)))
+          (get-in appconfig [:postgresql :frontend])))
 
 (def +max-items+
   "Number of items in item list. All fetched at once."
@@ -447,7 +448,7 @@
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Favorites"]]
       [:ul {:class "nav flex-column"}
-       (for [[key group] (get-in appconfig/appconfig [:ui :favorites])]
+       (for [[key group] (get-in appconfig [:ui :favorites])]
          [:li {:class "nav-item"}
           [:a {:class (str "nav-link" (when (and
                                              (= active-group group)
@@ -1100,7 +1101,7 @@
 
 (defn get-list-style [x]
   (let [selected-style (:list-style x)
-        hinted-style (get-in appconfig/appconfig [:ui :default-list-view] (:group-item x))]
+        hinted-style (get-in appconfig [:ui :default-list-view] (:group-item x))]
     (cond
       (and (nil? selected-style) (keyword? hinted-style))
       hinted-style
@@ -1240,16 +1241,16 @@
 (defn download-item-content
   "Download Selected Item Content"
   [params]
-  (let [sources (metrics/with-prom-exec-time :llar/compile-sources
+  (let [sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                   (persistency/get-sources frontend-db (config/get-sources)))
 
-        items (metrics/with-prom-exec-time :llar/items-current-view
+        items (prometheus/with-duration (metrics/prom-registry :llar-ui/items-current-view)
                 (get-items-for-current-view sources params))
         item (first items)
 
         data (get-in item [:data (:data params) (:content-type params)])
 
-        body (metrics/with-prom-exec-time :llar/render-download
+        body (prometheus/with-duration (metrics/prom-registry :llar-ui/render-download)
                (cond (string? data) data
                      (instance? (Class/forName "[B") data) (java.io.ByteArrayInputStream. data)
                      :else nil))]
@@ -1276,15 +1277,15 @@
                          override
                          orig-fltr))
 
-         item-tags (future (metrics/with-prom-exec-time :llar/tag-list
+         item-tags (future (prometheus/with-duration (metrics/prom-registry :llar-ui/tag-list)
                              (doall (persistency/get-tags frontend-db))))
 
-         sources (metrics/with-prom-exec-time :llar/compile-sources
+         sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                    (doall (persistency/get-sources frontend-db (config/get-sources))))
-         items (future (metrics/with-prom-exec-time :llar/items-current-view
+         items (future (prometheus/with-duration (metrics/prom-registry :llar-ui/items-current-view)
                          (doall (get-items-for-current-view sources params))))
          ;; right sidebar
-         active-sources (metrics/with-prom-exec-time :llar/active-sources
+         active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
                           (doall
                            (persistency/sources-merge-in-tags-counts
                             frontend-db
@@ -1318,8 +1319,7 @@
             source-nav (source-nav params)
             title (short-page-headline params)
 
-            html (metrics/with-prom-exec-time
-                   :llar/render-html
+            html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                    (html5
                     [:html {:lang "en"}
                      (html-header title (:mode params) (some-> params :items first))
@@ -1349,9 +1349,9 @@
 (def update-futures (atom {}))
 
 (defn update-sources [params]
-  (let [sources (metrics/with-prom-exec-time :llar/compile-sources
+  (let [sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                   (doall (persistency/get-sources frontend-db (config/get-sources))))
-        active-sources (metrics/with-prom-exec-time :llar/active-sources
+        active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
                          (doall
                           (persistency/sources-merge-in-tags-counts
                            frontend-db
@@ -1365,9 +1365,9 @@
             :future (str fut)}}))
 
 (defn update-sources-status [params]
-  (let [sources (metrics/with-prom-exec-time :llar/compile-sources
+  (let [sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                   (doall (persistency/get-sources frontend-db (config/get-sources))))
-        active-sources (metrics/with-prom-exec-time :llar/active-sources
+        active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
                          (doall
                           (persistency/sources-merge-in-tags-counts
                            frontend-db
@@ -1506,7 +1506,7 @@
                          override
                          orig-fltr))
 
-         item-tags (future (metrics/with-prom-exec-time :llar/tag-list
+         item-tags (future (prometheus/with-duration (metrics/prom-registry :llar-ui/tag-list)
                              (doall (persistency/get-tags frontend-db))))
 
          params (merge params {:sources {}
@@ -1520,8 +1520,7 @@
          group-nav (group-nav params)
          title (short-page-headline params)
 
-         html (metrics/with-prom-exec-time
-                :llar/render-html
+         html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                 (html5
                  [:html {:lang "en"}
                   (html-header title (:mode params) (some-> params :items first))
@@ -1736,8 +1735,7 @@
 
    (GET "/blob/:h" [h]
      (try+
-      (let [blob (metrics/with-prom-exec-time :llar/blobstore-get
-                   (blobstore/get-blob h))]
+      (let [blob (blobstore/get-blob h)]
         {:status 200
          :headers {"Content-Type" (:mime-type blob)
                    "Etag" h

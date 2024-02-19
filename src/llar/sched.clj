@@ -7,6 +7,7 @@
    [llar.metrics :as metrics]
    [clojure.tools.logging :as log]
    [java-time.api :as time]
+   [iapetos.core :as prometheus]
    [llar.src])
   (:import
    [java.time Duration ZoneId ZonedDateTime]))
@@ -61,7 +62,7 @@
      :start (vary-meta (chime/chime-at
                         (resolve-chime-times ~chime-times-or-keyword)
                         (fn [~'$TIME]
-                          (metrics/with-log-exec-time
+                          (metrics/with-log-exec-time-named ~sched-name
                             (do ~@body))))
                        merge
                        {:sched-name (str '~sched-name)
