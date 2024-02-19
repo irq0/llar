@@ -6,7 +6,7 @@ LABEL org.opencontainers.image.source=https://github.com/irq0/llar
 LABEL org.opencontainers.image.url=https://llar.dev
 LABEL org.opencontainers.image.title="llar"
 LABEL org.opencontainers.image.description="Live Long and Read: Container Image"
-LABEL org.opencontainers.image.authors="ml+llar@irq0.org"
+LABEL org.opencontainers.image.authors="llar@irq0.org"
 LABEL org.opencontainers.image.licenses=AGPLv3
 LABEL org.opencontainers.image.version=$VERSION
 
