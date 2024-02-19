@@ -30,6 +30,11 @@
              [:h2 "Internal Server Error"]
              [:h4 "Request"]
              (status/pprint-html request)
+             [:h4 "Exception"]
+             [:p "Message: " [:pre (ex-message ex)]]
+             [:p "Cause: " [:pre (ex-cause ex)]]
+             [:p "Exception Class: " [:pre (class ex)]]
+             [:p "Data: " (status/pprint-html (ex-data ex))]
              [:h4 "Exception Chain"]
              [:pre (get-in ex [:object :message])]
              [:ol
