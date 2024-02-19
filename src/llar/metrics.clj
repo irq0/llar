@@ -1,9 +1,9 @@
 (ns llar.metrics
   (:require
+   [mount.core :refer [defstate]]
    [iapetos.core :as prometheus]
    [iapetos.collector.jvm :as jvm]
-   [iapetos.collector.ring :as ring]
-   [mount.core :refer [defstate]]))
+   [iapetos.collector.ring :as ring]))
 
 (defstate prom-registry
   :start (-> (prometheus/collector-registry)
@@ -18,7 +18,8 @@
               (prometheus/histogram :llar-ui/tag-list)
               (prometheus/histogram :llar-ui/render-html)
               (prometheus/histogram :llar-ui/render-download)
-              (prometheus/histogram :llar-ui/items-current-view))))
+              (prometheus/histogram :llar-ui/items-current-view)))
+  :stop (prometheus/clear prom-registry))
 
 (defmacro with-log-exec-time-named [metric & body]
   `(let [start# (java.lang.System/nanoTime)

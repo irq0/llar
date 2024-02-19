@@ -1,5 +1,6 @@
 (ns llar.apis.reader
   (:require
+   [mount.core :refer [defstate]]
    [clojure.set :as set]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
@@ -9,12 +10,11 @@
    [hiccup.page :refer [html5]]
    [hiccup.core :refer [html]]
    [java-time.api :as time]
-   [mount.core :refer [defstate]]
    [iapetos.core :as prometheus]
    [org.bovinegenius [exploding-fish :as uri]]
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
-   [llar.appconfig :refer [appconfig]]
+   [llar.appconfig :refer [appconfig postgresql-config]]
    [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.core :as db]
@@ -43,7 +43,7 @@
 
 (defstate frontend-db
   :start (db/make-postgresql-pooled-datastore
-          (get-in appconfig [:postgresql :frontend])))
+          (postgresql-config :frontend)))
 
 (def +max-items+
   "Number of items in item list. All fetched at once."

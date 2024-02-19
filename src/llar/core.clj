@@ -6,26 +6,29 @@
    [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]
    [llar.appconfig :as appconfig]
+   [llar.blobstore]  ;; blobstore locks
+   [llar.metrics] ;; prom-registry
+   [llar.store :as store] ;; backend-db
+   [llar.apis.reader] ;; frontend-db
+   [llar.webapp] ;; reader, dashboard
+   [llar.update :as update] ;; update state
    [llar.persistency :as persistency]
-   [llar.store :as store]
    [llar.db.core :as db]
    [llar.db.query]
    [llar.db.modify]
    [llar.db.search]
-   [llar.repl :as repl]
-   [llar.update :as update]
-   [llar.metrics]
    [llar.lab :as lab]
-   [llar.apis.reader]
    [llar.http :as http]
-   [llar.blobstore]
    [llar.live :as live]
    [llar.config :as config]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
-   [llar.webapp])
+   [llar.repl :as repl])
   (:gen-class))
+
+;; Note: order of requires is important. Mount infers component load
+;; sequence from it
 
 (def cli-options
   [[nil "--init-db" "Initialize new database and exit"]
@@ -70,12 +73,14 @@
 
       (:dry options)
       (->
-       (mount/except [#'live/live #'lab/lab-sched #'config/change-watcher #'update/remove-unread-tags #'update/persist-state])
+       (mount/except [#'repl/nrepl-server #'live/live #'lab/lab-sched #'config/change-watcher #'update/remove-unread-tags #'update/persist-state])
        (mount/except lab/lab-sched)
        mount/start)
 
       :else
-      (mount/start))
+      (->
+       (mount/except [#'repl/nrepl-server])
+       (mount/start)))
 
     (.addShutdownHook
      (Runtime/getRuntime)
@@ -116,5 +121,5 @@
       (config/load-all))
 
     (log/info "🖖")
-    (log/debug "Running states: " (mount-graph/states-with-deps))
+    (log/debug "Mount load order: \n" (string/join "\n" (mount-graph/states-with-deps)))
     (log/debug "Startup options: " options)))

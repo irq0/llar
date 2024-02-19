@@ -1,15 +1,15 @@
 (ns llar.webapp
   (:require
+   [mount.core :refer [defstate]]
    [clojure.tools.logging :as log]
    [llar.metrics :as metrics]
-   [llar.apis.dashboard :as status]
+   [llar.apis.dashboard :as dashboard]
    [llar.apis.reader :as reader]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
    [clojure.string :as string]
-   [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
    [iapetos.collector.ring :refer [wrap-instrumentation]]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
@@ -30,12 +30,12 @@
              [:h1 "😭"]
              [:h2 "Internal Server Error"]
              [:h4 "Request"]
-             (status/pprint-html request)
+             (dashboard/pprint-html request)
              [:h4 "Exception"]
              [:p "Message: " [:pre (ex-message ex)]]
              [:p "Cause: " [:pre (ex-cause ex)]]
              [:p "Exception Class: " [:pre (class ex)]]
-             [:p "Data: " (status/pprint-html (ex-data ex))]
+             [:p "Data: " (dashboard/pprint-html (ex-data ex))]
              [:h4 "Exception Chain"]
              [:pre (get-in ex [:object :message])]
              [:ol
@@ -53,7 +53,7 @@
 
 (defn dashboard-app []
   (->
-   status/app
+   dashboard/app
    ring.middleware.json/wrap-json-body
    ring.middleware.json/wrap-json-response
    ring.middleware.keyword-params/wrap-keyword-params
@@ -84,7 +84,7 @@
    wrap-exception
    (wrap-instrumentation prom-registry {:path-fn prom-path-fn})))
 
-(defn try-start-app [app port]
+(defn try-start-jetty [app port]
   (try+
    (run-jetty app {:port port :join? false})
    (catch java.net.BindException e
@@ -95,9 +95,9 @@
     (.stop jetty)))
 
 (defstate dashboard
-  :start (try-start-app (dashboard-app) 9999)
+  :start (try-start-jetty (dashboard-app) 9999)
   :stop (try-stop-app dashboard))
 
-(defstate reader
-  :start (try-start-app (reader-app metrics/prom-registry) 8023)
+(defstate ^{:depends-on [metrics/prom-registry reader/frontend-db]} reader
+  :start (try-start-jetty (reader-app metrics/prom-registry) 8023)
   :stop (try-stop-app reader))
