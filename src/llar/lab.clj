@@ -47,11 +47,11 @@
 
 (def current-clustered-saved-items (atom {}))
 
-(defn make-saved-dataset []
+(defn make-saved-dataset [db]
   ;; must ensure that there are no '/' in terms - messes up keyword/name
-  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms backend-db))
+  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms db))
                               "item_id"))
-        term-tf-idf-maps (db-search/saved-items-tf-idf backend-db)
+        term-tf-idf-maps (db-search/saved-items-tf-idf db)
         weka-attributes (map (fn [s]
                                (let [new-attrib (weka.core.Attribute. s)]
                                  (if (= s :item_id)
@@ -91,8 +91,8 @@
                                     attributes
                                     centroid))))))
 
-(defn cluster-saved []
-  (let [ds (make-saved-dataset)
+(defn cluster-saved [db]
+  (let [ds (make-saved-dataset db)
         clst (ml-clusterers/make-clusterer :k-means {:number-clusters (int (/ (ml-data/dataset-count ds) 5))})]
     (ml-clusterers/clusterer-build clst ds)
     (let [ds-clst (ml-clusterers/clusterer-cluster clst ds)
@@ -111,7 +111,7 @@
            ml-data/dataset-as-maps
            (map (fn [{:keys [item_id class]}]
                   (let [id (int item_id)
-                        item (persistency/get-item-by-id backend-db id)
+                        item (persistency/get-item-by-id db id)
                         class-name (get names class)]
                     {:title (:title item)
                      :nwords (:nwords item)
@@ -122,6 +122,7 @@
 
 (defsched update-db-search-indices
   :early-morning
+  (log/info "Updating search index")
   (persistency/update-index! backend-db))
 
 (defsched update-clustered-saved-items
@@ -129,7 +130,7 @@
   (log/info "Updating saved items cluster")
   (reset!
    current-clustered-saved-items
-   (cluster-saved)))
+   (cluster-saved backend-db)))
 
 (def lab-sched [#'update-db-search-indices
                 #'update-clustered-saved-items])
