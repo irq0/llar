@@ -417,20 +417,22 @@
         [:div {:class "input-group-append"}
          [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
                    :type "submit"
+                   :title "Add bookmark with readability engine"
                    :data-bs-title "Add Bookmark with readability engine"
                    :data-url-source "#add-url-1"
                    :data-bs-success "#add-url-1-status"
                    :data-type "readability-bookmark"}
 
-          "R"]
+          (icon "fas fa-newspaper")]
          [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
                    :type "submit"
                    :data-bs-title "Add Bookmark with raw content"
+                   :title "Add bookmark with raw content"
                    :data-url-source "#add-url-1"
                    :data-bs-success "#add-url-1-status"
                    :data-type "raw-bookmark"}
 
-          "B"]]]]
+          (icon "fab fa-html5")]]]]
 
       [:ul {:class "nav flex-column"}
        (for [[k [name ico]] +exposed-simple-filter+]
