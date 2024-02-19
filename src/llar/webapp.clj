@@ -1,16 +1,17 @@
 (ns llar.webapp
   (:require
    [clojure.tools.logging :as log]
+   [llar.metrics :as metrics]
    [llar.apis.dashboard :as status]
    [llar.apis.reader :as reader]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
+   [clojure.string :as string]
    [mount.core :refer [defstate]]
    [hiccup.core :refer [html]]
    [iapetos.collector.ring :refer [wrap-instrumentation]]
-   [llar.metrics :as metrics]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
 (defn exception-response [request ex]
@@ -63,7 +64,15 @@
    wrap-exception
    ring.middleware.lint/wrap-lint))
 
-(defn reader-app []
+(def +prom-shorten-path-of+
+  ["/blob" "/static" "/reader/item/by-id/"])
+
+(defn prom-path-fn [request]
+  (if-let [prefix (some #(when (string/starts-with? (:uri request) %) %) +prom-shorten-path-of+)]
+    prefix
+    (:uri request)))
+
+(defn reader-app [prom-registry]
   (->
    reader/app
    ring.middleware.json/wrap-json-response
@@ -73,7 +82,7 @@
    ring.middleware.gzip/wrap-gzip
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception
-   (wrap-instrumentation metrics/prom-registry)))
+   (wrap-instrumentation prom-registry {:path-fn prom-path-fn})))
 
 (defn try-start-app [app port]
   (try+
@@ -90,5 +99,5 @@
   :stop (try-stop-app dashboard))
 
 (defstate reader
-  :start (try-start-app (reader-app) 8023)
+  :start (try-start-app (reader-app metrics/prom-registry) 8023)
   :stop (try-stop-app reader))
