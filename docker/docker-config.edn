@@ -3,7 +3,6 @@
  :credentials-file "/llar/credentials.edn"
  :runtime-config-dir "/llar/config"
  :commands {:mercury-parser "/usr/local/bin/postlight-parser"
-            :youtube-dl "yt-dlp"
             :pdftocairo "pdftocairo"
             :pdf2htmlex "pdf2htmlEX"
             :pandoc "pandoc"

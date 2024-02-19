@@ -129,7 +129,6 @@
                                             :credentials-file "/tmp/credentials.edn"
                                             :runtime-config-dir "/tmp"
                                             :commands {:mercury-parser "/bin/true"
-                                                       :youtube-dl "/bin/true"
                                                        :pdftocairo "/bin/true"
                                                        :pdf2htmlex "/bin/true"
                                                        :pandoc "/bin/true"
