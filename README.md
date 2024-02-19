@@ -52,20 +52,21 @@ The main feed reader interface :)
 ## Concept
 
 The [updater](src/llar/update.clj) [fetches](src/llar/fetch.clj) [sources](src/llar/src.clj),
-runs them through the [processor](src/llar/postproc.clj) and
-[persists](src/llar/persistency.clj) them.
+normalizes the data into *items*, runs them through the [processor](src/llar/postproc.clj)
+and finally [persists](src/llar/persistency.clj) them.
 
 `.llar` [files](config/) specify sources to fetch, schedules to run, and much more.
-A fetch definition not only contains the [source](src/llar/src.clj), but also pre, post and filter rules.
+A fetch definition not only contains the [source](src/llar/src.clj), but also pre, post and filter rules, as well as,
 UI options and *source tags*.
 
 On update a [fetcher](src/llar/fetch) creates *items*. Each has a title, timestamps, content, descriptions, *tags*, source.
-Processors and filters act on individual items and modify them to
-their liking as long as they still adhere to the item spec afterwards.
+Processors and filters act on individual items. Both are Clojure functions. As long as the result adheres to
+the item spec they are free to do any kind of manipulation.
 
 LLAR knows two kinds of tags.
-Source tags that are part of a fetch definition and group sources.
-Item tags that are part of an item.
+Source tags, that are defined as part of a fetch definition.
+They basically group sources and are useful to specify schedules on.
+Item tags, that are attached to an item.
 Predefined tags are *unread*, *saved*, *in-progress*, *archive*, *highlight*.
 Each has its own semantics in the UI. Arbitrary additional tags are supported.
 
