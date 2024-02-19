@@ -1,0 +1,3 @@
+(fetch-reddit (src/reddit "Clojure" :hot) :min-score 10
+              :options #{:mark-read-on-view}
+              :tags #{:reddit :tech})
