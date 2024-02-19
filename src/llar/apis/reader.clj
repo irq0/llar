@@ -476,11 +476,6 @@
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
-             :href (make-site-href ["/reader/lab/dump-data-structure"] x)}
-         (icon "fas fa-glass-whiskey") "&nbsp;" "Data Structure"]]]
-      [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class "nav-link"
              :href (make-site-href ["/reader/lab/search"] x)}
          (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
 
@@ -1420,15 +1415,6 @@
                (:estimate reading-estimate) "m"]
               "&nbsp;"
               title]])]]])]]])
-
-(defmethod lab-view-handler
-  :dump-data-structure
-  [x]
-  [:main {:role "main"
-          :class "col-xs-12 col-md-6 col-lg-8"}
-   [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-    [:h3 (str "Data Structure")]
-    (map-to-tree x)]])
 
 (defmethod lab-view-handler
   :search
