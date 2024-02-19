@@ -2,6 +2,21 @@
  :state-dir "/var/lib/llar"
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"
+ :ui {:default-list-view {:storage :headlines
+                          :shopping :headlines
+                          :tweet :gallery}
+      :favorites [[:all :default]
+                  [:saved :item-tags]
+                  [:highlight :item-tags]
+                  [:in-progress :item-tags]
+                  [:blog :source-tag]
+                  [:hackernews :source-tag]
+                  [:tech :source-tag]
+                  [:deep-tech :source-tag]
+                  [:sci :source-tag]
+                  [:news :source-tag]
+                  [:bookmark :type]
+                  [:recreation :source-tag]]}
  :commands {:mercury-parser "postlight-parser"
             :pandoc "pandoc"
             :w3m "w3m"

@@ -74,20 +74,6 @@
    :medium "text-bg-warning"
    :hard "text-bg-danger"})
 
-(def +favorites+
-  [[:all :default]
-   [:saved :item-tags]
-   [:highlight :item-tags]
-   [:in-progress :item-tags]
-   [:blog :source-tag]
-   [:hackernews :source-tag]
-   [:tech :source-tag]
-   [:deep-tech :source-tag]
-   [:sci :source-tag]
-   [:news :source-tag]
-   [:bookmark :type]
-   [:recreation :source-tag]])
-
 (declare
  main-list-items
  gallery-list-items
@@ -113,11 +99,16 @@
 
 (def +filter-overrides+
   {:saved :total})
-;; icons? see https://fontawesome.com/icons
+;; icons? see https://fontawesome.com/v5/icons
+
+(def +tag-icon-default+ "fas fa-tag")
 
 (def +tag-icons-without-buttons+
   "Group list tags that have not icon in +tag-buttons+"
   {:daily "fas fa-coffee"
+   :feed "fas fa-rss-square"
+   :link "fas fa-link"
+   :mail "fas fa-envelope"
    :wallpaper "fas fa-tree"
    :has-video "fas fa-film"
    :has-spotify-playlist "fab fa-spotify"
@@ -400,7 +391,7 @@
     [:li {:class "nav-item"}
      [:a {:class (str "nav-link" (when (= str-ks active) " active"))
           :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
-      (if-let [ico (get icons (keyword str-ks))]
+      (if-let [ico (get icons (keyword str-ks) +tag-icon-default+)]
         [:span (icon ico) "&nbsp;" str-ks]
         str-ks)]]))
 
@@ -413,7 +404,6 @@
                (into {} (for [{:keys [tag icon-set]} +tag-buttons+]
                           [tag (string/replace icon-set #"icon-is-set" "")]))
                +tag-icons-without-buttons+)]
-
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-left" " mode-" (name (:mode x)))
            :id "groupnav"}
      [:div {:class "sidebar-sticky" :id "left-nav"}
@@ -455,13 +445,13 @@
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Favorites"]]
       [:ul {:class "nav flex-column"}
-       (for [[key group] +favorites+]
+       (for [[key group] (get-in appconfig/appconfig [:ui :favorites])]
          [:li {:class "nav-item"}
           [:a {:class (str "nav-link" (when (and
                                              (= active-group group)
                                              (= (keyword active-key) key)) " active"))
                :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
-           (when-let [ico (get icons key)] [:span (icon ico) "&nbsp;"])
+           (when-let [ico (get icons key +tag-icon-default+)] [:span (icon ico) "&nbsp;"])
 
            (name key)]])]
 
@@ -1108,7 +1098,7 @@
 
 (defn get-list-style [x]
   (let [selected-style (:list-style x)
-        hinted-style (get +list-style-hints+ (:group-item x))]
+        hinted-style (get-in appconfig/appconfig [:ui :default-list-view] (:group-item x))]
     (cond
       (and (nil? selected-style) (keyword? hinted-style))
       hinted-style
