@@ -28,17 +28,23 @@ group by id
 
 
 -- :name saved-items-tf-idf-terms :? :raw
-select array_agg(foo.term)
-from (
-  select distinct term_tf->>0 as term, (term_tf->>1)::float * idf_top_words.ln as tf_idf
-  from (
-    select id, jsonb_array_elements(nlp_top->'words') as term_tf
-    from items
-    where tagi @@ '1' or (items.type = 'bookmark')
-      and tagi @@ '0') as i
-  inner join idf_top_words on (term_tf->0 = idf_top_words.term)
-  where
-    (term_tf->>1)::float > 1
-    and length(term_tf->>0) > 4
-    and not (term_tf->>0) like '%/%'
-) as foo
+select
+  array_agg(foo.term)
+from
+  ( select distinct term_tf->>0 as term, (term_tf->>1)::float * idf_top_words.ln as tf_idf
+    from
+      (
+        select
+	  id,
+	  jsonb_array_elements(nlp_top->'words') as term_tf
+	from items
+        where tagi @@ '1'
+          or (items.type = 'bookmark' and tagi @@ '0')
+      ) as i
+    inner join
+      idf_top_words on (term_tf->0 = idf_top_words.term)
+    where
+      (term_tf->>1)::float > :min-tf-idf
+      and length(term_tf->>0) > 4
+      and not (term_tf->>0) like '%/%'
+  ) as foo

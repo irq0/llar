@@ -44,9 +44,9 @@
           :row-fn (fn [[id term-tf-idf]]
                     (assoc (into {} term-tf-idf) "item_id" (double id)))})))
 
-(defn saved-items-tf-idf-terms [db]
+(defn saved-items-tf-idf-terms [db min-tf-idf]
   (first (second (sql/saved-items-tf-idf-terms
                   db
-                  nil
+                  {:min-tf-idf min-tf-idf}
                   {}
                   {:as-arrays? true}))))

@@ -47,10 +47,28 @@
 
 (def current-clustered-saved-items (atom {}))
 
+(defn- remove-useless-features [feats]
+  (remove #(or
+            (string/starts-with? % "?")
+            (string/starts-with? % ";")
+            (string/starts-with? % ">")
+            (string/starts-with? % "http")
+            (string/includes? % "href=")
+            (string/starts-with? % "\""))
+          feats))
+
+(defn- get-features [db]
+  (->>
+   (map #(db-search/saved-items-tf-idf-terms db %) [1 0.5 0.1 0.05 0.01])
+   (remove empty?)
+   (map remove-useless-features)
+   (remove #(< (count %) 10))
+   (first)
+   (into #{})))
+
 (defn make-saved-dataset [db]
   ;; must ensure that there are no '/' in terms - messes up keyword/name
-  (let [attributes (vec (conj (into #{} (db-search/saved-items-tf-idf-terms db))
-                              "item_id"))
+  (let [attributes (vec (conj (get-features db) "item_id"))
         term-tf-idf-maps (db-search/saved-items-tf-idf db)
         weka-attributes (map (fn [s]
                                (let [new-attrib (weka.core.Attribute. s)]
@@ -91,9 +109,13 @@
                                     attributes
                                     centroid))))))
 
+(defn- get-number-of-clusters [ds]
+  (max 5
+       (int (/ (ml-data/dataset-count ds) 5))))
+
 (defn cluster-saved [db]
   (let [ds (make-saved-dataset db)
-        clst (ml-clusterers/make-clusterer :k-means {:number-clusters (int (/ (ml-data/dataset-count ds) 5))})]
+        clst (ml-clusterers/make-clusterer :k-means {:number-clusters (get-number-of-clusters ds)})]
     (ml-clusterers/clusterer-build clst ds)
     (let [ds-clst (ml-clusterers/clusterer-cluster clst ds)
           centroids (:centroids (ml-clusterers/clusterer-info clst))
@@ -121,12 +143,12 @@
            (group-by :class)))))
 
 (defsched update-db-search-indices
-  :early-morning
+  :now-and-early-morning
   (log/info "Updating search index")
   (persistency/update-index! backend-db))
 
 (defsched update-clustered-saved-items
-  :early-morning
+  :now-and-early-morning
   (log/info "Updating saved items cluster")
   (reset!
    current-clustered-saved-items
