@@ -367,7 +367,6 @@ div.item-content-body p > code {
 .sidebar .nav-item span {
   text-overflow: ellipsis;
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .sidebar .nav-link {

@@ -527,7 +527,7 @@
         fltr (or (:filter x) :total)
         nitems (or (get item-tags (:group-item x)) (get item-tags fltr) 0)
         grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))
-        pill [:span {:class "badge badge-pill float-right"}
+        pill [:span {:class "badge bg-light text-dark float-right"}
               (when (pos? nitems) nitems)]]
 
     [:li {:class (str "nav-item")}
