@@ -43,6 +43,7 @@ RUN mkdir -p /opt/llar /llar
 COPY target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
 ENV LLAR_CONFIG /llar/config.edn
+ENV WEKA_HOME /llar/wekafiles
 ENV JDK_JAVA_OPTIONS "-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
 
 RUN groupadd -g 42000 llar && \
