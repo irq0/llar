@@ -1,13 +1,11 @@
 (ns llar.converter
   (:require
    [clojure.edn :as edn]
-   [clojure.java.io :as io]
    [clojure.java.shell :as shell]
    [clojure.string :as string]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
    [puget.printer :as puget]
-   [slingshot.slingshot :refer [throw+]]
    [llar.appconfig :as appconfig]
    [llar.contentdetect :as contentdetect])
   (:import
@@ -67,37 +65,6 @@
   (if-not (string/blank? mime-type)
     mime-type
     (contentdetect/detect-mime-type data)))
-
-(defmulti convert-to-html get-mimetype)
-
-(defmethod convert-to-html "application/pdf" [data & _]
-  (let [file (java.io.File/createTempFile "content" ".pdf")
-        out-file (io/as-file (string/replace (.getAbsolutePath file) #"\.pdf$" ".html"))]
-    (io/copy data file)
-    (let [{:keys [exit out err]} (shell/sh (appconfig/command :pdf2htmlex)
-                                           "--no-drm" "1"
-                                           "--printing" "1"
-                                           "--zoom" "1.3"
-                                           (.getName file)
-                                           :dir (.getParent file)
-                                           :out-enc :bytes)]
-      (when-not (zero? exit)
-        (throw+ {:type ::conversion-failed :exit exit :out out :file file :err err}))
-
-      (.delete file)
-      (with-open [out (java.io.ByteArrayOutputStream.)]
-        (clojure.java.io/copy (clojure.java.io/input-stream out-file) out)
-        (.delete out-file)
-        (str out)))))
-
-(defmulti thumbnail get-mimetype)
-
-(defmethod thumbnail "application/pdf" [data & _]
-  (let [{:keys [exit out err]} (shell/sh (appconfig/command :pdftocairo) "-png" "-singlefile"
-                                         "-scale-to" "800" "-" "-" :in data :out-enc :bytes)]
-    (when-not (zero? exit)
-      (throw+ {:type ::thumbnail-creation-failed :exit exit :out out :err err}))
-    {"image/png" out}))
 
 ;; propsfile: blobstore metadata
 

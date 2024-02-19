@@ -3,8 +3,6 @@
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"
  :commands {:mercury-parser "postlight-parser"
-            :pdftocairo "pdftocairo"
-            :pdf2htmlex "pdf2htmlEX"
             :pandoc "pandoc"
             :w3m "w3m"
             :lynx "lynx"

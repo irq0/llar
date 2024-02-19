@@ -32,8 +32,6 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y --no-install-r
 
 RUN yarnpkg global add --cwd /tmp @postlight/parser
 
-RUN wget --no-verbose -O /tmp/pdf2htmlex.deb https://github.com/pdf2htmlEX/pdf2htmlEX/releases/download/v0.18.8.rc1/pdf2htmlEX-0.18.8.rc1-master-20200630-Ubuntu-focal-x86_64.deb && apt-get -y --no-install-recommends install /tmp/pdf2htmlex.deb && rm -f /tmp/pdf2htmlex.deb && rm -rf /var/lib/apt/lists/*
-
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
 
