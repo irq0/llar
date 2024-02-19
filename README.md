@@ -16,7 +16,8 @@ docker-compose up
 ## Features
 
 - Sources: RSS, Atom, Wordpress REST, Reddit, Hacker News, IMAP mailboxes
-- Custom Feeds from HTML selectors ([example](config/fefe.llar))
+- Custom Feeds from HTML selectors ([example](https://github.com/irq0/llar-config/blob/main/fefe.llar),
+  [example](https://github.com/irq0/llar-config/blob/main/usenixlogin.llar))
 - Article extraction (via [Postlight Parser](https://github.com/postlight/parser))
 - HTML sanitation (fix URLs, remove annoying elements and ads)
 - Bookmark / read it later from single URLs
@@ -86,7 +87,8 @@ Runtime configuration. Automatically loaded when files in the `:runtime-config-d
 Specify sources to fetch, schedules, highlight rules here.
 
 Files are (almost) Clojure code with extra constructs for convenience. They use the extension `.llar`.
-See [readme.llar](config/readme.llar) for documentation and [config/](config/] for examples.
+See [readme.llar](config/readme.llar) for documentation
+or check out [my config](https://github.com/irq0/llar-config).
 
 ### Credentials
 
