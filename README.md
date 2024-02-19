@@ -25,6 +25,29 @@ docker-compose up
 - Reader UI
 - Dashboard UI
 
+## UI
+
+### Dashboard
+
+Per default running on port 9999.
+
+Makes internal application state accessible.
+This includes memory usage,
+database stats,
+schedules,
+application state,
+threads and
+configuration.
+
+Gives a *technical* view on the fetch status of configured sources.
+Shows timing and error information and allows manual triggers.
+
+### Reader
+
+Per default running on port 8023.
+
+The main feed reader interface :)
+
 ## Concept
 
 The [updater](src/llar/update.clj) [fetches](src/llar/fetch.clj) [sources](src/llar/src.clj),
