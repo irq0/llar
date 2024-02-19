@@ -393,6 +393,7 @@ $(document).ready(function () {
   // tag toggle buttons
   $(".ajax-toggle").on("click", function () {
     var x = $(this);
+    var showing_list = $("#item-content-body").length == 0;
     var action = "set";
     if (x.data("is-set")) {
       action = "del";
@@ -408,7 +409,9 @@ $(document).ready(function () {
         x.data("is-set", true);
         icon.attr("class", x.data("icon-set"));
       }
-      location.reload();
+      if (!showing_list) {
+        location.reload();
+      }
     });
   });
 
