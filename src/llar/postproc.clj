@@ -79,7 +79,7 @@
        new)
      (catch Object e
        (log/warnf (:throwable &throw-context) "proc %s: (%s %s %s) FAILED: %s %s"
-                  (str item) func (count args) hint e (.getMessage e))
+                  (str item) func (count args) hint e (ex-message e))
        nil))))
 
 (defn- apply-filter [item f]
