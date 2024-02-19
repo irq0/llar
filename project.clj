@@ -15,8 +15,9 @@
   :aot :all
   :main llar.core
   :plugins [[lein-cljfmt "0.6.8"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]]
-  :license {:name "None"
-            :url ""}
+  :license {:name "AGPL-3.0-or-later"
+            :url "https://www.gnu.org/licenses/agpl-3.0.en.html"
+            :distribution :repo}
   :git-version {:status-to-version
                 (fn [{:keys [tag ref-short ahead ahead? dirty?]}]
                   (assert (re-find #"\d+\.\d+\.\d+" tag)
