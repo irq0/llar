@@ -6,6 +6,7 @@
    [slingshot.slingshot :refer [throw+]]
    [llar.metrics :as metrics]
    [clojure.tools.logging :as log]
+   [java-time.api :as time]
    [llar.src])
   (:import
    [java.time Duration ZoneId ZonedDateTime]))
@@ -32,6 +33,14 @@
                                            (ZoneId/systemDefault))
                          (Duration/ofDays 1))
      (chime/without-past-times))
+    :now-and-early-morning
+    (->
+     (->>
+      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofDays 1))
+      (chime/without-past-times))
+     (conj (time/plus (time/zoned-date-time) (time/seconds 10))))
     :hourly
     (->>
      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
