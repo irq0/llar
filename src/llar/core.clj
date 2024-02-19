@@ -55,7 +55,6 @@
    #'live/live
    #'update/remove-unread-tags
    #'update/persist-state
-   #'lab/update-clustered-saved-items
    #'lab/update-db-search-indices])
 
 (defn -main [& args]

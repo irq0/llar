@@ -144,15 +144,11 @@
 
 (defsched update-db-search-indices
   :now-and-early-morning
-  (log/info "Updating search index")
-  (persistency/update-index! backend-db))
-
-(defsched update-clustered-saved-items
-  :now-and-early-morning
-  (log/info "Updating saved items cluster")
-  (reset!
-   current-clustered-saved-items
-   (cluster-saved backend-db)))
-
-(def lab-sched [#'update-db-search-indices
-                #'update-clustered-saved-items])
+  (log/info "Updating database search indices")
+  (persistency/update-index! backend-db)
+  (try
+    (reset!
+     current-clustered-saved-items
+     (cluster-saved backend-db))
+    (catch weka.core.WekaException ex
+      (log/info "saved items clustering failed: " (ex-message ex)))))
