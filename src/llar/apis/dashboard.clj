@@ -308,7 +308,9 @@
 
 (def update-futures (atom {}))
 
-(defn update-source [str-k]
+(defn update-source [str-k overwrite]
+  {:pre [(string? str-k)
+         (boolean? overwrite)]}
   (let [k (keyword str-k)
         src (get (config/get-sources) k)
         existing-fut (get @update-futures k)]
@@ -325,7 +327,7 @@
               :status :already-updating}}
 
       :else
-      (let [fut (future (update/update! k :force true))]
+      (let [fut (future (update/update! k :force true :overwrite? overwrite))]
         (swap! update-futures assoc (keyword k) fut)
         {:status 200
          :body {:source-key k
@@ -374,8 +376,9 @@
    (GET "/" [] (status-index))
 
    (context "/api" []
-     (POST "/update/:source-key" [source-key]
-       (update-source source-key))
+     (POST "/update/:source-key" req
+       (let [{:keys [source-key overwrite]} (:params req)]
+         (update-source source-key (boolean ((fnil parse-boolean "") overwrite)))))
 
      (GET "/source/:source-key" [source-key]
        (source-status source-key))

@@ -32,13 +32,13 @@ function update_source_row(url, source_key, row) {
 }
 
 function sources_row_actions_html(source_key) {
-  return (
-    '<a  data-source-key="' +
-    source_key +
-    '" class="btn-update-source"><i class="fas fa-download">&thinsp;</i></a><a data-source-key="' +
-    source_key +
-    '" class="btn-source-details"><i class="fas fa-info-circle">&thinsp;</i></a>'
-  );
+  return `
+<a data-source-key="${source_key}" data-overwrite="false" class="btn-update-source">
+<i title="Update" class="fas fa-angle-down"></i></a>
+<a data-source-key="${source_key}" data-overwrite="true" class="btn-update-source">
+<i title="Update, overwrite existing" class="fas fa-angle-double-down"></i></a>
+<a data-source-key="${source_key}" class="btn-source-details">
+<i title="Show state details" class="fas fa-info-circle"></i></a>`;
 }
 
 $(document).ready(function () {
@@ -66,7 +66,7 @@ $(document).ready(function () {
 
     buttons: [
       {
-        text: '<i class="fas fa-refresh">&thinsp;</i>',
+        text: '<i title="Refresh table" class="fas fa-refresh">&thinsp;</i>',
         action: function (e, dt) {
           console.log("Reloading");
           dt.ajax.reload();
@@ -102,11 +102,12 @@ $(document).ready(function () {
 
   $("#sources-datatable").on("click", ".btn-update-source", function () {
     var k = $(this).data("source-key");
+    var overwrite = $(this).data("overwrite");
     var tr = $(this).closest("tr");
     var row = sources_datatable.row(tr);
     var status_url = "/api/source/" + k;
 
-    $.post("/api/update/" + k, {}, (data, status) => {
+    $.post("/api/update/" + k, { overwrite: overwrite }, (data, status) => {
       if (status == "success") {
         setTimeout(update_source_row, 1000, status_url, k, row);
       }
