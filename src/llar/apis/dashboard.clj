@@ -223,20 +223,28 @@
        [:th "State"]
        [:th "Top Frame"]]]
      [:tbody
-      (for [[th stack] stack-traces]
-        [:tr {:data-stacktrace (html [:ol
-                                      (for [s (stacktrace/parse-trace-elems stack)
-                                            :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-                                        [:li [:pre formatted]])])
-              :class
-              (cond
-                false "table-info"
-                :else "")}
-         [:td {:class "details-control"}]
-         [:td {:class "col-xs-1"} (-> th .getThreadGroup .getName)]
-         [:td {:class "col-xs-1"} (.getName th)]
-         [:td {:class "col-xs-1"} [:pre (.getState th)]]
-         [:td {:class "col-xs-4"} [:pre (first stack)]]])]]))
+      (->>
+       (for [[th stack] stack-traces]
+         [(-> th .getThreadGroup .getName)
+          (.getName th)
+          (.getState th)
+          (first stack)
+          stack])
+       (sort-by second)
+       (map (fn [[group name state top-of-stack stack]]
+              [:tr {:data-stacktrace (html [:ol
+                                            (for [s (stacktrace/parse-trace-elems stack)
+                                                  :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                                              [:li [:pre formatted]])])
+                    :class
+                    (cond
+                      false "table-info"
+                      :else "")}
+               [:td {:class "details-control"}]
+               [:td {:class "col-xs-1"} group]
+               [:th {:class "col-xs-1"} name]
+               [:td {:class "col-xs-1"} [:pre state]]
+               [:td {:class "col-xs-4"} [:pre top-of-stack]]])))]]))
 
 (defn metrics-tab []
   [:p
