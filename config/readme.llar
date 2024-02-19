@@ -104,9 +104,9 @@
 ;; Example:
 
 (sched-fetch
-  morning-news
+  blogs
   :early-morning
-  (some #{:morning-news} $TAGS))
+  (some #{:blogs} $TAGS))
 
 ;;
 ;; Automatically set items read after a while
@@ -124,4 +124,4 @@
 ;;
 
 (highlight words "llar" "rss")
-(highlight authors "Kara Swisher")
+(highlight authors "Douglas Engelbart")
