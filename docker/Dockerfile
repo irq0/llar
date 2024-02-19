@@ -13,7 +13,6 @@ LABEL org.opencontainers.image.version=$VERSION
 RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
 RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y --no-install-recommends install \
-  yt-dlp \
   pandoc \
   w3m \
   lynx \
