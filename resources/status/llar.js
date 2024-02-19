@@ -153,54 +153,15 @@ $(window).scroll(function () {
 
 // keyboard navigation
 $("body").keypress(function (event) {
-  var main_top = $("#item-content-body").offset().top;
-  // var main_top = $("main").offset().top;
-  var main_bottom = window.innerHeight;
-  var content = null;
-  var next_url = null;
-  var scroll_to = null;
-  var candidate = null;
   if ($("body").hasClass("modal-open")) {
     return;
   }
-
-  // main list view
-  if ($(".feed-item").length > 0) {
-    content = $(".feed-item");
-    if (event.which == 32) {
-      $(".feed-item").each(() => {
-        var this_top = $(this)[0].getBoundingClientRect().top;
-        var this_bottom = this_top + $(this).height();
-        if (this_top >= main_top && this_bottom < main_bottom) {
-          $(this).attr("view", "full");
-        } else if (this_top < main_top && this_bottom < main_bottom) {
-          $(this).attr("view", "partial-top");
-        } else if (
-          this_top >= main_top &&
-          this_bottom >= main_bottom &&
-          this_top < main_bottom
-        ) {
-          $(this).attr("view", "partial-bottom");
-        } else {
-          $(this).attr("view", "out");
-        }
-      });
-      scroll_to = $(".feed-item").last();
-      candidate = $('.feed-item[view="out"]');
-      if (candidate.length > 0) {
-        scroll_to = candidate.first();
-      }
-      candidate = $('.feed-item[view="partial-bottom"]');
-      if (candidate.length > 0) {
-        scroll_to = candidate.first();
-      }
-      event.preventDefault();
-      scroll_to.addClass("viewport-pivot");
-      $("body").animate({ scrollTop: scroll_to.offset().top - main_top - 5 });
-    }
-    // item content view
-  } else if ($("#item-content-body").length > 0) {
-    content = $("#item-content-body");
+  if ($("#item-content-body").length > 0) {
+    var main_top = $("#item-content-body").offset().top;
+    var main_bottom = window.innerHeight;
+    var next_url = null;
+    var scroll_to = null;
+    var candidate = null;
     if (event.key == "n") {
       next_url = $("#btn-next-item").attr("href");
       if (next_url) {
@@ -217,13 +178,6 @@ $("body").keypress(function (event) {
     } else if (event.key == "P") {
       $("#btn-tag-unread").trigger("click");
       window.history.back();
-    } else if (
-      event.which == 32 &&
-      content.css("columns") != "auto auto" &&
-      content.css("column-width") != "auto"
-    ) {
-      event.preventDefault();
-      content.animate({ scrollLeft: content.scrollLeft() + content.width() });
     } else if (event.which == 32) {
       // space
       event.preventDefault();
@@ -256,7 +210,6 @@ $("body").keypress(function (event) {
       }
       event.preventDefault();
       scroll_to.addClass("viewport-pivot");
-      $("body").animate({ scrollTop: scroll_to.offset().top - main_top - 5 });
     }
   }
 });
