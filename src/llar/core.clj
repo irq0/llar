@@ -6,12 +6,12 @@
    [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]
    [llar.appconfig :as appconfig]
-   [llar.blobstore]  ;; blobstore locks
-   [llar.metrics] ;; prom-registry
-   [llar.store :as store] ;; backend-db
-   [llar.apis.reader] ;; frontend-db
-   [llar.webapp] ;; reader, dashboard
-   [llar.update :as update] ;; update state
+   [llar.blobstore :as blobstore]
+   [llar.metrics :as metrics]
+   [llar.store :as store]
+   [llar.apis.reader :as reader]
+   [llar.webapp :as webapp]
+   [llar.update :as update]
    [llar.persistency :as persistency]
    [llar.db.core :as db]
    [llar.db.query]
@@ -36,6 +36,28 @@
    [nil "--nrepl" "Start nrepl server"]
    ["-h" "--help"]])
 
+(def essential-states
+  [#'appconfig/appconfig
+   #'metrics/prom-registry])
+
+(def dry-states
+  [#'store/backend-db
+   #'reader/frontend-db
+   #'blobstore/locks
+   #'update/state
+
+   #'webapp/dashboard
+   #'webapp/reader])
+
+(def wet-states
+  [#'update/persist-state
+   #'config/change-watcher
+   #'live/live
+   #'update/remove-unread-tags
+   #'update/persist-state
+   #'lab/update-clustered-saved-items
+   #'lab/update-db-search-indices])
+
 (defn -main [& args]
   ;; otherwise date time parsers will fail!
   (java.util.Locale/setDefault java.util.Locale/ENGLISH)
@@ -57,7 +79,7 @@
      :wrap-in)
 
     (->
-     (mount/only #{#'appconfig/appconfig})
+     (mount/only essential-states)
      (mount/swap {#'appconfig/appconfig (appconfig/read-config-or-die)})
      (mount/start))
 
@@ -68,19 +90,13 @@
 
     (cond
       (:init-db options)
-      (mount/start
-       #'store/backend-db)
+      (mount/start #'store/backend-db)
 
       (:dry options)
-      (->
-       (mount/except [#'repl/nrepl-server #'live/live #'lab/lab-sched #'config/change-watcher #'update/remove-unread-tags #'update/persist-state])
-       (mount/except lab/lab-sched)
-       mount/start)
+      (mount/start dry-states)
 
       :else
-      (->
-       (mount/except [#'repl/nrepl-server])
-       (mount/start)))
+      (mount/start (concat dry-states wet-states)))
 
     (.addShutdownHook
      (Runtime/getRuntime)
