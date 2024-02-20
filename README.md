@@ -13,6 +13,47 @@ cd llar/docker
 docker-compose up
 ```
 
+### Add your first feed
+
+If you use the docker compose way above, the configuration  lives in `llar/config`.
+LLAR watches that directory for change.
+
+Let's add an RSS feed and the Hacker News front page as an example.
+
+this projects GitHub release feed as an example. Put the following in `llar/config/myfirstconfig.llar`.
+
+```clojure
+(fetch github-llar-releases (src/feed "https://github.com/irq0/llar/releases.atom") :tags #{:my-first-feed :github})
+(fetch hn-frontpage (src/hn :front_page) :tags #{:my-first-feed :hackernews})
+(sched-fetch my-first-feeds :now-and-hourly (some #{:my-first-feed} $TAGS))
+```
+
+What does this do?
+
+`fetch` instructs LLAR how to fetch a *source*, it's name and various options.
+In this example we have a `feed` source with URL `https://github.com/irq0/llar/releases.atom` and a `hn`
+source which takes a Hacker News search tag instead of an address.
+Feed sources are the most common and support RSS, Atom and the like.
+
+`github-llar-releases` and `hn-frontpage` are *source key*. A user-defined identifier for all data fetched from this source.
+
+`:tags #{:my-first-feed :github}` instructs LLAR to tag this source with `:my-first-feed` and `:github`.
+This is Clojure syntax to say "set the fetch function's tags keyword argument to a set of two keywords".
+Keywords in this case behave much like strings, except that you really shouldn't use whitespace in them.
+
+The last line creates a *fetch schedule*. LLAR is quite flexible in when to update what.
+In this case we define a schedule `my-first-feeds` that updates all sources tagged `:my-first-feed`
+now (0-120 seconds after LLAR loads the schedule) and then every hour.
+
+### Have an OPML file?
+
+Awesome! Copy it to the config directory and let LLAR convert if for you.
+If you use docker please ensure that LLAR can write to the config directory.
+
+The generated file will have the extension `.llar.example`.
+I suggest that you have a look and adjust the generated source keys.
+If you want LLAR to load the config, just rename it to `.llar` and it will load the file.
+
 ## Features
 
 - Sources: RSS, Atom, Wordpress REST, Reddit, Hacker News, IMAP mailboxes
