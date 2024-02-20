@@ -12,6 +12,9 @@
   (:import
    [java.time Duration ZoneId ZonedDateTime]))
 
+(defn- nowish []
+  (time/plus (time/zoned-date-time) (time/seconds (rand-int 120))))
+
 (defn canned-scheds [kw]
   (case kw
     :during-daytime
@@ -41,7 +44,15 @@
                                             (ZoneId/systemDefault))
                           (Duration/ofDays 1))
       (chime/without-past-times))
-     (conj (time/plus (time/zoned-date-time) (time/seconds 10))))
+     (conj (nowish)))
+    :now-and-hourly
+    (->
+     (->>
+      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofHours 1))
+      (chime/without-past-times))
+     (conj (nowish)))
     :hourly
     (->>
      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
