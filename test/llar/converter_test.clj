@@ -28,6 +28,17 @@
            (uut/read-edn-state
             "{:ok {:key :ok, :last-successful-fetch-ts #org.irq0.🖖/datetime \"2020-08-16T12:42:23.0Z\", :last-attempt-ts #org.irq0.🖖/datetime \"2020-08-16T12:42:23.0Z\", :forced-update? nil, :status :ok, :last-exception nil, :retry-count 0}}\n")))))
 
+(deftest print-exception
+  (is (=
+       (select-keys (uut/->ExceptionContext nil "foo" (make-array java.lang.StackTraceElement 0) nil {:x :y}) [:message :cause :data])
+       (select-keys (uut/read-edn-state (uut/print-state (uut/make-exception-context-from-slingshot-throw-context
+                                                          (let [ex (ex-info "foo" {:x :y})]
+                                                            {:object ex
+                                                             :throwable ex
+                                                             :message "foo"
+                                                             :stack-trace (make-array java.lang.StackTraceElement 1)}))))
+                    [:message :cause :data]))))
+
 (deftest read-what-you-print
   (testing "propsfile"
     (let [in {:orig-urls #{(uri/uri "https://media.wired.com/photos/5bfc71a83ee8d605f3dd0edc/master/w_942,c_limit/googlepixel_top.jpg")}
@@ -42,8 +53,8 @@
   (testing "state"
     (let [state {:ok
                  {:key :ok,
-                  :last-successful-fetch-ts (time/zoned-date-time 2020 8 16 12 42 23 23)
-                  :last-attempt-ts (time/zoned-date-time 2020 8 16 12 42 23 23)
+                  :ts (time/zoned-date-time 2020 8 16 12 42 23 23)
+                  :duration (time/duration 100 :seconds)
                   :forced-update? nil,
                   :status :ok,
                   :last-exception nil,

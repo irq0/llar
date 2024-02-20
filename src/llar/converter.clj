@@ -92,7 +92,7 @@
   (let [data (ex-data (:throwable throw-context))]
     (->ExceptionContext
      (:cause throw-context)
-     (ex-message (:message throw-context))
+     (or (:message throw-context) (ex-message throw-context))
      (:stack-trace throw-context)
      (:throwable throw-context)
      data)))
