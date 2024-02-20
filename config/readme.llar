@@ -66,8 +66,8 @@
 
 ;; Example:
 
-(fetch irq0 (src/feed "http://irq0.org/index.xml")
-       :tags #{:blog})
+;; (fetch irq0 (src/feed "http://irq0.org/index.xml")
+;;        :tags #{:blog})
 
 ;; Reddit sources have an additional parameter :min-score
 
@@ -103,10 +103,10 @@
 
 ;; Example:
 
-(sched-fetch
-  blogs
-  :early-morning
-  (some #{:blogs} $TAGS))
+;; (sched-fetch
+;;   blogs
+;;   :hourly
+;;   (some #{:blogs} $TAGS))
 
 ;;
 ;; Automatically set items read after a while
@@ -117,11 +117,11 @@
 ;; PREDICATE - a filter applied to all fetchable sources
 
 ;; Example:
-(autoread reddit-ages-fast (time/weeks 4) (some #{:reddit} $TAGS))
+;; (autoread reddit-ages-fast (time/weeks 4) (some #{:reddit} $TAGS))
 
 ;;
 ;; Highlight - add tag :highlight if a word, author matches
 ;;
 
-(highlight words "llar" "rss")
-(highlight authors "Douglas Engelbart")
+;; (highlight words "llar" "rss")
+;; (highlight authors "Douglas Engelbart")
