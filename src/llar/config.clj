@@ -5,10 +5,12 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
+   [llar.converter :as converter]
    [mount.core :refer [defstate] :as mount]
    [nextjournal.beholder :as beholder]
    [slingshot.slingshot :refer [try+]]
    [llar.fetchutils :refer [make-reddit-proc]]
+   [llar.human :as human]
    [llar.fetch.custom]
    [llar.fetch.feed]
    [llar.fetch.http]
@@ -213,8 +215,8 @@
       :else
       (log/warnf "unknown config definition \"%s\". Skipping." form))))
 
-(defn- get-config-files []
-  (filter #(string/ends-with? (.getName %) ".llar")
+(defn- get-config-files [extension]
+  (filter #(string/ends-with? (.getName %) extension)
           (-> (:runtime-config-dir appconfig) io/file file-seq)))
 
 (defn- load-config [files]
@@ -224,12 +226,45 @@
     (doseq [form forms]
       (eval-config-form form))))
 
+(defn- guess-good-source-key [title url]
+  (let [host (string/replace (human/host-identifier url) #"[\W\.]" "-")
+        title (string/replace (string/lower-case title) #"[\W\.]" "-")]
+    (str
+     host
+     "-"
+     (subs title 0 (min 10 (count title))))))
+
+(defn- opml-feed-to-fetch [feed]
+  (let [{:keys [title url]} feed
+        source-key (guess-good-source-key title url)]
+    (format ";; %s\n(fetch %s (src/feed \"%s\") :tags #{:from-opml})\n"
+            title source-key url)))
+
+(defn- load-convert-delete-opml [file]
+  (try+
+   (let [out-file (io/file (str file ".llar.example"))
+         feeds (converter/read-opml-feeds (io/input-stream (io/file file)))
+         fetch-defs (map opml-feed-to-fetch feeds)]
+     (log/infof "loaded %d feeds from OPML file %s" (count feeds) file)
+     (spit out-file (string/join "\n" fetch-defs))
+     (log/infof "OPML converted to %s. have fun!" out-file)
+     (io/delete-file file))
+   (catch [:type :llar.converter/opml-parser-error] e
+     (log/errorf "failed to parse opml file %s: %s" file e))
+   (catch Object e
+     (log/errorf "failed to convert opml file %s: %s" file e))))
+
 (defn- handle-config-dir-change [change]
-  (log/info "Runtime configuration directory changed. Reloading config" change)
-  (load-config (get-config-files)))
+  (when (#{:create :modify} (:type change))
+    (log/info "runtime configuration directory changed. reloading config" change)
+    (when (string/ends-with? (:path change) ".llar")
+      (load-config [(.toFile (:path change))]))
+    (when (string/ends-with? (:path change) ".opml")
+      (load-convert-delete-opml (.toFile (:path change))))))
 
 (defn load-all []
-  (load-config (get-config-files)))
+  (load-config (get-config-files ".llar"))
+  (map load-convert-delete-opml (get-config-files ".opml")))
 
 (defn start-watcher []
   (beholder/watch handle-config-dir-change (get appconfig :runtime-config-dir)))

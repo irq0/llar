@@ -3,8 +3,11 @@
    [clojure.edn :as edn]
    [clojure.java.shell :as shell]
    [clojure.string :as string]
+   [clojure.xml :as xml]
+   [hickory.select :as hick-s]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
+   [slingshot.slingshot :refer [throw+]]
    [puget.printer :as puget]
    [llar.appconfig :as appconfig]
    [llar.contentdetect :as contentdetect])
@@ -83,6 +86,49 @@
               'org.irq0.🖖/url uri/uri
               'org.irq0.🖖/atom (fn [x] (atom x))}}
    s))
+
+;; opml import
+
+(defn- ompl-parser-error-handler []
+  (proxy [org.xml.sax.helpers.DefaultHandler] []
+    (fatalError [^org.xml.sax.SAXParseException e]
+      (throw+ {:type ::ompl-parser-error
+               :level :fatal
+               :line (.getLineNumber e)
+               :column (.getColumnNumber e)
+               :message (.getMessage e)}))
+    (error [^org.xml.sax.SAXParseException e]
+      (throw+ {:type ::ompl-parser-error
+               :level :error
+               :line (.getLineNumber e)
+               :column (.getColumnNumber e)
+               :message (.getMessage e)}))))
+
+(defn xml-parser-non-validating [s ch]
+  (let [factory (doto
+                 (javax.xml.parsers.SAXParserFactory/newInstance)
+                  (.setValidating false)
+                  (.setFeature
+                   "http://apache.org/xml/features/nonvalidating/load-external-dtd" false))
+        parser (.newSAXParser factory)
+        reader (.getXMLReader parser)
+        source (doto (org.xml.sax.InputSource. s) (.setEncoding "UTF-8"))]
+    (.setErrorHandler reader (ompl-parser-error-handler))
+    (.setContentHandler reader ch)
+    (.parse reader source)
+    parser))
+
+(defn read-opml-feeds [in]
+  (->>
+   (xml/parse in xml-parser-non-validating)
+   (hick-s/select
+    (hick-s/descendant
+     (hick-s/attr :type #{"rss" "atom"})))
+   (map (fn [x]
+          (let [{:keys [title type xmlUrl]} (:attrs x)]
+            {:title title
+             :type type
+             :url (uri/uri xmlUrl)})))))
 
 ;; feed fetch state
 
