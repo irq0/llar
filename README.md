@@ -2,6 +2,8 @@
 
 Live Long and Read!
 
+A self-hosted news aggregator focused on customizability.
+
 ## Getting Started
 
 LLAR needs a PostgreSQL database, a JVM and a [couple of command line tools](resources/config.edn) to run.
@@ -70,6 +72,12 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
 
 ## UI
 
+### Reader
+
+![Screenshot of the LLAR UI](doc/img/screenshot_2024-02-20.png)
+
+Per default running on port 8023.
+
 ### Dashboard
 
 Per default running on port 9999.
@@ -84,12 +92,6 @@ configuration.
 
 Gives a *technical* view on the fetch status of configured sources.
 Shows timing and error information and allows manual triggers.
-
-### Reader
-
-Per default running on port 8023.
-
-The main feed reader interface :)
 
 ## Concept
 

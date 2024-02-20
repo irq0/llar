@@ -23,6 +23,7 @@ repos:
         exclude: >-
           (?x)^(
             resources/status/img/.*|
+            doc/img/.*|
             resources/nlp/models.*
           )$
       - id: git-check
