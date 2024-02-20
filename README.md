@@ -8,7 +8,7 @@ LLAR needs a PostgreSQL database, a JVM and a [couple of command line tools](res
 Easiest way to get started is to use docker compose with the [llar container image](https://github.com/irq0/llar/pkgs/container/llar).
 
 ```sh
-https://github.com/irq0/llar.git
+git clone https://github.com/irq0/llar.git
 cd llar/docker
 docker-compose up
 ```
