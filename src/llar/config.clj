@@ -244,7 +244,9 @@
   (try+
    (let [out-file (io/file (str file ".llar.example"))
          feeds (converter/read-opml-feeds (io/input-stream (io/file file)))
-         fetch-defs (map opml-feed-to-fetch feeds)]
+         fetch-defs (concat
+                     (map opml-feed-to-fetch feeds)
+                     ["(sched-fetch from-opml :now-and-hourly (some #{:from-opml} $TAGS))"])]
      (log/infof "loaded %d feeds from OPML file %s" (count feeds) file)
      (spit out-file (string/join "\n" fetch-defs))
      (log/infof "OPML converted to %s. have fun!" out-file)
