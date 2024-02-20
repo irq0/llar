@@ -10,6 +10,7 @@ Easiest way to get started is to use docker compose with the [llar container ima
 ```sh
 git clone https://github.com/irq0/llar.git
 cd llar/docker
+docker-compose pull
 docker-compose up
 ```
 
