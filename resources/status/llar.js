@@ -210,6 +210,9 @@ $("body").keypress(function (event) {
       }
       event.preventDefault();
       scroll_to.addClass("viewport-pivot");
+      $("body,html").animate({
+        scrollTop: scroll_to.offset().top - main_top - 5,
+      });
     }
   }
 });
@@ -266,7 +269,9 @@ if (is_touch_device()) {
     }
     event.preventDefault();
     scroll_to.addClass("viewport-pivot");
-    $("body").animate({ scrollTop: scroll_to.offset().top - main_top - 5 });
+    $("body,html").animate({
+      scrollTop: scroll_to.offset().top - main_top - 5,
+    });
   });
 }
 
