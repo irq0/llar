@@ -1403,7 +1403,9 @@
       [:h3 "Saved and bookmarked item overview"]
       [:p (format "Items: %s Last updated: %s Clusters: %s"
                   (apply + (map count (vals clusters)))
-                  (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
+                  (if (some? last-update)
+                    (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
+                    "not yet")
                   (count clusters))]
       [:div {:class "card-columns" :id "saved-items"}
        (for [[group-name items] clusters]
