@@ -32,6 +32,8 @@
              [:h2 "Internal Server Error"]
              [:h4 "Request"]
              (dashboard/pprint-html request)
+             [:h4 "Version"]
+             [:pre (str "llar " (get appconfig :version))]
              [:h4 "Exception"]
              [:p "Message: " [:pre (ex-message ex)]]
              [:p "Cause: " [:pre (ex-cause ex)]]
