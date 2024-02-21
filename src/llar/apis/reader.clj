@@ -1397,7 +1397,7 @@
   :saved-overview
   [x]
   (let [{:keys [clusters last-update]} @current-clustered-saved-items]
-    [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+    [:div
      [:h3 "Saved and bookmarked item overview"]
      [:p (format "Items: %s Last updated: %s Clusters: %s"
                  (apply + (map count (vals clusters)))
@@ -1405,23 +1405,21 @@
                    (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
                    "not yet")
                  (count clusters))]
-     [:div {:class "col" :id "saved-items"}
+     [:div {:class "row row-cols-1 row-cols-md-2 g-4" :id "saved-items"}
       (for [[group-name items] clusters]
-        [:div {:class "card"}
-         [:div
+        [:div {:class "col"}
+         [:div {:class "card"}
+          [:div {:class "card-header"} group-name]
           [:div {:class "card-body"}
-           [:h5 {:class "card-title"} group-name]
-           [:p {:class "card-text"}]]
-          [:ul {:class "list-group list-group-flush"}
            (for [{:keys [id title]
                   :as item} items
                  :let [reading-estimate (reading-time-estimate item)]]
-             [:li {:class "list-group-item"}
-              [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-               [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
-                (:estimate reading-estimate) "m"]
+             [:p {:class "list-group-item"}
+              [:span {:title "Reading time estimate" :class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
+               (:estimate reading-estimate) "m"]
+              [:a {:class "" :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
                "&nbsp;"
-               title]])]]])]]))
+               (if (string/blank? title) "(untitled)" title)]])]]])]]))
 
 (defmethod tools-view-handler
   :search

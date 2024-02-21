@@ -568,6 +568,12 @@ div.item-content-body p > code {
   font-weight: 400;
 }
 
+#saved-items a {
+  color: black;
+  text-decoration: none;
+  font-weight: 400;
+}
+
 #headlines .toolbox a {
   font-size: 0.8em;
   margin: 0;
