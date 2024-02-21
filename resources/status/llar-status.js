@@ -19,7 +19,6 @@ function update_source_row(url, source_key, row) {
     var new_row = result["row"];
     var actions_html = sources_row_actions_html(source_key);
     var msg = "Updating";
-    console.log(result);
     set_row_color_by_status(row.node(), result["update-status"]["result"]);
     if (result["update-status"]["done"]) {
       msg = "<p>Update: " + result["update-status"]["result"] + "</p>";
@@ -63,7 +62,7 @@ $(document).ready(function () {
     rowCallback: function (row, data) {
       set_row_color_by_status(row, data[1]);
     },
-
+    columnDefs: [{ width: "40ch", targets: 2 }],
     buttons: [
       {
         text: '<i title="Refresh table" class="fas fa-refresh">&thinsp;</i>',

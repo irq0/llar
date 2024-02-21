@@ -101,18 +101,16 @@
        :color-markup :html-inline}))])
 
 (defn source-tab []
-  (html
-   [:h2 "Sources"]
+  [:div
    [:table {:id "sources-datatable" :class "table"}
     [:thead
      [:tr
-      [:th "Key"]
+      [:th "Source Key"]
       [:th "Status"]
       [:th "Source"]
-      [:th "Last Exception"]
       [:th "Last Success / Update"]
       [:th "Last Attempt / Start"]
-      [:th "Actions"]]]]))
+      [:th "Actions"]]]]])
 
 (defn source-details [src-k]
   (let [k (keyword src-k)
@@ -153,7 +151,6 @@
 
 (defn memory-tab []
   (html
-   [:h4 "Memory Stats"]
    [:table {:class "datatable table"}
     [:thead
      [:tr
@@ -172,32 +169,33 @@
 
 (defn database-tab []
   (html
-   [:h4 "Word Count Groups"]
-   [:table {:class "datatable table"}
-    [:thead
-     [:tr
-      [:th "Group"]
-      [:th "# Documents"]]]
-    [:tbody
-     (for [[start count] (persistency/get-word-count-groups frontend-db)]
-       (let [txt (cond
-                   (nil? start)
-                   "Unknown Length"
-                   (zero? start)
-                   "Long Read"
-                   :else
-                   (str "< " start " Words"))]
-         [:tr [:th txt] [:td count]]))]]
-   [:h4 "Tags"]
-   (list-to-table ["Tag" "# Documents"]  (persistency/get-tag-stats frontend-db))
-   [:h4 "Types"]
-   (list-to-table ["Type" "# Documents"] (persistency/get-type-stats frontend-db))))
+   [:div
+    [:div
+     [:h5 "Word Count Groups"]
+     [:table {:class "datatable table"}
+      [:thead
+       [:tr
+        [:th "Group"]
+        [:th "# Documents"]]]
+      [:tbody
+       (for [[start count] (persistency/get-word-count-groups frontend-db)]
+         (let [txt (cond
+                     (nil? start)
+                     "Unknown Length"
+                     (zero? start)
+                     "Long Read"
+                     :else
+                     (str "< " start " Words"))]
+           [:tr [:th txt] [:td count]]))]]]
+    [:div {:class "pt-4"} [:h5 "Tags"]
+     [:div (list-to-table ["Tag" "# Documents"]  (persistency/get-tag-stats frontend-db))]]
+    [:div {:class "pt-4"} [:h5 "Types"]
+     [:div (list-to-table ["Type" "# Documents"] (persistency/get-type-stats frontend-db))]]]))
 
 (defn state-tab []
   (let [states (mount/find-all-states)
         running (mount/running-states)]
     (html
-     [:h2 "State"]
      [:table {:class "table"}
       [:thead
        [:tr
@@ -217,7 +215,6 @@
 
 (defn thread-tab []
   (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]
-    [:h2 "Current Threads"]
     [:table {:id "threads-datatable" :class "table"}
      [:thead
       [:tr
@@ -248,24 +245,22 @@
                [:td {:class "col-xs-1"} group]
                [:th {:class "col-xs-1"} name]
                [:td {:class "col-xs-1"} [:pre state]]
-               [:td {:class "col-xs-4"} [:pre top-of-stack]]])))]]))
+               [:td {:class "col-xs-4"} [:span {:title top-of-stack} (human/truncate-ellipsis (str top-of-stack) 20)]]])))]]))
 
 (defn metrics-tab []
-  [:p
-   [:h2 "Metrics"]
+  [:div
    [:a {:href "/metrics"} "Prometheus Metrics"]])
 
 (defn schedule-tab []
   (let [states (mount/find-all-states)]
-    (html
-     [:h2 "State"]
+    [:div
      [:table {:class "table"}
       [:thead
        [:tr
-        [:th "Schedule Name"]
-        [:th "State Name"]
+        [:th "Name"]
+        [:th "State "]
         [:th "Type"]
-        [:th "Canned Schedule"]
+        [:th "Canned"]
         [:th "Code"]]]
       [:tbody
        (for [state-name states
@@ -278,13 +273,11 @@
           [:td state-name]
           [:td sched-type]
           [:td chime-times]
-          [:td (pprint-html pred)]])]])))
+          [:td (pprint-html pred)]])]]]))
 
 (defn config-tab []
-  (html
-   [:h2 "Home"]
-   [:div [:h3 "Application Config"]
-    (map-to-tree (appconfig-redact-secrets))]))
+  [:div [:h5 "appconfig"]
+   (map-to-tree (appconfig-redact-secrets))])
 
 (def tabs
   {:sources #'source-tab
@@ -298,30 +291,30 @@
 
 (defn status-index []
   (wrap-body
-   (html [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
-         [:div {:class "contianer-fluid"}
-          [:ul {:class "nav nav-tabs"}
-           (for [[k _] tabs
-                 :let [tab-name (name k)
-                       tab-id (str tab-name "-tab")
-                       tab-href (str "#" tab-name)]]
-
-             [:li {:class "nav-item"}
-              [:a {:class (str "nav-link" (when (= k :sources) " active"))
-                   :id tab-id
-                   :data-bs-toggle "tab"
-                   :role "tab"
-                   :href tab-href}
-               tab-name]])]
-          [:div {:class "tab-content"
-                 :id "nav-tab-content"}
-           (for [[k func] tabs
-                 :let [tab-name (name k)
-                       cont-id tab-name]]
-             [:div {:class (str "tab-pane" (when (= k :sources) " fade show active"))
-                    :id cont-id
-                    :role "tabpanel"}
-              (func)])]])))
+   (html
+    [:div {:class "container-fluid mt-3"}
+     [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
+     [:ul {:class "nav nav-underline"}
+      (for [[k _] tabs
+            :let [tab-name (name k)
+                  tab-id (str tab-name "-tab")
+                  tab-href (str "#" tab-name)]]
+        [:li {:class "nav-item"}
+         [:a {:class (str "nav-link" (when (= k :sources) " active"))
+              :id tab-id
+              :data-bs-toggle "tab"
+              :role "tab"
+              :href tab-href}
+          tab-name]])]
+     [:div {:class "tab-content"
+            :id "nav-tab-content"}
+      (for [[k func] tabs
+            :let [tab-name (name k)
+                  cont-id tab-name]]
+        [:div {:class (str "tab-pane pt-2  " (when (= k :sources) " fade show active"))
+               :id cont-id
+               :role "tabpanel"}
+         (func)])]])))
 
 (def update-futures (atom {}))
 
@@ -356,7 +349,6 @@
     [k ; key
      (str (if status (name status) "?") (when (= :temp-fail status) (str " (" (:retry-count state) ")"))) ; status for humans
      (str (:src src)) ; source name
-     (get-in state [:last-exception :object :type]) ; last exception
      (some-> (or (:last-successful-fetch-ts state) ; last success or update
                  (:last-update-ts state))
              human/datetime-ago)
