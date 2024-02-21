@@ -604,7 +604,7 @@
                thumb (if (= max-thumb maxres-url)
                        (try-blobify-url! hq-url)
                        max-thumb)]
-           [:div {:class "ratio ratio 4x3"}
+           [:div {:class "ratio ratio-16x9"}
             [:div {:id (str "youtube-container-" (last vid))}
              [:img {:class "lazy-youtube img-fluid"
                     :data-vid (last vid)

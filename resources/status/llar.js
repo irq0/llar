@@ -369,12 +369,8 @@ $(document).ready(function () {
   $(".lazy-youtube").on("click", function () {
     var vid = $(this).data("vid");
     var target = $(this).data("target");
-    $("#" + target).html(
-      '<iframe class="img-fluid"' +
-        ' src="https://www.youtube.com/embed/' +
-        vid +
-        '" allowfullscreen="true">',
-    );
+    $("#" + target).html(`<div class="ratio ratio-16x9">
+<iframe class="img-fluid" src="https://www.youtube.com/embed/${vid}" frameborder="0" allowfullscreen="true"></iframe></div>`);
   });
 
   // main list: mark on view, toggle read
