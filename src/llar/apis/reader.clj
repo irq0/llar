@@ -1325,17 +1325,16 @@
 
             html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                    (html5
-                    [:html {:lang "en"}
-                     (html-header title (:mode params) (some-> params :items first))
-                     [:body
-                      (concat
-                       [nav-bar]
-                       [[:div {:class "container-fluid"}
-                         [:div {:class "row"}
-                          group-nav
-                          main-view
-                          source-nav]]]
-                       (html-footer))]]))]
+                    (html-header title (:mode params) (some-> params :items first))
+                    [:body
+                     (concat
+                      [nav-bar]
+                      [[:div {:class "container-fluid"}
+                        [:div {:class "row"}
+                         group-nav
+                         main-view
+                         source-nav]]]
+                      (html-footer))]))]
         html)
       (catch Object _
         (throw+ {:type ::render-error
@@ -1530,19 +1529,18 @@
 
          html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                 (html5
-                 [:html {:lang "en"}
-                  (html-header title (:mode params) (some-> params :items first))
-                  [:body
-                   (concat
-                    [nav-bar]
-                    [[:div {:class "container-fluid"}
-                      [:div {:class "row"}
-                       group-nav
-                       [:main {:role "main"
-                               :class "col-xs-12 col-md-6 col-lg-8"}
-                        [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-                         view]]]]]
-                    (html-footer))]]))]
+                 (html-header title (:mode params) (some-> params :items first))
+                 [:body
+                  (concat
+                   [nav-bar]
+                   [[:div {:class "container-fluid"}
+                     [:div {:class "row"}
+                      group-nav
+                      [:main {:role "main"
+                              :class "col-xs-12 col-md-6 col-lg-8"}
+                       [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+                        view]]]]]
+                   (html-footer))]))]
      html)))
 
 (defn fetch-preview
