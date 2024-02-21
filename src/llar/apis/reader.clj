@@ -1396,34 +1396,32 @@
 (defmethod tools-view-handler
   :saved-overview
   [x]
-  [:main {:role "main"
-          :class "col-xs-12 col-md-6 col-lg-8"}
-   (let [{:keys [clusters last-update]} @current-clustered-saved-items]
-     [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-      [:h3 "Saved and bookmarked item overview"]
-      [:p (format "Items: %s Last updated: %s Clusters: %s"
-                  (apply + (map count (vals clusters)))
-                  (if (some? last-update)
-                    (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
-                    "not yet")
-                  (count clusters))]
-      [:div {:class "card-columns" :id "saved-items"}
-       (for [[group-name items] clusters]
-         [:div {:class "card"}
-          [:div
-           [:div {:class "card-body"}
-            [:h5 {:class "card-title"} group-name]
-            [:p {:class "card-text"}]]
-           [:ul {:class "list-group list-group-flush"}
-            (for [{:keys [id title]
-                   :as item} items
-                  :let [reading-estimate (reading-time-estimate item)]]
-              [:li {:class "list-group-item"}
-               [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-                [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
-                 (:estimate reading-estimate) "m"]
-                "&nbsp;"
-                title]])]]])]])])
+  (let [{:keys [clusters last-update]} @current-clustered-saved-items]
+    [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+     [:h3 "Saved and bookmarked item overview"]
+     [:p (format "Items: %s Last updated: %s Clusters: %s"
+                 (apply + (map count (vals clusters)))
+                 (if (some? last-update)
+                   (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
+                   "not yet")
+                 (count clusters))]
+     [:div {:class "col" :id "saved-items"}
+      (for [[group-name items] clusters]
+        [:div {:class "card"}
+         [:div
+          [:div {:class "card-body"}
+           [:h5 {:class "card-title"} group-name]
+           [:p {:class "card-text"}]]
+          [:ul {:class "list-group list-group-flush"}
+           (for [{:keys [id title]
+                  :as item} items
+                 :let [reading-estimate (reading-time-estimate item)]]
+             [:li {:class "list-group-item"}
+              [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+               [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
+                (:estimate reading-estimate) "m"]
+               "&nbsp;"
+               title]])]]])]]))
 
 (defmethod tools-view-handler
   :search
@@ -1437,77 +1435,75 @@
                                                                             (time/days (some-> days-ago
                                                                                                Integer/parseInt)))})
                   (persistency/search frontend-db query))]
-    [:main {:role "main"
-            :class "col-xs-12 col-md-6 col-lg-8"}
-     [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-      [:h3 "Search"]
-      [:div
-       [:form {:action "/reader/tools/search" :method "get"}
-        [:div {:class "form-group row"}
-         [:label {:for "query" :class "col-sm-4 col-form-label"} "postgresql ts_query"]
-         [:div {:class "col-sm-8"}
-          [:input {:type "text" :class "form-control"
-                   :name "query" :id "query" :placeholder "fat & (rat | cat)"
-                   :value (or query "")}]]]
-        [:div {:class "form-group row"}
-         [:label {:for "query" :class "col-sm-4 col-form-label"} ""]
-         [:div {:class "col-sm-8"}
-          [:p "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (followed by with distance)"]]]
-        [:div {:class "form-group row"}
-         [:label {:for "query" :class "col-sm-4 col-form-label"} "Item fetch in the last:"]
-         (for [[name days] [["any" ""]
-                            ["7d" "7"]
-                            ["14d" "14"]
-                            ["90d" "90"]
-                            ["180d" "180"]
-                            ["1y" "365"]]]
-           [:div {:class "form-check form-check-inline"}
-            [:input (assoc {:class "form-check-input"
-                            :type "radio"
-                            :name "days-ago"
-                            :id (str "days-ago-" name)
-                            :value days}
-                           :checked (= days-ago days))]
-            [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]
-        [:div {:class "form-group row"}
-         [:div {:class "col-sm-10"}
-          [:button {:type "submit" :class "btn btn-primary"} "Search"]]]]
+    [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+     [:h3 "Search"]
+     [:div
+      [:form {:action "/reader/tools/search" :method "get"}
+       [:div {:class "form-group row"}
+        [:label {:for "query" :class "col-sm-4 col-form-label"} "postgresql ts_query"]
+        [:div {:class "col-sm-8"}
+         [:input {:type "text" :class "form-control"
+                  :name "query" :id "query" :placeholder "fat & (rat | cat)"
+                  :value (or query "")}]]]
+       [:div {:class "form-group row"}
+        [:label {:for "query" :class "col-sm-4 col-form-label"} ""]
+        [:div {:class "col-sm-8"}
+         [:p "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (followed by with distance)"]]]
+       [:div {:class "form-group row"}
+        [:label {:for "query" :class "col-sm-4 col-form-label"} "Item fetch in the last:"]
+        (for [[name days] [["any" ""]
+                           ["7d" "7"]
+                           ["14d" "14"]
+                           ["90d" "90"]
+                           ["180d" "180"]
+                           ["1y" "365"]]]
+          [:div {:class "form-check form-check-inline"}
+           [:input (assoc {:class "form-check-input"
+                           :type "radio"
+                           :name "days-ago"
+                           :id (str "days-ago-" name)
+                           :value days}
+                          :checked (= days-ago days))]
+           [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]
+       [:div {:class "form-group row"}
+        [:div {:class "col-sm-10"}
+         [:button {:type "submit" :class "btn btn-primary"} "Search"]]]]
 
-       [:h3 "Results"]
-       [:p [:td (count results)]]
+      [:h3 "Results"]
+      [:p [:td (count results)]]
 
-       [:p {:class "word-cloud"}
-        (let [freqs (->> (map :key results)
-                         frequencies
-                         (sort-by second)
-                         reverse)
-              min-freq (-> freqs last second)
-              max-freq (-> freqs first second)]
-          (for [[word freq] freqs
-                :let [size (word-cloud-fontsize freq min-freq max-freq)]]
-            [:span {:class (str "word border text-white " size)}
-             [:a {:href (make-site-href ["/reader/tools/search"]
-                                        (merge x {:with-source-key word
-                                                  :query query
-                                                  :days-ago days-ago}))
-                  :class "text-white sz-b"} (str word " (" freq ")")]]))]
+      [:p {:class "word-cloud"}
+       (let [freqs (->> (map :key results)
+                        frequencies
+                        (sort-by second)
+                        reverse)
+             min-freq (-> freqs last second)
+             max-freq (-> freqs first second)]
+         (for [[word freq] freqs
+               :let [size (word-cloud-fontsize freq min-freq max-freq)]]
+           [:span {:class (str "word border text-white " size)}
+            [:a {:href (make-site-href ["/reader/tools/search"]
+                                       (merge x {:with-source-key word
+                                                 :query query
+                                                 :days-ago days-ago}))
+                 :class "text-white sz-b"} (str word " (" freq ")")]]))]
 
-       [:table {:class "table table-borderless"}
-        [:thead
-         [:tr
-          [:td "Rank"]
-          [:td "Title"]
-          [:td "Source"]]]
-        [:tbody
-         (for [{:keys [title key rank id]} results]
+      [:table {:class "table table-borderless"}
+       [:thead
+        [:tr
+         [:td "Rank"]
+         [:td "Title"]
+         [:td "Source"]]]
+       [:tbody
+        (for [{:keys [title key rank id]} results]
 
-           [:tr [:td (format "%.2f" rank)]
+          [:tr [:td (format "%.2f" rank)]
 
-            [:td [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-                  title]]
+           [:td [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+                 title]]
 
-            [:td [:a {:href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
-                  key]]])]]]]]))
+           [:td [:a {:href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
+                 key]]])]]]]))
 
 (defn reader-tools-index
   "Reader Entrypoint"
@@ -1550,7 +1546,10 @@
                     [[:div {:class "container-fluid"}
                       [:div {:class "row"}
                        group-nav
-                       view]]]
+                       [:main {:role "main"
+                               :class "col-xs-12 col-md-6 col-lg-8"}
+                        [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+                         view]]]]]
                     (html-footer))]]))]
      html)))
 
