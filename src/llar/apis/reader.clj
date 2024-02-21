@@ -1398,25 +1398,30 @@
   [x]
   [:main {:role "main"
           :class "col-xs-12 col-md-6 col-lg-8"}
-   [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-    [:h3 (str "Saved, Bookmarked Items (n=" (apply + (map count (vals @current-clustered-saved-items))) ")")]
-    [:div {:class "card-columns" :id "saved-items"}
-     (for [[group-name items] @current-clustered-saved-items]
-       [:div {:class "card"}
-        [:div
-         [:div {:class "card-body"}
-          [:h5 {:class "card-title"} group-name]
-          [:p {:class "card-text"}]]
-         [:ul {:class "list-group list-group-flush"}
-          (for [{:keys [id title]
-                 :as item} items
-                :let [reading-estimate (reading-time-estimate item)]]
-            [:li {:class "list-group-item"}
-             [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-              [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
-               (:estimate reading-estimate) "m"]
-              "&nbsp;"
-              title]])]]])]]])
+   (let [{:keys [clusters last-update]} @current-clustered-saved-items]
+     [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+      [:h3 "Saved and bookmarked item overview"]
+      [:p (format "Items: %s Last updated: %s Clusters: %s"
+                  (apply + (map count (vals clusters)))
+                  (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
+                  (count clusters))]
+      [:div {:class "card-columns" :id "saved-items"}
+       (for [[group-name items] clusters]
+         [:div {:class "card"}
+          [:div
+           [:div {:class "card-body"}
+            [:h5 {:class "card-title"} group-name]
+            [:p {:class "card-text"}]]
+           [:ul {:class "list-group list-group-flush"}
+            (for [{:keys [id title]
+                   :as item} items
+                  :let [reading-estimate (reading-time-estimate item)]]
+              [:li {:class "list-group-item"}
+               [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+                [:span {:class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
+                 (:estimate reading-estimate) "m"]
+                "&nbsp;"
+                title]])]]])]])])
 
 (defmethod lab-view-handler
   :search

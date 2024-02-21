@@ -6,6 +6,7 @@
    [llar.sched :refer [defsched]]
    [llar.fetch :as fetch]
    [llar.postproc :as proc]
+   [java-time :as time]
    [clojure.tools.logging :as log]
    [clojure.string :as string]
    [clj-ml.clusterers :as ml-clusterers]
@@ -142,13 +143,17 @@
                      :id id})))
            (group-by :class)))))
 
+(defn update-saved-clusters! []
+  (try
+    (reset!
+     current-clustered-saved-items
+     {:clusters (cluster-saved backend-db)
+      :last-update (time/zoned-date-time)})
+    (catch weka.core.WekaException ex
+      (log/info "saved items clustering failed: " (ex-message ex)))))
+
 (defsched update-db-search-indices
   :now-and-early-morning
   (log/info "Updating database search indices")
   (persistency/update-index! backend-db)
-  (try
-    (reset!
-     current-clustered-saved-items
-     (cluster-saved backend-db))
-    (catch weka.core.WekaException ex
-      (log/info "saved items clustering failed: " (ex-message ex)))))
+  (update-saved-clusters!))
