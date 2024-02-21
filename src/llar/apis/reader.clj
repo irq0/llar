@@ -391,6 +391,7 @@
                        (name (first ks)))]]
     [:li {:class "nav-item"}
      [:a {:class (str "nav-link" (when (= str-ks active) " active"))
+          :title (format "Show %s items" str-ks)
           :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
       (if-let [ico (get icons (keyword str-ks) +tag-icon-default+)]
         [:span (icon ico) "&nbsp;" str-ks]
@@ -444,6 +445,7 @@
                :href (make-site-href [(:uri x)] {:filter k} x)}
            (icon ico) "&nbsp;" [:span name]]])]
 
+      ;; favorites
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Favorites"]]
@@ -453,11 +455,13 @@
           [:a {:class (str "nav-link" (when (and
                                              (= active-group group)
                                              (= (keyword active-key) key)) " active"))
+               :title (format "Show items with %s %s" (name group) (name key))
                :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
            (when-let [ico (get icons key +tag-icon-default+)] [:span (icon ico) "&nbsp;"])
 
            (name key)]])]
 
+      ;; lab
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Lab"]]
@@ -472,6 +476,7 @@
              :href (make-site-href ["/reader/lab/search"] x)}
          (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
 
+      ;; list style
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "List Style"]]
@@ -522,6 +527,7 @@
      [:a {:class (str
                   (if grey-out? "nav-link nav-link-secondary" "nav-link")
                   (when (= key active-key) " active "))
+          :title (format "Filter by source %s" (name (or key :unknown)))
           :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
       (cond
         (= (:type source) :item-type/bookmark)
@@ -656,7 +662,7 @@
      [:div {:class "item-content-nav sticky-top"}
       [:div {:class "btn-toolbar " :role "toolbar"}
        [:div {:class "btn-group btn-group-sm" :role "group"}
-        [:a {:class "btn"}
+        [:a {:class "btn" :title "Reading Time Estimate"}
          (icon "far fa-file-word")
          (:estimate reading-estimate) "m"
          "&nbsp;-&nbsp;"
@@ -669,14 +675,17 @@
            (icon "far fa-calendar") (human/datetime-ago ts)]])
        [:div {:class "btn-group btn-group-sm" :role "group"}
         [:a {:target "_blank"
+             :title "Open Item URL"
              :href url
              :role "button"
              :class "btn"}
          "&nbsp;" (icon "fas fa-external-link-alt")]
         [:a {:class "btn"
+             :title "Show internal data representation of this item"
              :href (make-site-href [id "dump"] x)}
          "&nbsp;" (icon "fas fa-code")]
         [:a {:class "btn"
+             :title "Open Raw content"
              :href (make-site-href [id "download"] {:data "content"
                                                     :content-type "text/html"} x)}
          "&nbsp;" (icon "fas fa-expand")]]
@@ -684,6 +693,7 @@
        [:div {:class "btn-group btn-group-sm " :role "group"}
         [:div {:class "dropdown show "}
          [:a {:class "btn dropdown-toggle btn-sm"
+              :title "Select Content Type"
               :href "#"
               :role "button"
               :id "item-data-select"
