@@ -339,37 +339,38 @@
        (when (= mode :show-item)
          [:li {:class "breadcrumb-item"} (-> items first :title)])]
 
-      [:div {:class "navbar-list row justify-content-between col-xs-12 col-md-3 col-lg-2"}
-       (cond
-         (= mode :list-items)
-         [:div {:class "col-xs-8 col-ld-12"}
-          [:a {:class "btn btn-secondary"
-               :title "Back to first item"
-               :href (make-site-href [(:uri x)] x)}
-           (icon "fas fa-fast-backward")]
+      (when-not (= mode :tools)
+        [:div {:class "navbar-list row justify-content-between col-xs-12 col-md-3 col-lg-2"}
+         (cond
+           (= mode :list-items)
+           [:div {:class "col-xs-8 col-ld-12"}
+            [:a {:class "btn btn-secondary"
+                 :title "Back to first item"
+                 :href (make-site-href [(:uri x)] x)}
+             (icon "fas fa-fast-backward")]
 
-          [:a {:class "btn btn-secondary"
-               :title "Forward N items"
-               :href (make-site-href [(:uri x)] (:range-before x) x)}
-           (icon "fas fa-forward")]
+            [:a {:class "btn btn-secondary"
+                 :title "Forward N items"
+                 :href (make-site-href [(:uri x)] (:range-before x) x)}
+             (icon "fas fa-forward")]
 
-          [:a {:class "btn btn-secondary btn-mark-view-read"
-               :title "Remove unread tag from all items in view"
-               :href "#"}
-           (icon "fas fa-glasses")]
+            [:a {:class "btn btn-secondary btn-mark-view-read"
+                 :title "Remove unread tag from all items in view"
+                 :href "#"}
+             (icon "fas fa-glasses")]
 
-          [:a {:class "btn btn-secondary btn-update-sources-in-view"
-               :title "Update sources in view"
-               :data-target (make-site-href [link-prefix "update"] x)
-               :data-items (make-site-href [(:uri x)] x)
-               :href "#"}
-           (icon "fas fa-download")]]
+            [:a {:class "btn btn-secondary btn-update-sources-in-view"
+                 :title "Update sources in view"
+                 :data-target (make-site-href [link-prefix "update"] x)
+                 :data-items (make-site-href [(:uri x)] x)
+                 :href "#"}
+             (icon "fas fa-download")]]
 
-         (= mode :show-item)
-         [:div {:class "col-xs-8 col-ld-12"}
-          (for [btn +tag-buttons+]
-            (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
-          next-item-button])]]]))
+           (= mode :show-item)
+           [:div {:class "col-xs-8 col-ld-12"}
+            (for [btn +tag-buttons+]
+              (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+            next-item-button])])]]))
 
 (defn group-list
   "Group Item List - Tags, etc."
@@ -455,7 +456,7 @@
 
            (name key)]])]
 
-      ;; lab
+      ;; tools
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Tools"]]
