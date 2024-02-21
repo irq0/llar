@@ -137,21 +137,15 @@
 
 (def +tag-buttons+
   "First-class tags show up in the tag bar"
-  [{:tag :interesting
+  [{:tag :saved
+    :icon-set "fas fa-star icon-is-set"
+    :icon-unset "far fa-star"}
+   {:tag :interesting
     :icon-set "far fa-hand-spock icon-is-set"
     :icon-unset "far fa-hand-spock"}
-   {:tag :boring
-    :icon-set "far fa-trash-alt icon-is-set"
-    :icon-unset "far fa-trash-alt"}
-   {:tag :download
-    :icon-set "fas fa-download icon-is-set"
-    :icon-unset "fas fa-download"}
    {:tag :unread
     :icon-unset "far fa-check-square icon-is-set"
     :icon-set "far fa-square"}
-   {:tag :saved
-    :icon-set "fas fa-star icon-is-set"
-    :icon-unset "far fa-star"}
    {:tag :archive
     :icon-set "fas fa-archive icon-is-set"
     :icon-unset "fas fa-archive"}
