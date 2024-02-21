@@ -496,6 +496,11 @@ div.item-content-body p > code {
   color: #fff;
 }
 
+.word-cloud .source-key {
+  background-color: #ccc;
+  color: #fff;
+}
+
 .feed-item .description {
   font-family: "IBM Plex Serif", serif;
 }

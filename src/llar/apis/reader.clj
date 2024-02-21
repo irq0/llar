@@ -1426,75 +1426,74 @@
                                                                             (time/days (some-> days-ago
                                                                                                Integer/parseInt)))})
                   (persistency/search frontend-db query))]
-    [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+
+    [:div {:class "px-3"}
      [:h3 "Search"]
-     [:div
-      [:form {:action "/reader/tools/search" :method "get"}
-       [:div {:class "form-group row"}
-        [:label {:for "query" :class "col-sm-4 col-form-label"} "postgresql ts_query"]
-        [:div {:class "col-sm-8"}
-         [:input {:type "text" :class "form-control"
-                  :name "query" :id "query" :placeholder "fat & (rat | cat)"
-                  :value (or query "")}]]]
-       [:div {:class "form-group row"}
-        [:label {:for "query" :class "col-sm-4 col-form-label"} ""]
-        [:div {:class "col-sm-8"}
-         [:p "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (followed by with distance)"]]]
-       [:div {:class "form-group row"}
-        [:label {:for "query" :class "col-sm-4 col-form-label"} "Item fetch in the last:"]
+     [:form {:action "/reader/tools/search" :method "get"}
+      [:div {:class "row mb-3"}
+       [:label {:for "query" :class "col-sm-4 col-form-label"}
+        "Postgresql " [:a {:href "https://www.postgresql.org/docs/current/datatype-textsearch.html#DATATYPE-TSQUERY"} "ts_query"]]
+       [:div {:class "col-sm-8"}
+        [:input {:type "text" :class "form-control"
+                 :name "query" :id "query" :placeholder "fat & (rat | cat)"
+                 :value (or query "")}]]]
+      [:div {:class "row mb-3"}
+       [:label {:for "notes" :class "col-sm-4 col-form-label"} ""]
+       [:div {:class "col-sm-8"}
+        [:p {:class "form-fontrol"} "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (followed by with distance)"]]]
+      [:fieldset {:class "row mb-3"}
+       [:legend {:class "col-sm-4 col-form-label"} "Fetched in the last"]
+       [:div {:class "col-sm-8"}
         (for [[name days] [["any" ""]
                            ["7d" "7"]
                            ["14d" "14"]
                            ["90d" "90"]
                            ["180d" "180"]
                            ["1y" "365"]]]
-          [:div {:class "form-check form-check-inline"}
+          [:div {:class "form-check"}
            [:input (assoc {:class "form-check-input"
                            :type "radio"
                            :name "days-ago"
                            :id (str "days-ago-" name)
                            :value days}
                           :checked (= days-ago days))]
-           [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]
-       [:div {:class "form-group row"}
-        [:div {:class "col-sm-10"}
-         [:button {:type "submit" :class "btn btn-primary"} "Search"]]]]
+           [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]]
+      [:div {:class "row mb-3"}
+       [:label {:class "col-sm-4 col-form-label"} "Actions"]
+       [:button {:type "submit" :class "btn btn-primary col-sm-2"} "Search"]]]
 
-      [:h3 "Results"]
-      [:p [:td (count results)]]
+     [:h3 "Results"]
+     [:p "Found: " [:td (count results)]]
 
-      [:p {:class "word-cloud"}
-       (let [freqs (->> (map :key results)
-                        frequencies
-                        (sort-by second)
-                        reverse)
-             min-freq (-> freqs last second)
-             max-freq (-> freqs first second)]
-         (for [[word freq] freqs
-               :let [size (word-cloud-fontsize freq min-freq max-freq)]]
-           [:span {:class (str "word border text-white " size)}
-            [:a {:href (make-site-href ["/reader/tools/search"]
-                                       (merge x {:with-source-key word
-                                                 :query query
-                                                 :days-ago days-ago}))
-                 :class "text-white sz-b"} (str word " (" freq ")")]]))]
+     [:p {:class "word-cloud"}
+      (let [freqs (->> (map :key results)
+                       frequencies
+                       (sort-by second)
+                       reverse)
+            min-freq (-> freqs last second)
+            max-freq (-> freqs first second)]
+        (for [[word freq] freqs
+              :let [size (word-cloud-fontsize freq min-freq max-freq)]]
+          [:span {:class (str "border source-key " size)}
+           [:a {:href (make-site-href ["/reader/tools/search"]
+                                      (merge x {:with-source-key word
+                                                :query query
+                                                :days-ago days-ago}))
+                :class (str "text-black " size)} (str word " (" freq ")")]]))]
 
-      [:table {:class "table table-borderless"}
-       [:thead
-        [:tr
-         [:td "Rank"]
-         [:td "Title"]
-         [:td "Source"]]]
-       [:tbody
-        (for [{:keys [title key rank id]} results]
-
-          [:tr [:td (format "%.2f" rank)]
-
-           [:td [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-                 title]]
-
-           [:td [:a {:href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
-                 key]]])]]]]))
+     [:table {:class "table table-borderless"}
+      [:thead
+       [:tr
+        [:td "Rank"]
+        [:td "Title"]
+        [:td "Source"]]]
+      [:tbody
+       (for [{:keys [title key rank id]} results]
+         [:tr [:td (format "%.2f" rank)]
+          [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+                title]]
+          [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
+                key]]])]]]))
 
 (defn reader-tools-index
   "Reader Entrypoint"
