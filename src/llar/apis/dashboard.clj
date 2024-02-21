@@ -51,12 +51,12 @@
    [:script {:src "/static/llar-status.js"}]])
 
 (defn wrap-body [body]
-  (html5 [:html {:lang "en"}
-          (html-header)
-          [:body
-           (concat
-            body
-            (html-footer))]]))
+  (html5
+   (html-header)
+   [:body
+    (concat
+     body
+     (html-footer))]))
 
 (defn- get-state [k]
   (cond
@@ -298,30 +298,30 @@
 
 (defn status-index []
   (wrap-body
-   (html5 [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
-          [:div {:class "contianer-fluid"}
-           [:ul {:class "nav nav-tabs"}
-            (for [[k _] tabs
-                  :let [tab-name (name k)
-                        tab-id (str tab-name "-tab")
-                        tab-href (str "#" tab-name)]]
+   (html [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
+         [:div {:class "contianer-fluid"}
+          [:ul {:class "nav nav-tabs"}
+           (for [[k _] tabs
+                 :let [tab-name (name k)
+                       tab-id (str tab-name "-tab")
+                       tab-href (str "#" tab-name)]]
 
-              [:li {:class "nav-item"}
-               [:a {:class (str "nav-link" (when (= k :sources) " active"))
-                    :id tab-id
-                    :data-bs-toggle "tab"
-                    :role "tab"
-                    :href tab-href}
-                tab-name]])]
-           [:div {:class "tab-content"
-                  :id "nav-tab-content"}
-            (for [[k func] tabs
-                  :let [tab-name (name k)
-                        cont-id tab-name]]
-              [:div {:class (str "tab-pane" (when (= k :sources) " fade show active"))
-                     :id cont-id
-                     :role "tabpanel"}
-               (func)])]])))
+             [:li {:class "nav-item"}
+              [:a {:class (str "nav-link" (when (= k :sources) " active"))
+                   :id tab-id
+                   :data-bs-toggle "tab"
+                   :role "tab"
+                   :href tab-href}
+               tab-name]])]
+          [:div {:class "tab-content"
+                 :id "nav-tab-content"}
+           (for [[k func] tabs
+                 :let [tab-name (name k)
+                       cont-id tab-name]]
+             [:div {:class (str "tab-pane" (when (= k :sources) " fade show active"))
+                    :id cont-id
+                    :role "tabpanel"}
+              (func)])]])))
 
 (def update-futures (atom {}))
 
