@@ -464,16 +464,16 @@
       ;; lab
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
-       [:span "Lab"]]
+       [:span "Tools"]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
-             :href (make-site-href ["/reader/lab/saved-overview"] x)}
+             :href (make-site-href ["/reader/tools/saved-overview"] x)}
          (icon "fas fa-glass-whiskey") "&nbsp;" "Saved Overview"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
-             :href (make-site-href ["/reader/lab/search"] x)}
+             :href (make-site-href ["/reader/tools/search"] x)}
          (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
 
       ;; list style
@@ -1391,9 +1391,9 @@
               :done (future-done? fut)
               :result (when (future-done? fut) @fut)}})))
 
-(defmulti lab-view-handler :view)
+(defmulti tools-view-handler :view)
 
-(defmethod lab-view-handler
+(defmethod tools-view-handler
   :saved-overview
   [x]
   [:main {:role "main"
@@ -1423,7 +1423,7 @@
                 "&nbsp;"
                 title]])]]])]])])
 
-(defmethod lab-view-handler
+(defmethod tools-view-handler
   :search
   [x]
   (let [query (get-in x [:request-params :query])
@@ -1440,7 +1440,7 @@
      [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
       [:h3 "Search"]
       [:div
-       [:form {:action "/reader/lab/search" :method "get"}
+       [:form {:action "/reader/tools/search" :method "get"}
         [:div {:class "form-group row"}
          [:label {:for "query" :class "col-sm-4 col-form-label"} "postgresql ts_query"]
          [:div {:class "col-sm-8"}
@@ -1484,7 +1484,7 @@
           (for [[word freq] freqs
                 :let [size (word-cloud-fontsize freq min-freq max-freq)]]
             [:span {:class (str "word border text-white " size)}
-             [:a {:href (make-site-href ["/reader/lab/search"]
+             [:a {:href (make-site-href ["/reader/tools/search"]
                                         (merge x {:with-source-key word
                                                   :query query
                                                   :days-ago days-ago}))
@@ -1507,7 +1507,7 @@
             [:td [:a {:href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
                   key]]])]]]]]))
 
-(defn reader-lab-index
+(defn reader-tools-index
   "Reader Entrypoint"
   ([]
    (reader-index {}))
@@ -1524,14 +1524,17 @@
          item-tags (future (prometheus/with-duration (metrics/prom-registry :llar-ui/tag-list)
                              (doall (persistency/get-tags frontend-db))))
 
-         params (merge params {:sources {}
-                               :group-group :lab
+         sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
+                   (doall (persistency/get-sources frontend-db (config/get-sources))))
+
+         params (merge params {:sources sources
+                               :group-group :tools
                                :group-key (:view params)
                                :item-tags @item-tags
-                               :mode :lab
+                               :mode :tools
                                :filter orig-fltr})
          nav-bar (nav-bar params)
-         view (lab-view-handler params)
+         view (tools-view-handler params)
          group-nav (group-nav params)
          title (short-page-headline params)
 
@@ -1630,15 +1633,15 @@
            {:status 400
             :body {:error (str "Malformed URL: " url)}})))
 
-     (GET "/lab/:view" [view :<< as-keyword]
-       (reader-lab-index {:uri (:uri req)
-                          :filter (as-keyword (get-in req [:params :filter]))
-                          :request-params (:params req)
-                          :group-name :default
-                          :group-item :all
-                          :source-key :all
-                          :view view
-                          :list-style (as-keyword (get-in req [:params :list-style]))}))
+     (GET "/tools/:view" [view :<< as-keyword]
+       (reader-tools-index {:uri (:uri req)
+                            :filter (as-keyword (get-in req [:params :filter]))
+                            :request-params (:params req)
+                            :group-name :default
+                            :group-item :all
+                            :source-key :all
+                            :view view
+                            :list-style (as-keyword (get-in req [:params :list-style]))}))
 
      (context
        "/group/:group-name/:group-item/source/:source-key"
