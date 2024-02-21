@@ -360,7 +360,7 @@
            (icon "fas fa-forward")]
 
           [:a {:class "btn btn-secondary btn-mark-view-read"
-               :title "Toggle unread on all items in view"
+               :title "Remove unread tag from all items in view"
                :href "#"}
            (icon "fas fa-glasses")]
 

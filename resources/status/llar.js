@@ -8,10 +8,13 @@ function get_scroll_to_items() {
   );
 }
 
-function tag_item_by_id(id, tag, icon_elem) {
-  var action = "set";
-  if (icon_elem.data("is-set")) {
-    action = "del";
+function tag_item_by_id(id, tag, icon_elem, action = "toggle") {
+  var orig_action = action;
+  if (action == "toggle") {
+    action = "set";
+    if (icon_elem.data("is-set")) {
+      action = "del";
+    }
   }
   $.post(
     "/reader/item/by-id/" + id,
@@ -21,10 +24,18 @@ function tag_item_by_id(id, tag, icon_elem) {
     },
     () => {
       var icon = icon_elem.find("i");
-      if (icon_elem.data("is-set")) {
+      if (orig_action == "toggle") {
+        if (icon_elem.data("is-set")) {
+          icon_elem.data("is-set", false);
+          icon.attr("class", icon_elem.data("icon-unset"));
+        } else {
+          icon_elem.data("is-set", true);
+          icon.attr("class", icon_elem.data("icon-set"));
+        }
+      } else if (orig_action == "del") {
         icon_elem.data("is-set", false);
         icon.attr("class", icon_elem.data("icon-unset"));
-      } else {
+      } else if (orig_action == "set") {
         icon_elem.data("is-set", true);
         icon.attr("class", icon_elem.data("icon-set"));
       }
@@ -287,7 +298,7 @@ $(document).ready(function () {
     console.log(ids);
     for (var id of ids) {
       var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
-      tag_item_by_id(id, "unread", icon_elem);
+      tag_item_by_id(id, "unread", icon_elem, "del");
     }
   });
 
