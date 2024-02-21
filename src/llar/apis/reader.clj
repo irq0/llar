@@ -463,12 +463,12 @@
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
              :href (make-site-href ["/reader/tools/saved-overview"] x)}
-         (icon "fas fa-glass-whiskey") "&nbsp;" "Saved Overview"]]]
+         (icon "fas fa-project-diagram") "&nbsp;" "Saved Overview"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
              :href (make-site-href ["/reader/tools/search"] x)}
-         (icon "fas fa-glass-whiskey") "&nbsp;" "Search"]]]
+         (icon "fas fa-search") "&nbsp;" "Search"]]]
 
       ;; list style
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
