@@ -310,6 +310,29 @@
                                                :irq0-src-wp-json/_links
                                                :irq0-src-wp-json/date_gmt]))
 
+(defn- fetch-wp-json-authors [post user-agent]
+  (try
+    (doall
+     (for [url (map :href (get-in post [:_links :author]))
+           :let [response (with-http-exception-handler
+                            {:url url
+                             :request ::wp-json-author
+                             :user-agent user-agent}
+                            (http/get url
+                                      {:as :json
+                                       :headers {:user-agent user-agent}}))
+                 author (get-in response [:body :name])]]
+       (do (log/debugf "wordpress JSON author fetch %s: %s" url author)
+           author)))
+    (catch Exception _
+      (log/debugf "wordpress JSON author fetch failed with endpoint %s."
+                  (get-in post [:_links :author])))))
+
+(defn- extract-embedded-authors [post]
+  (if-let [authors (get-in post [:_embedded :author])]
+    (map :name authors)
+    (log/debugf "no embedded authors in post %s" (:_embedded post))))
+
 (extend-protocol FetchSource
   llar.src.WordpressJsonFeed
   (fetch-source [src]
@@ -323,7 +346,7 @@
                  (http/get wp-json-url
                            {:as :json
                             :headers {"User-Agent" user-agent}}))
-          posts-url (get-posts-url (:body site))
+          posts-url (str (get-posts-url (:body site)) "?_embed")
           posts (-> (with-http-exception-handler
                       {:url posts-url
                        :request ::wp-json-posts
@@ -331,26 +354,16 @@
                       (http/get posts-url {:as :reader
                                            :headers {:user-agent user-agent}}))
                     :body (cheshire/parse-stream true))]
+      (log/debugf "wordpress JSON feed %s / %s fetched: %s posts" wp-json-url posts-url (count posts))
       (doall
        (for [post posts
              :let [conform (s/conform :irq0-src-wp-json/post post)]]
          (if (s/invalid? conform)
            (log/warn "Invalid post: " conform (s/explain-str :irq0-src-wp-json/post post))
-           (let [authors (try
-                           (doall
-                            (for [url (map :href (get-in post [:_links :author]))]
-                              (get-in [:body :name]
-                                      (with-http-exception-handler
-                                        {:url url
-                                         :request ::wp-json-author
-                                         :user-agent user-agent}
-                                        (http/get url
-                                                  {:as :json
-                                                   :headers {:user-agent user-agent}})))))
-                           (catch Exception _
-                             (log/debugf "Could not fetch article's authors form endpoints %s. setting empty authors."
-                                         (get-in post [:_links :author]))
-                             [""]))
+           (let [authors (or (extract-embedded-authors post)
+                             (fetch-wp-json-authors post user-agent)
+                             (get-in post [:yoast_head_json :author])
+                             [""])
                  url (uri/uri (get post :link))
                  base-url (get-base-url url)
                  title (get-in post [:title :rendered])

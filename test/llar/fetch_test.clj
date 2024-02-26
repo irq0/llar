@@ -84,7 +84,7 @@
          {:name "Test Feed Title"
           :home "http://example.com/wp-json/"
           :routes {(keyword "/wp/v2/posts") {:_links {:self "http://example.com/POSTS"}}}}}
-        (= (str url) "http://example.com/POSTS")
+        (string/starts-with? (str url) "http://example.com/POSTS")
         {:body
          (java.io.StringReader.
           (cheshire/generate-string
