@@ -213,8 +213,7 @@ div.item-content-body a::after {
 }
 
 div.item-content-body a:hover {
-  text-decoration: none;
-  background: #fbe870;
+  text-decoration: underline;
   transition-property: background;
   transition-duration: 0.2s;
 }
