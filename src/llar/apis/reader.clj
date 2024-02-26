@@ -181,7 +181,7 @@
                  :easy 1
                  :medium 1.5
                  :hard 2)
-        estimate (* (/ nwords words-per-min) factor)]
+        estimate (* (/ (or nwords 0) words-per-min) factor)]
     {:estimate (int (Math/ceil estimate))
      :difficulty level}))
 
