@@ -1262,10 +1262,10 @@
 
     (if (some? data)
       {:status 200
-       :headers {"Content-Type" (:content-type params)}
+       :headers {"Content-Type" (str (:content-type params) "; charset=utf-8")}
        :body body}
       {:status 404
-       :headers {"Content-Type" "text/plain"}
+       :headers {"Content-Type" "text/plain; charset=utf-8"}
        :body (format "Item Not Found / Content Not Available\n\nItem ID: %s\nData Type: %s\nContent-Type: %s\nAvailable: \n%s"
                      (:item-id params) (:data params) (:content-type params)
                      (string/join "\n"
