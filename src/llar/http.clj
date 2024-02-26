@@ -24,7 +24,7 @@
 (def +http-user-agent+
   {:bot "Mozilla/5.0 (compatible); Googlebot/2.1; +http://www.google.com/bot.html)"
    :browser "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
-   :default "Mozilla/5.0 (compatible; llar/0.1; +http://irq0.org)"})
+   :default "Mozilla/5.0 (compatible; llar/0.1; +http://llar.dev)"})
 
 (defn resolve-user-agent [kw-or-s]
   (cond (string? kw-or-s) kw-or-s

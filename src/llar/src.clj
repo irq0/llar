@@ -208,7 +208,7 @@
     (:user-token-secret oauth-creds))))
 
 (defrecord MercuryWebParser
-           [url]
+           [url args]
   Source
   (source-type [_] ::fetch)
   Object
@@ -216,11 +216,13 @@
 
 (defn mercury
   "Fetch URL using Mercury Web Parser API"
-  [url]
-  {:pre [(spec/valid? :irq0/url-str url)]
+  [url & {:as args}]
+  {:pre [(spec/valid? :irq0/url-str url)
+         (spec/valid? (spec/or :none nil?
+                               :args (spec/keys :opt-un [:irq0-src-args/user-agent])) args)]
    :post [(spec/valid? source? %)]}
   (->MercuryWebParser
-   (uri/uri url)))
+   (uri/uri url) (merge +http-default-args+ args)))
 
 (def reddit-supported-listings #{:controversial :best :hot :new :random :rising :top})
 (def reddit-supported-timeframes #{:hour :day :week :month :year :all})

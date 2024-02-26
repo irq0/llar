@@ -5,7 +5,7 @@
    [llar.postproc :refer [ItemProcessor]]
    [llar.persistency :refer [CouchItem]]
    [llar.analysis :as analysis]
-   [llar.http :refer [absolutify-url absolutify-links-in-hick get-base-url-with-path blobify try-blobify-url! sanitize]]
+   [llar.http :refer [resolve-user-agent absolutify-url absolutify-links-in-hick get-base-url-with-path blobify try-blobify-url! sanitize]]
    [llar.appconfig :as appconfig]
    [org.bovinegenius [exploding-fish :as uri]]
    [hickory.core :as hick]
@@ -59,15 +59,16 @@
         (assoc-in [:meta :source :args] nil)
         (assoc :type :bookmark))))
 
-(defn mercury-local
-  [url]
+(defn- mercury-local
+  [url user-agent]
   {:pre [(s/valid? :irq0/url url)]}
   (let [url (uri/uri url)
-        {:keys [exit out err]} (shell/sh (appconfig/command :mercury-parser) (str url))
+        {:keys [exit out err]} (shell/sh (appconfig/command :mercury-parser) (str url)
+                                         (str "--header.user-agent=" user-agent))
         base-url (get-base-url-with-path url)
         {:keys [failed message error content] :as json} (json/parse-string out true)]
     (if (and (zero? exit) (not failed) (not error))
-      (assoc json
+      (assoc json :content
              (try
                (-> content
                    hick/parse
@@ -138,7 +139,7 @@
   (fetch-source [src]
     (let [url (uri/uri (:url src))
           base-url (get-base-url-with-path url)
-          mercu (mercury-local url)
+          mercu (mercury-local url (resolve-user-agent (:user-agent src)))
           pub-ts (or (when (string? (:date_published mercu)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
                                                                                    (:date_published mercu)))
                      (time/zoned-date-time))
