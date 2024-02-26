@@ -189,11 +189,13 @@
         sel (get selectors k)
         ext (get extractors k)]
     (try
-      (let [selected (hick-select-extract sel ext hickory)]
-        (when-not (and (some? sel) (some? selected))
-          (log/debugf "Hickory selector %s for %s turned up nothing"
-                      (str src) k))
-        (or selected fallback))
+      (if (coll? ext)
+        ext
+        (let [selected (hick-select-extract sel ext hickory)]
+          (when-not (and (some? sel) (some? selected))
+            (log/debugf "Hickory selector %s for %s turned up nothing"
+                        (str src) k))
+          (or selected fallback)))
       (catch clojure.lang.ExceptionInfo ex
         (throw+ (assoc {:type ::hickory-select-failed
                         :src (str src)

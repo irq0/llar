@@ -109,6 +109,8 @@
 (spec/def :irq0-src-selectors/ts fn?)
 (spec/def :irq0-src-selectors/title fn?)
 (spec/def :irq0-src-selectors/author fn?)
+(spec/def :irq0-src-extractors/author (spec/or :constant (spec/coll-of string?)
+                                               :fn fn?))
 (spec/def :irq0-src-selectors/content fn?)
 (spec/def :irq0-src-selectors/description fn?)
 (spec/def :irq0-src-selectors/selectors
@@ -124,7 +126,7 @@
    :opt-un [:irq0-src-selectors/urls
             :irq0-src-selectors/ts
             :irq0-src-selectors/title
-            :irq0-src-selectors/author
+            :irq0-src-extractors/author
             :irq0-src-selectors/content
             :irq0-src-selectors/description]))
 
