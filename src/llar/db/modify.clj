@@ -76,6 +76,7 @@
   {:id .. :hash ..} :data ({:id :mime_type :type :is_binary})"
   [db item args]
   (j/with-db-transaction [tx db]
+    (sql/ensure-tags tx {:tags (map (fn [kw] [(name kw)]) (get-in item [:meta :tags]))})
     (when-let [{:keys [id hash]} (store-item-without-data!
                                   tx item args)]
       {:item {:id id
