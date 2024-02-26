@@ -93,11 +93,6 @@
              :ico "far fa-images"
              :fn #'gallery-list-items}})
 
-(def +list-style-hints+
-  {:storage :headlines
-   :shopping :headlines
-   :tweet :gallery})
-
 (def +filter-overrides+
   {:saved :total})
 ;; icons? see https://fontawesome.com/v5/icons
