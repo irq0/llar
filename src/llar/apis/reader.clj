@@ -54,7 +54,7 @@
 
 (def +boring-words-regex+
   "Words to skip from word clouds"
-  #"^(\d{1,3}|we|\w['`’()]\w|.*[()\"<>]+.*|are|at|or|be|but|more|said|what|when|who|where|also|their|one|\w{0,3}|as|you|your|mine|if|our|i|will|on|for|they|and|in|to|is|of|was|were|with|a|the|have|it|he|she|https|http|this|that|an|\W{1,2}|der|die|das|dass|uns|den|und|href=|xmlns=|information)$")
+  #"^(\d{1,3}|we|\w['`’()]\w|.*[()\"<>]+.*|are|at|or|be|but|more|said|what|when|who|where|also|their|one|\w{0,3}|as|you|your|mine|if|our|i|will|on|for|they|and|in|to|is|of|was|were|with|a|the|have|it|he|she|https|http|this|that|an|\W{1,2}|der|die|das|dass|uns|den|und|href=|xmlns=|information|rel=|sites|i')$")
 
 (def +boring-url-path-element-regex+
   "Url parts to remove from word cloud urls"
