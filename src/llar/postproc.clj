@@ -203,11 +203,12 @@
     (log/debugf "Processing feed: %s (%s items)" (str src) (count items))
     (try+
      (if (not-empty items)
-       (->>
-        items
-        (pmap  #(process-item feed state %))
-        (remove nil?)
-        (flatten))
+       (doall
+        (->>
+         items
+         (pmap  #(process-item feed state %))
+         (remove nil?)
+         (flatten)))
        (do
          (log/warn "Postprocess with empty items called" (str src))
          items))

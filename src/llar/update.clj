@@ -122,6 +122,7 @@
                                         {:fetched (map #(select-keys % [:summary :meta])
                                                        fetched)
                                          :feed feed
+                                         :update-step :postproc
                                          :skip skip-proc}))))
 
            dbks (try+
@@ -133,6 +134,7 @@
                             :feed feed
                             :fetched fetched
                             :processed processed
+                            :update-step :store
                             :skip skip-store})))]
 
        (log/infof "Updated %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
