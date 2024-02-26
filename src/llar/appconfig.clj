@@ -42,7 +42,7 @@
 (s/def :irq0-appconfig/default-list-view (s/map-of keyword? :irq0-appconfig/list-view))
 (s/def :irq0-appconfig/view-group #{:default :item-tags :source-tag :type})
 (s/def :irq0-appconfig/favorites (s/coll-of (s/tuple keyword? :irq0-appconfig/view-group)))
-(s/def :irq0-appconfig/ui (s/keys :opt-un [:irq0-appconfig/default-list-view :irq0-appconfig/favorites]))
+(s/def :irq0-appconfig/ui (s/keys :req-un [:irq0-appconfig/default-list-view :irq0-appconfig/favorites]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/state-dir
