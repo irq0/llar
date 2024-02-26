@@ -18,6 +18,12 @@
    :descriptions :item_data_type/description
    :thumbs :item_data_type/thumbnail})
 
+(defn- simplify-author [authors]
+  (cond
+    (empty? authors) ""
+    (> (count authors) 3) (str (first authors) " et al.")
+    :else (string/join "; " authors)))
+
 (defn store-item-without-data!
   "store-item! persists item to the database, without data attachment like
   contents and descriptions. Return {:id .. :hash .. } or nil if the item
@@ -36,7 +42,7 @@
       :hash (:hash item)
       :ts (or (:ts summary) (time/zoned-date-time))
       :title (:title summary)
-      :author (string/join "," (:authors entry))
+      :author (simplify-author (:authors entry))
       :type (keyword "item_type" (name (:type item)))
       :tags (into [] (map name (or (:tags meta) [])))
       :nlp-nwords (or (:nwords nlp) -1)
