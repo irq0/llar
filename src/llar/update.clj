@@ -31,7 +31,13 @@
       (log/info "state file exists. creating backup copy in " backup-file)
       (nio2/copy-file state-file backup-file))
     (try+
-     (converter/read-edn-state (slurp (.toFile state-file)))
+     (let [state (converter/read-edn-state (slurp (.toFile state-file)))]
+       (reduce (fn [acc key]
+                 (if (#{:updating} (get-in acc [key :status]))
+                   (assoc-in acc [key :status] :new)
+                   acc))
+               state
+               (keys state)))
      (catch java.io.FileNotFoundException _
        (log/warn "state file not found. starting with clean state")
        {})
