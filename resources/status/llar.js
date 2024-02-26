@@ -422,7 +422,7 @@ $(document).ready(function () {
         icon.attr("class", x.data("icon-set"));
       }
       if (!showing_list) {
-        location.reload();
+        window.location.replace(window.location.href.replace(/mark=read/, ""));
       }
     });
   });
