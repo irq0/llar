@@ -14,7 +14,7 @@
    [llar.item]
    [java-time.api :as time]
    [clojure.tools.logging :as log]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [throw+]]
    [clojure.spec.alpha :as s]
    [clojure.java.shell :as shell]
    [cheshire.core :as json]))
@@ -62,38 +62,76 @@
 (defn mercury-local
   [url]
   {:pre [(s/valid? :irq0/url url)]}
-  (try+
-   (let [url (uri/uri url)
-         {:keys [exit out err]} (shell/sh (appconfig/command :mercury-parser) (str url))
-         base-url (get-base-url-with-path url)
-         json (json/parse-string out true)]
-     (if (and (zero? exit) (not (:failed json)))
-       (assoc json :content
-              (try
-                (-> json
-                    :content
-                    hick/parse
-                    hick/as-hickory
-                    (absolutify-links-in-hick base-url)
-                    sanitize
-                    blobify
-                    hick-r/hickory-to-html)
-                (catch Throwable th
-                  (log/warn th "Mercury local post processing failed. Using vanilla. Url:" url)
-                  (log/debug {:content json
-                              :url url
-                              :mercury {:out out
-                                        :err err
-                                        :exit exit}
-                              :json json}))))
-       (do
-         (log/error "Mercury Error: " url err json out)
-         (throw+ {:type ::not-parsable
-                  :url url
-                  :message (:message json)}))))
-   (catch Object _
-     (log/error (:throwable &throw-context) "Unexpected error. URL: " url)
-     (throw+))))
+  (let [url (uri/uri url)
+        {:keys [exit out err]} (shell/sh (appconfig/command :mercury-parser) (str url))
+        base-url (get-base-url-with-path url)
+        {:keys [failed message error content] :as json} (json/parse-string out true)]
+    (if (and (zero? exit) (not failed) (not error))
+      (assoc json
+             (try
+               (-> content
+                   hick/parse
+                   hick/as-hickory
+                   (absolutify-links-in-hick base-url)
+                   sanitize
+                   blobify
+                   hick-r/hickory-to-html)
+               (catch Throwable th
+                 (log/warn th "Mercury local post processing failed. Using vanilla. Url:" url)
+                 (log/debug {:content json
+                             :url url
+                             :mercury {:stdout out
+                                       :stderr err
+                                       :exit exit}
+                             :json json}))))
+      (let [status (->> message
+                        (re-find #"Resource returned a response status code of (4..) and resource was instructed to reject non-200 status codes.")
+                        second
+                        parse-long)]
+        (cond
+          (#{400 401 402 403 404 405 406 410} status)
+          (do
+            (log/warnf "Mercury HTTP client error probably due to broken request (%s): message:%s"
+                       status message)
+            (throw+ {:type :llar.http/request-error
+                     :code status
+                     :stdout out
+                     :stderr err
+                     :exit exit
+                     :message message
+                     :request ::mercury-cli
+                     :url url}))
+          (#{500 501 502 503 504} status)
+          (do (log/warnf "Server Error (%s): %s" status message)
+              (throw+ {:type :llar.http/server-error-retry-later
+                       :code status
+                       :stdout out
+                       :stderr err
+                       :exit exit
+                       :message message
+                       :request ::mercury-cli
+                       :url url}))
+          (#{408 429} status)
+          (do
+            (log/warnf "Client Error (overloaded?) (%s): %s" status message)
+            (throw+ {:type :llar.http/client-error-retry-later
+                     :code status
+                     :stdout out
+                     :stderr err
+                     :exit exit
+                     :message message
+                     :request ::mercury-cli
+                     :url url}))
+          :else
+          (do
+            (log/warn "Mercury Error: " url)
+            (throw+ {:type ::not-parsable
+                     :url url
+                     :stdout out
+                     :request ::mercury-cli
+                     :stderr err
+                     :exit exit
+                     :message message})))))))
 
 (extend-protocol FetchSource
   llar.src.MercuryWebParser
