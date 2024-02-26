@@ -132,7 +132,7 @@
         hn-url (uri/uri (str +hn-item-url-prefix+ objectID))]
     {:score points
      :num-comments num_comments
-     :author author
+     :authors [author]
      :id objectID
      :type (hn-type hit)
      :pub-ts (fetchutils/parse-timestamp :iso-date-time created_at)

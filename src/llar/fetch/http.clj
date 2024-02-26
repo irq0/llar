@@ -47,7 +47,7 @@
         {:pub-ts (:ts summary)
          :url url
          :title (:title summary)
-         :authors ""
+         :authors [""]
          :descriptions {"text/plain" body}
          :contents {"text/html" body
                     "text/plain" (conv/html2text body)}}
@@ -86,7 +86,7 @@
         {:pub-ts (:ts summary)
          :url url
          :title (:title summary)
-         :authors ""
+         :authors [""]
          :descriptions {"text/plain" body}
          :contents {"text/html" body
                     "text/plain" (conv/html2text body)}}
