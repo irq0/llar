@@ -139,7 +139,7 @@
   (fetch-source [src]
     (let [url (uri/uri (:url src))
           base-url (get-base-url-with-path url)
-          mercu (mercury-local url (resolve-user-agent (:user-agent src)))
+          mercu (mercury-local url (resolve-user-agent (get src :user-agent :default)))
           pub-ts (or (when (string? (:date_published mercu)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
                                                                                    (:date_published mercu)))
                      (time/zoned-date-time))
