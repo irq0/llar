@@ -46,19 +46,26 @@
       (update-in [:meta :tags] conj :unread)
       (assoc-in [:meta :source-key] (:key state))))
 
+(defn highlight-item? [item]
+  (let [names-and-nouns (union (get-in item [:entry :nlp :names])
+                               (get-in item [:entry :nlp :nouns])
+                               (->> (get-in item [:entry :nlp :top :words])
+                                    (keys)
+                                    (into #{})))
+        author-matches (intersection (into #{} (->>
+                                                (get-in item [:entry :authors])
+                                                (remove nil?)
+                                                (map string/lower-case)))
+                                     (:authors @highlight-matches))
+        words-matches (intersection names-and-nouns (:words @highlight-matches))]
+    (log/debugf "Highlight matches: authors:%s words:%s" author-matches words-matches)
+    (or (seq author-matches) (seq words-matches))))
+
 (defn all-items-process-last [item _ _]
   (log/trace "All items processor (last)" (str item))
-  (let [names-and-nouns (union (get-in item [:entry :nlp :names])
-                               (get-in item [:entry :nlp :nouns]))
-
-        highlight (or
-                   (> (count (intersection (into #{} (->>
-                                                      (get-in item [:entry :authors])
-                                                      (remove nil?)
-                                                      (map string/lower-case)))
-                                           (:authors @highlight-matches))) 0)
-                   (> (count (intersection names-and-nouns (:words @highlight-matches))) 0))]
-    (cond-> item highlight (update-in [:meta :tags] conj :highlight))))
+  (cond-> item
+    (highlight-item? item)
+    (update-in [:meta :tags] conj :highlight)))
 
 ;;; Item postprocessing protocol
 
