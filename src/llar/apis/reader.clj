@@ -133,7 +133,7 @@
 
 (def +tags-skip-group-list+
   "Do not display in group list on the left side"
-  #{"ibc2018" "test" "unread" "personal" "music-mined"})
+  #{"unread"})
 
 (def +tag-buttons+
   "First-class tags show up in the tag bar"
