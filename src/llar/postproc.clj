@@ -58,14 +58,24 @@
                                                 (map string/lower-case)))
                                      (:authors @highlight-matches))
         words-matches (intersection names-and-nouns (:words @highlight-matches))]
-    (log/debugf "Highlight matches: authors:%s words:%s" author-matches words-matches)
-    (or (seq author-matches) (seq words-matches))))
+    (log/debugf "[%s] Highlight? authors:%s words:%s" (str item) author-matches words-matches)
+    (cond
+      (seq words-matches)
+      {:type :words
+       :matches words-matches}
+      (seq author-matches)
+      {:type :author
+       :matches author-matches}
+      :else
+      false)))
 
 (defn all-items-process-last [item _ _]
   (log/trace "All items processor (last)" (str item))
-  (cond-> item
-    (highlight-item? item)
-    (update-in [:meta :tags] conj :highlight)))
+  (if-let [info (highlight-item? item)]
+    (-> item
+        (update-in [:meta :tags] conj :highlight)
+        (assoc-in [:entry :highlight] info))
+    item))
 
 ;;; Item postprocessing protocol
 
