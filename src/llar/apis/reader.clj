@@ -856,6 +856,13 @@
 ;; todo - add number of images
 ;; add number of nouns
 
+(defn- show-button-in-this-view? [x btn]
+  (if (= (:tag btn) :unread)
+    (or
+     (not= (:group-name x) :item-tags)
+     (not= (:group-item x) :saved))
+    true))
+
 (defn main-list-item
   "Main Item List - Word Cloud Style"
   [x link-prefix item]
@@ -967,7 +974,8 @@
         "&nbsp;" (icon "fas fa-code")]]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
-       (for [btn +tag-buttons+]
+       (for [btn +tag-buttons+
+             :when (show-button-in-this-view? x btn)]
          (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]))
 
 (defn headlines-list-items
@@ -1027,7 +1035,7 @@
              [[:a {:class "btn" :href url}
                (icon "fas fa-external-link-alt")]]
              (for [btn +tag-buttons+
-                   :when (contains? +headline-view-tag-buttons+ (:tag btn))]
+                   :when (show-button-in-this-view? x btn)]
                (tag-button id
                            (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]]])]]]))
 
@@ -1080,7 +1088,8 @@
             (concat
              [[:a {:class "btn" :href url}
                (icon "fas fa-external-link-alt")]]
-             (for [btn +tag-buttons+]
+             (for [btn +tag-buttons+
+                   :when (show-button-in-this-view? x btn)]
                (tag-button id
                            (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]])])]))
 
