@@ -64,7 +64,7 @@
       {:type :words
        :matches words-matches}
       (seq author-matches)
-      {:type :author
+      {:type :authors
        :matches author-matches}
       :else
       false)))

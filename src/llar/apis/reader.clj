@@ -958,6 +958,11 @@
             [:a {:href url :class "text-white sz-b"}
              text]]))])
 
+     (when-let [highlight (get-in item [:entry :highlight])]
+       (html [:p {:class "highlight"}
+              (format "Highlighted by %s: %s" (:type highlight)
+                      (string/join ", " (:matches highlight)))]))
+
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
        (tags-button-group id tags)
