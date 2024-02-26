@@ -333,7 +333,7 @@
       (and existing-fut (not (future-done? existing-fut)))
       {:status 200
        :body {:source-key k
-              :future existing-fut
+              :future (str existing-fut)
               :status :already-updating}}
 
       :else
