@@ -332,7 +332,7 @@
 
 (defn- extract-embedded-authors [post]
   (if-let [authors (get-in post [:_embedded :author])]
-    (map :name authors)
+    (remove nil? (map :name authors))
     (log/debugf "no embedded authors in post %s" (:_embedded post))))
 
 (extend-protocol FetchSource
@@ -362,10 +362,11 @@
              :let [conform (s/conform :irq0-src-wp-json/post post)]]
          (if (s/invalid? conform)
            (log/warn "Invalid post: " conform (s/explain-str :irq0-src-wp-json/post post))
-           (let [authors (or (extract-embedded-authors post)
-                             (fetch-wp-json-authors post user-agent)
-                             (get-in post [:yoast_head_json :author])
-                             [""])
+           (let [authors (some #(when-not (empty? %) %)
+                               [(extract-embedded-authors post)
+                                (fetch-wp-json-authors post user-agent)
+                                [(get-in post [:yoast_head_json :author])]
+                                [""]])
                  url (uri/uri (get post :link))
                  base-url (get-base-url url)
                  title (get-in post [:title :rendered])
