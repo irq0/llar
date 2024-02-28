@@ -52,9 +52,11 @@
   (remove #(or
             (string/starts-with? % "?")
             (string/starts-with? % ";")
+            (string/starts-with? % "-")
             (string/starts-with? % ">")
             (string/starts-with? % "http")
             (string/includes? % "href=")
+            (string/includes? % "iframe")
             (string/starts-with? % "\""))
           feats))
 
@@ -63,41 +65,46 @@
    (map #(db-search/saved-items-tf-idf-terms db %) [1 0.5 0.1 0.05 0.01])
    (remove empty?)
    (map remove-useless-features)
-   (remove #(< (count %) 10))
+   (remove #(< (count %) 20))
    (first)
    (into #{})))
 
 (defn make-saved-dataset [db]
   ;; must ensure that there are no '/' in terms - messes up keyword/name
-  (let [attributes (vec (conj (get-features db) "item_id"))
+  (let [top-features (->> (get-features db)
+                          (remove #(= % "item_id"))
+                          (into []))
+        attributes (-> top-features
+                       (conj "item_id"))
         term-tf-idf-maps (db-search/saved-items-tf-idf db)
         weka-attributes (map (fn [s]
                                (let [new-attrib (weka.core.Attribute. s)]
-                                 (if (= s :item_id)
+                                 (if (= s "item_id")
                                    (.setWeight new-attrib 0.0)
                                    (.setWeight new-attrib 1.0))
                                  new-attrib))
                              attributes)
         ds (weka.core.Instances. "saved-items" (java.util.ArrayList. weka-attributes)
                                  (count term-tf-idf-maps))]
-        ;; ds (ml-data/make-dataset "saved-items" attributes (count term-tf-idf-maps))]
+    ;; ds (ml-data/make-dataset "saved-items" attributes (count term-tf-idf-maps))]
+    (.setClassIndex ds -1)
     (doseq [m term-tf-idf-maps]
       (let [inst (weka.core.SparseInstance. (count attributes))]
         (.setDataset inst ds)
         (doall (map-indexed (fn [i attrib]
                               (try
-                                (.setValue inst i (or (get m attrib) 0.0))
+                                (.setValue inst i (get m attrib 0.0))
                                 (catch Throwable th
                                   (log/info th i attrib (get m attrib) (type (get m attrib)))
                                   (throw th))))
                             attributes))
         (.setWeight inst 1.0)
         (.add ds inst)))
-
+    (log/debugf "saved dataset: features:%s instances:%s" (count attributes) (count term-tf-idf-maps))
     ds))
 
 (defn improvise-cluster-name [attributes centroid]
-  (let [take-this (nth (sort centroid) (- (count centroid) 5))]
+  (let [take-this (nth (sort centroid) (max 0 (- (count centroid) 5)))]
     (string/join "+"
                  (take 5
                        (remove nil?
@@ -118,28 +125,26 @@
   (let [ds (make-saved-dataset db)
         clst (ml-clusterers/make-clusterer :k-means {:number-clusters (get-number-of-clusters ds)})]
     (ml-clusterers/clusterer-build clst ds)
-    (let [ds-clst (ml-clusterers/clusterer-cluster clst ds)
-          centroids (:centroids (ml-clusterers/clusterer-info clst))
-          names (into {}
+    (let [centroids (:centroids (ml-clusterers/clusterer-info clst))
+          names (into []
                       (map (fn [[k cent]]
-                             [(keyword (str k))
-                              (if-let [human (improvise-cluster-name
-                                              (ml-data/dataset-attributes ds)
-                                              (-> cent
-                                                  ml-data/instance-to-vector))]
-                                human
-                                (keyword (str k)))])
-                           centroids))]
-      (->> ds-clst
-           ml-data/dataset-as-maps
-           (map (fn [{:keys [item_id class]}]
-                  (let [id (int item_id)
+                             (if-let [human (improvise-cluster-name
+                                             (ml-data/dataset-attributes ds)
+                                             (-> cent
+                                                 ml-data/instance-to-vector))]
+                               human
+                               (keyword (str k))))
+                           centroids))
+          item-id-index (.index (.attribute ds "item_id"))]
+      (->> ds
+           (map (fn [instance]
+                  (let [id (int (.value instance item-id-index))
                         item (persistency/get-item-by-id db id)
-                        class-name (get names class)]
+                        cluster (.clusterInstance clst instance)]
                     {:title (:title item)
                      :nwords (:nwords item)
                      :readability (get-in item [:entry :readability])
-                     :class class-name
+                     :class (nth names cluster "?")
                      :id id})))
            (group-by :class)))))
 
