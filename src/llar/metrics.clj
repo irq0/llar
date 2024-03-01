@@ -10,12 +10,19 @@
              (jvm/initialize)
              (ring/initialize)
              (prometheus/register
-              (prometheus/histogram :llar-ui/compile-sources)
-              (prometheus/histogram :llar-ui/active-sources)
-              (prometheus/histogram :llar-ui/tag-list)
-              (prometheus/histogram :llar-ui/render-html)
-              (prometheus/histogram :llar-ui/render-download)
-              (prometheus/histogram :llar-ui/items-current-view)))
+              (prometheus/histogram
+               :llar-ui/compile-sources
+               {:description "UI step: Time to get configured sources, sources in DB and combine them (:sources)"})
+              (prometheus/histogram :llar-ui/active-sources
+                                    {:description "UI: Time to find and merge in tag/item stats (e.g total, today, $tags like unread) for all sources in current view (:active-sources)"})
+              (prometheus/histogram :llar-ui/tag-list
+                                    {:description "UI: Time to get names of all item tags (:item-tags)"})
+              (prometheus/histogram :llar-ui/render-html
+                                    {:description "UI: Time to render hiccup into HTML"})
+              (prometheus/histogram :llar-ui/render-download
+                                    {:description "UI: Time to render raw download page"})
+              (prometheus/histogram :llar-ui/items-current-view
+                                    {:description "UI: Time to get items with data for current view (:items)"})))
   :stop (prometheus/clear prom-registry))
 
 (defmacro with-log-exec-time-named [metric & body]
