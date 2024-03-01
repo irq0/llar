@@ -10,9 +10,6 @@
              (jvm/initialize)
              (ring/initialize)
              (prometheus/register
-              (prometheus/gauge :llar/update-duration-millis
-                                {:description "Time it took to fetch and process a source"
-                                 :labels [:source]})
               (prometheus/histogram :llar-ui/compile-sources)
               (prometheus/histogram :llar-ui/active-sources)
               (prometheus/histogram :llar-ui/tag-list)

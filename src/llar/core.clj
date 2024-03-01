@@ -38,7 +38,8 @@
 
 (def essential-states
   [#'appconfig/appconfig
-   #'metrics/prom-registry])
+   #'metrics/prom-registry
+   #'update/prom-registry])
 
 (def dry-states
   [#'store/backend-db

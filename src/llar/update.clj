@@ -20,6 +20,24 @@
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
 
+(defstate prom-registry
+  :start (-> metrics/prom-registry
+             (prometheus/subsystem "update")
+             (prometheus/register
+              (prometheus/gauge :llar/update-duration-millis
+                                {:description "Time it took to fetch and process a source"
+                                 :labels [:source]})
+              (prometheus/gauge :llar/statuses
+                                {:description "Number of fetched sources for each status"
+                                 :labels [:status]})
+              (prometheus/gauge :llar/last-success-unixtime
+                                {:description "Last time the source was successfully fetched"
+                                 :labels [:source]})))
+  :stop (prometheus/clear prom-registry))
+
+(def +available-states+
+  [:ok :new :temp-fail :perm-fail :bug :updating])
+
 (defn startup-read-state []
   (let [state-dir (appconfig/state-dir)
         state-file (.resolve state-dir "state.edn")
@@ -200,6 +218,13 @@
   (doseq [[k _v] (config/get-sources)]
     (set-status! k :new)))
 
+(defn- observe-state-summary-metrics []
+  (let [states (group-by :status (vals (get-current-state)))]
+    (doseq [status +available-states+]
+      (prometheus/observe prom-registry :llar/statuses
+                          {:status (name status)}
+                          (count (get states status []))))))
+
 ;;; Update API
 
 (defn update!
@@ -259,14 +284,19 @@
                 new-state (apply update-feed! k kw-args)
                 new-status (:status new-state)]
             (when-let [dur (:last-duration new-state)]
-              (prometheus/observe metrics/prom-registry
+              (prometheus/observe prom-registry
                                   :llar/update-duration-millis
                                   {:source (str k)}
                                   (.toMillis dur)))
+            (when-let [success-ts (:last-successful-fetch-ts new-state)]
+              (prometheus/observe prom-registry :llar/last-success-unixtime
+                                  {:source (str k)}
+                                  (time/to-millis-from-epoch success-ts)))
             (log/debugf "[%s] State: %s -> %s " k
                         cur-status new-status)
             (swap! state (fn [current]
                            (assoc current k new-state)))
+            (observe-state-summary-metrics)
             new-status))
         cur-status))))
 
