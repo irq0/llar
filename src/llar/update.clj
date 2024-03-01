@@ -291,7 +291,7 @@
             (when-let [success-ts (:last-successful-fetch-ts new-state)]
               (prometheus/observe prom-registry :llar/last-success-unixtime
                                   {:source (str k)}
-                                  (time/to-millis-from-epoch success-ts)))
+                                  (/ (time/to-millis-from-epoch success-ts) 1000)))
             (log/debugf "[%s] State: %s -> %s " k
                         cur-status new-status)
             (swap! state (fn [current]
