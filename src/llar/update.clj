@@ -20,20 +20,19 @@
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
 
-(defstate prom-registry
-  :start (-> metrics/prom-registry
-             (prometheus/subsystem "update")
-             (prometheus/register
-              (prometheus/gauge :llar/update-duration-millis
-                                {:description "Time it took to fetch and process a source"
-                                 :labels [:source]})
-              (prometheus/gauge :llar/statuses
-                                {:description "Number of fetched sources for each status"
-                                 :labels [:status]})
-              (prometheus/gauge :llar/last-success-unixtime
-                                {:description "Last time the source was successfully fetched"
-                                 :labels [:source]})))
-  :stop (prometheus/clear prom-registry))
+(defonce prom-registry
+  (-> metrics/prom-registry
+      (prometheus/subsystem "update")
+      (prometheus/register
+       (prometheus/gauge :llar/update-duration-millis
+                         {:description "Time it took to fetch and process a source"
+                          :labels [:source]})
+       (prometheus/gauge :llar/statuses
+                         {:description "Number of fetched sources for each status"
+                          :labels [:status]})
+       (prometheus/gauge :llar/last-success-unixtime
+                         {:description "Last time the source was successfully fetched"
+                          :labels [:source]}))))
 
 (def +available-states+
   [:ok :new :temp-fail :perm-fail :bug :updating])
@@ -360,8 +359,9 @@
      :start (vary-meta (chime/chime-at
                         (sched/resolve-chime-times ~chime-times)
                         (fn [~'$TIME]
-                          (prometheus/set-to-current-time :llar-sched/last-run
-                                                          {:schedule (str '~sched-name)})
+                          (prometheus/set-to-current-time  metrics/prom-registry
+                                                           :llar-sched/last-run
+                                                           {:schedule (str '~sched-name)})
                           (metrics/with-log-exec-time-named ~sched-name
                             (let [sources# (updateable-sources)
                                   filtered# (filter (fn [[k# source#]]

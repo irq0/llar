@@ -7,7 +7,7 @@
    [clojure.spec.alpha :as s]
    [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
-   [llar.metrics :as metrics]
+   [llar.metrics]
    [llar.store :as store]
    [llar.apis.reader :as reader]
    [llar.webapp :as webapp]
@@ -37,9 +37,7 @@
    ["-h" "--help"]])
 
 (def essential-states
-  [#'appconfig/appconfig
-   #'metrics/prom-registry
-   #'update/prom-registry])
+  [#'appconfig/appconfig])
 
 (def dry-states
   [#'store/backend-db
@@ -79,7 +77,7 @@
      :wrap-in)
 
     (->
-     (mount/only essential-states)
+     essential-states
      (mount/swap {#'appconfig/appconfig (appconfig/read-config-or-die)})
      (mount/start))
 
