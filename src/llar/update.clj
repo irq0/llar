@@ -360,6 +360,8 @@
      :start (vary-meta (chime/chime-at
                         (sched/resolve-chime-times ~chime-times)
                         (fn [~'$TIME]
+                          (prometheus/set-to-current-time :llar-sched/last-run
+                                                          {:schedule (str '~sched-name)})
                           (metrics/with-log-exec-time-named ~sched-name
                             (let [sources# (updateable-sources)
                                   filtered# (filter (fn [[k# source#]]

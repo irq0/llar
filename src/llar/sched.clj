@@ -73,6 +73,8 @@
      :start (vary-meta (chime/chime-at
                         (resolve-chime-times ~chime-times-or-keyword)
                         (fn [~'$TIME]
+                          (prometheus/set-to-current-time :llar-sched/last-run
+                                                          {:schedule (str '~sched-name)})
                           (metrics/with-log-exec-time-named ~sched-name
                             (do ~@body))))
                        merge

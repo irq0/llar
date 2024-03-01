@@ -10,6 +10,9 @@
              (jvm/initialize)
              (ring/initialize)
              (prometheus/register
+              (prometheus/gauge :llar-sched/last-run
+                                {:description "Last time the schedume was run"
+                                 :labels [:schedule]})
               (prometheus/histogram
                :llar-ui/compile-sources
                {:description "UI step: Time to get configured sources, sources in DB and combine them (:sources)"})
