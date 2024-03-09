@@ -649,59 +649,64 @@
      [:div {:class "d-none"
             :id "item-meta"
             :data-id id}]
-     [:div {:class "item-content-nav sticky-top"}
-      [:div {:class "btn-toolbar " :role "toolbar"}
-       [:div {:class "btn-group btn-group-sm" :role "group"}
-        [:a {:class "btn" :title "Reading Time Estimate"}
-         (icon "far fa-file-word")
-         (:estimate reading-estimate) "m"
-         "&nbsp;-&nbsp;"
-         nwords "&nbsp;words"]
-        (tags-button-group id tags)]
-       (when (some? ts)
-         [:div {:class "btn-group btn-group-sm" :role "group"}
-          [:a {:class "btn"}
-           "&nbsp;&nbsp;"
-           (icon "far fa-calendar") (human/datetime-ago ts)]])
-       [:div {:class "btn-group btn-group-sm" :role "group"}
-        [:a {:target "_blank"
-             :title "Open Item URL"
-             :href url
+     [:div {:class "btn-toolbar d-flex" :role "toolbar"}
+      [:div {:class "btn-group btn-group-sm p-2 flex-grow-1" :role "group"}
+       [:a {:class "btn" :title "Reading Time Estimate"}
+        (icon "far fa-file-word")
+        "&nbsp;"
+        (:estimate reading-estimate) "m"
+        "&nbsp;&nbsp;"
+        nwords "&nbsp;words"]
+       (tags-button-group id tags)]
+      (when (some? ts)
+        [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
+         [:a {:class "btn"}
+          "&nbsp;&nbsp;"
+          (icon "far fa-calendar") "&nbsp;" (human/datetime-ago ts)]])
+      [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
+       [:a {:target "_blank"
+            :title "Open Item URL"
+            :href url
+            :role "button"
+            :class "btn"}
+        "&nbsp;" (icon "fas fa-external-link-alt")]
+       [:a {:class "btn"
+            :title "Show internal data representation of this item"
+            :href (make-site-href [id "dump"] x)}
+        "&nbsp;" (icon "fas fa-code")]
+       [:a {:class "btn"
+            :title "Focus Content"
+            :href (make-site-href [id "focus"] {:data "content"
+                                                :content-type "text/html"} x)}
+        "&nbsp;" (icon "fas fa-expand")]
+       [:a {:class "btn"
+            :title "Open Raw content"
+            :href (make-site-href [id "download"] {:data "content"
+                                                   :content-type "text/html"} x)}
+        "&nbsp;" (icon "fas fa-remove-format")]]
+
+      [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
+       [:div {:class "dropdown show "}
+        [:a {:class "btn dropdown-toggle btn-sm"
+             :title "Select Content Type"
+             :href "#"
              :role "button"
-             :class "btn"}
-         "&nbsp;" (icon "fas fa-external-link-alt")]
-        [:a {:class "btn"
-             :title "Show internal data representation of this item"
-             :href (make-site-href [id "dump"] x)}
-         "&nbsp;" (icon "fas fa-code")]
-        [:a {:class "btn"
-             :title "Open Raw content"
-             :href (make-site-href [id "download"] {:data "content"
-                                                    :content-type "text/html"} x)}
-         "&nbsp;" (icon "fas fa-expand")]]
+             :id "item-data-select"
+             :data-bs-toggle "dropdown"}
+         "Content Type"]
 
-       [:div {:class "btn-group btn-group-sm " :role "group"}
-        [:div {:class "dropdown show "}
-         [:a {:class "btn dropdown-toggle btn-sm"
-              :title "Select Content Type"
-              :href "#"
-              :role "button"
-              :id "item-data-select"
-              :data-bs-toggle "dropdown"}
-          "Content Type"]
-
-         [:div {:class "dropdown-menu"}
-          (for [[descr contents] data]
-            (for [[content-type _] contents]
-              [:a {:class "dropdown-item"
-                   :href (make-site-href
-                          (if (re-find #"text/.+" content-type)
-                            [(:uri x)]
-                            [(:uri x) "download"])
-                          {:data (name descr)
-                           :content-type content-type}
-                          x)}
-               (str (name descr) " - " content-type)]))]]]]]
+        [:div {:class "dropdown-menu"}
+         (for [[descr contents] data]
+           (for [[content-type _] contents]
+             [:a {:class "dropdown-item"
+                  :href (make-site-href
+                         (if (re-find #"text/.+" content-type)
+                           [(:uri x)]
+                           [(:uri x) "download"])
+                         {:data (name descr)
+                          :content-type content-type}
+                         x)}
+              (str (name descr) " - " content-type)]))]]]]
      [:div {:id "item-content-body-container" :class "container-fluid"}
       [:div {:class "row"}
        [:div {:class "col-11"}
@@ -840,7 +845,7 @@
       (= mode :dump-item)
       "💩"
 
-      (= mode :show-item)
+      (#{:focus-item :show-item} mode)
       (format "🕮 %s [%s]"
               (:title current-item) (name source-key))
 
@@ -1132,14 +1137,16 @@
 (defn main-view
   "Generate Main Items View, depending on selected style"
   [x]
-  [:main {:role "main"
-          :class "col-xs-12 col-md-6 col-lg-8"}
-   [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
-    (case (:mode x)
-      :show-item (main-show-item x)
-      :dump-item (dump-item x)
-      :list-items (list-items x)
-      "Unknown mode")]])
+  (let [{:keys [mode]} x]
+    [:main {:role "main"
+            :class (if (= mode :focus-item) "" "col-xs-12 col-md-6 col-lg-8")}
+     [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+      (case (:mode x)
+        :show-item (main-show-item x)
+        :dump-item (dump-item x)
+        :focus-item (main-show-item x)
+        :list-items (list-items x)
+        "Unknown mode")]]))
 
 (defn get-items-for-current-view
   "Fetch current view items from database"
@@ -1154,7 +1161,7 @@
                               +max-items+)}]
 
     (cond
-      (contains? #{:show-item :download :dump-item} mode)
+      (contains? #{:show-item :download :dump-item :focus-item} mode)
       (let [current-item (persistency/get-item-by-id frontend-db item-id)
             next-items (get-items-for-current-view
                         sources
@@ -1327,10 +1334,11 @@
    (log/debug "[🖖-UI]" index-params)
    (let [params (gather-reader-index-data index-params)]
      (try+
-      (let [nav-bar (nav-bar params)
-            group-nav (group-nav params)
+      (let [{:keys [mode]} params
+            nav-bar (when-not (= :focus-item mode) (nav-bar params))
+            group-nav (when-not (= :focus-item mode) (group-nav params))
             main-view (main-view params)
-            source-nav (source-nav params)
+            source-nav (when-not (= :focus-item mode) (source-nav params))
             title (short-page-headline params)
 
             html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
@@ -1710,12 +1718,9 @@
                           :group-item group-item
                           :source-key source-key
                           :item-id item-id
-                          :mode :show-item})))
+                          :mode :show-item}))
 
-       (context
-         "/item/by-id/:item-id/download"
-         [item-id :<< as-int]
-         (GET "/"
+         (GET "/download"
            [data :<< as-keyword
             content-type]
            (download-item-content {:uri (:uri req)
@@ -1726,12 +1731,20 @@
                                    :item-id item-id
                                    :mode :download
                                    :data data
-                                   :content-type content-type})))
-
-       (context
-         "/item/by-id/:item-id/dump"
-         [item-id :<< as-int]
-         (GET "/" []
+                                   :content-type content-type}))
+         (GET "/focus"
+           [data :<< as-keyword
+            content-type]
+           (reader-index {:uri (:uri req)
+                          :filter (as-keyword (get-in req [:params :filter]))
+                          :group-name group-name
+                          :group-item group-item
+                          :source-key source-key
+                          :item-id item-id
+                          :mode :focus-item
+                          :data data
+                          :content-type content-type}))
+         (GET "/dump" []
            (reader-index {:uri (:uri req)
                           :filter (as-keyword (get-in req [:params :filter]))
                           :group-name group-name
