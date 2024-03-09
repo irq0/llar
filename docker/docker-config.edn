@@ -1,5 +1,4 @@
-{:state-dir "/llar/"
- :blob-store-dir "/llar/blobs"
+{:blob-store-dir "/llar/blobs"
  :credentials-file "/llar/credentials.edn"
  :runtime-config-dir "/llar/config"
  :commands {:mercury-parser "/usr/local/bin/postlight-parser"

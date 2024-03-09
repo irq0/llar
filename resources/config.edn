@@ -1,5 +1,4 @@
 {:update-max-retry 5
- :state-dir "/var/lib/llar"
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"
  :api {:dashboard {:port 9999}

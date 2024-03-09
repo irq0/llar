@@ -125,7 +125,6 @@
 
 (deftest basics-test
   (mount/start-with {#'appconfig/appconfig {:update-max-retry 5
-                                            :state-dir "/tmp"
                                             :credentials-file "/tmp/credentials.edn"
                                             :runtime-config-dir "/tmp"
                                             :commands {:mercury-parser "/bin/true"

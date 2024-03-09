@@ -324,7 +324,7 @@
 
       ;; previous:
       ;; "(╯°□°）╯︵ ┻━┻"
-      [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path"}
+      [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path flex-nowrap"}
        (for [item [group-item]]
          [:li {:class "breadcrumb-item"} (name item)])
        (when-not (= source-key :all)

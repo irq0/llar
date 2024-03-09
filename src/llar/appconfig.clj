@@ -27,7 +27,6 @@
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
 (s/def :irq0-appconfig/reader :irq0-appconfig/jetty-config)
 (s/def :irq0-appconfig/api (s/keys :opt-un [:irq0-appconfig/reader :irq0-appconfig/dashboard]))
-(s/def :irq0-appconfig/state-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/blob-store-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/credentials-file :irq0/path-exists)
 (s/def :irq0-appconfig/runtime-config-dir :irq0/path-exists-is-dir)
@@ -45,8 +44,7 @@
 (s/def :irq0-appconfig/ui (s/keys :req-un [:irq0-appconfig/default-list-view :irq0-appconfig/favorites]))
 
 (s/def :irq0-llar/appconfig
-  (s/keys :req-un [:irq0-appconfig/state-dir
-                   :irq0-appconfig/blob-store-dir
+  (s/keys :req-un [:irq0-appconfig/blob-store-dir
                    :irq0-appconfig/credentials-file
                    :irq0-appconfig/runtime-config-dir
                    :irq0-appconfig/commands
@@ -97,11 +95,6 @@
 
 (defn update-max-retry []
   (get appconfig :update-max-retry))
-
-(defn state-dir []
-  (-> (get appconfig :state-dir)
-      io/file
-      .toPath))
 
 (defn postgresql-config [pool]
   (get-in appconfig [:postgresql pool]))
