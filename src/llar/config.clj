@@ -11,6 +11,7 @@
    [slingshot.slingshot :refer [try+]]
    [llar.fetchutils :refer [make-reddit-proc]]
    [llar.human :as human]
+   [llar.src :as src]
    [llar.fetch.custom]
    [llar.fetch.feed]
    [llar.fetch.http]
@@ -55,6 +56,8 @@
 ;; TODO validate pre / post
 (defmacro fetch
   [src-key src & body]
+  (s/valid? symbol? src-key)
+  (s/valid? src/source? src)
   (let [{:keys [options tags post pre rm post-fns pre-fns rm-fn]
          :or {options #{} tags #{}}}
         (apply hash-map body)
