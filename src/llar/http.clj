@@ -279,6 +279,7 @@
     (if (or (nil? url)
             (= (uri/scheme url) "data")
             (= (uri/path url) "/")
+            (#{"img.shields.io" "badge.fury.io"} (uri/host url))
             (= (uri/path url) "/#"))
       (str url)
       (try+
