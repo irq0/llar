@@ -193,8 +193,8 @@
                      (:clojure.spec.alpha/spec x) (:clojure.spec.alpha/value x) (:clojure.spec.alpha/problems x)
                      form))
        #_{:clj-kondo/ignore [:unresolved-symbol]}
-       (catch Object e
-         (log/errorf e "failed to load fetch def \"%s\"" (second form))))
+       (catch Object _
+         (log/errorf (:throwable &throw-context) "failed to load fetch def \"%s\"" (second form))))
 
       (and (list? form) (#{'sched-fetch} (first form)))
       (try
