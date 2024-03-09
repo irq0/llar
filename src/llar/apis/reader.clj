@@ -140,9 +140,6 @@
   [{:tag :saved
     :icon-set "fas fa-star icon-is-set"
     :icon-unset "far fa-star"}
-   {:tag :interesting
-    :icon-set "far fa-hand-spock icon-is-set"
-    :icon-unset "far fa-hand-spock"}
    {:tag :unread
     :icon-unset "far fa-check-square icon-is-set"
     :icon-set "far fa-square"}
@@ -157,10 +154,7 @@
     :icon-unset "fas fa-book"}
    {:tag :video-recommendation
     :icon-set "fas fa-film  icon-is-set"
-    :icon-unset "fas fa-film"}
-   {:tag :bug
-    :icon-set "fas fa-bug icon-is-set"
-    :icon-unset "fas fa-bug"}])
+    :icon-unset "fas fa-film"}])
 
 (def +headline-view-tag-buttons+
   "Select from +tag-buttons+"
