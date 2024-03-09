@@ -6,6 +6,7 @@
    [llar.sched :refer [defsched]]
    [llar.fetch :as fetch]
    [llar.postproc :as proc]
+   [llar.metrics]
    [java-time :as time]
    [clojure.tools.logging :as log]
    [clojure.string :as string]
