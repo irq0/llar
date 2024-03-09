@@ -3,7 +3,6 @@
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [mount.core :refer [defstate]]
-   [nio2.core :as nio2]
    [slingshot.slingshot :refer [throw+ try+]]
    [chime.core :as chime]
    [llar.metrics :as metrics]
@@ -37,40 +36,8 @@
 (def +available-states+
   [:ok :new :temp-fail :perm-fail :bug :updating])
 
-(defn startup-read-state []
-  (let [state-dir (appconfig/state-dir)
-        state-file (.resolve state-dir "state.edn")
-        backup-file (.resolve state-dir
-                              (str "llar_state.edn."
-                                   (time/format :iso-instant (time/zoned-date-time))))]
-    (log/info "using state file" state-file)
-    (when (nio2/exists? state-file)
-      (log/info "state file exists. creating backup copy in " backup-file)
-      (nio2/copy-file state-file backup-file))
-    (try+
-     (let [state (converter/read-edn-state (slurp (.toFile state-file)))]
-       (reduce (fn [acc key]
-                 (if (#{:updating} (get-in acc [key :status]))
-                   (assoc-in acc [key :status] :new)
-                   acc))
-               state
-               (keys state)))
-     (catch java.io.FileNotFoundException _
-       (log/warn "state file not found. starting with clean state")
-       {})
-     (catch java.lang.RuntimeException e
-       (log/warn e "failed to read state file. starting with clean state")
-       {}))))
-
-(defn persist-state! [state]
-  (spit (.toFile (.resolve (appconfig/state-dir) "state.edn")) (converter/print-state state)))
-
 (defstate state
-  :start (atom (startup-read-state))
-  :stop (persist-state! @state))
-
-(defsched persist-state :hourly
-  (persist-state! @state))
+  :start (atom {}))
 
 (defn get-current-state []
   (into {}

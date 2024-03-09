@@ -49,11 +49,9 @@
    #'webapp/reader])
 
 (def wet-states
-  [#'update/persist-state
-   #'config/change-watcher
+  [#'config/change-watcher
    #'live/live
    #'update/remove-unread-tags
-   #'update/persist-state
    #'lab/update-db-search-indices])
 
 (defn -main [& args]
