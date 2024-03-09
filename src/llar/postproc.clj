@@ -41,7 +41,7 @@
   (atom {}))
 
 (defn all-items-process-first [item _ state]
-  (log/trace "All items processor (first)" (str item))
+  (log/trace "all items processor (first)" (str item))
   (-> item
       (update-in [:meta :tags] conj :unread)
       (assoc-in [:meta :source-key] (:key state))))
@@ -58,7 +58,7 @@
                                                 (map string/lower-case)))
                                      (:authors @highlight-matches))
         words-matches (intersection names-and-nouns (:words @highlight-matches))]
-    (log/debugf "[%s] Highlight? authors:%s words:%s" (str item) author-matches words-matches)
+    (log/debugf "item %s highlight: authors:%s words:%s" (str item) author-matches words-matches)
     (cond
       (seq words-matches)
       {:type :words
@@ -70,7 +70,7 @@
       false)))
 
 (defn all-items-process-last [item _ _]
-  (log/trace "All items processor (last)" (str item))
+  (log/trace "all items processor (last)" (str item))
   (if-let [info (highlight-item? item)]
     (-> item
         (update-in [:meta :tags] conj :highlight)
@@ -118,7 +118,7 @@
         proto-feed-proc (wrap-proc-fn item
                                       #(post-process-item % src state)
                                       "proto-feed-proc")]
-    (log/debugf "Processing feedless %s"
+    (log/debugf "processing feedless %s"
                 (str item))
 
     (let [processed (some-> item
@@ -136,7 +136,7 @@
 (defn check-intermediate [item where]
   (if (satisfies? ItemProcessor item)
     item
-    (log/errorf "Processing pipeline failure after %s. Intermediate result is not a processable item: type:%s value:%s"
+    (log/errorf "processing pipeline failure after %s. intermediate result is not a processable item: type:%s value:%s"
                 where (type item) item)))
 
 (defn check-intermediate-maybe-coll [items where]
@@ -146,7 +146,7 @@
         (every? (partial satisfies? ItemProcessor) items))
        (satisfies? ItemProcessor items))
     items
-    (log/errorf "Processing pipeline failure after %s. Intermediate result garbage: %s %s"
+    (log/errorf "processing pipeline failure after %s. intermediate result garbage: %s %s"
                 where (type items) items)))
 
 (defn check-pre-multiple [items]
@@ -193,7 +193,7 @@
                                       (all-proc-last)
                                       (check-intermediate :all-proc-last)))]
 
-    (log/debugf "Processing %s"
+    (log/debugf "processing %s"
                 (str item))
 
     (let [pre-chain-processed (pre-chain item)
@@ -210,7 +210,7 @@
 
 (defn process [feed state items]
   (let [{:keys [src]} feed]
-    (log/debugf "Processing feed: %s (%s items)" (str src) (count items))
+    (log/debugf "processing feed: %s (%s items)" (str src) (count items))
     (try+
      (if (not-empty items)
        (doall
@@ -220,13 +220,13 @@
          (remove nil?)
          (flatten)))
        (do
-         (log/warn "Postprocess with empty items called" (str src))
+         (log/warn "postprocess with empty items called" (str src))
          items))
      (catch [:type :llar.http/client-error-retry-later] ex
        (throw+ {:type ::postproc-temp-fail :items-count (count items)
                 :feed feed
                 :error ex}))
      (catch Object _
-       (log/warn (:throwable &throw-context) "Postprocessing failed during parallel item proc: " (str src)
+       (log/warn (:throwable &throw-context) "postprocessing failed during parallel item proc: " (str src)
                  feed state items)
        (throw+ {:type ::postproc-fail :itemsc (count items) :feed feed})))))

@@ -62,7 +62,7 @@
                              (let [msg (mail-message/read-message id)]
                                (swap! foo conj msg)
                                (if (nil? (:body msg))
-                                 (log/warn "Failed to parse mail body:" msg)
+                                 (log/warn "failed to parse mail body:" msg)
                                  {:to (:id msg)
                                   :cc (:cc msg)
                                   :bcc (:bcc msg)
@@ -80,7 +80,7 @@
       (throw+ {:type :llar.http/request-error
                :message (ex-message ex)}))
     (catch java.lang.Throwable ex
-      (log/error ex "Unexpected IMAP error")
+      (log/error ex "unexpected IMAP error")
       (throw+ {:type :llar.http/unexpected-error
                :message (ex-message ex)}))))
 

@@ -124,7 +124,7 @@
             :let [item (:data child)
                   c (s/conform :irq0-src-reddit/item item)]]
         (if (s/invalid? c)
-          (log/warn "Invalid reddit item: " c (s/explain-str :irq0-src-reddit/item item))
+          (log/warn "invalid reddit item: " c (s/explain-str :irq0-src-reddit/item item))
           (make-reddit-item
            (fetch/make-meta src)
            {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}

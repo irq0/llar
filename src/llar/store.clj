@@ -21,11 +21,11 @@
   ;; -> Group them by type and call the store method
   (let [by-type (group-by type mixed-items)]
     (when (>= (count mixed-items) 1)
-      (log/debugf "Persisting %d items with types (overwrite:%s): %s"
+      (log/debugf "persisting %d items with types (overwrite:%s): %s"
                   (count mixed-items) overwrite? (keys by-type))
       (doall
        (apply concat
               (for [[type items] by-type]
-                (do (log/debugf "Persisting %s items (overwrite:%s)" overwrite? type)
+                (do (log/debugf "persisting %s items (overwrite:%s)" overwrite? type)
                     (remove nil? (map #(persistency/store-item! backend-db
                                                                 (persistency/to-couch %) args) items)))))))))

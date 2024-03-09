@@ -51,7 +51,7 @@
                        (map get-blocklist)
                        (apply clojure-set/union)
                        (into #{}))]
-    (log/infof "Blocklist: Loaded %s domains from %s"
+    (log/infof "blocklist: loaded %s domains from %s"
                (count blocklist)
                public-blocklists)))
 
@@ -407,7 +407,7 @@
                             in-blocklist (contains? @*domain-blocklist* host)]
                         in-blocklist)
                       (catch Object _
-                        (log/debug "SANITIZE: Swallowing exception during sanitize uri: "
+                        (log/debug "html sanitizer: wwallowing exception during sanitize uri: "
                                    (:throwable &throw-context) attrs))))
                 (zip/edit loc
                           (fn [node]
@@ -426,7 +426,7 @@
     (cond
       (#{400 401 402 403 404 405 406 410} status)
       (let [message (converter/html2text body :tool :for-exceptions)]
-        (log/warnf "Client error probably due to broken request (%s): body:%s context:%s"
+        (log/warnf "client error probably due to broken request (%s): body:%s context:%s"
                    status message context)
         (throw+ (merge {:type ::request-error
                         :code status
@@ -434,14 +434,14 @@
                        context)))
       (#{500 501 502 503 504} status)
       (let [message (converter/html2text body  :tool :for-exceptions)]
-        (log/warnf "Server Error (%s): %s %s" status headers body)
+        (log/warnf "server Error (%s): %s %s" status headers body)
         (throw+ (merge {:type ::server-error-retry-later
                         :code status
                         :message (or message reason-phrase)})
                 context))
       (#{408 429} status)
       (do
-        (log/warnf "Client Error (overloaded?) (%s): %s" status reason-phrase)
+        (log/warnf "client Error (overloaded?) (%s): %s" status reason-phrase)
         (throw+ (merge {:type ::client-error-retry-later
                         :code status
                         :reason (:reason-phrase ex)
@@ -459,7 +459,7 @@
          (throw+ (merge {:type ::unexpected-error} ~throw-extra))))
 
      (catch java.net.UnknownHostException e#
-       (log/error e# "Host resolution error" ~throw-extra)
+       (log/error e# "host resolution error" ~throw-extra)
        (throw+ (merge {:type ::server-error-retry-later} ~throw-extra)))
 
      (catch javax.net.ssl.SSLHandshakeException e#
@@ -493,7 +493,7 @@
                       ~throw-extra)))
 
      (catch java.lang.Throwable e#
-       (log/error e# "Unexpected error: " ~throw-extra)
+       (log/error e# "unexpected error: " ~throw-extra)
        (throw+ (merge {:type ::unexpected-error} ~throw-extra)))))
 
 (defn fetch

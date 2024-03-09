@@ -78,7 +78,7 @@
                    blobify
                    hick-r/hickory-to-html)
                (catch Throwable th
-                 (log/warn th "Mercury local post processing failed. Using vanilla. Url:" url)
+                 (log/warn th "mercury local post processing failed. Using vanilla. Url:" url)
                  (log/debug {:content json
                              :url url
                              :mercury {:stdout out
@@ -92,7 +92,7 @@
         (cond
           (#{400 401 402 403 404 405 406 410} status)
           (do
-            (log/warnf "Mercury HTTP client error probably due to broken request (%s): message:%s"
+            (log/warnf "mercury HTTP client error probably due to broken request (%s): message:%s"
                        status message)
             (throw+ {:type :llar.http/request-error
                      :code status
@@ -103,7 +103,7 @@
                      :request ::mercury-cli
                      :url url}))
           (#{500 501 502 503 504} status)
-          (do (log/warnf "Server Error (%s): %s" status message)
+          (do (log/warnf "server Error (%s): %s" status message)
               (throw+ {:type :llar.http/server-error-retry-later
                        :code status
                        :stdout out
@@ -114,7 +114,7 @@
                        :url url}))
           (#{408 429} status)
           (do
-            (log/warnf "Client Error (overloaded?) (%s): %s" status message)
+            (log/warnf "client Error (overloaded?) (%s): %s" status message)
             (throw+ {:type :llar.http/client-error-retry-later
                      :code status
                      :stdout out
@@ -125,7 +125,7 @@
                      :url url}))
           :else
           (do
-            (log/warn "Mercury Error: " url)
+            (log/warn "mercury Error: " url)
             (throw+ {:type ::not-parsable
                      :url url
                      :stdout out

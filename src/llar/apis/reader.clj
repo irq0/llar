@@ -1331,7 +1331,7 @@
   ([]
    (reader-index {}))
   ([index-params]
-   (log/debug "[🖖-UI]" index-params)
+   (log/debug "reader: " index-params)
    (let [params (gather-reader-index-data index-params)]
      (try+
       (let [{:keys [mode]} params
@@ -1380,7 +1380,7 @@
         active-source-keys (vec (sort (map :key active-sources)))
         fut (future (update/update-some! active-source-keys))]
     (swap! update-futures assoc active-source-keys fut)
-    (log/infof "[🖖-UI] Updating sources: %s (%s)" active-source-keys fut)
+    (log/infof "reader updating sources: %s (%s)" active-source-keys fut)
     {:status 200
      :body {:source-keys active-source-keys
             :future (str fut)}}))
@@ -1518,7 +1518,7 @@
   ([]
    (reader-index {}))
   ([params]
-   (log/debug "[🖖-UI]" params)
+   (log/debug "reader: " params)
    (let [;; override filter for special groups like saved
          orig-fltr (:filter params)
          params (assoc params :filter
@@ -1578,7 +1578,7 @@
 (defn add-thing
   "Bookmark Add URL Entry Point"
   [feed key]
-  (log/debug "[🖖-UI] Add Bookmark: " feed)
+  (log/debug "reader add bookmark: " feed)
   (try+
    (let [state (assoc update/src-state-template :key key)
          items (fetch/fetch feed)
@@ -1598,7 +1598,7 @@
 (defn reader-item-modify
   "Item Modification (e.g Set Tag) Entry Point"
   [id action tag]
-  (log/debug "[🖖-UI] Item mod:" id action tag)
+  (log/debug "reader item mod: " id action tag)
   (str (case action
          :set (persistency/item-set-tags! frontend-db id [tag])
          :del (persistency/item-remove-tags! frontend-db id [tag]))))

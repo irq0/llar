@@ -100,7 +100,7 @@
      (nio2/create-sym-link link-props propsfile)
      (nio2/create-sym-link link file)
      (catch java.nio.file.FileAlreadyExistsException _
-       (log/debug "Symlink already exists" {:content-hash content-hash
+       (log/debug "symlink already exists" {:content-hash content-hash
                                             :url-hash url-hash
                                             :url url
                                             :props-link link-props

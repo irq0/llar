@@ -21,28 +21,28 @@
         state (get-in live [:sources k :state])]
 
     (when (or (= k :unknown) (nil? k) (nil? @state))
-      (log/error "Implementation error: item -> :meta"
+      (log/error "implementation error: item -> :meta"
                  "-> :source-key must be set during collection"))
     (try+
      (let [processed (proc/process feed @state [item])
            dbks (when (some? processed) (store-items! processed))]
-       (log/debugf "Live processing for %s/%s: processed: %s, db: %s"
+       (log/debugf "live processing for %s/%s: processed: %s, db: %s"
                    (str feed) (str item) (count processed) (count dbks)))
 
      (catch Object e
-       (log/error e "Live: Exception in process - persist run")
+       (log/error e "live: exception in process - persist run")
        (:entry item)))))
 
 (defn processor [input-ch term-ch]
   (async/thread
-    (log/debug "Starting live processor")
+    (log/debug "starting live processor")
     (loop []
       (let [[v ch] (async/alts!! [input-ch term-ch])]
         (when (identical? ch input-ch)
           (when (some? v)
             (process v)
             (recur)))))
-    (log/debug "Stopping live processor")))
+    (log/debug "stopping live processor")))
 
 (defn live-feeds []
   (into {} (filter (fn [[_ {:keys [src]}]] (and (some? src) (= (src/source-type src) :llar.src/live))) (config/get-sources))))

@@ -95,7 +95,7 @@
       (get-in http [:summary :ts])))
 
 (defn http-get-feed-content [url]
-  (log/debug "Fetching feed item content of " url)
+  (log/debug "fetching feed item content of " url)
   (let [http-item (fetch url)
         hick (->> http-item
                   :hickory
@@ -193,7 +193,7 @@
         ext
         (let [selected (hick-select-extract sel ext hickory)]
           (when-not (and (some? sel) (some? selected))
-            (log/debugf "Hickory selector %s for %s turned up nothing"
+            (log/debugf "hickory selector %s for %s turned up nothing"
                         (str src) k))
           (or selected fallback)))
       (catch clojure.lang.ExceptionInfo ex
@@ -226,7 +226,7 @@
                              (fn [l] (map (fn [x] (absolutify-url (-> x :attrs :href) base-url)) l)))
           item-urls (item-extractor (hick-s/select (:urls selectors) hickory))]
 
-      (log/debug (str src) " Parsed URLs: " {:base-url base-url
+      (log/debug (str src) " parsed URLs: " {:base-url base-url
                                              :urls item-urls})
       (let [conform (s/conform (s/coll-of :irq0/url) item-urls)]
         (when (s/invalid? conform)
@@ -243,7 +243,7 @@
                    {:keys [hickory summary]} item]]
 
          (try
-           (log/debug (str src) " Fetching: " {:base-url base-url
+           (log/debug (str src) " fetching: " {:base-url base-url
                                                :item-url item-url})
            (let [author (hick-select-extract-with-source src :author hickory nil)
                  title (hick-select-extract-with-source src :title hickory (:title summary))
@@ -361,7 +361,7 @@
        (for [post posts
              :let [conform (s/conform :irq0-src-wp-json/post post)]]
          (if (s/invalid? conform)
-           (log/warn "Invalid post: " conform (s/explain-str :irq0-src-wp-json/post post))
+           (log/warn "invalid post: " conform (s/explain-str :irq0-src-wp-json/post post))
            (let [authors (some #(when-not (empty? %) %)
                                [(extract-embedded-authors post)
                                 (fetch-wp-json-authors post user-agent)
@@ -423,7 +423,7 @@
       (if (or force-update? (nil? last-fetch) (nil? feed-pub))
         false
         (do
-          (log/debugf "Filtering out item %s: older than last fetch at %s" (str item) last-fetch)
+          (log/debugf "filtering out item %s: older than last fetch at %s" (str item) last-fetch)
           (time/before? feed-pub last-fetch))))))
 
 (extend-protocol CouchItem

@@ -37,7 +37,7 @@
                       (not skip-postproc) (proc/process {:src src
                                                          :proc postproc} {}))]
 
-      (log/infof "Preview of %s: fetched: %s, limit: %s, after processing: %s"
+      (log/infof "preview %s: fetched: %s, limit: %s, after processing: %s"
                  (str src) (count fetched) limit (count processed))
       (reset! +current-fetch-preview+ processed)
       {:info "Open http://localhost:8023/preview"
@@ -45,7 +45,7 @@
        :limited-preview (map #(select-keys % [:summary :feed :meta :hash]) processed)})
 
     (catch Throwable th
-      (log/error th "Error fetching " (str src)))))
+      (log/error th "error fetching " (str src)))))
 
 (def current-clustered-saved-items (atom {}))
 
@@ -160,6 +160,6 @@
 
 (defsched update-db-search-indices
   :now-and-early-morning
-  (log/info "Updating database search indices")
+  (log/info "updating database search indices")
   (persistency/update-index! backend-db)
   (update-saved-clusters!))

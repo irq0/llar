@@ -98,7 +98,7 @@
      (Runtime/getRuntime)
      (Thread.
       (fn []
-        (log/info "Shutting down...")
+        (log/info "shutting down...")
         (mount/stop))))
 
     (cond

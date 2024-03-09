@@ -121,7 +121,7 @@
                             :update-step :store
                             :skip skip-store})))]
 
-       (log/infof "Updated %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
+       (log/infof "update %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
                   (str src) (count fetched) (count processed) (count dbks)
                   skip-proc skip-store)
 
@@ -145,7 +145,7 @@
        (make-next-state state :bug 0 &throw-context))
 
      (catch [:clojure.spec.alpha/failure :assertion-failed] x
-       (log/error "Spec assertion failed. BUG!" x)
+       (log/error "spec assertion failed. BUG!" x)
        (make-next-state state :bug 0 &throw-context))
 
      (catch java.lang.OutOfMemoryError _ex
@@ -218,25 +218,25 @@
         cur-status (:status cur-state)]
     (condp = cur-status
       :new
-      (log/debug "Updating new feed: " k)
+      (log/debug "updating new feed: " k)
       :ok
-      (log/debug "Updating working feed: " k)
+      (log/debug "updating working feed: " k)
       :temp-fail
-      (log/debug "Temporary failing feed %d/%d: %s"
+      (log/debug "temporary failing feed %d/%d: %s"
                  (:retry-count cur-state) (appconfig/update-max-retry) k)
       :perm-fail
-      (log/debug "Skipping perm fail feed: " k)
+      (log/debug "skipping perm fail feed: " k)
 
       :bug
-      (log/debug "Skipping feed that triggered a bug: " k)
+      (log/debug "skipping feed that triggered a bug: " k)
 
       :updating
-      (log/debug "Update already running: " k)
+      (log/debug "update already running: " k)
 
-      (log/debugf "Unknown status \"%s\": %s" cur-status k))
+      (log/debugf "unknown status \"%s\": %s" cur-status k))
 
     (when force
-      (log/debugf "Force updating %s feed %s" cur-status k))
+      (log/debugf "force updating %s feed %s" cur-status k))
 
     (let [update? (or force
                       (#{:ok :new} cur-status)
@@ -314,7 +314,7 @@
           :let [sources (updateable-sources)
                 filtered (filter pred sources)
                 keys (mapv first filtered)]]
-    (log/infof "[remove-unread-tags] %s keys to untag if older then %s: %s"
+    (log/infof "remove-unread-tags: %s keys to untag if older then %s: %s"
                sched-name period keys)
     (persistency/remove-unread-for-items-of-source-older-then!
      store/backend-db

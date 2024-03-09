@@ -91,7 +91,7 @@
   (try+
    (run-jetty app {:port port :join? false})
    (catch java.net.BindException e
-     (log/error e "Failed to start jetty" app port))))
+     (log/error e "failed to start jetty" app port))))
 
 (defn try-stop-app [jetty]
   (when-not (nil? jetty)
