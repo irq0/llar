@@ -420,12 +420,6 @@ div.item-content-body p > code {
 }
 
 #navbar .path {
-  height: 42px;
-  font-weight: 300;
-  padding-bottom: 0.75rem;
-  padding-top: 0.75rem;
-  border-width: 0;
-  border-radius: 0;
   margin: 0;
   font-size: 0.8em;
   background-color: rgb(0 0 0 / 0%);
@@ -576,6 +570,11 @@ div.item-content-body p > code {
   color: black;
   text-decoration: none;
   font-weight: 400;
+}
+
+#navbar .path a {
+  color: #fff;
+  text-decoration: none;
 }
 
 #headlines .toolbox a {

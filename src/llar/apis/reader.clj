@@ -126,6 +126,11 @@
    :recreation "fas fa-umbrella-beach"
    :highlight "fas fa-sun"})
 
+(def +group-icons+
+  {:item-tags "fas fa-tag"
+   :source-tag "fas fa-hashtag"
+   :type "fas fa-shapes"})
+
 (def +tags-skip-group-list+
   "Do not display in group list on the left side"
   #{"unread"})
@@ -324,13 +329,23 @@
 
       ;; previous:
       ;; "(╯°□°）╯︵ ┻━┻"
-      [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path flex-nowrap"}
-       (for [item [group-item]]
-         [:li {:class "breadcrumb-item"} (name item)])
+      [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path flex-nowrap"
+            :style "--bs-breadcrumb-divider-color: #fff;"}
+       (when-let [item group-item]
+         [:li {:class "breadcrumb-item"}
+          (when-let [ico (get +group-icons+ active-group)]
+            (icon ico))
+          [:a {:href (make-site-href ["/reader/group" (name active-group) (name item) "source/all/items"] x)}
+           (name item)]])
        (when-not (= source-key :all)
-         [:li {:class "breadcrumb-item"} (:title (first selected-sources))])
+         [:li {:class "breadcrumb-item"}
+          [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
+           (:title (first selected-sources))]])
        (when (= mode :show-item)
-         [:li {:class "breadcrumb-item"} (-> items first :source-key)])
+         (let [source-key (-> items first :source-key)]
+           [:li {:class "breadcrumb-item"}
+            [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
+             source-key]]))
        (when (= mode :show-item)
          [:li {:class "breadcrumb-item"} (-> items first :title)])]
 
@@ -478,7 +493,7 @@
 
       ;; item tags
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-       [:span "item tags"]]
+       [:span (icon (:item-tags +group-icons+)) " Item Tags"]]
       [:ul {:class "nav flex-column"}
        (group-list x "/reader/group/item-tags"
                    (->> x :item-tags (remove +tags-skip-group-list+) sort)
@@ -487,7 +502,7 @@
 
       ;; source tags
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-       [:span "source tags"]]
+       [:span (icon (:source-tag +group-icons+)) " Source Tags"]]
       [:ul {:class "nav flex-column"}
        (group-list x "/reader/group/source-tag"
                    (->> (:sources x) vals (map :tags) (apply set/union) sort)
@@ -496,7 +511,7 @@
 
       ;; source types
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
-       [:span "type"]]
+       [:span (icon (:type +group-icons+)) " Type"]]
       [:ul {:class "nav flex-column"}
        (group-list x "/reader/group/type"
                    (->> x :sources vals (map :type) (into (sorted-set)))
