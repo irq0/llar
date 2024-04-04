@@ -528,7 +528,7 @@
                           sanitize? (sanitize :remove-css? remove-css?)
                           simplify? (simplify)
                           blobify? (blobify)))]
-      (log/debugf "HTTP GET: %s -> (%s) %s bytes body" url (:status response) (count (get response :body)))
+      (log/debugf "HTTP GET: %s req-headers:%s status:%s body:%sB cond:%s" url headers (:status response) (count (get response :body)) (select-keys (:headers response) [:etag :last-modified]))
       (if (= 304 (:status response))
         {:raw response
          :status :not-modified
