@@ -146,7 +146,7 @@
 
 (extend-protocol fetch/FetchSource
   llar.src.HackerNews
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [resp (get-hn-by-tag (:tag src) (:args src))]
       (for [hit (:hits resp)]
         (make-hn-item

@@ -106,7 +106,7 @@
 (defn- replace-contents-with-mercury [item keep-orig?]
   (let [url (get-in item [:entry :url])
         src (src/mercury (str url))
-        mercu (proc/process-feedless-item src (first (fetch/fetch-source src)))
+        mercu (proc/process-feedless-item src (first (fetch/fetch-source src {})))
         html (if keep-orig?
                (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
                     "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")

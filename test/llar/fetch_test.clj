@@ -139,7 +139,7 @@
     (testing (str src)
       (with-redefs [http/fetch fake-fetch
                     http-client/get fake-http-get]
-        (let [fetched (uut/fetch-source src)
+        (let [fetched (uut/fetch-source src {})
               item (first fetched)]
           (is (= n-items (count fetched)))
           (is (every? #(= (get-in % [:meta :source]) src) fetched))

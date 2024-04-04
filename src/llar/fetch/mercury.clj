@@ -136,7 +136,7 @@
 
 (extend-protocol FetchSource
   llar.src.MercuryWebParser
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [url (uri/uri (:url src))
           base-url (get-base-url-with-path url)
           mercu (mercury-local url (resolve-user-agent (get src :user-agent :default)))

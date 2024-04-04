@@ -141,7 +141,7 @@
 
 (extend-protocol FetchSource
   llar.src.TwitterSearch
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [{:keys [query oauth-creds]} src
           resp (twitter/search-tweets
                 :oauth-creds oauth-creds
@@ -163,7 +163,7 @@
 
 (extend-protocol FetchSource
   llar.src.TwitterApi
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [{:keys [api-fn params oauth-creds]} src
           resp (api-fn
                 :oauth-creds oauth-creds

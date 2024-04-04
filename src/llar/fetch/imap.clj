@@ -105,7 +105,7 @@
 
 (extend-protocol fetch/FetchSource
   llar.src.ImapMailbox
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [messages (get-new-messages (:uri src) (:creds src))]
       (log/debugf "[IMAP] new:%s" (count messages))
       (for [m messages

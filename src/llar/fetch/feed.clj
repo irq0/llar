@@ -108,7 +108,7 @@
 
 (extend-protocol FetchSource
   Feed
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [url (uri/uri (:url src))
           base-url (get-base-url url)
           http-item (fetch url :user-agent (get-in src [:args :user-agent]))
@@ -211,7 +211,7 @@
 
 (extend-protocol FetchSource
   llar.src.SelectorFeed
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [{:keys [url selectors extractors args]} src
           user-agent (:user-agent args)
           {:keys [summary hickory]} (fetch url :user-agent user-agent)
@@ -336,7 +336,7 @@
 
 (extend-protocol FetchSource
   llar.src.WordpressJsonFeed
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [wp-json-url (str (:url src))
           user-agent (resolve-user-agent
                       (get-in src [:args :user-agent]))

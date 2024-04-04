@@ -43,11 +43,15 @@
 
 (defprotocol FetchSource
   "Protocol to work with data sources"
-  (fetch-source [src]))
+  (fetch-source
+    [src conditional-tokens]
+    "Fetch source src and return seq of items. conditional-tokens is a
+    map of tokens to be used in conditional fetches - e.g. etag,
+    last-modified etc. sources may ignore this."))
 
 (defn fetch
   "Fetch feed. Return seq of new items"
-  [feed]
+  [feed & args]
   (let [{:keys [src]} feed]
     (log/debug "fetching: " (str src))
-    (fetch-source src)))
+    (fetch-source src (:conditional-tokens args))))

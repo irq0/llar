@@ -117,7 +117,7 @@
 
 (extend-protocol fetch/FetchSource
   llar.src.Reddit
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [reddit (reddit-get (format "https://www.reddit.com/r/%s/%s/.json?limit=100&t=%s"
                                      (:subreddit src) (:listing src) (:timeframe src)))]
       (for [child (get-in reddit [:data :children])

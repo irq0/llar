@@ -32,7 +32,7 @@
 
 (extend-protocol FetchSource
   llar.src.GenericWebsite
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [{:keys [url args]} src
           {:keys [summary body hickory]} (http/fetch
                                           url :user-agent (:user-agent args))
@@ -56,7 +56,7 @@
 
 (extend-protocol FetchSource
   llar.src.PaywalledWebsite
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [{:keys [url cookie-getter args]} src
           url (uri/uri url)
           base-url (http/get-base-url url)

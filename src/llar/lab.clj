@@ -27,7 +27,7 @@
                filter (constantly false)
                skip-postproc false}}]
   (try
-    (let [fetched (fetch/fetch-source src)
+    (let [fetched (fetch/fetch-source src {})
           postproc (proc/make
                     :post post
                     :pre pre

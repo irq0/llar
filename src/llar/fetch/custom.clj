@@ -22,7 +22,7 @@
 
 (extend-protocol FetchSource
   llar.src.Custom
-  (fetch-source [src]
+  (fetch-source [src _conditional-tokens]
     (let [{:keys [fn]} src]
       (doall
        (for [{:keys [summary entry _]} (fn)]
