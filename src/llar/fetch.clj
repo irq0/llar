@@ -51,7 +51,9 @@
 
 (defn fetch
   "Fetch feed. Return seq of new items"
-  [feed & args]
+  [feed & {:keys [conditional-tokens]
+           :or {conditional-tokens {}}
+           :as args}]
   (let [{:keys [src]} feed]
-    (log/debug "fetching: " (str src))
-    (fetch-source src (:conditional-tokens args))))
+    (log/debug "fetching: " (str src) args)
+    (fetch-source src conditional-tokens)))

@@ -63,7 +63,7 @@
     (time/duration (:last-attempt-ts state) (time/zoned-date-time))))
 
 (defn- make-next-state
-  ([state ok-status stats]
+  ([state ok-status extra-state]
    (let [now (time/zoned-date-time)
          duration (calc-last-duration state)]
      (merge state
@@ -71,9 +71,9 @@
              :last-successful-fetch-ts now
              :last-duration duration
              :status ok-status
-             :stats stats
              :last-exception nil
-             :retry-count 0})))
+             :retry-count 0}
+            extra-state)))
   ([state next-status next-retry-count last-exception]
    (let [now (time/zoned-date-time)
          duration (calc-last-duration state)]
@@ -96,7 +96,7 @@
         {:keys [src]} feed
         retry-count (or (get-in feed [:state :retry-count]) 0)]
     (try+
-     (let [fetched (fetch/fetch feed)
+     (let [fetched (fetch/fetch feed (:fetch-meta state))
            processed (try
                        (if-not skip-proc
                          (proc/process feed state fetched)
@@ -121,13 +121,14 @@
                             :update-step :store
                             :skip skip-store})))]
 
-       (log/infof "update %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s)"
+       (log/infof "update %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s, fetch-meta: %s)"
                   (str src) (count fetched) (count processed) (count dbks)
-                  skip-proc skip-store)
+                  skip-proc skip-store  (meta fetched))
 
-       (make-next-state state :ok {:fetched (count fetched)
-                                   :processed (count processed)
-                                   :db (count dbks)}))
+       (make-next-state state :ok {:stats {:fetched (count fetched)
+                                           :processed (count processed)
+                                           :db (count dbks)}
+                                   :fetch-meta (meta fetched)}))
 
      (catch [:type :llar.http/server-error-retry-later] _
        (make-next-state state :temp-fail (inc retry-count) &throw-context))

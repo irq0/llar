@@ -212,7 +212,7 @@
   (let [{:keys [src]} feed]
     (log/debugf "processing feed: %s (%s items)" (str src) (count items))
     (try+
-     (if (not-empty items)
+     (if (some? items)
        (doall
         (->>
          items
