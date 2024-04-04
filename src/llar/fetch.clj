@@ -39,15 +39,6 @@
    :tags #{}
    :version 2})
 
-(defn tag-items [item _]
-  (let [title (get-in item [:summary :title])
-        src-key (name (or (get-in item [:meta :source-key]) :unknown))
-        title-re #"Four short links:|Weekly Programming Digest|Emacs news"]
-    (if (or (re-find title-re title)
-            (re-find #"99pi|nasa-image-of-the-day" src-key))
-      (update-in item [:meta :tags] conj :daily)
-      item)))
-
 ;;; Fetch source protocol
 
 (defprotocol FetchSource

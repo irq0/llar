@@ -2,8 +2,7 @@
   (:require [llar.fetch :refer [FetchSource
                                 item-to-string
                                 make-meta
-                                make-item-hash
-                                tag-items]]
+                                make-item-hash]]
             [llar.fetchutils :as fetchutils]
             [clojure.spec.alpha :as s]
             [llar.src]
@@ -399,7 +398,7 @@
 
 (extend-protocol ItemProcessor
   FeedItem
-  (post-process-item [item src _state]
+  (post-process-item [item _src _state]
     (let [nlp (analysis/analyze-entry (:entry item))
 
           urls (get-in nlp [:nlp :urls])
@@ -413,8 +412,7 @@
                            :has-spotify-playlist)]))]
       (-> item
           (update-in [:meta :tags] into tags)
-          (update :entry merge (:entry item) nlp)
-          (tag-items src))))
+          (update :entry merge (:entry item) nlp))))
   (filter-item [item src state]
     (let [force-update? (or (get-in src [:args :force-update?])
                             (get state :forced-update?))

@@ -1,7 +1,7 @@
 (ns llar.fetch.http
   (:require
    [llar.http :as http]
-   [llar.fetch :refer [FetchSource item-to-string make-meta make-item-hash tag-items]]
+   [llar.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
    [llar.postproc :refer [ItemProcessor]]
    [llar.converter :as conv]
    [llar.analysis :as analysis]
@@ -95,7 +95,7 @@
 
 (extend-protocol ItemProcessor
   GenericWebsiteItem
-  (post-process-item [item src _state]
+  (post-process-item [item _src _state]
     (let [nlp (analysis/analyze-entry (:entry item))
           urls (get-in nlp [:nlp :urls])
           tags (set
@@ -108,8 +108,7 @@
                            :has-video)]))]
       (-> item
           (update-in [:meta :tags] into tags)
-          (update :entry merge (:entry item) nlp)
-          (tag-items src))))
+          (update :entry merge (:entry item) nlp))))
   (filter-item [_ _ _] false))
 
 (extend-protocol CouchItem
