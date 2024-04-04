@@ -93,64 +93,67 @@
       (some-> e :updated-date feed-date-to-zoned-date-time)
       (get-in http [:summary :ts])))
 
+(defn- rome-parse-http-response [resp]
+  (try+
+   (-> resp :raw :body rome/build-feed)
+   (catch Object _
+     (log/error (:throwable &throw-context) "rome parse failed" (:summary resp))
+     (throw+ {:type ::rome-failure
+              :http-item (-> resp
+                             (assoc-in [:raw :body] :removed)
+                             (assoc-in [:hickory] :removed)
+                             (assoc-in [:body] :removed))}))))
+
+(defn- make-rome-feed [url res]
+  {:title (-> res :title)
+   :language (-> res :language)
+   :url (if (nil? (:link res))
+          url
+          (absolutify-url (uri/uri (:link res)) (get-base-url url)))
+   :descriptions {"text/plain" (-> res :description)}
+   :encoding (-> res :encoding)
+   :pub-ts (some->> res :published-date feed-date-to-zoned-date-time)
+   :feed-type (-> res :feed-type)})
+
+(defn- get-rome-entry-url [feed-url entry]
+  (let [entry-url (-> entry :link uri/uri)
+        entry-base-url (if (uri/absolute? entry-url)
+                         (get-base-url entry-url)
+                         (get-base-url feed-url))]
+    (absolutify-url entry-url entry-base-url)))
+
+(defn- rome-entry-to-llar-entry [feed-url entry]
+  (let [contents-url (get-rome-entry-url feed-url entry)
+        contents (fetchutils/process-html-contents (get-base-url contents-url) (extract-feed-content (:contents entry)))
+        descriptions (fetchutils/process-html-contents (get-base-url contents-url)
+                                                       (extract-feed-description (:description entry)))]
+    {:updated-ts (some-> entry :updated-date feed-date-to-zoned-date-time)
+     :pub-ts (some-> entry :published-date feed-date-to-zoned-date-time)
+     :url contents-url
+     :categories (some->> entry :categories
+                          (map :name) (remove nil?))
+     :title (-> entry :title)
+     :authors (extract-feed-authors (:authors entry))
+     :contents contents
+     :descriptions descriptions}))
+
 (extend-protocol FetchSource
   Feed
   (fetch-source [src _conditional-tokens]
     (let [url (uri/uri (:url src))
-          base-url (get-base-url url)
-          http-item (fetch url :user-agent (get-in src [:args :user-agent]))
-          res (try+
-               (-> http-item :raw :body rome/build-feed)
-               (catch Object _
-                 (log/error (:throwable &throw-context) "rome parse failed" (:summary http-item))
-                 (throw+ {:type ::rome-failure
-                          :http-item (-> http-item
-                                         (assoc-in [:raw :body] :removed)
-                                         (assoc-in [:hickory] :removed)
-                                         (assoc-in [:body] :removed))})))
-          raw-feed-url (:link res)
-          feed-url (if (nil? raw-feed-url)
-                     url
-                     (absolutify-url (uri/uri raw-feed-url) base-url))
-
-          feed {:title (-> res :title)
-                :language (-> res :language)
-                :url feed-url
-                :descriptions {"text/plain" (-> res :description)}
-                :encoding (-> res :encoding)
-                :pub-ts (some->> res :published-date feed-date-to-zoned-date-time)
-                :feed-type (-> res :feed-type)}]
-      (for [re (:entries res)]
-        (let [timestamp (extract-feed-timestamp re http-item)
-              authors (extract-feed-authors (:authors re))
-              in-feed-contents (extract-feed-content (:contents re))
-              contents-url (-> re :link uri/uri)
-              contents-base-url (if (uri/absolute? contents-url)
-                                  (get-base-url contents-url)
-                                  base-url)
-              contents-url (absolutify-url contents-url contents-base-url)
-              contents (fetchutils/process-html-contents contents-base-url in-feed-contents)
-              descriptions (fetchutils/process-html-contents contents-base-url
-                                                             (extract-feed-description (:description re)))
-              base-entry {:updated-ts (some-> re :updated-date feed-date-to-zoned-date-time)
-                          :pub-ts (some-> re :published-date feed-date-to-zoned-date-time)
-                          :url contents-url
-                          :categories (some->> re :categories
-                                               (map :name) (remove nil?))
-                          :title (-> re :title)}]
-          (make-feed-item
-           (merge (make-meta src)
-                  {:source-name (:title feed)})
-           {:ts timestamp
-            :title (:title re)}
-           (make-item-hash
-            (:title re) (:link re))
-           (merge base-entry
-                  {:authors authors
-                   :contents contents
-                   :descriptions descriptions})
-           re
-           feed))))))
+          http-response (fetch url :user-agent (get-in src [:args :user-agent]))
+          res (rome-parse-http-response http-response)
+          feed (make-rome-feed url res)]
+      (for [entry (:entries res)]
+        (make-feed-item
+         (merge (make-meta src)
+                {:source-name (:title feed)})
+         {:ts (extract-feed-timestamp entry http-response)
+          :title (:title entry)}
+         (make-item-hash (:title entry) (:link entry))
+         (rome-entry-to-llar-entry url entry)
+         entry
+         feed)))))
 
 (defn default-selector-feed-extractor [hick]
   (-> hick first :content first))
