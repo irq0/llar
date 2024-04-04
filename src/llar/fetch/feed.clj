@@ -139,21 +139,29 @@
 
 (extend-protocol FetchSource
   Feed
-  (fetch-source [src _conditional-tokens]
+  (fetch-source [src conditional-tokens]
     (let [url (uri/uri (:url src))
-          http-response (fetch url :user-agent (get-in src [:args :user-agent]))
-          res (rome-parse-http-response http-response)
-          feed (make-rome-feed url res)]
-      (for [entry (:entries res)]
-        (make-feed-item
-         (merge (make-meta src)
-                {:source-name (:title feed)})
-         {:ts (extract-feed-timestamp entry http-response)
-          :title (:title entry)}
-         (make-item-hash (:title entry) (:link entry))
-         (rome-entry-to-llar-entry url entry)
-         entry
-         feed)))))
+          http-response (fetch url
+                               :conditionals conditional-tokens
+                               :user-agent (get-in src [:args :user-agent]))]
+      (if (= :not-modified (:status http-response))
+        (with-meta []
+          {:conditional-tokens (:conditional-tokens http-response)})
+        (let [res (rome-parse-http-response http-response)
+              feed (make-rome-feed url res)]
+          (with-meta
+            (doall
+             (for [entry (:entries res)]
+               (make-feed-item
+                (merge (make-meta src)
+                       {:source-name (:title feed)})
+                {:ts (extract-feed-timestamp entry http-response)
+                 :title (:title entry)}
+                (make-item-hash (:title entry) (:link entry))
+                (rome-entry-to-llar-entry url entry)
+                entry
+                feed)))
+            {:conditional-tokens (:conditional-tokens http-response)}))))))
 
 (defn default-selector-feed-extractor [hick]
   (-> hick first :content first))
