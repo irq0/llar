@@ -7,6 +7,7 @@
    [llar.fetch.imap]
    [llar.fetch.mercury]
    [llar.fetch.feed]
+   [llar.converter :as converter]
    [hickory.select :as S]
    [llar.fetch.reddit]
    [llar.fetch.twitter]
@@ -16,6 +17,7 @@
    [cheshire.core :as cheshire]
    [hickory.render :as hick-r]
    [clj-http.client :as http-client]
+   [clj-http.fake :as http-fake]
    [llar.specs]
    [llar.src :as src]
    [java-time.api :as time]
@@ -126,7 +128,7 @@
 (deftest basics-test
   (mount/start-with {#'appconfig/appconfig {:update-max-retry 5
                                             :credentials-file "/tmp/credentials.edn"
-                                            :runtime-config-dir "/tmp"
+                                            :runtime-config-dir "/dev/null"
                                             :commands {:mercury-parser "/bin/true"
                                                        :pandoc "/bin/true"
                                                        :w3m "/bin/true"
@@ -142,3 +144,40 @@
           (is (= n-items (count fetched)))
           (is (every? #(= (get-in % [:meta :source]) src) fetched))
           (log/info "Test item:" item))))))
+
+(deftest http-fetcher
+  (let [resource {:etag "\"4144426715\"",
+                  :last-modified-ts (converter/parse-http-ts "Thu, 22 Feb 2024 18:31:13 GMT")
+                  :last-modified "Thu, 22 Feb 2024 18:31:13 GMT"
+                  :data "<html><head><title>http-fetch-test</title></head><body><h1>foo</h1></body></html>"}]
+    (http-fake/with-global-fake-routes-in-isolation
+      {"http://example.com/304"
+       (fn [req]
+         (let [if-mod-since (converter/parse-http-ts (get-in req [:headers "If-Modified-Since"]))
+               if-etag (get-in req [:headers "If-None-Match"])]
+           (if (or (and if-mod-since (time/before? if-mod-since (get resource :last-modified-ts)))
+                   (and if-etag (= if-etag (get resource :etag))))
+             {:status 304}
+             {:status 200
+              :headers (select-keys resource [:etag :last-modified])
+              :body (get resource :data)})))}
+      (testing "regular non-conditional fetch"
+        (let [fetch (http/fetch "http://example.com/304")]
+          (is (= :ok (:status fetch)))
+          (is (= (select-keys resource [:etag :last-modified])
+                 (:conditional-tokens fetch)))
+          (is (= (:last-modified-ts resource) (get-in fetch [:summary :ts])))
+          (is (= (:data resource) (:body fetch)))
+          (is (= "http-fetch-test" (get-in fetch [:summary :title])))))
+      (testing "conditional fetch - modified"
+        (let [fetch (http/fetch "http://example.com/304" :conditionals {:etag "foo"})]
+          (is (= :ok (:status fetch)))
+          (is (= (select-keys resource [:etag :last-modified])
+                 (:conditional-tokens fetch)))
+          (is (= #{:raw :status :conditional-tokens :summary :hickory :body} (into #{} (keys fetch))))))
+      (testing "conditional fetch - not modified"
+        (let [fetch (http/fetch "http://example.com/304" :conditionals (select-keys resource [:etag :last-modified]))]
+          (is (= :not-modified (:status fetch)))
+          (is (= (select-keys resource [:etag :last-modified])
+                 (:conditional-tokens fetch)))
+          (is (= #{:raw :status :conditional-tokens} (into #{} (keys fetch)))))))))

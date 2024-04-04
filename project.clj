@@ -102,6 +102,7 @@
                  [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
                  [clj-http "3.12.3" :exclusions [org.apache.httpcomponents/httpcore]]
                  [clj-rome "0.4.0"]
+                 [clj-http-fake "1.0.4"]
 
                  ;; email
                  [com.draines/postal "2.0.5"]

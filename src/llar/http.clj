@@ -72,8 +72,8 @@
   [resp]
   (let [{:keys [headers]} resp]
     (try+
-     (or (converter/parse-http-ts (get headers "Last-Modified"))
-         (converter/parse-http-ts (get headers "Date")))
+     (or (converter/parse-http-ts (get headers :last-modified))
+         (converter/parse-http-ts (get headers :date)))
      (catch Object _
        (time/zoned-date-time)))))
 
@@ -450,7 +450,7 @@
 
 (defmacro with-http-exception-handler [throw-extra & body]
   `(try
-     ~@body
+     (do ~@body)
      (catch clojure.lang.ExceptionInfo e#
        (cond
          (= (:type (ex-data e#)) :clj-http.client/unexceptional-status)
@@ -498,31 +498,44 @@
 
 (defn fetch
   "Generic HTTP fetcher"
-  [url & {:keys [user-agent sanitize? remove-css? simplify? blobify? absolutify-urls?]
+  [url & {:keys [user-agent conditionals sanitize? remove-css? simplify? blobify? absolutify-urls?]
           :or {user-agent :default
+               conditionals {}
                sanitize? true
                blobify? true
                remove-css? false
                absolutify-urls? true
                simplify? false}}]
   (let [url (parse-url url)
+        headers (cond-> {:user-agent (resolve-user-agent user-agent)}
+                  (:etag conditionals) (assoc :if-none-match (:etag conditionals))
+                  (:last-modified conditionals) (assoc :if-modified-since (:last-modified conditionals)))
         base-url (get-base-url-with-path url)]
-    (with-http-exception-handler
-      {:url url :base-url base-url}
-      (let [response (http/get (str url)
-                               {:headers {:user-agent (resolve-user-agent user-agent)}
+    {:url url :base-url base-url}
+    (let [response (with-http-exception-handler {:headers headers :url url}
+                     (http/get (str url)
+                               {:headers headers
                                 :decode-cookies false
-                                :cookie-policy :none})
-            parsed-html (cond-> (-> response
+                                :cookie-policy :none}))
+
+          parsed-html (when (and (#{200 206} (:status response))
+                                 (some? (:body response)))
+                        (cond-> (-> response
                                     :body
                                     hick/parse hick/as-hickory)
                           absolutify-urls? (absolutify-links-in-hick base-url)
                           sanitize? (sanitize :remove-css? remove-css?)
                           simplify? (simplify)
-                          blobify? (blobify))]
-        (log/debugf "HTTP GET: %s -> %s bytes body" url (count (get response :body)))
+                          blobify? (blobify)))]
+      (log/debugf "HTTP GET: %s -> (%s) %s bytes body" url (:status response) (count (get response :body)))
+      (if (= 304 (:status response))
         {:raw response
-         :body (hick-r/hickory-to-html parsed-html)
+         :status :not-modified
+         :conditional-tokens conditionals}
+        {:raw response
+         :status :ok
+         :body (when parsed-html (hick-r/hickory-to-html parsed-html))
+         :conditional-tokens (select-keys (:headers response) [:etag :last-modified])
          :summary {:ts (extract-http-timestamp response)
                    :title (extract-http-title parsed-html)}
          :hickory parsed-html}))))
