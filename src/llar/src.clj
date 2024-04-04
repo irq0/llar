@@ -22,12 +22,10 @@
 
 (def +feed-default-args+
   {:user-agent :default
-   :deep? false
    :force-update? false})
 
 (spec/def :irq0-src-args/user-agent (spec/or :default keyword?
                                              :custom string?))
-(spec/def :irq0-src-args/deep? boolean?)
 (spec/def :irq0-src-args/force-update? boolean?)
 
 (defrecord GenericWebsite [url args]
@@ -93,7 +91,7 @@
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or
                        :none nil?
-                       :args (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/deep? :irq0-src-args/force-update?])) args)]
+                       :args (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/force-update?])) args)]
    :post [(spec/valid? source? %)]}
   (->Feed (uri/uri url) (merge +feed-default-args+ args)))
 
@@ -135,7 +133,7 @@
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? :irq0-src-selectors/selectors selectors)
          (spec/valid? :irq0-src-selectors/extractors extractors)
-         (spec/valid? (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/deep? :irq0-src-args/force-update?]) args)]
+         (spec/valid? (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/force-update?]) args)]
    :post [(spec/valid? source? %)]}
   (->SelectorFeed (uri/uri url) selectors extractors (merge +http-default-args+ args)))
 
@@ -150,7 +148,7 @@
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or :none nil?
-                               :args (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/deep? :irq0-src-args/force-update?])) args)]
+                               :args (spec/keys :opt-un [:irq0-src-args/user-agent :irq0-src-args/force-update?])) args)]
    :post [(spec/valid? source? %)]}
   (->WordpressJsonFeed (uri/uri url) (merge +http-default-args+ args)))
 

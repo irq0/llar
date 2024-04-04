@@ -93,19 +93,6 @@
       (some-> e :updated-date feed-date-to-zoned-date-time)
       (get-in http [:summary :ts])))
 
-(defn http-get-feed-content [url]
-  (log/debug "fetching feed item content of " url)
-  (let [http-item (fetch url)
-        hick (->> http-item
-                  :hickory
-                  (hick-s/select
-                   (hick-s/child
-                    (hick-s/tag :body)))
-                  first)
-        body (hick-r/hickory-to-html hick)]
-    {"text/html" body
-     "text/plain" (conv/html2text body)}))
-
 (extend-protocol FetchSource
   Feed
   (fetch-source [src _conditional-tokens]
@@ -142,11 +129,7 @@
                                   (get-base-url contents-url)
                                   base-url)
               contents-url (absolutify-url contents-url contents-base-url)
-              deep-fetch? (and (get-in src [:args :deep?])
-                               (some? contents-url))
-              contents (if deep-fetch?
-                         (http-get-feed-content contents-url)
-                         (fetchutils/process-html-contents contents-base-url in-feed-contents))
+              contents (fetchutils/process-html-contents contents-base-url in-feed-contents)
               descriptions (fetchutils/process-html-contents contents-base-url
                                                              (extract-feed-description (:description re)))
               base-entry {:updated-ts (some-> re :updated-date feed-date-to-zoned-date-time)
