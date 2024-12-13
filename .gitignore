@@ -13,3 +13,6 @@ pom.xml.asc
 /resources/credentials.edn
 .eastwood
 /resources/version.edn
+/.clj-kondo/.cache/
+/.lsp
+/node_modules
