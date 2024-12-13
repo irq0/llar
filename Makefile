@@ -1,12 +1,12 @@
 LLAR_VERSION := $(shell lein pprint --no-pretty -- :version)
 CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
 
-ibmplex_version := 6.3.0
-fontawesome_version := 6.5.1
-bootstrap_version := 5.3.2
+ibmplex_version := 6.4.2
+fontawesome_version := 6.7.1
+bootstrap_version := 5.3.3
 jquery_version := 3.7.1
-jquery_datatables_version := 1.13.10
-datatables_buttons_version := 2.4.2
+jquery_datatables_version := 2.1.8
+datatables_buttons_version := 3.2.0
 llar_uberjar := target/llar-$(LLAR_VERSION)-standalone.jar
 
 all: web-3rd-party uberjar
@@ -58,9 +58,9 @@ popper: resources/status/popper/popper.min.js
 resources/status/datatables/dataTables.bootstrap5.min.css:
 	mkdir -p resources/status/datatables
 	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.css "https://cdn.datatables.net/$(jquery_datatables_version)/css/dataTables.bootstrap5.min.css"
-resources/status/datatables/jquery.dataTables.min.js:
+resources/status/datatables/dataTables.min.js:
 	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/jquery.dataTables.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/jquery.dataTables.min.js"
+	wget --quiet -nc -O resources/status/datatables/jquery.dataTables.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.min.js"
 resources/status/datatables/dataTables.bootstrap5.min.js:
 	mkdir -p resources/status/datatables
 	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.bootstrap5.min.js"
@@ -74,7 +74,7 @@ resources/status/datatables/buttons.bootstrap5.min.js:
 	mkdir -p resources/status/datatables
 	wget --quiet -nc -O resources/status/datatables/buttons.bootstrap5.min.js "https://cdn.datatables.net/buttons/$(datatables_buttons_version)/js/buttons.bootstrap5.min.js"
 
-datatables: resources/status/datatables/dataTables.bootstrap5.min.css resources/status/datatables/jquery.dataTables.min.js resources/status/datatables/dataTables.bootstrap5.min.js resources/status/datatables/buttons.bootstrap5.min.css resources/status/datatables/dataTables.buttons.min.js resources/status/datatables/buttons.bootstrap5.min.js
+datatables: resources/status/datatables/dataTables.bootstrap5.min.css resources/status/datatables/dataTables.min.js resources/status/datatables/dataTables.bootstrap5.min.js resources/status/datatables/buttons.bootstrap5.min.css resources/status/datatables/dataTables.buttons.min.js resources/status/datatables/buttons.bootstrap5.min.js
 
 
 web-3rd-party: datatables popper waypoints hammer-js jquery bootstrap fontawesome ibmplex
