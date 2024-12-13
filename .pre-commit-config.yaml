@@ -1,7 +1,7 @@
 ---
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-yaml
@@ -29,7 +29,7 @@ repos:
       - id: git-check
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.6
+    rev: v2.3.0
     hooks:
       - id: codespell
         args: ["--ignore-words-list", "edn,juxt", "--ignore-regex=.*codespell-ignore$"]
@@ -40,12 +40,12 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.12.1
+    rev: v0.16.0
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: v0.9.0
+    rev: v0.10.0
     hooks:
       - id: shellcheck
 
@@ -56,7 +56,7 @@ repos:
         types_or: [css, javascript]
 
   - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: 'v8.56.0'
+    rev: 'v9.16.0'
     hooks:
     -   id: eslint
 
@@ -73,12 +73,12 @@ repos:
      - id: cljfmt-docker
 
   - repo: https://github.com/clj-kondo/clj-kondo
-    rev: v2024.02.12
+    rev: v2024.11.14
     hooks:
         - id: clj-kondo-docker
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v8.3.0
+    rev: v8.16.1
     hooks:
     - id: cspell
       args:
