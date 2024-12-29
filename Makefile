@@ -2,7 +2,7 @@ LLAR_VERSION := $(shell lein pprint --no-pretty -- :version)
 CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
 SHELL=/bin/bash -o pipefail
 
-ibmplex_version := 6.4.2
+ibmplex_version := 6.3.0
 fontawesome_version := 6.7.1
 bootstrap_version := 5.3.3
 jquery_version := 3.7.1
