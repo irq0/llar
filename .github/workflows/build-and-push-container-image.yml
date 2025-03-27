@@ -30,7 +30,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Install packages
-      run: sudo apt-get install -y make libarchive-tools unzip wget
+      run: sudo apt-get install -y make libarchive-tools unzip wget leiningen
 
     - name: build
       run: make
