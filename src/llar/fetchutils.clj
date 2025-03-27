@@ -100,16 +100,16 @@
                (hick-r/hickory-to-html)))
     contents))
 
-(def +mercury-site-denylist+
+(def +readability-site-denylist+
   #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
 
-(defn- replace-contents-with-mercury [item keep-orig?]
+(defn- replace-contents-with-readability [item keep-orig?]
   (let [url (get-in item [:entry :url])
-        src (src/mercury (str url))
+        src (src/readability (str url))
         mercu (proc/process-feedless-item src (first (fetch/fetch-source src {})))
         html (if keep-orig?
                (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
-                    "<div class=\"mercury\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
+                    "<div class=\"readability\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
                (get-in mercu [:entry :contents "text/html"]))
         text (if keep-orig?
                (str (get-in item [:entry :contents "text/plain"])
@@ -125,7 +125,7 @@
       (empty? (get-in item [:entry :authors]))
       (assoc-in [:entry :authors] (get-in mercu [:entry :authors])))))
 
-(defn mercury-contents
+(defn readability-contents
   [& {:keys [keep-orig?]
       :or {keep-orig? false}}]
   (fn [item]
@@ -139,15 +139,15 @@
                    str "<img src=\"" (get-in item [:entry :url]) "\"/>")
 
         ;; denylisted sites
-        (re-find +mercury-site-denylist+ site)
+        (re-find +readability-site-denylist+ site)
         item
 
-        ;; rest: replace with mercury
+        ;; rest: replace with readability version
         :else
         (try+
-         (replace-contents-with-mercury item keep-orig?)
-         (catch [:type :llar.fetch.mercury/not-parsable] _
-           (log/error (str item) "Mercury Error. Not replacing content with mercury")
+         (replace-contents-with-readability item keep-orig?)
+         (catch [:type :llar.fetch.readability/not-parsable] _
+           (log/error (str item) "Readability Error. Not replacing content with readability version")
            item))))))
 
 (defn make-category-filter-deny [denylist]
@@ -190,7 +190,7 @@
                   (update-in item [:entry :contents "text/html"]
                              str "<img src=\"" (get-in item [:entry :url]) "\"/>")
                   (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
-                  :else ((mercury-contents :keep-orig? true) item))))])))
+                  :else ((readability-contents :keep-orig? true) item))))])))
 
 (defn add-tag [tag]
   (fn [item]

@@ -16,7 +16,7 @@
    [llar.fetch.feed]
    [llar.fetch.http]
    [llar.fetch.imap]
-   [llar.fetch.mercury]
+   [llar.fetch.readability]
    [llar.fetch.reddit]
    [llar.fetch.twitter]
    [llar.fetch.hackernews]
@@ -152,10 +152,10 @@
        :rename {defsched-remove-unread-tag autoread}]
      '[llar.converter :refer [html2text] :rename {html2text $html2text}]
      '[llar.human :refer [truncate-ellipsis] :rename {truncate-ellipsis $ellipsify}]
-     '[llar.fetchutils :refer [parse-timestamp mercury-contents make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
+     '[llar.fetchutils :refer [parse-timestamp readability-contents make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
        :rename {parse-timestamp $parse-ts
                 make-category-filter-deny $category-rm
-                mercury-contents $extract
+                readability-contents $extract
                 add-tag $add-tag
                 add-tag-filter $add-tag-filter
                 exchange $exchange

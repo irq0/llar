@@ -21,15 +21,14 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y --no-install-r
   openjdk-21-jdk-headless \
   leiningen \
   wget \
-  yarnpkg \
+  npm \
+  nodejs \
   git \
   diction \
   exiftool \
   locales \
   && rm -rf /var/lib/apt/lists/*
 
-
-RUN yarnpkg global add --cwd /tmp @postlight/parser
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
@@ -45,11 +44,18 @@ ENV LLAR_CONFIG /llar/config.edn
 ENV WEKA_HOME /llar/wekafiles
 ENV JDK_JAVA_OPTIONS "-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
 
+COPY tools/ /llar/tools
+COPY package.json /llar
+COPY package-lock.json /llar
+
 RUN groupadd -g 42000 llar && \
    useradd -u 42000 -g llar llar \
    && chown -R llar:llar /llar
-USER llar:llar
 
+RUN cd /llar && npm install
+
+USER llar:llar
+WORKDIR /llar
 EXPOSE 8023
 EXPOSE 9999
 EXPOSE 42000

@@ -1,8 +1,7 @@
 {:blob-store-dir "/llar/blobs"
  :credentials-file "/llar/credentials.edn"
  :runtime-config-dir "/llar/config"
- :commands {:mercury-parser "/usr/local/bin/postlight-parser"
-            :pandoc "pandoc"
+ :commands {:pandoc "pandoc"
             :w3m "w3m"
             :lynx "lynx"
             :html2text "html2text"}

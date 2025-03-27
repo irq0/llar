@@ -29,18 +29,19 @@ repos:
       - id: git-check
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.3.0
+    rev: v2.4.1
     hooks:
       - id: codespell
         args: ["--ignore-words-list", "edn,juxt", "--ignore-regex=.*codespell-ignore$"]
         exclude: >-
           (?x)^(
             resources/stopwords_.*|
-            src/u1f596/regex\.clj
+            src/u1f596/regex\.clj|
+            package-lock\.json
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.16.0
+    rev: v0.17.2
     hooks:
       - id: markdownlint-cli2
 
@@ -55,11 +56,6 @@ repos:
     -   id: prettier
         types_or: [css, javascript]
 
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: 'v9.16.0'
-    hooks:
-    -   id: eslint
-
   - repo: https://github.com/awebdeveloper/pre-commit-stylelint
     rev: '0.0.2'
     hooks:
@@ -73,12 +69,12 @@ repos:
      - id: cljfmt-docker
 
   - repo: https://github.com/clj-kondo/clj-kondo
-    rev: v2024.11.14
+    rev: v2025.02.20
     hooks:
         - id: clj-kondo-docker
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v8.16.1
+    rev: v8.17.3
     hooks:
     - id: cspell
       args:

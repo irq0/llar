@@ -5,7 +5,7 @@
    [llar.fetch.custom]
    [llar.fetch.http]
    [llar.fetch.imap]
-   [llar.fetch.mercury]
+   [llar.fetch.readability]
    [llar.fetch.feed]
    [llar.converter :as converter]
    [hickory.select :as S]
@@ -162,7 +162,7 @@
               :headers (select-keys resource [:etag :last-modified])
               :body (get resource :data)})))}
       (testing "regular non-conditional fetch"
-        (let [fetch (http/fetch "http://example.com/304")]
+        (let [fetch (http/fetch "http://example.com/304" :sanitize? false)]
           (is (= :ok (:status fetch)))
           (is (= (select-keys resource [:etag :last-modified])
                  (:conditional-tokens fetch)))
@@ -170,13 +170,13 @@
           (is (= (:data resource) (:body fetch)))
           (is (= "http-fetch-test" (get-in fetch [:summary :title])))))
       (testing "conditional fetch - modified"
-        (let [fetch (http/fetch "http://example.com/304" :conditionals {:etag "foo"})]
+        (let [fetch (http/fetch "http://example.com/304"  :sanitize? false :conditionals {:etag "foo"})]
           (is (= :ok (:status fetch)))
           (is (= (select-keys resource [:etag :last-modified])
                  (:conditional-tokens fetch)))
           (is (= #{:raw :status :conditional-tokens :summary :hickory :body} (into #{} (keys fetch))))))
       (testing "conditional fetch - not modified"
-        (let [fetch (http/fetch "http://example.com/304" :conditionals (select-keys resource [:etag :last-modified]))]
+        (let [fetch (http/fetch "http://example.com/304"  :sanitize? false :conditionals (select-keys resource [:etag :last-modified]))]
           (is (= :not-modified (:status fetch)))
           (is (= (select-keys resource [:etag :last-modified])
                  (:conditional-tokens fetch)))

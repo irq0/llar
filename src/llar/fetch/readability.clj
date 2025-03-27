@@ -1,0 +1,101 @@
+(ns llar.fetch.readability
+  (:require
+   [llar.fetch :as fetch :refer [FetchSource]]
+   [llar.postproc :refer [ItemProcessor]]
+   [llar.persistency :refer [CouchItem]]
+   [llar.analysis :as analysis]
+   [llar.http :as http]
+   [clojure.string :as string]
+   [org.bovinegenius [exploding-fish :as uri]]
+   [hickory.core :as hick]
+   [hickory.render :as hick-r]
+   [digest]
+   [llar.item]
+   [java-time.api :as time]
+   [clojure.tools.logging :as log]
+   [clojure.spec.alpha :as s]))
+
+(defrecord ReadabilityItem
+           [meta
+            summary
+            hash
+            entry]
+  Object
+  (toString [item] (fetch/item-to-string item)))
+
+(defn make-readability-item [meta summary hash entry]
+  {:pre [(s/valid? :irq0/item-metadata meta)
+         (s/valid? :irq0/item-summary summary)
+         (s/valid? :irq0/item-hash hash)]}
+  (->ReadabilityItem meta summary hash entry))
+
+(extend-protocol ItemProcessor
+  ReadabilityItem
+  (post-process-item [item _src _state]
+    (let [nlp (analysis/analyze-entry (:entry item))
+          tags (set
+                (remove nil?
+                        [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
+                           :has-video)
+                         (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
+                           :has-video)]))]
+
+      (-> item
+          (update-in [:meta :tags] into tags)
+          (update :entry merge (:entry item) nlp))))
+
+  (filter-item [_ _ _] false))
+
+(extend-protocol CouchItem
+  ReadabilityItem
+  (to-couch [item]
+    (-> item
+        (dissoc :raw)
+        (dissoc :body)
+        (assoc-in [:meta :source :args] nil)
+        (assoc :type :bookmark))))
+
+(defn- readability-fetch
+  [url user-agent]
+  {:pre [(s/valid? :irq0/url url)]}
+  (let [url (uri/uri url)
+        response (http/fetch url :user-agent user-agent
+                             :sanitize? true
+                             :blobify? false
+                             :absolutify-urls? false)]
+    (when (= :ok (:status response))
+      (let [readab (http/raw-readability (:body response) url)
+            hick (some-> (:content readab)
+                         hick/parse
+                         hick/as-hickory)
+            processed (-> hick
+                          (http/blobify))]
+        (-> response
+            (assoc :readability readab)
+            (assoc :body (when processed (hick-r/hickory-to-html processed)))
+            (assoc :hickory processed))))))
+
+(extend-protocol FetchSource
+  llar.src.Readability
+  (fetch-source [src _conditional-tokens]
+    (let [url (uri/uri (:url src))
+          base-url (http/get-base-url-with-path url)
+          fetch (readability-fetch url (http/resolve-user-agent (get src :user-agent :default)))
+          data (:readability fetch)
+          title (or (when-not (string/blank? (:title data)) (:title data))
+                    (get-in fetch [:summary :title])
+                    "")
+          pub-ts (or (when-not (string/blank? (:publishedTime data)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
+                                                                                           (:publishedTime data)))
+                     (get-in fetch [:summary :ts]))]
+      [(make-readability-item
+        (fetch/make-meta src)
+        {:ts pub-ts :title title}
+        (fetch/make-item-hash (:content data))
+        {:url (http/absolutify-url (uri/uri url) base-url)
+         :pub-ts pub-ts
+         :title title
+         :authors [(or (:byline data) (:siteName data))]
+         :descriptions {"text/plain" (:excerpt data)}
+         :contents {"text/html" (:body fetch)
+                    "text/plain" (:textContent data)}})])))

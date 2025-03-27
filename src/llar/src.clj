@@ -207,21 +207,21 @@
     (:user-token oauth-creds)
     (:user-token-secret oauth-creds))))
 
-(defrecord MercuryWebParser
+(defrecord Readability
            [url args]
   Source
   (source-type [_] ::fetch)
   Object
-  (toString [src] (str "[MercuryWebParser: " (:url src) "]")))
+  (toString [src] (str "[Readability: " (:url src) "]")))
 
-(defn mercury
-  "Fetch URL using Mercury Web Parser API"
+(defn readability
+  "Fetch URL and pass through readability tool"
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or :none nil?
                                :args (spec/keys :opt-un [:irq0-src-args/user-agent])) args)]
    :post [(spec/valid? source? %)]}
-  (->MercuryWebParser
+  (->Readability
    (uri/uri url) (merge +http-default-args+ args)))
 
 (def reddit-supported-listings #{:controversial :best :hot :new :random :rising :top})
@@ -237,7 +237,7 @@
   (toString [src] (format "[Reddit: r/%s/%s/%s]" (:subreddit src) (:listing src) (:timeframe src))))
 
 (defn reddit
-  "Fetch URL using Mercury Web Parser API"
+  "Fetch Reddit Feed"
   ([subreddit
     listing]
    (reddit subreddit listing :week))

@@ -5,9 +5,11 @@
    [llar.converter :as converter]
    [llar.regex :as regex-collection]
    [slingshot.slingshot :refer [throw+ try+]]
+   [cheshire.core :as cheshire]
    [clj-http.client :as http]
    [clojure.spec.alpha :as s]
    [clojure.set :as clojure-set]
+   [clojure.java.shell :as sh]
    [hickory.core :as hick]
    [hickory.select :as hick-s]
    [hickory.render :as hick-r]
@@ -337,6 +339,24 @@
               (zip/replace loc (assoc node :attrs nil))
               loc))))))))
 
+(defn raw-sanitize [raw-html]
+  (let [{:keys [out exit err]}
+        (sh/sh "node" "tools/dompurify" :in raw-html)]
+    (if (zero? exit)
+      out
+      (throw+ {:type ::sanitize-error
+               :message err
+               :ret exit}))))
+
+(defn raw-readability [raw-html url]
+  (let [{:keys [out exit err]}
+        (sh/sh "node" "tools/readability" :in (cheshire/generate-string {:url url :html raw-html}))]
+    (if (zero? exit)
+      (cheshire/parse-string out true)
+      (throw+ {:type ::sanitize-error
+               :message err
+               :ret exit}))))
+
 (defn sanitize
   [root
    & {:keys [remove-css?]
@@ -408,7 +428,7 @@
                             in-blocklist (contains? @*domain-blocklist* host)]
                         in-blocklist)
                       (catch Object _
-                        (log/debug "html sanitizer: wwallowing exception during sanitize uri: "
+                        (log/debug "html sanitizer: swallowing exception during sanitize uri: "
                                    (:throwable &throw-context) attrs))))
                 (zip/edit loc
                           (fn [node]
@@ -519,15 +539,18 @@
                                 :decode-cookies false
                                 :cookie-policy :none}))
 
-          parsed-html (when (and (#{200 206} (:status response))
-                                 (some? (:body response)))
-                        (cond-> (-> response
-                                    :body
-                                    hick/parse hick/as-hickory)
-                          absolutify-urls? (absolutify-links-in-hick base-url)
-                          sanitize? (sanitize :remove-css? remove-css?)
-                          simplify? (simplify)
-                          blobify? (blobify)))]
+          html (when (and (#{200 206} (:status response))
+                          (some? (:body response)))
+                 (cond-> (-> response
+                             :body)
+                   sanitize? (raw-sanitize)))
+
+          parsed-html (cond-> (-> html
+                                  hick/parse hick/as-hickory)
+                        absolutify-urls? (absolutify-links-in-hick base-url)
+                        sanitize? (sanitize :remove-css? remove-css?)
+                        simplify? (simplify)
+                        blobify? (blobify))]
       (log/debugf "HTTP GET: %s req-headers:%s status:%s body:%sB cond:%s" url headers (:status response) (count (get response :body)) (select-keys (:headers response) [:etag :last-modified]))
       (if (= 304 (:status response))
         {:raw response

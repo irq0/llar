@@ -25,7 +25,7 @@
    [:h1 "Content"]))
 
 (defn make-readability-bookmark-feed [url]
-  (let [src (src/mercury url)]
+  (let [src (src/readability url)]
     {:src src
      :tags #{:bookmark}
      :proc (proc/new
