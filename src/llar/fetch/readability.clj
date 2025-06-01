@@ -82,20 +82,25 @@
           base-url (http/get-base-url-with-path url)
           fetch (readability-fetch url (http/resolve-user-agent (get src :user-agent :default)))
           data (:readability fetch)
+          metadata (:metadata data)
           title (or (when-not (string/blank? (:title data)) (:title data))
+                    (when-not (string/blank? (:title metadata)) (:title metadata))
                     (get-in fetch [:summary :title])
                     "")
           pub-ts (or (when-not (string/blank? (:publishedTime data)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
                                                                                            (:publishedTime data)))
+                     (when-not (string/blank? (:date metadata)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
+                                                                                      (:date metadata)))
                      (get-in fetch [:summary :ts]))]
       [(make-readability-item
         (fetch/make-meta src)
         {:ts pub-ts :title title}
-        (fetch/make-item-hash (:content data))
+        (fetch/make-item-hash (or (:content data) (:url metadata)))
         {:url (http/absolutify-url (uri/uri url) base-url)
          :pub-ts pub-ts
          :title title
-         :authors [(or (:byline data) (:siteName data))]
-         :descriptions {"text/plain" (:excerpt data)}
+         :lead-image-url (get-in data [:metadata :image])
+         :authors [(or (:byline data) (:author metadata) (:siteName data) (:publisher metadata))]
+         :descriptions {"text/plain" (or (:excerpt data) (:description metadata))}
          :contents {"text/html" (:body fetch)
                     "text/plain" (:textContent data)}})])))
