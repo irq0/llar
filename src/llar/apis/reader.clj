@@ -281,11 +281,11 @@
         (= mode :list-items)
         [:span
          [:a {:class "navbar-toggler"
-              :href (make-site-href [(:uri x)] (:range-before x) x)}
-          (icon "fas fa-sync")]
-         [:a {:class "navbar-toggler"
               :href (make-site-href [(:uri x)] x)}
           (icon "fas fa-step-backward")]
+         [:a {:class "navbar-toggler"
+              :href (make-site-href [(:uri x)] (:range-before x) x)}
+          (icon "fas fa-forward")]
          [:a {:class "navbar-toggler btn-mark-view-read"
               :href "#"}
           (icon "fas fa-glasses")]
