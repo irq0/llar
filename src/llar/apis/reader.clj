@@ -148,13 +148,7 @@
     :icon-unset "fas fa-archive"}
    {:tag :in-progress
     :icon-set "fas fa-cog icon-is-set"
-    :icon-unset "fas fa-cog"}
-   {:tag :book-recommendation
-    :icon-set "fas fa-book  icon-is-set"
-    :icon-unset "fas fa-book"}
-   {:tag :video-recommendation
-    :icon-set "fas fa-film  icon-is-set"
-    :icon-unset "fas fa-film"}])
+    :icon-unset "fas fa-cog"}])
 
 (def +headline-view-tag-buttons+
   "Select from +tag-buttons+"
