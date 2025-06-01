@@ -4,6 +4,7 @@
    [llar.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
    [llar.postproc :refer [ItemProcessor]]
    [llar.converter :as conv]
+   [llar.commands :refer [html2text]]
    [llar.analysis :as analysis]
    [llar.persistency :refer [CouchItem]]
    [llar.item]
@@ -50,7 +51,7 @@
          :authors [""]
          :descriptions {"text/plain" body}
          :contents {"text/html" body
-                    "text/plain" (conv/html2text body)}}
+                    "text/plain" (html2text body)}}
         hickory
         feed)])))
 
@@ -89,7 +90,7 @@
          :authors [""]
          :descriptions {"text/plain" body}
          :contents {"text/html" body
-                    "text/plain" (conv/html2text body)}}
+                    "text/plain" (html2text body)}}
         parsed-html
         feed)])))
 

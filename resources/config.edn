@@ -18,6 +18,9 @@
                   [:news :source-tag]
                   [:bookmark :type]
                   [:recreation :source-tag]]}
+ :throttle {:command-max-concurrent 10}
+ :timeouts {:readability 30
+            :html2text 30}
  :commands {:pandoc "pandoc"
             :w3m "w3m"
             :lynx "lynx"

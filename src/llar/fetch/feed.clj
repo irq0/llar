@@ -18,7 +18,7 @@
                                resolve-user-agent
                                with-http-exception-handler]]
             [llar.analysis :as analysis]
-            [llar.converter :as conv]
+            [llar.commands :refer [html2text]]
             [org.bovinegenius [exploding-fish :as uri]]
             [slingshot.slingshot :refer [throw+ try+]]
             [clojure.tools.logging :as log]
@@ -64,7 +64,7 @@
   [description]
   (if (= (:type description) "text/html")
     {"text/html" (:value description)
-     "text/plain" (conv/html2text (:value description))}
+     "text/plain" (html2text (:value description))}
     {"text/plain" (:value description)}))
 
 (def rome-content-type-to-mime {"html" "text/html"
@@ -79,7 +79,7 @@
                               type "application/octet-stream") value]))]
     ;; Convert non plain text content types
     (condp #(contains? %2 %1) by-type
-      "text/html" (assoc by-type "text/plain" (conv/html2text (get by-type "text/html")))
+      "text/html" (assoc by-type "text/plain" (html2text (get by-type "text/html")))
       (assoc by-type "text/plain" (first (vals by-type))))))
 
 (defn- feed-date-to-zoned-date-time [x]
@@ -265,7 +265,7 @@
                :authors author
                :descriptions {"text/plain" description}
                :contents {"text/html" content-html
-                          "text/plain" (conv/html2text content-html)}}
+                          "text/plain" (html2text content-html)}}
               nil
               feed))
            (catch clojure.lang.ExceptionInfo ex
@@ -383,7 +383,7 @@
                :authors authors
                :descriptions {"text/plain" description}
                :contents {"text/html" sanitized-html
-                          "text/plain" (conv/html2text sanitized-html)}}
+                          "text/plain" (html2text sanitized-html)}}
               {:site (:body site)
                :post post}
               {:title (get-in site [:body :name])

@@ -150,7 +150,7 @@
      '[llar.appconfig :refer [credentials] :rename {credentials $credentials}]
      '[llar.config :refer [fetch fetch-reddit srcs defsched-remove-unread-tag]
        :rename {defsched-remove-unread-tag autoread}]
-     '[llar.converter :refer [html2text] :rename {html2text $html2text}]
+     '[llar.commands :refer [html2text] :rename {html2text $html2text}]
      '[llar.human :refer [truncate-ellipsis] :rename {truncate-ellipsis $ellipsify}]
      '[llar.fetchutils :refer [parse-timestamp readability-contents make-category-filter-deny add-tag add-tag-filter exchange html-to-hickory hickory-sanitize-blobify]
        :rename {parse-timestamp $parse-ts

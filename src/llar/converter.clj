@@ -14,26 +14,6 @@
   (:import
    [org.bovinegenius.exploding_fish Uri]))
 
-(defn html-to-text-command [tool]
-  (get {:pandoc [(appconfig/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
-        :w3m [(appconfig/command :w3m) "-T" "text/html" "-dump"]
-        :for-exceptions [(appconfig/command :pandoc) "-f" "html" "-t" "plain"]
-        :lynx [(appconfig/command :lynx) "-dump" "-list_inline" "-width 1024" "-stdin"]
-        :html2text [(appconfig/command :html2text) "-style" "pretty" "-utf8"]}
-       tool))
-
-(defn html2text
-  "Convert html to text"
-  [html & {:keys [tool] :or {tool :lynx}}]
-  (let [cmdline (concat (html-to-text-command tool) [:in html])
-        {:keys [exit out]}
-        (apply shell/sh cmdline)]
-    (if (zero? exit)
-      (if (= :for-exceptions tool)
-        (string/replace out #"[\n\t]" " ")
-        out)
-      "")))
-
 (defmulti base64-encode class)
 
 (defmethod base64-encode String [data]

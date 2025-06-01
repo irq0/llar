@@ -3,13 +3,13 @@
    [llar.appconfig :refer [appconfig]]
    [llar.blobstore :as blobstore]
    [llar.converter :as converter]
+   [llar.commands :refer [html2text] :as commands]
    [llar.regex :as regex-collection]
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.core :as cheshire]
    [clj-http.client :as http]
    [clojure.spec.alpha :as s]
    [clojure.set :as clojure-set]
-   [clojure.java.shell :as sh]
    [hickory.core :as hick]
    [hickory.select :as hick-s]
    [hickory.render :as hick-r]
@@ -340,22 +340,10 @@
               loc))))))))
 
 (defn raw-sanitize [raw-html]
-  (let [{:keys [out exit err]}
-        (sh/sh "node" "tools/dompurify" :in raw-html)]
-    (if (zero? exit)
-      out
-      (throw+ {:type ::sanitize-error
-               :message err
-               :ret exit}))))
+  (commands/sanitize raw-html))
 
 (defn raw-readability [raw-html url]
-  (let [{:keys [out exit err]}
-        (sh/sh "node" "tools/readability" :in (cheshire/generate-string {:url url :html raw-html}))]
-    (if (zero? exit)
-      (cheshire/parse-string out true)
-      (throw+ {:type ::sanitize-error
-               :message err
-               :ret exit}))))
+  (commands/readability raw-html url))
 
 (defn sanitize
   [root
@@ -446,7 +434,7 @@
   (let [{:keys [body headers status reason-phrase]} ex]
     (cond
       (#{400 401 402 403 404 405 406 410} status)
-      (let [message (converter/html2text body :tool :for-exceptions)]
+      (let [message (html2text body :tool :for-exceptions)]
         (log/warnf "client error probably due to broken request (%s): body:%s context:%s"
                    status message context)
         (throw+ (merge {:type ::request-error
@@ -454,7 +442,7 @@
                         :message (or message reason-phrase)}
                        context)))
       (#{500 501 502 503 504} status)
-      (let [message (converter/html2text body  :tool :for-exceptions)]
+      (let [message (html2text body  :tool :for-exceptions)]
         (log/warnf "server Error (%s): %s %s" status headers body)
         (throw+ (merge {:type ::server-error-retry-later
                         :code status
@@ -466,7 +454,7 @@
         (throw+ (merge {:type ::client-error-retry-later
                         :code status
                         :reason (:reason-phrase ex)
-                        :message (converter/html2text body :tool :html2text)}
+                        :message (html2text body :tool :html2text)}
                        context))))))
 
 (defmacro with-http-exception-handler [throw-extra & body]
