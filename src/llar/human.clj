@@ -22,6 +22,19 @@
       (subs (string/lower-case (str period)) 1)
       (subs (string/lower-case (str duration)) 2))))
 
+(defn datetime-ago-short [ts]
+  (let [raw-duration (time/duration ts (time/zoned-date-time))
+        duration (-> raw-duration
+                     (.minusNanos (.getNano raw-duration)))
+        period (time/period (time/local-date ts) (time/local-date))]
+    (cond
+      (< (.toHours duration) 1)
+      "<1h"
+      (< (.toDays duration) 2)
+      (subs (string/lower-case (java.time.Duration/ofHours (.toHours duration))) 2)
+      :default
+      (subs (string/lower-case (str period)) 1))))
+
 (defn host-identifier [url]
   ;; hack because some database entries got a strange serialization
   (let [url (if (map? url) (uri/map->uri url) url)

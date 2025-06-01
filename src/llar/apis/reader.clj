@@ -998,14 +998,6 @@
   (let [{:keys [group-name group-item source-key sources items]} x]
     [:div {:id "headlines" :class "table-responsive"}
      [:table {:class "table table-borderless"}
-      [:thead
-       [:tr
-        [:td (icon "fas fa-rss")]
-        [:td "Title"]
-        [:td (icon "fas fa-book-reader")]
-        [:td (icon "far fa-calendar")]
-        [:td "Tools"]]]
-
       [:tbody
        (for [item items
              :let [link-prefix (format "/reader/group/%s/%s/source/%s"
@@ -1015,48 +1007,47 @@
                    {:keys [id source-key title ts tags url]} item
                    source (get sources (keyword source-key))]]
          [:tr {:data-id id}
-          [:td {:class "source"}
-           source-key
-           (when (= (:type item) :item-type/link)
-             [:span "&nbsp;"
-              " → " (human/host-identifier url)])
-           (when (and (string? url) (string? (:url source))
-                      (not= (human/host-identifier url)
-                            (human/host-identifier (:url source))))
-             [:span " → " (human/host-identifier url)])]
-
           [:th {:class "title"}
            [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                       {:mark :read} x)}
             (if (string/blank? title)
               "(no title)"
-              title)]]
+              title)]
+           "&nbsp;"
+           [:span {:class "source"}
+            source-key
+            (when (= (:type item) :item-type/link)
+              [:span "&nbsp;"
+               " → " (human/host-identifier url)])
+            (when (and (string? url) (string? (:url source))
+                       (not= (human/host-identifier url)
+                             (human/host-identifier (:url source))))
+              [:span " → " (human/host-identifier url)])]]
 
-          [:td {:class "nwords"}
+          [:td {:class "nwords" :title "Reading time estimate in minutes"}
            (let [estimate (reading-time-estimate item)
                  human-time (:estimate estimate)]
              human-time)]
 
           [:td {:class "ts"}
-           [:ul {:class "list-inline"}
-            [:li {:class "list-inline-item"}
-             "&nbsp;"
-             [:span {:class "timestamp"} (human/datetime-ago ts)]]]]
+           [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
 
           [:td {:class "toolbox"}
-           [:div
-            (concat
-             [[:a {:class "btn" :href url}
-               (icon "fas fa-external-link-alt")]]
-             [[:a {:class "btn"
+           [:div {:class "dropstart position-static"}
+            [:a {:type "button" :class "btn btn-link" :data-bs-toggle "dropdown"} (icon "fa fa-ellipsis-v fa-lg")]
+            [:ul {:class "dropdown-menu position-absolute"}
+             [:li
+              [:a {:class "btn" :href url}
+               (icon "fas fa-external-link-alt")]
+              [:a {:class "btn"
                    :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
                                                                                 :content-type "text/html"} x)}
                (icon "fas fa-expand")]]
-
-             (for [btn +tag-buttons+
-                   :when (show-button-in-this-view? x btn)]
-               (tag-button id
-                           (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]]])]]]))
+             [:li
+              (for [btn +tag-buttons+
+                    :when (show-button-in-this-view? x btn)]
+                (tag-button id
+                            (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]]])]]]))
 
 (defn gallery-list-items
   "Main Item List - Gallery Style"

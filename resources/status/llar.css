@@ -604,6 +604,7 @@ div.item-content-body p > code {
 #headlines .title a {
   color: #16161d;
   font-weight: 400;
+  text-decoration: unset;
 }
 
 #headlines .title {
@@ -611,8 +612,6 @@ div.item-content-body p > code {
   font-weight: 400;
   max-width: 60ch;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 #headlines .title a:hover {
@@ -628,10 +627,7 @@ div.item-content-body p > code {
 #headlines .source {
   font-size: 0.8em;
   color: #555;
-  max-width: 4em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-style: italic;
 }
 
 #headlines .nwords {
