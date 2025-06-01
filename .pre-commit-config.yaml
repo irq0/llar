@@ -1,7 +1,7 @@
 ---
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-yaml
@@ -17,7 +17,7 @@ repos:
       - id: check-case-conflict
 
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
-    rev: 3.0.0
+    rev: 38980559e3a605691d6579f96222c30778e5a69e  # frozen: 3.0.0
     hooks:
       - id: forbid-binary
         exclude: >-
@@ -29,7 +29,7 @@ repos:
       - id: git-check
 
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
+    rev: 63c8f8312b7559622c0d82815639671ae42132ac  # frozen: v2.4.1
     hooks:
       - id: codespell
         args: ["--ignore-words-list", "edn,juxt", "--ignore-regex=.*codespell-ignore$"]
@@ -41,40 +41,40 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.17.2
+    rev: d7a4f7cf4914d3bffb9b83bdbc45fd2a00c91ff9  # frozen: v0.18.1
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: v0.10.0
+    rev: 2491238703a5d3415bb2b7ff11388bf775372f29  # frozen: v0.10.0
     hooks:
       - id: shellcheck
 
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: 'v4.0.0-alpha.8'
+    rev: 'f12edd9c7be1c20cfa42420fd0e6df71e42b51ea'  # frozen: v4.0.0-alpha.8
     hooks:
     -   id: prettier
         types_or: [css, javascript]
 
   - repo: https://github.com/awebdeveloper/pre-commit-stylelint
-    rev: '0.0.2'
+    rev: 'f792d6b33f0673991b8c044b5bb3bcae0399ada5'  # frozen: 0.0.2
     hooks:
     -   id: stylelint
         args: ["--fix"]
         additional_dependencies: ['stylelint@16.0.2', 'stylelint-config-standard@35.0.0']
 
   - repo: https://github.com/allie-jo/cljfmt-docker
-    rev: v0.9.1
+    rev: e13ac6a58c81f63f707da65308047cdfb4cb81b4  # frozen: v0.9.1
     hooks:
      - id: cljfmt-docker
 
   - repo: https://github.com/clj-kondo/clj-kondo
-    rev: v2025.02.20
+    rev: e499ad8cc80da9d5909747167a24d417a4da2efe  # frozen: v2025.04.07
     hooks:
         - id: clj-kondo-docker
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v8.17.3
+    rev: 0d05d07423b6c2b12a8eaa7d0862ff343c063d69  # frozen: v9.0.1
     hooks:
     - id: cspell
       args:
