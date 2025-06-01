@@ -1054,6 +1054,11 @@
             (concat
              [[:a {:class "btn" :href url}
                (icon "fas fa-external-link-alt")]]
+             [[:a {:class "btn"
+                   :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
+                                                                                :content-type "text/html"} x)}
+               (icon "fas fa-expand")]]
+
              (for [btn +tag-buttons+
                    :when (show-button-in-this-view? x btn)]
                (tag-button id
