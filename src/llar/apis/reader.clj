@@ -984,8 +984,14 @@
        [:a {:class "btn" :href url}
         "&nbsp;" (icon "fas fa-external-link-alt")]
        [:a {:class "btn"
+            :title "Show internal data representation of this item"
             :href (make-site-href [link-prefix "item/by-id" id "dump"] x)}
-        "&nbsp;" (icon "fas fa-code")]]
+        "&nbsp;" (icon "fas fa-code")]
+       [:a {:class "btn"
+            :title "Show item in focus mode"
+            :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
+                                                                         :content-type "text/html"} x)}
+        "&nbsp;" (icon "fas fa-expand")]]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
        (for [btn +tag-buttons+
