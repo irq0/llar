@@ -27,6 +27,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y --no-install-r
   diction \
   exiftool \
   locales \
+  build-essential \
   && rm -rf /var/lib/apt/lists/*
 
 
