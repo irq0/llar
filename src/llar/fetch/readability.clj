@@ -5,7 +5,10 @@
    [llar.persistency :refer [CouchItem]]
    [llar.analysis :as analysis]
    [llar.http :as http]
+   [llar.commands :refer [download-subtitles]]
+   [llar.converter :as conv]
    [clojure.string :as string]
+   [slingshot.slingshot :refer [try+]]
    [org.bovinegenius [exploding-fish :as uri]]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
@@ -22,6 +25,8 @@
             entry]
   Object
   (toString [item] (fetch/item-to-string item)))
+
+(def +fetch-subtitles-publisher+ #{"Youtube"})
 
 (defn make-readability-item [meta summary hash entry]
   {:pre [(s/valid? :irq0/item-metadata meta)
@@ -55,6 +60,19 @@
         (assoc-in [:meta :source :args] nil)
         (assoc :type :bookmark))))
 
+;; TODO(irq0) tag with has-video has-playlist
+
+(defn- subtitle-fetch [url]
+  (try+
+   (let [{:keys [format subtitles]} (download-subtitles url)]
+     (cond
+       (= format :ttml)
+       (conv/ttml2text subtitles)
+       :default nil))
+   (catch Object e
+     (log/errorf e "subtitle fetch %s failed" url)
+     nil)))
+
 (defn- readability-fetch
   [url user-agent]
   {:pre [(s/valid? :irq0/url url)]}
@@ -69,9 +87,13 @@
                          hick/parse
                          hick/as-hickory)
             processed (-> hick
-                          (http/blobify))]
+                          (http/blobify))
+            subtitles (when (contains? +fetch-subtitles-publisher+ (get-in readab [:metadata :publisher]))
+                        (subtitle-fetch url))
+            ]
         (-> response
             (assoc :readability readab)
+            (assoc :transscript subtitles)
             (assoc :body (when processed (hick-r/hickory-to-html processed)))
             (assoc :hickory processed))))))
 
@@ -99,8 +121,9 @@
         {:url (http/absolutify-url (uri/uri url) base-url)
          :pub-ts pub-ts
          :title title
+         :readability-metadata metadata
          :lead-image-url (get-in data [:metadata :image])
          :authors [(or (:byline data) (:author metadata) (:siteName data) (:publisher metadata))]
          :descriptions {"text/plain" (or (:excerpt data) (:description metadata))}
          :contents {"text/html" (:body fetch)
-                    "text/plain" (:textContent data)}})])))
+                    "text/plain" (or (:textContent data) (:transscript fetch))}})])))
