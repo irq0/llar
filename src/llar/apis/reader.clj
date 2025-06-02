@@ -418,16 +418,7 @@
                    :data-bs-success "#add-url-1-status"
                    :data-type "readability-bookmark"}
 
-          (icon "fas fa-newspaper")]
-         [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
-                   :type "submit"
-                   :data-bs-title "Add Bookmark with raw content"
-                   :title "Add bookmark with raw content"
-                   :data-url-source "#add-url-1"
-                   :data-bs-success "#add-url-1-status"
-                   :data-type "raw-bookmark"}
-
-          (icon "fab fa-html5")]]]]
+          (icon "fas fa-newspaper")]]]]
 
       [:ul {:class "nav flex-column"}
        (for [[k [name ico]] +exposed-simple-filter+]
@@ -1658,10 +1649,7 @@
          (case type
            :readability-bookmark (add-thing
                                   (bookmark/make-readability-bookmark-feed url)
-                                  :bookmark)
-           :raw-bookmark (add-thing
-                          (bookmark/make-raw-bookmark-feed url)
-                          :bookmark))
+                                  :bookmark))
          (catch java.net.MalformedURLException _
            {:status 400
             :body {:error (str "Malformed URL: " url)}})))
