@@ -588,6 +588,11 @@
         :data-bs-target (str "#add-custom-tag-" item-id)}
     "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]])
 
+(defn video-content? [item]
+  (let [{:keys [entry url]} item
+        youtube-url (parse-youtube-url url)]
+    (some? youtube-url)))
+
 (defn render-special-item-content
   "Renders item content that is somehow unique to a source and benefits from special rendering
   (e.g youtube videos, twitter images)"
@@ -634,7 +639,9 @@
           (get description "text/html")
           (get description "text/plain")
           nil))
-    (get-in doc [:data sel-descr sel-content-type])))
+    (if (= sel-content-type "text/plain")
+      [:p {:style "white-space: pre-line"} (get-in doc [:data sel-descr sel-content-type])]
+      (get-in doc [:data sel-descr sel-content-type]))))
 
 (defn main-show-item
   "Show Item View"
@@ -714,12 +721,21 @@
       [:div {:class "row"}
        [:div {:class "col-11"}
         [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
-         (if-let [html-content (if (and (= (-> x :active-sources first :type) :item-type/document)
-                                        (nil? selected-data) (nil? selected-content-type))
-                                 (get-html-content item :description "text/html")
-                                 (get-html-content item selected-data selected-content-type))]
-           html-content
-           (render-special-item-content item #{}))]]]]]))
+         (cond
+           ;; if the user selected something, give it to them
+           (and (some? selected-data) (some? selected-content-type))
+           (get-html-content item selected-data selected-content-type)
+
+           ;; render video content with special first followed by description
+           (video-content? item)
+           [:div
+            (render-special-item-content item #{})
+            [:p {:style "white-space: pre-line"} (get-html-content item :description "text/plain")]]
+
+           :default
+           (if-let [content (get-html-content item selected-data selected-content-type)]
+             content
+             (render-special-item-content item #{})))]]]]]))
 
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
