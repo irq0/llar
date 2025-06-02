@@ -11,32 +11,15 @@
 
 ;;; Bookmarks
 
-(defn bookmark-html [i]
-  (html
-   [:h1 (get-in i [:summary :title])]
-   [:div {:class "summary"}
-    [:p [:span {:class "key"} "URL: "]
-     [:a {:href (get-in i [:entry :url])} (get-in i [:entry :url])]]
-    [:p [:span {:class "key"} "Added: "] (time/format (time/zoned-date-time))]
-    [:p [:span {:class "key"} "Published: "] (time/format (get-in i [:summary :ts]))]]
-   [:div {:class "description"}
-    [:h2 "Summary"]
-    [:p (get-in i [:entry :descriptions "text/plain"])]]
-   [:h1 "Content"]))
-
 (defn make-readability-bookmark-feed [url]
   (let [src (src/readability url)]
     {:src src
      :tags #{:bookmark}
      :proc (proc/new
             {:post [(fn [item]
-                      (let [summary (bookmark-html item)
-                            html (get-in item [:entry :contents "text/html"])
-                            url (some-> item :entry :url uri/uri)
+                      (let [url (some-> item :entry :url uri/uri)
                             site (human/host-identifier url)]
                         (-> item
-                            (assoc-in [:entry :contents "text/html"]
-                                      (str summary "\n\n\n" html))
                             (assoc-in [:meta :source-key]
                                       (if (some? site)
                                         (keyword (str "bookmark-" (str site)))
@@ -53,13 +36,9 @@
      :tags #{:bookmark}
      :proc (proc/new
             {:post [(fn [item]
-                      (let [summary (bookmark-html item)
-                            html (get-in item [:entry :contents "text/html"])
-                            url (some-> item :entry :url uri/uri)
+                      (let [url (some-> item :entry :url uri/uri)
                             site (human/host-identifier url)]
                         (-> item
-                            (assoc-in [:entry :contents "text/html"]
-                                      (str summary "\n\n\n" html))
                             (assoc-in [:meta :source-key]
                                       (if (some? site)
                                         (keyword (str "bookmark-" (str site)))
