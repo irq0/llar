@@ -4,13 +4,15 @@
    [clojure.java.shell :as shell]
    [clojure.string :as string]
    [clojure.xml :as xml]
+   [clojure.tools.logging :as log]
    [cheshire.core :as cheshire]
    [hickory.select :as hick-s]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
-   [slingshot.slingshot :refer [throw+]]
+   [slingshot.slingshot :refer [try+ throw+]]
    [puget.printer :as puget]
    [llar.appconfig :as appcfg :refer [appconfig postgresql-config]]
+   [nio2.core :as nio2]
    [llar.contentdetect :as contentdetect])
   (:import
    [java.util.concurrent Semaphore Executors TimeUnit]
@@ -28,6 +30,15 @@
        ~@body
        (finally
          (.release ~sem)))))
+
+(defmacro with-temp-dir [dir-sym & body]
+  `(let [~dir-sym (nio2/create-tmp-dir-on-default-fs "llar-")]
+     (try
+       ~@body
+       (finally
+         (when (nio2/exists? ~dir-sym)
+           (doseq [path# (reverse (file-seq (nio2/file ~dir-sym)))]
+             (.delete path#)))))))
 
 (defn sh+timeout [timeout-secs args & opts]
   (let [cmd (into ["/bin/timeout" (str "--kill-after=" +kill-timeout-secs+ "s")
@@ -48,6 +59,19 @@
                    :cmd cmd})
           :default
           ret)))
+
+(defmacro with-retry [attempts ex-match & body]
+  `(let [result#
+         (reduce
+          (fn [_# attempt#]
+          (try+
+            (reduced {:next ::return :val (do ~@body)})
+            (catch ~ex-match e# {:next ::throw :val (merge e# {:retries attempt#})})))
+        nil
+        (range ~attempts))]
+     (when (= (:next result#) ::throw)
+       (throw+ (:val result#)))
+     (:val result#)))
 
 (defn sanitize [raw-html]
   (let [{:keys [out exit err]}
@@ -90,3 +114,28 @@
         (string/replace out #"[\n\t]" " ")
         out)
       "")))
+
+(defn download-subtitles [url]
+  (with-temp-dir dir
+    (with-retry 5 [:type ::av-download-error :ret 1]
+    (let [{:keys [exit out err]}
+          (with-throttle @+semaphore+
+            (sh+timeout (get-in appconfig [:timeouts :av-downloader])
+                          [(appcfg/command :av-downloader)
+                           "--skip-download"
+                           "--write-subs"
+                           "--write-auto-subs"
+                           "--sub-langs=.*-orig"
+                           "--sub-format=ttml"
+                           (str "--output=" (nio2/path dir "llar"))
+                           (str url)]))]
+      (log/debugf "av-downloader subtitles: %s -> %d dir:%s err:%s out:%s" url exit dir err out)
+      (if (zero? exit)
+        (let [filename (second (re-find #"(?m)^.*Destination: (.*llar.*)$" out))]
+          {:format :ttml
+           :subtitles (slurp filename)})
+        (throw+ {:type ::av-download-error
+                 :tmp-dir dir
+                 :out out
+                 :err err
+                 :ret exit}))))))

@@ -28,6 +28,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y --no-install-r
   exiftool \
   locales \
   build-essential \
+  yt-dlp \
   && rm -rf /var/lib/apt/lists/*
 
 

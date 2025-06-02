@@ -18,11 +18,13 @@
                   [:news :source-tag]
                   [:bookmark :type]
                   [:recreation :source-tag]]}
- :throttle {:command-max-concurrent 10}
+ :throttle {:command-max-concurrent 42}
  :timeouts {:readability 30
+            :av-downloader 600
             :html2text 30}
  :commands {:pandoc "pandoc"
             :w3m "w3m"
             :lynx "lynx"
+            :av-downloader "yt-dlp"
             :html2text "html2text"}
  :blob-store-dir "/var/lib/llar/blobs"}

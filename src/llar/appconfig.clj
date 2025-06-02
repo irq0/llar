@@ -112,7 +112,12 @@
   (str (get appconfig :blob-store-dir) "/url-dupe-content-index"))
 
 (defn command [name]
-  (get-in appconfig [:commands name]))
+  (let [cmd (get-in appconfig [:commands name])]
+    (when (nil? cmd)
+      (throw+ {:type ::command-not-defined
+               :command name
+               :available-commands (:commands appconfig)}))
+    cmd))
 
 (defn credentials [name]
   (try

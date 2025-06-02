@@ -170,3 +170,16 @@
     (byte-array
      (map (fn [[a b]] (Integer/parseInt (str a b) 16))
           (drop 1 (partition 2 bytea))))))
+
+(defn ttml2text [ttml]
+  (letfn [(collect-p-tags [node]
+            (when (= :p (:tag node))
+              (apply str (:content node))))
+          (walk [node]
+            (let [this (collect-p-tags node)
+                  children (mapcat walk (:content node))]
+              (if this
+                (cons this children)
+                children)))]
+    (let [root (xml/parse (java.io.StringReader. ttml) xml-parser-non-validating)]
+      (string/join " " (walk root)))))
