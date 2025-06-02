@@ -584,9 +584,8 @@ div.item-content-body p > code {
   color: #555;
 }
 
-#headlines .toolbox div {
-  overflow-y: scroll;
-  white-space: nowrap;
+#headlines .toolbox {
+  text-wrap: nowrap;
 }
 
 #gallery a:hover {

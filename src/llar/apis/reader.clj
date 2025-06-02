@@ -1033,7 +1033,11 @@
            [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
 
           [:td {:class "toolbox"}
-           [:div {:class "dropstart position-static"}
+           (tag-button id {:tag :unread
+                           :is-set? (some #(= % "unread") tags)
+                           :icon-unset "far fa-check-square icon-is-set"
+                           :icon-set "far fa-square"})
+           [:span {:class "dropstart position-static"}
             [:a {:type "button" :class "btn btn-link" :data-bs-toggle "dropdown"} (icon "fa fa-ellipsis-v fa-lg")]
             [:ul {:class "dropdown-menu position-absolute"}
              [:li
