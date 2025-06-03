@@ -529,9 +529,8 @@
 
           html (when (and (#{200 206} (:status response))
                           (some? (:body response)))
-                 (cond-> (-> response
-                             :body)
-                   sanitize? (raw-sanitize)))
+                 (if sanitize? (raw-sanitize (:body response))
+                     (:body response)))
 
           parsed-html (cond-> (-> html
                                   hick/parse hick/as-hickory)

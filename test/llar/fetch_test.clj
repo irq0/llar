@@ -129,10 +129,14 @@
   (mount/start-with {#'appconfig/appconfig {:update-max-retry 5
                                             :credentials-file "/tmp/credentials.edn"
                                             :runtime-config-dir "/dev/null"
-                                            :commands {:mercury-parser "/bin/true"
-                                                       :pandoc "/bin/true"
+                                            :throttle {:command-max-concurrent 10}
+                                            :timeouts {:readability 30
+                                                       :av-downloader 600
+                                                       :html2text 30}
+                                            :commands {:pandoc "/bin/true"
                                                        :w3m "/bin/true"
                                                        :lynx "/bin/true"
+                                                       :av-downloader "/bin/true"
                                                        :html2text "/bin/true"}
                                             :blob-store-dir "/tmp"}})
   (doseq [{:keys [src fake-fetch fake-http-get n-items]} basic-tests]
@@ -170,7 +174,7 @@
           (is (= (:data resource) (:body fetch)))
           (is (= "http-fetch-test" (get-in fetch [:summary :title])))))
       (testing "conditional fetch - modified"
-        (let [fetch (http/fetch "http://example.com/304"  :sanitize? false :conditionals {:etag "foo"})]
+        (let [fetch (http/fetch "http://example.com/304" :sanitize? false :conditionals {:etag "foo"})]
           (is (= :ok (:status fetch)))
           (is (= (select-keys resource [:etag :last-modified])
                  (:conditional-tokens fetch)))
