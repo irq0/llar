@@ -92,9 +92,9 @@
    :authors [(:author c)]
    :id (:id c)
    :score (:score c)
-   :contents {"text/plain" (:title c)
+   :contents {"text/plain" (:selftext c)
               "text/html" (reddit-html-summary c)}
-   :descriptions {"text/plain" ""}})
+   :descriptions {"text/plain" (:selftext c)}})
 
 (s/def :irq0-src-reddit/title string?)
 (s/def :irq0-src-reddit/created_utc number?)
