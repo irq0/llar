@@ -97,15 +97,10 @@
 
 (defn all-items-process-last [item _ _]
   (log/trace "all items processor (last)" (str item))
-  (let [url (get-in item [:entry :url])
-        highlight-info (highlight-item? item)
-        item (cond-> item
-               (some? highlight-info)
-               (assoc-in [:entry :highlight] highlight-info)
-
-               (some? highlight-info)
-               (update-in [:meta :tags] conj :highlight))]
-    item))
+  (if-let [info (highlight-item? item)]
+    (-> item
+        (update-in [:meta :tags] conj :highlight)
+        (assoc-in [:entry :highlight] info))))
 
 ;;; Item postprocessing protocol
 
