@@ -3,6 +3,8 @@
    [clojure.set :refer [intersection union]]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
+   [llar.commands :refer [download-subtitles]]
+   [llar.converter :as conv]
    [slingshot.slingshot :refer [throw+ try+]]))
 
 ;;;; Postprocessing and Filtering
@@ -34,11 +36,29 @@
 
 (declare process-feedless-item)
 
+(def +fetch-subtitles-publisher+ #{"Youtube"})
+
+(defn subtitle-fetch [url]
+  (log/info "subtitle fetch" url)
+  (try+
+   (let [{:keys [format subtitles]} (download-subtitles url)]
+     (cond
+       (= format :ttml)
+       (conv/ttml2text subtitles)
+       :default nil))
+   (catch Object e
+     (log/errorf e "subtitle fetch %s failed" url)
+     nil)))
+
 ;; All item processors
 ;; first = first in chain, last = last in chain
 
 (defonce highlight-matches
   (atom {}))
+
+(defn video-url?
+  [url]
+  (some? (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" (str url))))
 
 (defn all-items-process-first [item _ state]
   (log/trace "all items processor (first)" (str item))
@@ -71,10 +91,19 @@
 
 (defn all-items-process-last [item _ _]
   (log/trace "all items processor (last)" (str item))
-  (if-let [info (highlight-item? item)]
-    (-> item
-        (update-in [:meta :tags] conj :highlight)
-        (assoc-in [:entry :highlight] info))
+  (let [url (get-in item [:entry :url])
+        transscript (when (video-url? url)
+                      (subtitle-fetch url))
+        highlight-info (highlight-item? item)
+        item (cond-> item
+               (and (video-url? url) (nil? (get-in item [:entry :contents "text/plain"])))
+               (assoc-in [:entry :contents "text/plain"] (subtitle-fetch url))
+
+               (some? highlight-info)
+               (assoc-in [:entry :highlight] highlight-info)
+
+               (some? highlight-info)
+               (update-in [:meta :tags] conj :highlight))]
     item))
 
 ;;; Item postprocessing protocol
