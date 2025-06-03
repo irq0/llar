@@ -18,7 +18,7 @@
                   [:news :source-tag]
                   [:bookmark :type]
                   [:recreation :source-tag]]}
- :throttle {:command-max-concurrent 42}
+ :throttle {:command-max-concurrent 10}
  :timeouts {:readability 30
             :av-downloader 600
             :html2text 30}
