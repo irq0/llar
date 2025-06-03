@@ -64,11 +64,11 @@
   `(let [result#
          (reduce
           (fn [_# attempt#]
-          (try+
-            (reduced {:next ::return :val (do ~@body)})
-            (catch ~ex-match e# {:next ::throw :val (merge e# {:retries attempt#})})))
-        nil
-        (range ~attempts))]
+            (try+
+             (reduced {:next ::return :val (do ~@body)})
+             (catch ~ex-match e# {:next ::throw :val (merge e# {:retries attempt#})})))
+          nil
+          (range ~attempts))]
      (when (= (:next result#) ::throw)
        (throw+ (:val result#)))
      (:val result#)))
@@ -108,7 +108,7 @@
   [html & {:keys [tool] :or {tool :lynx}}]
   (let [cmdline (concat (html-to-text-command tool) [:in html])
         {:keys [exit out]} (with-throttle @+semaphore+ (sh+timeout (get-in appconfig [:timeouts :html2text])
-                                                                  cmdline))]
+                                                                   cmdline))]
     (if (zero? exit)
       (if (= :for-exceptions tool)
         (string/replace out #"[\n\t]" " ")
@@ -118,9 +118,9 @@
 (defn download-subtitles [url]
   (with-temp-dir dir
     (with-retry 5 [:type ::av-download-error :ret 1]
-    (let [{:keys [exit out err]}
-          (with-throttle @+semaphore+
-            (sh+timeout (get-in appconfig [:timeouts :av-downloader])
+      (let [{:keys [exit out err]}
+            (with-throttle @+semaphore+
+              (sh+timeout (get-in appconfig [:timeouts :av-downloader])
                           [(appcfg/command :av-downloader)
                            "--skip-download"
                            "--write-subs"
@@ -129,13 +129,19 @@
                            "--sub-format=ttml"
                            (str "--output=" (nio2/path dir "llar"))
                            (str url)]))]
-      (log/debugf "av-downloader subtitles: %s -> %d dir:%s err:%s out:%s" url exit dir err out)
-      (if (zero? exit)
-        (let [filename (second (re-find #"(?m)^.*Destination: (.*llar.*)$" out))]
-          {:format :ttml
-           :subtitles (slurp filename)})
-        (throw+ {:type ::av-download-error
-                 :tmp-dir dir
-                 :out out
-                 :err err
-                 :ret exit}))))))
+        (log/debugf "av-downloader subtitles: %s -> %d dir:%s err:%s out:%s" url exit dir err out)
+        (if (zero? exit)
+          (if-let [filename (second (re-find #"(?m)^.*Destination: (.*llar.*)$" out))]
+            {:format :ttml
+             :subtitles (slurp filename)}
+            (throw+ {:type ::av-download-error
+                     :detail "cant find destination in output"
+                     :tmp-dir dir
+                     :out out
+                     :err err
+                     :ret exit}))
+          (throw+ {:type ::av-download-error
+                   :tmp-dir dir
+                   :out out
+                   :err err
+                   :ret exit}))))))

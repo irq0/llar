@@ -46,8 +46,8 @@
        (= format :ttml)
        (conv/ttml2text subtitles)
        :default nil))
-   (catch Object e
-     (log/errorf e "subtitle fetch %s failed" url)
+   (catch Object _
+     (log/errorf (:throwable &throw-context) "subtitle fetch %s failed" url)
      nil)))
 
 ;; All item processors
@@ -70,8 +70,7 @@
                  (assoc-in [:meta :source-key] (:key state)))]
     (cond-> item
       (and (video-url? url) (nil? (get-in item [:entry :contents "text/plain"])))
-      (assoc-in [:entry :contents "text/plain"] (subtitle-fetch url))
-)))
+      (assoc-in [:entry :contents "text/plain"] (subtitle-fetch url)))))
 
 (defn highlight-item? [item]
   (let [names-and-nouns (union (get-in item [:entry :nlp :names])
