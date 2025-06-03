@@ -1425,28 +1425,80 @@
   [x]
   (let [{:keys [clusters last-update]} @current-clustered-saved-items]
     [:div
-     [:h3 "Saved and bookmarked item overview"]
-     [:p (format "Items: %s Last updated: %s Clusters: %s"
-                 (apply + (map count (vals clusters)))
-                 (if (some? last-update)
-                   (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
-                   "not yet")
-                 (count clusters))]
-     [:div {:class "row row-cols-1 row-cols-md-2 g-4" :id "saved-items"}
-      (for [[group-name items] clusters]
-        [:div {:class "col"}
-         [:div {:class "card"}
-          [:div {:class "card-header"} group-name]
-          [:div {:class "card-body"}
-           (for [{:keys [id title]
-                  :as item} items
-                 :let [reading-estimate (reading-time-estimate item)]]
-             [:p {:class "list-group-item"}
-              [:span {:title "Reading time estimate" :class (str "badge " (get +reading-estimate-badge+ (:difficulty reading-estimate)))}
-               (:estimate reading-estimate) "m"]
-              [:a {:class "" :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+     [:h2 "Saved and bookmarked item overview"]
+     [:p {:class "text-secondary"} (format "Items: %s Last updated: %s Clusters: %s"
+                                           (apply + (map count (vals clusters)))
+                                           (if (some? last-update)
+                                             (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
+                                             "not yet")
+                                           (count clusters))]
+     (for [[{:keys [id words]} items] clusters]
+       [:div
+        [:h2
+         [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
+          [:ol {:class "breadcrumb"}
+           (for [word words] [:li {:class "breadcrumb-item"} word])]]]
+
+        (for [{:keys [id title source-key author ts tags nwords names entry url]
+               :as item} (sort-by :ts items)
+              :let [reading-estimate (reading-time-estimate item)]]
+
+          [:div {:id (str "item-" id)
+                 :class (str "feed-item")}
+           [:h4 {:class "h4"}
+            [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+             (if (string/blank? title)
+               "(no title)"
+               title)]]
+           [:ul {:class "list-inline"}
+            [:li {:class "list-inline-item"}
+             (icon "far fa-calendar")
+             "&nbsp;"
+             [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
+             [:span " - "]
+             [:span {:class "timestamp"} (human/datetime-ago ts)]]
+            (when (>= nwords 0)
+              (let [estimate (reading-time-estimate item)
+                    human-time (:estimate estimate)]
+                [:li {:class "list-inline-item"}
+                 [:a {:class "btn"}
+                  "&nbsp;" (icon "far fa-file-word") "&nbsp;" human-time "&thinsp;" "min"]]))
+            (when (string? source-key)
+              [:li {:class "list-inline-item"}
                "&nbsp;"
-               (if (string/blank? title) "(untitled)" title)]])]]])]]))
+               (icon "fas fa-rss") source-key
+               (when (= (:type item) :item-type/link)
+                 [:span "&nbsp;"
+                  (when-let [comments-url (:comments-url entry)]
+                    [:a {:href comments-url} "(comments)"])
+                  " → " (human/host-identifier url)])])
+            (when-not (string/blank? author)
+              [:li {:class "list-inline-item"}
+               "&nbsp;"
+               (icon "far fa-user") author])]
+           [:div {:class "clearfix"}
+
+            (when-let [image-url (and (or (:thumbnail entry) (:lead-image-url entry)))]
+              (when (not (or (string/blank? image-url)
+                             (= image-url "self")
+                             (= image-url "default")))
+                [:figure {:class "figure float-start"}
+                 [:img {:src image-url :class "figure-img" :style "max-width: 200px; height: auto;"}]]))
+            [:div {:class "description"}
+             [:p
+              (human/truncate-ellipsis (get-in item [:data :description "text/plain"]) 1200)]]]
+
+           [:div {:class "btn-toolbar" :role "toolbar"}
+            [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
+             [:a {:class "btn"
+                  :title "Show item in focus mode"
+                  :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"] {:data "content"
+                                                                                                         :content-type "text/html"} x)}
+              "&nbsp;" (icon "fas fa-expand")]]
+            [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
+             (for [btn +tag-buttons+
+                   :when (show-button-in-this-view? x btn)]
+               (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]])])]))
 
 (defmethod tools-view-handler
   :search
@@ -1570,7 +1622,7 @@
                      [:div {:class "row"}
                       group-nav
                       [:main {:role "main"
-                              :class "col-xs-12 col-md-6 col-lg-8"}
+                              :class "col-xs-12 col-md-8 col-lg-9"}
                        [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
                         view]]]]]
                    (html-footer))]))]

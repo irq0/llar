@@ -66,7 +66,7 @@
    (map #(db-search/saved-items-tf-idf-terms db %) [1 0.5 0.1 0.05 0.01])
    (remove empty?)
    (map remove-useless-features)
-   (remove #(< (count %) 20))
+   (remove #(< (count %) 42))
    (first)
    (into #{})))
 
@@ -87,7 +87,6 @@
                              attributes)
         ds (weka.core.Instances. "saved-items" (java.util.ArrayList. weka-attributes)
                                  (count term-tf-idf-maps))]
-    ;; ds (ml-data/make-dataset "saved-items" attributes (count term-tf-idf-maps))]
     (.setClassIndex ds -1)
     (doseq [m term-tf-idf-maps]
       (let [inst (weka.core.SparseInstance. (count attributes))]
@@ -105,18 +104,14 @@
     ds))
 
 (defn improvise-cluster-name [attributes centroid]
-  (let [take-this (nth (sort centroid) (max 0 (- (count centroid) 5)))]
-    (string/join "+"
-                 (take 5
-                       (remove nil?
-                               (map (fn [att val]
-                                      (let [name (.name att)]
-                                        (when (and (>= val take-this)
-                                                   (not (re-find #"\W" name))
-                                                   (not= "item_id" name))
-                                          name)))
-                                    attributes
-                                    centroid))))))
+  (let [top (->> (map (fn [att val] [(.name att) val]) attributes centroid)
+                 (filter (fn [[att val]] (and (> val 0) (not= "item_id" att))))
+                 (sort-by second)
+                 (reverse)
+                 (map first))]
+    (->> top
+         (take 5)
+         (into []))))
 
 (defn- get-number-of-clusters [ds]
   (max 5
@@ -124,30 +119,36 @@
 
 (defn cluster-saved [db]
   (let [ds (make-saved-dataset db)
-        clst (ml-clusterers/make-clusterer :k-means {:number-clusters (get-number-of-clusters ds)})]
+        clst (ml-clusterers/make-clusterer :k-means {:random-seed (int (* (rand) 10E8))
+                                                     :replace-missing-values false
+                                                     :number-iterations 10000
+                                                     :number-clusters (get-number-of-clusters ds)})]
     (ml-clusterers/clusterer-build clst ds)
+    (log/info "Clusterer: " clst)
     (let [centroids (:centroids (ml-clusterers/clusterer-info clst))
-          names (into []
+          names (into {}
                       (map (fn [[k cent]]
-                             (if-let [human (improvise-cluster-name
-                                             (ml-data/dataset-attributes ds)
-                                             (-> cent
-                                                 ml-data/instance-to-vector))]
-                               human
-                               (keyword (str k))))
+                             [k
+                              (if-let [words (improvise-cluster-name
+                                              (ml-data/dataset-attributes ds)
+                                              (-> cent
+                                                  ml-data/instance-to-vector))]
+                                words
+                                (keyword (str k)))])
                            centroids))
           item-id-index (.index (.attribute ds "item_id"))]
+      (log/info names item-id-index)
+      (log/info centroids)
       (->> ds
            (map (fn [instance]
                   (let [id (int (.value instance item-id-index))
                         item (persistency/get-item-by-id db id)
                         cluster (.clusterInstance clst instance)]
-                    {:title (:title item)
-                     :nwords (:nwords item)
-                     :readability (get-in item [:entry :readability])
-                     :class (nth names cluster "?")
-                     :id id})))
-           (group-by :class)))))
+                    (-> item
+                     ;; (select-keys item [:title :source-key :pub-ts :nwords])
+                     (assoc :cluster {:id cluster :words (get names cluster "?")})
+                     (assoc :id id)))))
+           (group-by :cluster)))))
 
 (defn update-saved-clusters! []
   (try
