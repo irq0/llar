@@ -39,13 +39,10 @@
 (def +fetch-subtitles-publisher+ #{"Youtube"})
 
 (defn subtitle-fetch [url]
-  (log/info "subtitle fetch" url)
   (try+
    (let [{:keys [format subtitles]} (download-subtitles url)]
-     (cond
-       (= format :ttml)
-       (conv/ttml2text subtitles)
-       :default nil))
+     (when (= format :ttml)
+       (conv/ttml2text subtitles)))
    (catch Object _
      (log/errorf (:throwable &throw-context) "subtitle fetch %s failed" url)
      nil)))
@@ -100,7 +97,8 @@
   (if-let [info (highlight-item? item)]
     (-> item
         (update-in [:meta :tags] conj :highlight)
-        (assoc-in [:entry :highlight] info))))
+        (assoc-in [:entry :highlight] info))
+    item))
 
 ;;; Item postprocessing protocol
 
