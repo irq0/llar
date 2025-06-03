@@ -613,10 +613,11 @@
        (when (not (or (string/blank? image-url)
                       (= image-url "self")
                       (= image-url "default")))
-         [:div {:class (str "item-preview-small"
+         [:div {:class (str "item-preview-small float-end"
                             (when (every? options [:main-list-use-description
                                                    :short-word-cloud])
-                              " float-md-left"))}
+                              " float-md-end"))
+                :style "width: 200px; height: auto;"}
           [:img {:src image-url}]])))))
 
 (defn get-html-content
@@ -940,38 +941,39 @@
          "&nbsp;"
          (icon "far fa-user") author])]
 
-     (render-special-item-content item options)
+     [:div {:class "clearfix"}
+      [:p (render-special-item-content item options)]
 
-     (if (contains? options :main-list-use-description)
-       [:p {:class "description"}
-        (get-in item [:data :description "text/plain"])]
-       [:p {:class "word-cloud"}
-        (html
-         (for [[word freq] words
-               :let [size (word-cloud-fontsize freq min-freq max-freq)]]
-           [:span {:class (str "word border text-white " size)} word]))
-        (html
-         (for [n names]
-           [:span {:class "name border"}
-            [:a {:href (str "https://en.wikipedia.org/wiki/" n)
-                 :class "text-white sz-b"} n]]))
-        (html
-         (for [[text all-text-urls] (->> urls
+      (if (contains? options :main-list-use-description)
+        [:p {:class "description"}
+         (get-in item [:data :description "text/plain"])]
+        [:p {:class "word-cloud"}
+         (html
+          (for [[word freq] words
+                :let [size (word-cloud-fontsize freq min-freq max-freq)]]
+            [:span {:class (str "word border text-white " size)} word]))
+         (html
+          (for [n names]
+            [:span {:class "name border"}
+             [:a {:href (str "https://en.wikipedia.org/wiki/" n)
+                  :class "text-white sz-b"} n]]))
+         (html
+          (for [[text all-text-urls] (->> urls
                                          ;; controversial? remove urls pointing to same site
-                                         (remove (fn [str-url]
-                                                   (= (some-> str-url uri/uri uri/host)
-                                                      url-site)))
-                                         (filter #(> (count %) 20))
-                                         (take 20)
-                                         (map (juxt awesome-url-text identity))
-                                         (group-by first)
-                                         (doall))
-               :let [url (-> all-text-urls
-                             first second)]
-               :when (not (re-find +boring-url-regex+ url))]
-           [:span {:class "url border"}
-            [:a {:href url :class "text-white sz-b"}
-             text]]))])
+                                          (remove (fn [str-url]
+                                                    (= (some-> str-url uri/uri uri/host)
+                                                       url-site)))
+                                          (filter #(> (count %) 20))
+                                          (take 20)
+                                          (map (juxt awesome-url-text identity))
+                                          (group-by first)
+                                          (doall))
+                :let [url (-> all-text-urls
+                              first second)]
+                :when (not (re-find +boring-url-regex+ url))]
+            [:span {:class "url border"}
+             [:a {:href url :class "text-white sz-b"}
+              text]]))])]
 
      (when-let [highlight (get-in item [:entry :highlight])]
        (html [:p {:class "highlight"}
