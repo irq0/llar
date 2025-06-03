@@ -62,9 +62,16 @@
 
 (defn all-items-process-first [item _ state]
   (log/trace "all items processor (first)" (str item))
-  (-> item
-      (update-in [:meta :tags] conj :unread)
-      (assoc-in [:meta :source-key] (:key state))))
+  (let [url (get-in item [:entry :url])
+        transscript (when (video-url? url)
+                      (subtitle-fetch url))
+        item (-> item
+                 (update-in [:meta :tags] conj :unread)
+                 (assoc-in [:meta :source-key] (:key state)))]
+    (cond-> item
+      (and (video-url? url) (nil? (get-in item [:entry :contents "text/plain"])))
+      (assoc-in [:entry :contents "text/plain"] (subtitle-fetch url))
+)))
 
 (defn highlight-item? [item]
   (let [names-and-nouns (union (get-in item [:entry :nlp :names])
@@ -92,13 +99,8 @@
 (defn all-items-process-last [item _ _]
   (log/trace "all items processor (last)" (str item))
   (let [url (get-in item [:entry :url])
-        transscript (when (video-url? url)
-                      (subtitle-fetch url))
         highlight-info (highlight-item? item)
         item (cond-> item
-               (and (video-url? url) (nil? (get-in item [:entry :contents "text/plain"])))
-               (assoc-in [:entry :contents "text/plain"] (subtitle-fetch url))
-
                (some? highlight-info)
                (assoc-in [:entry :highlight] highlight-info)
 
