@@ -1,6 +1,8 @@
 FROM ubuntu:24.04
 
 ARG VERSION
+ARG UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu
+ENV DEBIAN_FRONTEND="noninteractive"
 
 LABEL org.opencontainers.image.source=https://github.com/irq0/llar
 LABEL org.opencontainers.image.url=https://llar.dev
@@ -12,7 +14,8 @@ LABEL org.opencontainers.image.version=$VERSION
 
 RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
-RUN DEBIAN_FRONTEND="noninteractive" apt-get update && apt-get -y --no-install-recommends install \
+RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sources.list && \
+  apt-get update && apt-get -y --no-install-recommends install \
   pandoc \
   w3m \
   lynx \

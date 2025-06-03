@@ -57,7 +57,8 @@ jobs:
         context: .
         file: docker/Dockerfile
         build-args: |
-          VERSION=${{ env.VERSION }}
+          VERSION=${{ env.VERSION }}>
+          UBUNTU_MIRROR=http://azure.archive.ubuntu.com/ubuntu
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
