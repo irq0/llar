@@ -18,8 +18,9 @@
                   [:news :source-tag]
                   [:bookmark :type]
                   [:recreation :source-tag]]}
- :throttle {:command-max-concurrent 10}
- :timeouts {:readability 30
+ :throttle {:command-max-concurrent 20
+            :av-downloader-max-concurrent 2}
+ :timeouts {:readability 60
             :av-downloader 600
             :html2text 30}
  :commands {:pandoc "pandoc"

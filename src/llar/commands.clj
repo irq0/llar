@@ -22,6 +22,7 @@
 
 (defonce +kill-timeout-secs+ 120)
 (defonce +semaphore+ (delay (Semaphore. (get-in appconfig [:throttle :command-max-concurrent]))))
+(defonce +semaphore-av-download+ (delay (Semaphore. (get-in appconfig [:throttle :av-download-max-concurrent]))))
 
 (defmacro with-throttle [sem & body]
   `(do
@@ -119,7 +120,7 @@
   (with-temp-dir dir
     (with-retry 5 [:type ::av-download-error :ret 1]
       (let [{:keys [exit out err]}
-            (with-throttle @+semaphore+
+            (with-throttle @+semaphore-av-download+
               (sh+timeout (get-in appconfig [:timeouts :av-downloader])
                           [(appcfg/command :av-downloader)
                            "--skip-download"
