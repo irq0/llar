@@ -63,13 +63,16 @@
 
 (defn extract-http-title
   [parsed-html]
-  (some-> (hick-s/select (hick-s/child
-                          (hick-s/tag :title))
-                         parsed-html)
-          first
-          :content
-          first
-          string/trim))
+  (or
+   (some-> (hick-s/select (hick-s/child
+                           (hick-s/tag :title))
+                          parsed-html)
+           first :content first string/trim)
+   (some-> (hick-s/select (hick-s/class :page-title) parsed-html)
+           first :content first string/trim)
+   (some-> (hick-s/select (hick-s/child (hick-s/tag :header) (hick-s/tag :h1)) parsed-html)
+           first :content first)
+   ))
 
 (defn extract-http-timestamp
   [resp]
