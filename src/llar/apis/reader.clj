@@ -991,10 +991,15 @@
             :href (make-site-href [link-prefix "item/by-id" id "dump"] x)}
         "&nbsp;" (icon "fas fa-code")]
        [:a {:class "btn"
-            :title "Show item in focus mode"
+            :title "Show item HTML focus mode"
             :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
                                                                          :content-type "text/html"} x)}
-        "&nbsp;" (icon "fas fa-expand")]]
+        "&nbsp;" (icon "fas fa-expand")]
+       [:a {:class "btn"
+            :title "Open Raw HTML content"
+            :href (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
+                                                                         :content-type "text/html"} x)}
+        "&nbsp;" (icon "fas fa-remove-format")]]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
        (for [btn +tag-buttons+
