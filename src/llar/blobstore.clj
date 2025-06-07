@@ -205,7 +205,7 @@
      (log/debug "BLOBSTORE Server Error (-> temp-fail):" status url)
      (throw+ {:type ::fetch-fail}))
    (catch java.net.MalformedURLException _
-     (log/warn (:throwable &throw-context) "URL Kaputt?" url))
+     (log/warn "URL Kaputt?" url))
    (catch java.net.ConnectException e
      (log/debug "BLOBSTORE Server Error (-> temp-fail):" e url)
      (throw+ {:type ::fetch-fail}))
