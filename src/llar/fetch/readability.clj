@@ -75,6 +75,7 @@
                           (http/blobify))]
         (-> response
             (assoc :readability readab)
+            ;; overwrite http/fetch hickory with processed readability html
             (assoc :body (when processed (hick-r/hickory-to-html processed)))
             (assoc :hickory processed))))))
 
@@ -102,7 +103,7 @@
         {:url (http/absolutify-url (uri/uri url) base-url)
          :pub-ts pub-ts
          :title title
-         :readability-metadata metadata
+         :readability (-> data (dissoc :textContent) (dissoc :content))
          :lead-image-url (get-in data [:metadata :image])
          :authors [(or (:byline data) (:author metadata) (:siteName data) (:publisher metadata))]
          :descriptions {"text/plain" (or (:excerpt data) (:description metadata))}
