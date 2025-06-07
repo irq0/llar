@@ -115,7 +115,7 @@
   (fn [& args]
     (try+
      (let [new (apply func args)]
-       (log/tracef "proc %s: (%s %s)" (str item) func (count args))
+       (log/debugf "proc %s: (%s %s)" (str item) func (count args))
        new)
      (catch Object e
        (log/warnf (:throwable &throw-context) "proc %s: (%s %s %s) FAILED: %s %s"
@@ -125,7 +125,7 @@
 (defn- apply-filter [item f]
   (if-not (nil? f)
     (let [out? (boolean (f item))]
-      (log/tracef "filter: (%s, %s) -> %s"
+      (log/debugf "filter: (%s, %s) -> %s"
                   f item out?)
       (when-not out? item))
     item))
