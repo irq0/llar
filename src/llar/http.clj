@@ -359,7 +359,7 @@
                          :class "lazytrigger"  ;; spiegel online
                          :data-component "AffiliateBox"} ;; spiegel online
 
-        remove-tags #{:header :script :noscript :footer :button}]
+        remove-tags #{:script :noscript :button}]
     (loop [loc zipper]
       (if (zip/end? loc)
         (zip/root loc)
