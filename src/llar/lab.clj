@@ -124,7 +124,7 @@
                                                      :number-iterations 10000
                                                      :number-clusters (get-number-of-clusters ds)})]
     (ml-clusterers/clusterer-build clst ds)
-    (log/info "Clusterer: " clst)
+    (log/debug "Clusterer: " clst)
     (let [centroids (:centroids (ml-clusterers/clusterer-info clst))
           names (into {}
                       (map (fn [[k cent]]
@@ -137,8 +137,8 @@
                                 (keyword (str k)))])
                            centroids))
           item-id-index (.index (.attribute ds "item_id"))]
-      (log/info names item-id-index)
-      (log/info centroids)
+      (log/debug names item-id-index)
+      (log/debug centroids)
       (->> ds
            (map (fn [instance]
                   (let [id (int (.value instance item-id-index))
