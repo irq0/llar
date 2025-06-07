@@ -41,8 +41,6 @@
    (catch Object _
      content-type)))
 
-(def foo (atom []))
-
 (defn mail-to-contents [msg]
   (let [bodies (:body msg)]
     (if (seq? bodies)
@@ -60,7 +58,6 @@
                                  username password)
           msgs (doall (map (fn [id]
                              (let [msg (mail-message/read-message id)]
-                               (swap! foo conj msg)
                                (if (nil? (:body msg))
                                  (log/warn "failed to parse mail body:" msg)
                                  {:to (:id msg)
