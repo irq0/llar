@@ -63,8 +63,10 @@
   {:pre [(s/valid? :irq0/url url)]}
   (let [url (uri/uri url)
         response (http/fetch url :user-agent user-agent
-                             :sanitize? true
+                             :sanitize? false
                              :blobify? false
+                             :remove-css? false
+                             :simplify? false
                              :absolutify-urls? false)]
     (when (= :ok (:status response))
       (let [readab (http/raw-readability (:body response) url)
