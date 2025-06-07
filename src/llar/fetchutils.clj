@@ -92,6 +92,7 @@
   (if-let [html (get-in contents ["text/html"])]
     (assoc contents "text/html"
            (-> html
+               http/raw-sanitize
                hick/parse
                hick/as-hickory
                (http/absolutify-links-in-hick base-url)
