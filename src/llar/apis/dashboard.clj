@@ -44,7 +44,7 @@
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
-   [:script {:src "/static/datatables/jquery.dataTables.min.js"}]
+   [:script {:src "/static/datatables/dataTables.min.js"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js"}]
    [:script {:src "/static/datatables/dataTables.buttons.min.js"}]
    [:script {:src "/static/datatables/buttons.bootstrap5.min.js"}]

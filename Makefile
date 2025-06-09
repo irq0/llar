@@ -61,7 +61,7 @@ resources/status/datatables/dataTables.bootstrap5.min.css:
 	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.css "https://cdn.datatables.net/$(jquery_datatables_version)/css/dataTables.bootstrap5.min.css"
 resources/status/datatables/dataTables.min.js:
 	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/jquery.dataTables.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.min.js"
+	wget --quiet -nc -O resources/status/datatables/dataTables.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.min.js"
 resources/status/datatables/dataTables.bootstrap5.min.js:
 	mkdir -p resources/status/datatables
 	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.bootstrap5.min.js"
