@@ -53,7 +53,7 @@
       :nlp-top (or (:top nlp) {})
       :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
                        (sql/conflict-items-ignore-dupe-snip))
-      :entry (apply dissoc entry (concat [entry] (map first item-data-table-entries)))})))
+      :entry (apply dissoc entry (concat [:nlp] (map first item-data-table-entries)))})))
 
 (defn store-item-data!
   "store-item-data! persists item data as rows in the item_data table. See
