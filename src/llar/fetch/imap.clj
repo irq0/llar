@@ -45,8 +45,10 @@
   (let [bodies (:body msg)]
     (if (seq? bodies)
       (into {}
-            (for [{:keys [body content-type]} bodies]
-              {(try-get-base-type content-type) body}))
+            (for [body bodies]
+              (cond
+                (map? body) {(try-get-base-type (:content-type body)) (:body body)}
+                (seq? body) (let [body (first body)] {(try-get-base-type (:content-type body)) (:body body)}))))
       {(try-get-base-type (:content-type bodies)) (:body bodies)})))
 
 (defn get-new-messages [uri {:keys [username password]}]
