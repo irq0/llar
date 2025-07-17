@@ -180,8 +180,8 @@
 
 (defn parse-youtube-url
   [url]
-  (and (string? url)
-       (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url)))
+  (when (string? url)
+    (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url)))
 
 (defn make-site-href
   "Make inner site href"
