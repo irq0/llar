@@ -21,8 +21,8 @@
            [meta
             summary
             hash
-            raw
-            entry]
+            entry
+            raw]
   Object
   (toString [item] (fetch/item-to-string item)))
 
