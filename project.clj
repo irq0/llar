@@ -85,6 +85,7 @@
                  [potemkin "0.4.7" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
                  [nrepl "1.3.0"]
+                 [djblue/portal "0.59.2"]
                  [org.clojure/core.async "1.6.681" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
                  [byte-streams "0.2.4" :exclusions [riddley]]
                  [com.nextjournal/beholder "1.0.2"]
