@@ -627,9 +627,9 @@
     (let [description (get-in doc [:data :description])
           contents (get-in doc [:data :content])]
       (or (get contents "text/html")
-          (get contents "text/plain")
+          (when-let [text (get contents "text/plain")] [:p {:style "white-space: pre-line"} text])
           (get description "text/html")
-          (get description "text/plain")
+          (when-let [text (get description "text/plain")] [:p {:style "white-space: pre-line"} text])
           nil))
     (if (= sel-content-type "text/plain")
       [:p {:style "white-space: pre-line"} (get-in doc [:data sel-descr sel-content-type])]
