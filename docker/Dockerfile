@@ -43,21 +43,21 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
 RUN mkdir -p /opt/llar /llar
-COPY target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
+COPY --chown=0:0 target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
 ENV LLAR_CONFIG /llar/config.edn
 ENV WEKA_HOME /llar/wekafiles
 ENV JDK_JAVA_OPTIONS "-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
 
-COPY tools/ /llar/tools
-COPY package.json /llar
-COPY package-lock.json /llar
+COPY --chown=0:0 tools/ /llar/tools
+COPY --chown=0:0 package.json /llar
+COPY --chown=0:0 package-lock.json /llar
 
 RUN groupadd -g 42000 llar && \
    useradd -u 42000 -g llar llar \
    && chown -R llar:llar /llar
 
-RUN cd /llar && npm install
+RUN cd /llar && npm install && chown -R 0:0 /llar
 
 USER llar:llar
 WORKDIR /llar
