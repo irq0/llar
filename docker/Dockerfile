@@ -31,9 +31,12 @@ RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sour
   exiftool \
   locales \
   build-essential \
-  yt-dlp \
+  software-properties-common \
   && rm -rf /var/lib/apt/lists/*
 
+RUN add-apt-repository ppa:tomtomtom/yt-dlp && \
+  apt-get update && apt-get -y --no-install-recommends install \
+  yt-dlp
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
