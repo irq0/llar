@@ -21,7 +21,7 @@ RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sour
   lynx \
   html2text \
   poppler-utils \
-  openjdk-21-jdk-headless \
+  openjdk-25-jdk-headless \
   leiningen \
   wget \
   npm \
