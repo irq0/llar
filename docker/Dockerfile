@@ -41,16 +41,16 @@ RUN add-apt-repository ppa:tomtomtom/yt-dlp && \
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
 
-ENV LC_ALL en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US.UTF-8
 
 RUN mkdir -p /opt/llar /llar
 COPY --chown=0:0 target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
-ENV LLAR_CONFIG /llar/config.edn
-ENV WEKA_HOME /llar/wekafiles
-ENV JDK_JAVA_OPTIONS "-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
+ENV LLAR_CONFIG=/llar/config.edn
+ENV WEKA_HOME=/llar/wekafiles
+ENV JDK_JAVA_OPTIONS="-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
 
 COPY --chown=0:0 tools/ /llar/tools
 COPY --chown=0:0 package.json /llar
