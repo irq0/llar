@@ -59,7 +59,9 @@ values (
   :title,
   :author,
   :type,
+  (select coalesce(
   (select array_agg(id) from tags where tag = ANY(:v:tags)),
+    array[]::int[])),
   :nlp-nwords, :nlp-urls, :nlp-names, :nlp-nouns, :nlp-verbs, :nlp-top,
   :entry
 )
