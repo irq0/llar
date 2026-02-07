@@ -76,6 +76,7 @@
   "Applies all Migratus migrations to test database."
   [container]
   (let [config (get-migratus-config container)]
+    (migratus/init config)
     (migratus/migrate config)))
 
 (defn clear-test-data!
