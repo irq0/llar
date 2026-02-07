@@ -1,5 +1,5 @@
 (defproject llar "_"
-  :profiles {:uberjar {:omit-source true
+  :profiles {:uberjar {:omit-source false
                        :aot :all}}
   :description "LLAR - Live Long and Read 🖖"
   :url "https://llar.dev"
@@ -36,7 +36,8 @@
                 :version-file-keys [:ref :version :timestamp :ref-short :tag]}
 
   :exclusions [org.slf4j/slf4j-nop]
-  :dependencies [[org.clojure/clojure "1.11.1"]
+  ;; Note: build uberjar before lein run
+  :dependencies [[org.clojure/clojure "1.12.4"]
                  ;; logging
                  [org.clojure/tools.logging "1.3.1"]
                  [org.slf4j/slf4j-api "2.0.17"]
@@ -55,6 +56,7 @@
                  [org.clojure/data.json "2.5.2"]
                  [org.clojure/test.check "1.1.3"]
                  [org.clojure/tools.cli "1.3.250"]
+                 [org.clojure/tools.reader "1.6.0"]
                  [dev.weavejester/medley "1.9.0"]
                  [com.fasterxml.jackson.core/jackson-databind "2.21.0"]
                  [org.jsoup/jsoup "1.22.1"]
@@ -112,9 +114,12 @@
 
                  ;; database
                  [mpg "1.3.0" :exclusions [chesire]]
-                 [com.layerware/hugsql "0.5.3"]
-                 [org.postgresql/postgresql "42.7.9"]
+                 [com.layerware/hugsql-core "0.5.3"]
+                 [com.layerware/hugsql-adapter-next-jdbc "0.5.3"]
+                 [com.github.seancorfield/next.jdbc "1.2.659"]
+
                  [hikari-cp "4.0.0" :exclusions [org.slf4j/slf4j-api]]
+                 [org.postgresql/postgresql "42.7.9"]
                  [org.clojure/java.jdbc "0.7.12"]
                  [migratus "1.6.5" :exclusions [org.clojure/tools.logging]]
 
@@ -123,7 +128,7 @@
                  [ring/ring-devel "1.15.3"  :exclusions [commons-io]]
                  [ring/ring-jetty-adapter "1.15.3" :exclusions [commons-io]]
                  [ring/ring-json "0.5.1" :exclusions [cheshire]]
-                 [ring/ring-codec "1.2.0"]
+                 [ring/ring-codec "1.3.0"]
                  [compojure "1.7.2" :exclusions [commons-io medley]]
 
                  ;; html

@@ -1,8 +1,12 @@
 (ns llar.db.sql
   (:gen-class)
   (:require
-   [hugsql.core :as hugsql]
    [clojure.java.io :as io]))
+
+(require 'clojure.tools.reader.reader-types)
+(require '[hugsql.core :as hugsql])
+(require '[hugsql.adapter.next-jdbc :as hugsql-next])
+(hugsql/set-adapter! (hugsql-next/hugsql-adapter-next-jdbc))
 
 (declare
  get-item-count-of-source
