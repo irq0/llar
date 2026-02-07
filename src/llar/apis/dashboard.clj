@@ -85,6 +85,21 @@
    (puget/tagged-handler
     'uri str)})
 
+(def +light-mode-color-scheme+
+  "Light mode friendly color scheme for puget pretty printing"
+  {:delimiter [:bold :black]
+   :tag [:bold :blue]
+   :nil [:bold :black]
+   :boolean [:bold :blue]
+   :number [:bold :blue]
+   :string [:bold :green]
+   :character [:bold :green]
+   :keyword [:bold :magenta]
+   :symbol [:bold :black]
+   :function-symbol [:bold :blue]
+   :class-delimiter [:bold :black]
+   :class-name [:bold :blue]})
+
 (defn pprint-html [x]
   [:pre {:class "clj-pprint"}
    (let [pr-str-orig pr-str
@@ -96,6 +111,7 @@
        :seq-limit 5
        :sort-keys true
        :print-color true
+       :color-scheme +light-mode-color-scheme+
        :print-handlers +pprint-handlers+
        :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
        :color-markup :html-inline}))])
