@@ -105,18 +105,16 @@
      (sql/set-tags this
                    {:tags (vec (map name tags))
                     :where [(sql/tag-cond-by-id {:id item-id})]})
-     first
-     :tagi
-     (map keyword)))
+     (map :tagi)
+     first))
 
   (item-remove-tags! [this item-id tags]
     (->>
      (sql/remove-tags this
                       {:tags (vec (map name tags))
                        :where [(sql/tag-cond-by-id {:id item-id})]})
-     first
-     :tagi
-     (map keyword)))
+     (map :tagi)
+     first))
 
   (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts]
     (let [source-ids (map :id

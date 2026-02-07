@@ -136,5 +136,5 @@ items.type = :type::item_type
 --~ (when (:where params) "where :snip*:where")
 --~ (when (:group-by-columns params) "group by :i*:group-by-columns")
 order by
-  ts desc, id desc
+  items.ts desc, items.id desc
 limit :limit
