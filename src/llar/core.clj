@@ -18,7 +18,6 @@
    [llar.db.modify]
    [llar.db.search]
    [llar.http :as http]
-   [llar.live :as live]
    [llar.config :as config]
    [llar.lab :as lab]
    [clojure.string :as string]
@@ -50,7 +49,6 @@
 
 (def wet-states
   [#'config/change-watcher
-   #'live/live
    #'update/remove-unread-tags
    #'lab/update-db-search-indices])
 
