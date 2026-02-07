@@ -113,14 +113,12 @@
                  [io.forward/clojure-mail "1.0.8" :exclusions [medley javax.activation/activation]]
 
                  ;; database
-                 [mpg "1.3.0" :exclusions [chesire]]
                  [com.layerware/hugsql-core "0.5.3"]
                  [com.layerware/hugsql-adapter-next-jdbc "0.5.3"]
                  [com.github.seancorfield/next.jdbc "1.2.659"]
 
                  [hikari-cp "4.0.0" :exclusions [org.slf4j/slf4j-api]]
                  [org.postgresql/postgresql "42.7.9"]
-                 [org.clojure/java.jdbc "0.7.12"]
                  [migratus "1.6.5" :exclusions [org.clojure/tools.logging]]
 
                  ;; webapp

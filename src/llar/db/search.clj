@@ -1,19 +1,20 @@
 (ns llar.db.search
   (:require
-   [clojure.java.jdbc :as j]
    [digest]
    [java-time :as time]
    [llar.db.core]
    [llar.db.sql :as sql]
-   [llar.persistency :refer [DataStoreSearch]])
+   [llar.persistency :refer [DataStoreSearch]]
+   [next.jdbc :as jdbc]
+   [next.jdbc.result-set :as rs])
   (:import
    (llar.db.core PostgresqlDataStore)))
 
 (defn- refresh-search-index [db]
-  (j/execute! db ["refresh materialized view search_index"]))
+  (jdbc/execute! db ["refresh materialized view search_index"]))
 
 (defn- refresh-idf [db]
-  (j/execute! db ["refresh materialized view idf_top_words"]))
+  (jdbc/execute! db ["refresh materialized view idf_top_words"]))
 
 (extend-protocol DataStoreSearch
   PostgresqlDataStore
@@ -36,17 +37,14 @@
     (refresh-idf this)))
 
 (defn saved-items-tf-idf [db]
-  (rest (sql/saved-items-tf-idf
-         db
-         nil
-         {}
-         {:as-arrays? true
-          :row-fn (fn [[id term-tf-idf]]
-                    (assoc (into {} term-tf-idf) "item_id" (double id)))})))
+  (rest (map (fn [{:keys [id json_agg]}]
+               (assoc (into {} json_agg) "item_id" (double id)))
+             (sql/saved-items-tf-idf db))))
 
 (defn saved-items-tf-idf-terms [db min-tf-idf]
-  (first (second (sql/saved-items-tf-idf-terms
-                  db
-                  {:min-tf-idf min-tf-idf}
-                  {}
-                  {:as-arrays? true}))))
+  (->>
+   (sql/saved-items-tf-idf-terms
+    db
+    {:min-tf-idf min-tf-idf})
+   first
+   :array_agg))

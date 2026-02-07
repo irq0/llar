@@ -4,7 +4,8 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.converter :as conv]
-   [digest])
+   [digest]
+   [next.jdbc.result-set :as rs])
   (:import (llar.db.core PostgresqlDataStore)))
 
 (defn- process-items-row
@@ -43,20 +44,20 @@
   PostgresqlDataStore
 
   (get-table-row-counts [this]
-    (sql/get-table-row-counts this nil {}))
+    (sql/get-table-row-counts this))
 
   (get-type-stats [this]
-    (drop 1 (sql/get-type-stats this nil {} {:as-arrays? true})))
+    (sql/get-type-stats this))
 
   (get-tag-stats [this]
-    (drop 1 (sql/get-tag-stats this nil {} {:as-arrays? true})))
+    (sql/get-tag-stats this ))
 
   (get-tags [this]
-    (apply concat
-           (drop 1 (sql/get-tags this nil {} {:as-arrays? true}))))
+    (->> (sql/get-tags this) (map :tag) (map keyword) (into #{})))
 
   (get-word-count-groups [this]
-    (drop 1 (sql/get-word-count-groups this nil {} {:as-arrays? true}))))
+    (->> (sql/get-word-count-groups this)
+                    (map (fn [x] [(:nword_groups x) (:count x)])))))
 
 ;; ----------
 
@@ -65,12 +66,11 @@
 
 (defn- get-item-count-by-tag-of-source [db id]
   (into {}
-        (sql/get-item-count-by-tag-of-source
-         db
-         {:id id}
-         {}
-         {:row-fn (fn [{:keys [tag count]}]
-                    [(keyword tag) count])})))
+        (map (fn [{:keys [tag count]}]
+               [(keyword tag) count])
+             (sql/get-item-count-by-tag-of-source
+              db
+              {:id id}))))
 
 (defn- get-item-count-unread-today [db id]
   (:count (sql/get-item-count-unread-today db {:id id})))
@@ -86,22 +86,19 @@
                        (assoc :key key)
                        (merge (get config-sources key)))]))]
       (into {}
-            (sql/get-sources this
-                             nil
-                             {}
-                             {:row-fn row-add-config-src}))))
+            (map row-add-config-src
+                 (sql/get-sources this nil {})))))
 
   (get-sources-item-tags-counts [this item-tag simple-filter config-sources]
-    (sql/get-sources-with-item-tags-count
-     this
-     {:item-tag (name item-tag)
-      :simple-filter (simple-filter-to-sql simple-filter)}
-     {}
-     {:row-fn (fn [row]
-                (let [key (keyword (:key row))]
-                  (-> row
-                      (assoc :key key)
-                      (merge (get config-sources key)))))}))
+    (map (fn [row]
+           (let [key (keyword (:key row))]
+             (-> row
+                 (assoc :key key)
+                 (merge (get config-sources key)))))
+         (sql/get-sources-with-item-tags-count
+          this
+          {:item-tag (name item-tag)
+           :simple-filter (simple-filter-to-sql simple-filter)})))
 
   (sources-merge-in-tags-counts [this sources]
     (pmap (fn [source]
@@ -179,11 +176,10 @@
     (sql/get-items-by-tag this {:tag (name tag)}))
 
   (get-item-by-id [this id]
-    (sql/get-item-by-id
-     this
-     {:id id
-      :select (sql/item-select-with-data-snip)
-      :from (sql/item-from-join-with-data-table-snip)
-      :group-by-columns ["items.id"]}
-     {}
-     {:row-fn process-items-row})))
+    (process-items-row
+     (sql/get-item-by-id
+      this
+      {:id id
+       :select (sql/item-select-with-data-snip)
+       :from (sql/item-from-join-with-data-table-snip)
+       :group-by-columns ["items.id"]}))))
