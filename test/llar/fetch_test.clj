@@ -1,6 +1,9 @@
 (ns llar.fetch-test
   (:require
    [llar.appconfig :as appconfig]
+   [llar.apis.reader :as reader]
+   [llar.repl :as repl]
+   [llar.store :as store]
    [llar.fetch :as uut]
    [llar.fetch.custom]
    [llar.fetch.http]
@@ -138,7 +141,10 @@
                                                        :lynx "/bin/true"
                                                        :av-downloader "/bin/true"
                                                        :html2text "/bin/true"}
-                                            :blob-store-dir "/tmp"}})
+                                            :blob-store-dir "/tmp"}
+                     #'reader/frontend-db nil
+                     #'store/backend-db nil
+                     #'repl/nrepl-server nil})
   (doseq [{:keys [src fake-fetch fake-http-get n-items]} basic-tests]
     (testing (str src)
       (with-redefs [http/fetch fake-fetch
