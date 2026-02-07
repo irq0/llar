@@ -53,7 +53,7 @@
   (set-parameter [m ^java.sql.PreparedStatement stmt ^long i]
     (let [json-str (json/generate-string m)
           obj (doto (org.postgresql.util.PGobject.)
-                (.setType "hstore")
+                (.setType "jsonb")
                 (.setValue json-str))]
       (.setObject stmt i obj))))
 
