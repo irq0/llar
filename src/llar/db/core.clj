@@ -113,17 +113,7 @@
 
   ;; Make PostgresqlDataStore work as a connectable for next.jdbc
   p/Sourceable
-  (get-datasource [this] datasource))
+  (get-datasource [_] datasource))
 
 (defn make-postgresql-pooled-datastore [config]
   (->PostgresqlDataStore (hikari/make-datasource config)))
-
-(defn make-postgresql-datastore [dbspec]
-  (map->PostgresqlDataStore dbspec))
-
-(defn make-postgresql-dbspec [config]
-  {:dbtype (:adapter config)
-   :dbname (:database-name config)
-   :host (:server-name config)
-   :user (:username config)
-   :password (:password config)})
