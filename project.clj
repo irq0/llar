@@ -116,7 +116,7 @@
                  ;; database
                  [com.layerware/hugsql-core "0.5.3"]
                  [com.layerware/hugsql-adapter-next-jdbc "0.5.3"]
-                 [com.github.seancorfield/next.jdbc "1.2.659"]
+                 [com.github.seancorfield/next.jdbc "1.3.1093"]
 
                  [hikari-cp "4.0.0" :exclusions [org.slf4j/slf4j-api]]
                  [org.postgresql/postgresql "42.7.9"]
