@@ -2,15 +2,25 @@
   (:import [org.apache.tika Tika]
            [org.apache.tika.mime MimeTypes MediaType]))
 
-(def ^Tika tika (Tika.))
-(def ^MimeTypes mime-types (MimeTypes/getDefaultMimeTypes))
+(def tika-instance (atom nil))
+(def mime-types-instance (atom nil))
+
+(defn get-tika []
+  (when-not @tika-instance
+    (reset! tika-instance (Tika.)))
+  @tika-instance)
+
+(defn get-mime-types []
+  (when-not @mime-types-instance
+    (reset! mime-types-instance (MimeTypes/getDefaultMimeTypes)))
+  @mime-types-instance)
 
 (defn detect-mime-type [obj]
-  (.detect tika obj))
+  (.detect (get-tika) obj))
 
 (defn mime-extension [mime-str]
   (->> mime-str
-       (.forName mime-types)
+       (.forName (get-mime-types))
        .getExtension))
 
 (defn text-mime-type? [mime]
