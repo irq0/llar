@@ -113,12 +113,8 @@
         (System/exit 0))
 
       (not (:dry options))
-      (doseq [[key db-config] (:postgresql appconfig/appconfig)
-              :let [db-spec (db/make-postgresql-dbspec db-config)
-                    store (db/make-postgresql-datastore db-spec)]]
-        (log/info "smoke testing database: "
-                  key
-                  (vec (persistency/get-table-row-counts store)))))
+      (log/info "smoke testing database: backend"
+                (vec (persistency/get-table-row-counts store/backend-db))))
 
     (let [config {:store :database
                   :db store/backend-db
