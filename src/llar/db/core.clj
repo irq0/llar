@@ -42,13 +42,6 @@
     (.setTimestamp stmt i (java.sql.Timestamp/from (time/instant zdt)))))
 
 (extend-protocol prepare/SettableParameter
-  clojure.lang.IPersistentVector
-  (set-parameter [v ^java.sql.PreparedStatement stmt ^long i]
-    (let [conn (.getConnection stmt)
-          arr (.createArrayOf conn "text" (to-array v))]
-      (.setArray stmt i arr))))
-
-(extend-protocol prepare/SettableParameter
   clojure.lang.IPersistentMap
   (set-parameter [m ^java.sql.PreparedStatement stmt ^long i]
     (let [json-str (json/generate-string m)
@@ -56,6 +49,18 @@
                 (.setType "jsonb")
                 (.setValue json-str))]
       (.setObject stmt i obj))))
+
+(extend-protocol prepare/SettableParameter
+  clojure.lang.IPersistentVector
+  (set-parameter [v ^java.sql.PreparedStatement stmt ^long i]
+    (let [conn (.getConnection stmt)
+          ;; Infer array type from first element, default to text
+          array-type (cond
+                       (empty? v) "text"
+                       (integer? (first v)) "int4"
+                       :else "text")
+          arr (.createArrayOf conn array-type (to-array v))]
+      (.setArray stmt i arr))))
 
 (add-encoder Uri encode-str)
 
