@@ -1,0 +1,36 @@
+#kaocha/v1
+{:tests
+ [{:id :unit
+   :test-paths ["test"]
+   :ns-patterns ["^llar\\.(?!db\\.).*-test$"]
+   :reporter [kaocha.report/documentation]}
+
+  {:id :integration
+   :test-paths ["test"]
+   :ns-patterns ["^llar\\.db\\..*-test$"]
+   :kaocha.plugin.randomize/randomize? false
+   :kaocha.plugin.profiling/profiling? true
+   :reporter [kaocha.report/documentation]}]
+
+ :plugins [:kaocha.plugin/randomize
+           :kaocha.plugin/filter
+           :kaocha.plugin/capture-output
+           :kaocha.plugin/profiling
+           :kaocha.plugin.alpha/spec-test-check
+           :kaocha.plugin/junit-xml]
+
+ ;; Cloverage disabled by default - enable with --plugin kaocha.plugin/cloverage
+ ;; :kaocha.plugin/cloverage
+
+ :kaocha.plugin.junit-xml/target-file "target/junit.xml"
+ :kaocha.plugin.cloverage/opts {:output "target/coverage"
+                                 :codecov? true
+                                 :html? true
+                                 :emma-xml? false
+                                 :text? true
+                                 :summary? true}
+
+ :color? true
+ :fail-fast? false
+ :randomize? true
+ :watch? false}

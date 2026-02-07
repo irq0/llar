@@ -14,7 +14,8 @@
 
   :aot :all
   :main llar.core
-  :plugins [[lein-cljfmt "0.6.8"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]]
+  :plugins [[lein-cljfmt "0.6.8"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]
+            [lambdaisland/kaocha "1.91.1392"]]
   :license {:name "AGPL-3.0-or-later"
             :url "https://www.gnu.org/licenses/agpl-3.0.en.html"
             :distribution :repo}
@@ -139,4 +140,10 @@
                  [org.apache.tika/tika-parsers-standard-package "3.2.3" :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
                  [org.apache.tika/tika-langdetect-optimaize "3.2.3"]
                  [org.apache.tika/tika-core "3.2.3" :exclusions [commons-io]]
-                 [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]])
+                 [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
+
+                 ;; testing
+                 [clj-test-containers "0.7.4"]
+                 [org.testcontainers/postgresql "1.19.7"]
+                 [lambdaisland/kaocha-cloverage "1.1.89"]
+                 [lambdaisland/kaocha-junit-xml "1.17.101"]])
