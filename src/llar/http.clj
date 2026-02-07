@@ -522,9 +522,8 @@
         headers (cond-> {:user-agent (resolve-user-agent user-agent)}
                   (:etag conditionals) (assoc :if-none-match (:etag conditionals))
                   (:last-modified conditionals) (assoc :if-modified-since (:last-modified conditionals)))
-        base-url (get-base-url-with-path url)]
-    {:url url :base-url base-url}
-    (let [response (with-http-exception-handler {:headers headers :url url}
+        base-url (get-base-url-with-path url)
+        response (with-http-exception-handler {:headers headers :url url}
                      (http/get (str url)
                                {:headers headers
                                 :decode-cookies false
@@ -534,7 +533,6 @@
                           (some? (:body response)))
                  (if sanitize? (raw-sanitize (:body response))
                      (:body response)))
-
           parsed-html (when (some? html) (cond-> (-> html
                                                      hick/parse hick/as-hickory)
                                            absolutify-urls? (absolutify-links-in-hick base-url)
@@ -552,4 +550,4 @@
          :conditional-tokens (select-keys (:headers response) [:etag :last-modified])
          :summary {:ts (extract-http-timestamp response)
                    :title (extract-http-title parsed-html)}
-         :hickory parsed-html}))))
+         :hickory parsed-html})))
