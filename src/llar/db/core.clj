@@ -6,6 +6,8 @@
    [digest]
    [hikari-cp.core :as hikari]
    [java-time.api :as time]
+   [clojure.tools.logging :as log]
+   [next.jdbc :as jdbc]
    [next.jdbc.prepare :as prepare]
    [next.jdbc.protocols :as p]
    [next.jdbc.result-set :as rs])
@@ -122,3 +124,9 @@
 
 (defn make-postgresql-pooled-datastore [config]
   (->PostgresqlDataStore (hikari/make-datasource config)))
+
+(defn make-postgresql-ds-for-testing [config]
+  (->PostgresqlDataStore
+   (jdbc/with-logging
+     (hikari/make-datasource config)
+     (fn [x y] (log/info x y)))))
