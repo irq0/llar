@@ -27,14 +27,6 @@
                   :wait-for {:wait-strategy :port}})
       (tc/start!)))
 
-(defn get-jdbc-url
-  "Extracts JDBC URL from a running testcontainer."
-  [container]
-  (let [host (:host container)
-        port (get (:mapped-ports container) 5432)]
-    (format "jdbc:postgresql://%s:%s/llar_test?user=postgres&password=test"
-            host port)))
-
 (defn get-db-config
   "Gets database configuration map for testcontainer."
   [container]
@@ -57,7 +49,7 @@
 (defn create-test-datastore
   "Creates a PostgresqlDataStore instance connected to the test container."
   [container]
-  (db/make-postgresql-pooled-datastore (get-db-config container)))
+  (db/make-postgresql-ds-for-testing (get-db-config container)))
 
 (defn get-migratus-config
   "Gets Migratus configuration for test database."
