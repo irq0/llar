@@ -17,7 +17,7 @@ jobs:
         fetch-tags: true
         filter: tree:0
     - name: Install packages
-      run: sudo apt install -y leiningen
+      run: sudo apt update && sudo apt install -y default-jre-headless leiningen
     - name: Install dependencies
       run: lein deps
     - name: Run tests with coverage
