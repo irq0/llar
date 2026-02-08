@@ -15,7 +15,6 @@
    [llar.config :as config]
    [llar.converter]
    [llar.human :as human]
-   [llar.live :as live]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
    [llar.update :as update])
@@ -62,9 +61,6 @@
   (cond
     (contains? @update/state k)
     (get @update/state k)
-
-    (contains? (:sources live/live) k)
-    @(get-in (:sources live/live) [:hn-show :state])
 
     :else
     nil))
