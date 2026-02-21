@@ -14,7 +14,6 @@ const metascraper = require('metascraper')([
   require('metascraper-video')(),
   require('metascraper-media-provider')(),
   require('metascraper-logo')(),
-  require('metascraper-clearbit')(),
   require('metascraper-publisher')(),
   require('metascraper-title')(),
   require('metascraper-url')(),
