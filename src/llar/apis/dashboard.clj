@@ -7,7 +7,7 @@
    [hiccup.core :refer [html]]
    [hiccup.page :refer [html5]]
    [iapetos.export :as prometheus-export]
-   [java-time :as time]
+   [java-time.api :as time]
    [mount.core :as mount]
    [puget.printer :as puget]
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]

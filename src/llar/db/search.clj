@@ -1,7 +1,7 @@
 (ns llar.db.search
   (:require
    [digest]
-   [java-time :as time]
+   [java-time.api :as time]
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.persistency :refer [DataStoreSearch]]
