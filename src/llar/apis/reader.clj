@@ -164,12 +164,16 @@
 
 (defn reading-time-estimate [item]
   (let [words-per-min 200
-        {:keys [nwords]} item
-        index 51 ;; use something like SMOL..
+        {:keys [nwords top-words]} item
+        top-word-strings (map first (get top-words "words" []))
+        avg-word-len (if (seq top-word-strings)
+                       (/ (reduce + (map count top-word-strings))
+                          (count top-word-strings))
+                       5.0)
         level (cond
-                (>= index 70) :easy
-                (> 70 index 50) :medium
-                (>= 50 index) :hard)
+                (< avg-word-len 4.5) :easy
+                (< avg-word-len 6.0) :medium
+                :else :hard)
         factor (case level
                  :easy 1
                  :medium 1.5
