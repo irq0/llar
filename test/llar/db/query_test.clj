@@ -133,10 +133,10 @@
 (deftest test-get-items-by-tag
   (testing "Get all items with a specific tag"
     (create-test-tag *test-db* :wubly)
-    (create-test-tag *test-db* :dubly)
+    (create-test-tag *test-db* :doubly)
     (create-test-item *test-db* :src-name "tag-test" :hash "important-1" :title "Important 1" :tags #{:wubly})
     (create-test-item *test-db* :src-name "tag-test" :hash "important-2" :title "Important 2" :tags #{:wubly})
-    (create-test-item *test-db* :src-name "tag-test" :hash "not-important" :title "Not Important" :tags #{:dubly})
+    (create-test-item *test-db* :src-name "tag-test" :hash "not-important" :title "Not Important" :tags #{:doubly})
 
     ;; Query by tag
     (let [results (persistency/get-items-by-tag *test-db* :wubly)]

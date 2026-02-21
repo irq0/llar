@@ -136,7 +136,7 @@
             {:format :ttml
              :subtitles (slurp filename)}
             (throw+ {:type ::av-download-error
-                     :detail "cant find destination in output"
+                     :detail "cannot find destination in output"
                      :tmp-dir dir
                      :out out
                      :err err

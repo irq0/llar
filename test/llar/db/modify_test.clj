@@ -127,7 +127,7 @@
           ids (persistency/item-set-tags! *test-db* item-id [:pinned :archived])]
       (tap> ids)
         (is (= 3 (count ids)) "Should have 3 tags")
-        (is (every? integer? ids) "Retuns tag ids")
+        (is (every? integer? ids) "Returns tag ids")
 
         ;; Verify tags in database
         (let [stored-item (first (jdbc/execute! *test-db*
