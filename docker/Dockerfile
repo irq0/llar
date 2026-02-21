@@ -66,6 +66,8 @@ RUN groupadd -g 42000 llar && \
 
 RUN cd /llar && npm install && chown -R 0:0 /llar
 
+RUN mkdir -p /llar/wekafiles && chown llar:llar /llar/wekafiles
+
 USER llar:llar
 WORKDIR /llar
 EXPOSE 8023
