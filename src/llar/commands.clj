@@ -1,22 +1,14 @@
 (ns llar.commands
   (:require
-   [clojure.edn :as edn]
    [clojure.java.shell :as shell]
    [clojure.string :as string]
-   [clojure.xml :as xml]
    [clojure.tools.logging :as log]
    [cheshire.core :as cheshire]
-   [hickory.select :as hick-s]
-   [java-time.api :as time]
-   [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.slingshot :refer [try+ throw+]]
-   [puget.printer :as puget]
-   [llar.appconfig :as appcfg :refer [appconfig postgresql-config]]
-   [nio2.core :as nio2]
-   [llar.contentdetect :as contentdetect])
+   [llar.appconfig :as appcfg :refer [appconfig]]
+   [nio2.core :as nio2])
   (:import
-   [java.util.concurrent Semaphore Executors TimeUnit]
-   [org.bovinegenius.exploding_fish Uri]))
+   [java.util.concurrent Semaphore]))
 
 ;; Wrapper for all external commands we run
 
@@ -58,7 +50,7 @@
                    :out out
                    :err err
                    :cmd cmd})
-          :default
+          :else
           ret)))
 
 (defmacro with-retry [attempts ex-match & body]

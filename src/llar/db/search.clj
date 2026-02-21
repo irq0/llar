@@ -5,8 +5,7 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.persistency :refer [DataStoreSearch]]
-   [next.jdbc :as jdbc]
-   [next.jdbc.result-set :as rs])
+   [next.jdbc :as jdbc])
   (:import
    (llar.db.core PostgresqlDataStore)))
 

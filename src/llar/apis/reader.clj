@@ -224,7 +224,7 @@
    [:script {:src "/static/llar.js"}]])
 
 (defn tag-button [id {:keys [tag is-set? icon-set icon-unset]}]
-  [:a {:class (str "btn ajax-toggle " (str "btn-tag-" (name tag)))
+  [:a {:class (str "btn ajax-toggle " "btn-tag-" (name tag))
        :title (str "Toggle tag " (name tag))
        :data-id id
        :data-icon-set icon-set
@@ -507,7 +507,7 @@
         pill [:span {:class "badge bg-light text-dark float-right"}
               (when (pos? nitems) nitems)]]
 
-    [:li {:class (str "nav-item")}
+    [:li {:class "nav-item"}
      [:a {:class (str
                   (if grey-out? "nav-link nav-link-secondary" "nav-link")
                   (when (= key active-key) " active "))
@@ -580,7 +580,7 @@
     "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]])
 
 (defn video-content? [item]
-  (let [{:keys [entry url]} item
+  (let [{:keys [_entry url]} item
         youtube-url (parse-youtube-url url)]
     (some? youtube-url)))
 
@@ -724,7 +724,7 @@
             (render-special-item-content item #{})
             [:p {:style "white-space: pre-line"} (get-html-content item :description "text/plain")]]
 
-           :default
+           :else
            (if-let [content (get-html-content item selected-data selected-content-type)]
              content
              (render-special-item-content item #{})))]]]]]))
@@ -1439,19 +1439,18 @@
                                              (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
                                              "not yet")
                                            (count clusters))]
-     (for [[{:keys [id words]} items] clusters]
+     (for [[{:keys [_id words]} items] clusters]
        [:div
         [:h2
          [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
           [:ol {:class "breadcrumb"}
            (for [word words] [:li {:class "breadcrumb-item"} word])]]]
 
-        (for [{:keys [id title source-key author ts tags nwords names entry url]
-               :as item} (sort-by :ts items)
-              :let [reading-estimate (reading-time-estimate item)]]
+        (for [{:keys [id title source-key author ts tags nwords _names entry url]
+               :as item} (sort-by :ts items)]
 
           [:div {:id (str "item-" id)
-                 :class (str "feed-item")}
+                 :class "feed-item"}
            [:h4 {:class "h4"}
             [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
              (if (string/blank? title)
@@ -1485,7 +1484,7 @@
                (icon "far fa-user") author])]
            [:div {:class "clearfix"}
 
-            (when-let [image-url (and (or (:thumbnail entry) (:lead-image-url entry)))]
+            (when-let [image-url (or (:thumbnail entry) (:lead-image-url entry))]
               (when (not (or (string/blank? image-url)
                              (= image-url "self")
                              (= image-url "default")))

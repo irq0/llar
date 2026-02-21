@@ -4,8 +4,7 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.converter :as conv]
-   [digest]
-   [next.jdbc.result-set :as rs])
+   [digest])
   (:import (llar.db.core PostgresqlDataStore)))
 
 (defn- process-items-row

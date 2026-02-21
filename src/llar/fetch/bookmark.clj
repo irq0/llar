@@ -1,7 +1,5 @@
 (ns llar.fetch.bookmark
   (:require
-   [hiccup.core :refer [html]]
-   [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
    [llar.fetch :refer [make-item-hash]]
    [llar.item]
@@ -22,7 +20,7 @@
                         (-> item
                             (assoc-in [:meta :source-key]
                                       (if (some? site)
-                                        (keyword (str "bookmark-" (str site)))
+                                        (keyword (str "bookmark-" site))
                                         :bookmark))
                             (assoc :hash (make-item-hash (str url)))
                             (assoc-in [:meta :source-name]

@@ -3,6 +3,7 @@
            llar.sched/defsched clojure.core/def
            llar.sched/defsched-feed-by-filter clojure.core/def
            opennlp.tools.filters/pos-filter clojure.core/def}
+ :hooks {:analyze-call {llar.commands/with-temp-dir hooks.with-temp-dir/with-temp-dir}}
  :linters {:unresolved-symbol {:exclude [thrown+? (llar.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])
                                          (llar.sched/defsched-feed-by-filter [$TAGS $SRC $KEY])]}
            :unresolved-var {:exclude [digest opennlp.tools.filters/nouns twitter.api.restful/search-tweets]}}}

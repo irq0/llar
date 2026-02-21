@@ -6,7 +6,6 @@
    [llar.commands :refer [html2text] :as commands]
    [llar.regex :as regex-collection]
    [slingshot.slingshot :refer [throw+ try+]]
-   [cheshire.core :as cheshire]
    [clj-http.client :as http]
    [clojure.spec.alpha :as s]
    [clojure.set :as clojure-set]

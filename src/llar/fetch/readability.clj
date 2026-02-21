@@ -6,14 +6,12 @@
    [llar.analysis :as analysis]
    [llar.http :as http]
    [clojure.string :as string]
-   [slingshot.slingshot :refer [try+]]
    [org.bovinegenius [exploding-fish :as uri]]
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [digest]
    [llar.item]
    [java-time.api :as time]
-   [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]))
 
 (defrecord ReadabilityItem
@@ -110,4 +108,4 @@
          :authors [(or (:byline data) (:author metadata) (:siteName data) (:publisher metadata))]
          :descriptions {"text/plain" (or (:excerpt data) (:description metadata))}
          :contents {"text/html" (:body fetch)
-                    "text/plain" (or (:textContent data))}})])))
+                    "text/plain" (:textContent data)}})])))

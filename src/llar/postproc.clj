@@ -60,8 +60,6 @@
 (defn all-items-process-first [item _ state]
   (log/trace "all items processor (first)" (str item))
   (let [url (get-in item [:entry :url])
-        transscript (when (video-url? url)
-                      (subtitle-fetch url))
         item (-> item
                  (update-in [:meta :tags] conj :unread)
                  (assoc-in [:meta :source-key] (:key state)))]

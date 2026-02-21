@@ -1,7 +1,6 @@
 (ns llar.converter
   (:require
    [clojure.edn :as edn]
-   [clojure.java.shell :as shell]
    [clojure.string :as string]
    [clojure.xml :as xml]
    [hickory.select :as hick-s]
@@ -9,7 +8,6 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [slingshot.slingshot :refer [throw+]]
    [puget.printer :as puget]
-   [llar.appconfig :as appconfig]
    [llar.contentdetect :as contentdetect])
   (:import
    [org.bovinegenius.exploding_fish Uri]))

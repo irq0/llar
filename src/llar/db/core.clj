@@ -74,7 +74,7 @@
 ;; Read: PostgreSQL → Clojure
 (extend-protocol rs/ReadableColumn
   String
-  (read-column-by-label [val label]
+  (read-column-by-label [val _label]
     val)
   (read-column-by-index [val rsmeta idx]
     (let [type (.getColumnTypeName rsmeta idx)]
@@ -83,13 +83,13 @@
         val)))
 
   org.postgresql.jdbc.PgArray
-  (read-column-by-label [val label]
+  (read-column-by-label [val _label]
     (vec (.getArray val)))
-  (read-column-by-index [val rsmeta idx]
+  (read-column-by-index [val _rsmeta _idx]
     (vec (.getArray val)))
 
   org.postgresql.util.PGobject
-  (read-column-by-label [val label]
+  (read-column-by-label [val _label]
     (let [type (.getType val)
           value (.getValue val)]
       (case type
@@ -97,7 +97,7 @@
         "json" (json/parse-string value true)
         "hstore" (json/parse-string value true)
         val)))
-  (read-column-by-index [val rsmeta idx]
+  (read-column-by-index [val _rsmeta _idx]
     (let [type (.getType val)
           value (.getValue val)]
       (case type
@@ -107,9 +107,9 @@
         val)))
 
   java.sql.Timestamp
-  (read-column-by-label [val label]
+  (read-column-by-label [val _label]
     (-> val (time/zoned-date-time "UTC")))
-  (read-column-by-index [val rsmeta idx]
+  (read-column-by-index [val _rsmeta _idx]
     (-> val (time/zoned-date-time "UTC"))))
 
 (defrecord PostgresqlDataStore

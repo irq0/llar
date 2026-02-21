@@ -3,7 +3,6 @@
    [llar.http :as http]
    [llar.fetch :refer [FetchSource item-to-string make-meta make-item-hash]]
    [llar.postproc :refer [ItemProcessor]]
-   [llar.converter :as conv]
    [llar.commands :refer [html2text]]
    [llar.analysis :as analysis]
    [llar.persistency :refer [CouchItem]]

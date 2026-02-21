@@ -11,7 +11,7 @@
   (if (<= (count s) len) s (str (subs s 0 (- len 1)) +ellipsis+)))
 
 (defn truncate [s len]
-  (if (<= (count s) len) s (str (subs s 0 len))))
+  (if (<= (count s) len) s (subs s 0 len)))
 
 (defn datetime-ago [ts]
   (let [raw-duration (time/duration ts (time/zoned-date-time))
@@ -32,7 +32,7 @@
       "<1h"
       (< (.toDays duration) 2)
       (subs (string/lower-case (java.time.Duration/ofHours (.toHours duration))) 2)
-      :default
+      :else
       (subs (string/lower-case (str period)) 1))))
 
 (defn host-identifier [url]

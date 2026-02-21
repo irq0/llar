@@ -13,7 +13,7 @@
    [llar.webapp :as webapp]
    [llar.update :as update]
    [llar.persistency :as persistency]
-   [llar.db.core :as db]
+   [llar.db.core]
    [llar.db.query]
    [llar.db.modify]
    [llar.db.search]
