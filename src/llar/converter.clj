@@ -91,7 +91,7 @@
                   (.setFeature
                    "http://apache.org/xml/features/nonvalidating/load-external-dtd" false))
         parser (.newSAXParser factory)
-        reader (.getXMLReader parser)
+        ^org.xml.sax.XMLReader reader (.getXMLReader parser)
         source (doto (org.xml.sax.InputSource. s) (.setEncoding "UTF-8"))]
     (.setErrorHandler reader (ompl-parser-error-handler))
     (.setContentHandler reader ch)
