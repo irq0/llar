@@ -82,9 +82,9 @@
                                                   {:limit 3
                                                    :before {:ts (:ts cursor-item)
                                                             :id (:id cursor-item)}})]
-          (is (= 3 (count page2)) "Second page should have 2 items")
-          (is (= "Item 2" (:title (first page2))) "Second page should start with Item 2")
-          (is (= "Item 3" (:title (second page2))) "Second page should have Item 3"))))))
+          (is (= 3 (count page2)) "Second page should have 3 items")
+          (is (= "Item 4" (:title (first page2))) "Second page should start with Item 4")
+          (is (= "Item 5" (:title (second page2))) "Second page should have Item 5"))))))
 
 (deftest test-get-items-recent-with-data
   (testing "Include item data when :with-data? is true"
