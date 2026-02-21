@@ -63,11 +63,15 @@ repos:
         args: ["--fix"]
         additional_dependencies: ['stylelint@16.0.2', 'stylelint-config-standard@35.0.0']
 
-  - repo: https://github.com/allie-jo/cljfmt-docker
-    rev: e13ac6a58c81f63f707da65308047cdfb4cb81b4  # frozen: v0.9.1
+  - repo: local
     hooks:
-     - id: cljfmt-docker
-
+      - id: cljfmt
+        name: cljfmt
+        language: system
+        entry: lein cljfmt check
+        pass_filenames: false
+        types: [clojure]
+        exclude: '(^|/)\.#'
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
     rev: 7d6fb8d82a9bdc6c555912653037b1508cb0cb37  # frozen: v9.6.0
