@@ -68,7 +68,7 @@ repos:
       - id: cljfmt
         name: cljfmt
         language: system
-        entry: lein cljfmt check
+        entry: cljfmt check
         pass_filenames: false
         types: [clojure]
         exclude: '(^|/)\.#'
