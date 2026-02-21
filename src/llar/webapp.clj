@@ -11,7 +11,7 @@
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
    [clojure.string :as string]
-   [hiccup.core :refer [html]]
+   [hiccup2.core :refer [html]]
    [iapetos.collector.ring :refer [wrap-instrumentation]]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
@@ -19,32 +19,32 @@
   (let [th (stacktrace/parse-exception ex)]
     {:status 500
 
-     :body (html
-            [:head
-             [:meta {:charset "utf-8"}]
-             [:title "500 Internal Server Error"]
-             [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
-             [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
-             [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
-             [:link {:rel "stylesheet" :href "/static/css/my.css"}]]
-            [:body
-             [:h1 "😭"]
-             [:h2 "Internal Server Error"]
-             [:h4 "Request"]
-             (dashboard/pprint-html request)
-             [:h4 "Version"]
-             [:pre (str "llar " (get appconfig :version))]
-             [:h4 "Exception"]
-             [:p "Message: " [:pre (ex-message ex)]]
-             [:p "Cause: " [:pre (ex-cause ex)]]
-             [:p "Exception Class: " [:pre (class ex)]]
-             [:p "Data: " (dashboard/pprint-html (ex-data ex))]
-             [:h4 "Exception Chain"]
-             [:pre (get-in ex [:object :message])]
-             [:ol
-              (for [s (:trace-elems th)
-                    :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-                [:li [:pre formatted]])]])}))
+     :body (str (html
+                 [:head
+                  [:meta {:charset "utf-8"}]
+                  [:title "500 Internal Server Error"]
+                  [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
+                  [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
+                  [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
+                  [:link {:rel "stylesheet" :href "/static/css/my.css"}]]
+                 [:body
+                  [:h1 "😭"]
+                  [:h2 "Internal Server Error"]
+                  [:h4 "Request"]
+                  (dashboard/pprint-html request)
+                  [:h4 "Version"]
+                  [:pre (str "llar " (get appconfig :version))]
+                  [:h4 "Exception"]
+                  [:p "Message: " [:pre (ex-message ex)]]
+                  [:p "Cause: " [:pre (ex-cause ex)]]
+                  [:p "Exception Class: " [:pre (class ex)]]
+                  [:p "Data: " (dashboard/pprint-html (ex-data ex))]
+                  [:h4 "Exception Chain"]
+                  [:pre (get-in ex [:object :message])]
+                  [:ol
+                   (for [s (:trace-elems th)
+                         :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                     [:li [:pre formatted]])]]))}))
 
 (defn wrap-exception [handler]
   (fn [request]

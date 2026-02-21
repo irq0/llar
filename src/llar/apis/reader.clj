@@ -8,7 +8,7 @@
    [compojure.core :refer [context GET POST routes]]
    [compojure.route :as route]
    [hiccup.page :refer [html5]]
-   [hiccup.core :refer [html]]
+   [hiccup2.core :refer [html]]
    [java-time.api :as time]
    [iapetos.core :as prometheus]
    [org.bovinegenius [exploding-fish :as uri]]

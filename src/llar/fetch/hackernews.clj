@@ -12,7 +12,7 @@
    [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]
    [digest]
-   [hiccup.core :refer [html]]
+   [hiccup2.core :refer [html]]
    [clj-http.client :as http]
    [java-time.api :as time]
    [clojure.string :as string]

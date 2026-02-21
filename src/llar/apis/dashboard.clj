@@ -4,7 +4,7 @@
    [clj-stacktrace.repl :as stacktrace-repl]
    [compojure.core :refer [GET POST routes context]]
    [compojure.route :as route]
-   [hiccup.core :refer [html]]
+   [hiccup2.core :refer [html]]
    [hiccup.page :refer [html5]]
    [iapetos.export :as prometheus-export]
    [java-time.api :as time]
@@ -128,26 +128,26 @@
   (let [k (keyword src-k)
         source (config/get-source k)
         state (get-state k)]
-    (html
-     [:div
-      [:h5 "Source Configuration"]
-      (pprint-html source)
-      [:h5 "State Structure"]
-      (pprint-html state)]
-     (when-let [th (some-> (get-in state [:last-exception :throwable])
-                           stacktrace/parse-exception)]
-       [:div
-        [:h5 "Exception Details"]
-        [:ul
-         [:li "Exception Class: " [:pre (class (get-in state [:last-exception :throwable]))]]
-         [:li "Message: " [:pre (get-in state [:last-exception :message])]]
-         [:li "Cause: " [:pre (get-in state [:last-exception :cause])]]
-         [:li "Data: " (pprint-html (get-in state [:last-exception :data]))]]
-        [:h6 "Stack Trace"]
-        [:ol
-         (for [s (:trace-elems th)
-               :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-           [:li [:pre formatted]])]]))))
+    (str (html
+          [:div
+           [:h5 "Source Configuration"]
+           (pprint-html source)
+           [:h5 "State Structure"]
+           (pprint-html state)]
+          (when-let [th (some-> (get-in state [:last-exception :throwable])
+                                stacktrace/parse-exception)]
+            [:div
+             [:h5 "Exception Details"]
+             [:ul
+              [:li "Exception Class: " [:pre (class (get-in state [:last-exception :throwable]))]]
+              [:li "Message: " [:pre (get-in state [:last-exception :message])]]
+              [:li "Cause: " [:pre (get-in state [:last-exception :cause])]]
+              [:li "Data: " (pprint-html (get-in state [:last-exception :data]))]]
+             [:h6 "Stack Trace"]
+             [:ol
+              (for [s (:trace-elems th)
+                    :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                [:li [:pre formatted]])]])))))
 
 (defn list-to-table [header data]
   [:table {:class "datatable table"}

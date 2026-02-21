@@ -9,7 +9,7 @@
    [llar.http :as llar-http :refer [with-http-exception-handler]]
    [clojure.spec.alpha :as s]
    [digest]
-   [hiccup.core :refer [html]]
+   [hiccup2.core :refer [html]]
    [clj-http.client :as http]
    [java-time.api :as time]
    [clojure.tools.logging :as log]
