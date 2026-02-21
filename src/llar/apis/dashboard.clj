@@ -249,10 +249,7 @@
                                             (for [s (stacktrace/parse-trace-elems stack)
                                                   :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
                                               [:li [:pre formatted]])])
-                    :class
-                    (cond
-                      false "table-info"
-                      :else "")}
+                    :class ""}
                [:td {:class "details-control"}]
                [:td {:class "col-xs-1"} group]
                [:th {:class "col-xs-1"} name]

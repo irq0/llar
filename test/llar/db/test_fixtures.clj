@@ -10,7 +10,8 @@
    [java-time.api :as time]
    [llar.db.core :as db]
    [migratus.core :as migratus]
-   [next.jdbc :as jdbc]))
+   [next.jdbc :as jdbc]
+   [next.jdbc.result-set]))
 
 (def ^:dynamic *test-container* nil)
 (def ^:dynamic *test-db* nil)

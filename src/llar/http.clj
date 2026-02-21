@@ -137,7 +137,7 @@
     raw-base-url]
    {:pre [(s/valid? (s/or :string string? :url :irq0/url) raw-href)
           (s/valid? (s/or :none nil? :string string? :url :irq0/url) raw-base-url)]
-    :post (s/valid? :irq0/absolute-url %)}
+    :post [(s/valid? :irq0/absolute-url %)]}
    (let [url (parse-href raw-href)
          scheme (uri/scheme url)]
      (cond
@@ -192,7 +192,7 @@
 (defn get-base-url
   [url]
   {:pre [(s/valid? :irq0/url url)]
-   :post (s/valid? :irq0/absolute-url %)}
+   :post [(s/valid? :irq0/absolute-url %)]}
   (-> url
       (uri/query nil)
       (uri/fragment nil)
@@ -202,7 +202,7 @@
 (defn get-base-url-with-path
   [url]
   {:pre [(s/valid? :irq0/url url)]
-   :post (s/valid? :irq0/absolute-url %)}
+   :post [(s/valid? :irq0/absolute-url %)]}
   (-> url
       (uri/query nil)
       (uri/fragment nil)
