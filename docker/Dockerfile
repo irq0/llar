@@ -24,19 +24,21 @@ RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sour
   openjdk-25-jdk-headless \
   leiningen \
   wget \
-  npm \
-  nodejs \
   git \
   diction \
   exiftool \
   locales \
   build-essential \
-  software-properties-common \
-  && rm -rf /var/lib/apt/lists/*
+  software-properties-common
+
+RUN wget -qO- https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs
 
 RUN add-apt-repository ppa:tomtomtom/yt-dlp && \
   apt-get update && apt-get -y --no-install-recommends install \
   yt-dlp
+
+RUN rm -rf /var/lib/apt/lists/*
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
