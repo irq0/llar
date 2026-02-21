@@ -38,6 +38,8 @@ RUN add-apt-repository ppa:tomtomtom/yt-dlp && \
   apt-get update && apt-get -y --no-install-recommends install \
   yt-dlp
 
+RUN echo '--js-runtimes nodejs' > /etc/yt-dlp.conf
+
 RUN rm -rf /var/lib/apt/lists/*
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
