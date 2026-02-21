@@ -18,6 +18,11 @@ jobs:
         filter: tree:0
     - name: Install packages
       run: sudo apt update && sudo apt install -y openjdk-25-jdk-headless leiningen
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 'lts/*'
+    - name: Install npm dependencies
+      run: npm install
     - name: Install dependencies
       run: lein deps
     - name: Run tests with coverage
