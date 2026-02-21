@@ -1,7 +1,7 @@
 ---
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # frozen: v5.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-yaml
@@ -41,12 +41,12 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: d7a4f7cf4914d3bffb9b83bdbc45fd2a00c91ff9  # frozen: v0.18.1
+    rev: 5387279b3b4c24822c0f86d4df4f28b37e3e8992  # frozen: v0.21.0
     hooks:
       - id: markdownlint-cli2
 
   - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: 2491238703a5d3415bb2b7ff11388bf775372f29  # frozen: v0.10.0
+    rev: 99470f5e12208ff0fb17ab81c3c494f7620a1d8d  # frozen: v0.11.0
     hooks:
       - id: shellcheck
 
@@ -68,13 +68,9 @@ repos:
     hooks:
      - id: cljfmt-docker
 
-  - repo: https://github.com/clj-kondo/clj-kondo
-    rev: e499ad8cc80da9d5909747167a24d417a4da2efe  # frozen: v2025.04.07
-    hooks:
-        - id: clj-kondo-docker
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: 0d05d07423b6c2b12a8eaa7d0862ff343c063d69  # frozen: v9.0.1
+    rev: 7d6fb8d82a9bdc6c555912653037b1508cb0cb37  # frozen: v9.6.0
     hooks:
     - id: cspell
       args:
