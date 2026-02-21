@@ -8,6 +8,19 @@ on:
         - 'wip/**'
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install clj-kondo
+      run: |
+        curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
+        chmod +x install-clj-kondo
+        ./install-clj-kondo --dir ~/.local/bin
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+    - name: Run clj-kondo
+      run: clj-kondo --lint src
+
   build:
     runs-on: ubuntu-latest
     steps:
