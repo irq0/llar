@@ -6,7 +6,7 @@
    [clojure.string :as string]
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-tag
-                                   create-test-item create-test-item-data]]
+                                  create-test-item create-test-item-data]]
    [llar.persistency :as persistency]))
 
 (use-fixtures :once with-test-db-fixture)
@@ -89,10 +89,10 @@
 (deftest test-get-items-recent-with-data
   (testing "Include item data when :with-data? is true"
     (let [id (:id (create-test-item *test-db*
-                      :src-name "data-test"
-                      :hash "data-item"
-                      :title "Item with data"
-                      :entry {:url "https://example.com"}))]
+                                    :src-name "data-test"
+                                    :hash "data-item"
+                                    :title "Item with data"
+                                    :entry {:url "https://example.com"}))]
       (tap> id)
       (create-test-item-data *test-db* :item-id id :text "foo"))
 
@@ -108,10 +108,10 @@
 (deftest test-get-item-by-id
   (testing "Retrieve single item by ID with data"
     (let [id (:id (create-test-item *test-db*
-                                   :src-name "id-test"
-                                   :hash "id-test"
-                                   :title "Test Item By ID"
-                                   :entry {:url "https://example.com"}))]
+                                    :src-name "id-test"
+                                    :hash "id-test"
+                                    :title "Test Item By ID"
+                                    :entry {:url "https://example.com"}))]
       (create-test-item-data *test-db* :item-id id :type :item-data-type/content :text "Plain content")
       (create-test-item-data *test-db* :item-id id :type :item-data-type/description :text "A description")
 

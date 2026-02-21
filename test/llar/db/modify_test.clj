@@ -4,7 +4,7 @@
    [clojure.test :refer [deftest is testing use-fixtures]]
    [java-time.api :as time]
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
-                                   create-test-item create-test-tag create-test-item-data]]
+                                  create-test-item create-test-tag create-test-item-data]]
    [llar.db.modify]  ; Load protocol implementations
    [llar.persistency :as persistency]
    [next.jdbc :as jdbc]))
@@ -126,14 +126,14 @@
     (let [item-id (:id (create-test-item *test-db* :hash "tag-test-item" :tags #{:unread}))
           ids (persistency/item-set-tags! *test-db* item-id [:pinned :archived])]
       (tap> ids)
-        (is (= 3 (count ids)) "Should have 3 tags")
-        (is (every? integer? ids) "Returns tag ids")
+      (is (= 3 (count ids)) "Should have 3 tags")
+      (is (every? integer? ids) "Returns tag ids")
 
         ;; Verify tags in database
-        (let [stored-item (first (jdbc/execute! *test-db*
-                                                ["SELECT * FROM items WHERE id = ?" item-id]
-                                                {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
-          (is (= 3 (count (:tagi stored-item))) "Should have 3 tag IDs")))))
+      (let [stored-item (first (jdbc/execute! *test-db*
+                                              ["SELECT * FROM items WHERE id = ?" item-id]
+                                              {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+        (is (= 3 (count (:tagi stored-item))) "Should have 3 tag IDs")))))
 
 (deftest test-item-remove-tags
   (testing "item-remove-tags! removes specific tags from item"
@@ -171,24 +171,24 @@
 
       ;; Get source key to pass to remove function
       (let [source-key (-> (jdbc/execute! *test-db*
-                                         ["SELECT key FROM sources WHERE name = ?" "test-old-source"]
-                                         {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})
-                          first
-                          :key
-                          keyword)]
+                                          ["SELECT key FROM sources WHERE name = ?" "test-old-source"]
+                                          {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})
+                           first
+                           :key
+                           keyword)]
 
           ;; Remove unread from old items
-          (persistency/remove-unread-for-items-of-source-older-then!
+        (persistency/remove-unread-for-items-of-source-older-then!
          *test-db* [source-key] cutoff-ts)
 
           ;; Check old item lost unread tag
-          (let [old-stored (first (jdbc/execute! *test-db*
-                                                 ["SELECT * FROM items WHERE id = ?" old-id]
-                                                 {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
-                new-stored (first (jdbc/execute! *test-db*
-                                                 ["SELECT * FROM items WHERE id = ?" new-id]
-                                                 {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
-            (is (empty? (:tagi old-stored)) "Old item should have no tags")
+        (let [old-stored (first (jdbc/execute! *test-db*
+                                               ["SELECT * FROM items WHERE id = ?" old-id]
+                                               {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
+              new-stored (first (jdbc/execute! *test-db*
+                                               ["SELECT * FROM items WHERE id = ?" new-id]
+                                               {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+          (is (empty? (:tagi old-stored)) "Old item should have no tags")
           (is (= 1 (count (:tagi new-stored))) "New item should still have unread tag"))))))
 
 (deftest test-transaction-rollback

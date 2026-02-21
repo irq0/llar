@@ -13,22 +13,22 @@
 (deftest test-keyword-enum-conversion
   (testing "Clojure keywords convert to PostgreSQL ENUMs and back"
     (let [source (create-test-source *test-db*
-                                      :key "enum-test"
-                                      :name "Enum Test"
-                                      :type :item-type/tweet)]
+                                     :key "enum-test"
+                                     :name "Enum Test"
+                                     :type :item-type/tweet)]
       (is (= :item-type/tweet (:type source))
           "Enum value should round-trip as keyword with namespace")))
 
   (testing "Different enum types"
     (let [link-source (create-test-source *test-db*
-                                           :key "link-source"
-                                           :type :item-type/link)
+                                          :key "link-source"
+                                          :type :item-type/link)
           feed-source (create-test-source *test-db*
-                                           :key "feed-source"
-                                           :type :item-type/feed)
+                                          :key "feed-source"
+                                          :type :item-type/feed)
           mail-source (create-test-source *test-db*
-                                           :key "mail-source"
-                                           :type :item-type/mail)]
+                                          :key "mail-source"
+                                          :type :item-type/mail)]
       (is (= :item-type/link (:type link-source)))
       (is (= :item-type/feed (:type feed-source)))
       (is (= :item-type/mail (:type mail-source))))))
@@ -40,15 +40,15 @@
                               :number 42}
                      :array [1 2 3]}
           source (create-test-source *test-db*
-                                      :key "jsonb-test"
-                                      :data test-data)]
+                                     :key "jsonb-test"
+                                     :data test-data)]
       (is (= test-data (:data source))
           "JSONB should round-trip with nested structures intact")))
 
   (testing "Empty map"
     (let [source (create-test-source *test-db*
-                                      :key "empty-map"
-                                      :data {})]
+                                     :key "empty-map"
+                                     :data {})]
       (is (= {} (:data source))
           "Empty map should round-trip correctly")))
 
@@ -61,8 +61,8 @@
                      :array ["a" "b" "c"]
                      :nested-map {:inner "value"}}
           source (create-test-source *test-db*
-                                      :key "complex-jsonb"
-                                      :data test-data)]
+                                     :key "complex-jsonb"
+                                     :data test-data)]
       (is (= test-data (:data source))
           "Complex JSONB structures should preserve all types"))))
 
@@ -160,8 +160,8 @@
 (deftest test-null-handling
   (testing "Null values in JSONB"
     (let [source (create-test-source *test-db*
-                                      :key "null-in-jsonb"
-                                      :data {:key nil})]
+                                     :key "null-in-jsonb"
+                                     :data {:key nil})]
       (is (= {:key nil} (:data source))
           "Null values in JSONB should be preserved")))
 

@@ -146,8 +146,8 @@
                         cluster (.clusterInstance clst instance)]
                     (-> item
                      ;; (select-keys item [:title :source-key :pub-ts :nwords])
-                     (assoc :cluster {:id cluster :words (get names cluster "?")})
-                     (assoc :id id)))))
+                        (assoc :cluster {:id cluster :words (get names cluster "?")})
+                        (assoc :id id)))))
            (group-by :cluster)))))
 
 (defn update-saved-clusters! []

@@ -86,7 +86,6 @@
 (defn dump-db [db]
   (log/info (jdbc/execute! db ["select * from items"])))
 
-
 (defn create-test-source
   "Creates a test source with minimal required fields.
   Returns the created source row."
@@ -129,25 +128,25 @@
   (when (seq tags)
     (sql/ensure-tags db {:tags (map (fn [kw] [(name kw)]) tags)}))
   (first (sql/store-item db {:source {:name (str "test-" src-name)
-                                     :data {}
-                                     :key (str "test-" src-name)
-                                     :type type}
+                                      :data {}
+                                      :key (str "test-" src-name)
+                                      :type type}
                              :hash (str "SHA-256:" (digest/sha-256 hash))
                              :ts ts
                              :title title
                              :author author
                              :type type
                              :entry entry
-                      :tags (into [] (map name tags))
+                             :tags (into [] (map name tags))
                              :nlp-nwords -1
                              :nlp-urls []
                              :nlp-names []
                              :nlp-nouns []
                              :nlp-verbs []
-                      :nlp-top {}
-                      :on-conflict (if overwrite?
-                                     (sql/conflict-items-overwrite-snip)
-                                     (sql/conflict-items-ignore-dupe-snip))})))
+                             :nlp-top {}
+                             :on-conflict (if overwrite?
+                                            (sql/conflict-items-overwrite-snip)
+                                            (sql/conflict-items-ignore-dupe-snip))})))
 
 (defn create-test-item-data
   "Creates item_data entry for an item.

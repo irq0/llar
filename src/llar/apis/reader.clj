@@ -998,7 +998,7 @@
        [:a {:class "btn"
             :title "Open Raw HTML content"
             :href (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
-                                                                         :content-type "text/html"} x)}
+                                                                            :content-type "text/html"} x)}
         "&nbsp;" (icon "fas fa-remove-format")]]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}

@@ -50,14 +50,14 @@
     (sql/get-type-stats this))
 
   (get-tag-stats [this]
-    (sql/get-tag-stats this ))
+    (sql/get-tag-stats this))
 
   (get-tags [this]
     (->> (sql/get-tags this) (map :tag) (map keyword) (into #{})))
 
   (get-word-count-groups [this]
     (->> (sql/get-word-count-groups this)
-                    (map (fn [x] [(:nword_groups x) (:count x)])))))
+         (map (fn [x] [(:nword_groups x) (:count x)])))))
 
 ;; ----------
 

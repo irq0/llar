@@ -33,28 +33,28 @@
   (let [{:keys [meta feed summary entry]} item
         nlp (get-in item [:entry :nlp])]
     (first
-    (sql/store-item
-                db
-                {:source {:name (:source-name meta)
-                          :key (name (:source-key meta))
-                          :type (keyword "item_type" (name (:type item)))
-                          :data (select-keys
-                                 feed [:feed-type :language :title :url])}
-                 :hash (:hash item)
-                 :ts (or (:ts summary) (time/zoned-date-time))
-                 :title (:title summary)
-                 :author (simplify-author (:authors entry))
-                 :type (keyword "item_type" (name (:type item)))
-                 :tags (into [] (map name (or (:tags meta) [])))
-                 :nlp-nwords (or (:nwords nlp) -1)
-                 :nlp-urls (into [] (or (:urls nlp) []))
-                 :nlp-names (into [] (or (:names nlp) []))
-                 :nlp-nouns (into [] (or (:nouns nlp) []))
-                 :nlp-verbs (into [] (or (:verbs nlp) []))
-                 :nlp-top (or (:top nlp) {})
-                 :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
-                                  (sql/conflict-items-ignore-dupe-snip))
-      :entry (apply dissoc entry (concat [:nlp] (map first item-data-table-entries)))}))))
+     (sql/store-item
+      db
+      {:source {:name (:source-name meta)
+                :key (name (:source-key meta))
+                :type (keyword "item_type" (name (:type item)))
+                :data (select-keys
+                       feed [:feed-type :language :title :url])}
+       :hash (:hash item)
+       :ts (or (:ts summary) (time/zoned-date-time))
+       :title (:title summary)
+       :author (simplify-author (:authors entry))
+       :type (keyword "item_type" (name (:type item)))
+       :tags (into [] (map name (or (:tags meta) [])))
+       :nlp-nwords (or (:nwords nlp) -1)
+       :nlp-urls (into [] (or (:urls nlp) []))
+       :nlp-names (into [] (or (:names nlp) []))
+       :nlp-nouns (into [] (or (:nouns nlp) []))
+       :nlp-verbs (into [] (or (:verbs nlp) []))
+       :nlp-top (or (:top nlp) {})
+       :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
+                        (sql/conflict-items-ignore-dupe-snip))
+       :entry (apply dissoc entry (concat [:nlp] (map first item-data-table-entries)))}))))
 
 (defn store-item-data!
   "store-item-data! persists item data as rows in the item_data table. See
@@ -70,11 +70,11 @@
               :when (some? data)
               :let [text? (contentdetect/text-mime-type? mime-type)]]
           (sql/store-item-data
-                            db
-                            {:item-id item-id
-                             :mime-type mime-type
-                             :type data-entry-type
-                             :text (when text? data)
+           db
+           {:item-id item-id
+            :mime-type mime-type
+            :type data-entry-type
+            :text (when text? data)
             :data (when-not text? (to-byte-buffer data))})))))))
 
 (defn store-item-and-data!

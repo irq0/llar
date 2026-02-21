@@ -71,8 +71,7 @@
    (some-> (hick-s/select (hick-s/class :page-title) parsed-html)
            first :content first string/trim)
    (some-> (hick-s/select (hick-s/child (hick-s/tag :header) (hick-s/tag :h1)) parsed-html)
-           first :content first)
-   ))
+           first :content first)))
 
 (defn extract-http-timestamp
   [resp]
@@ -524,30 +523,30 @@
                   (:last-modified conditionals) (assoc :if-modified-since (:last-modified conditionals)))
         base-url (get-base-url-with-path url)
         response (with-http-exception-handler {:headers headers :url url}
-                     (http/get (str url)
-                               {:headers headers
-                                :decode-cookies false
-                                :cookie-policy :none}))
+                   (http/get (str url)
+                             {:headers headers
+                              :decode-cookies false
+                              :cookie-policy :none}))
 
-          html (when (and (#{200 206} (:status response))
-                          (some? (:body response)))
-                 (if sanitize? (raw-sanitize (:body response))
-                     (:body response)))
-          parsed-html (when (some? html) (cond-> (-> html
-                                                     hick/parse hick/as-hickory)
-                                           absolutify-urls? (absolutify-links-in-hick base-url)
-                                           sanitize? (sanitize :remove-css? remove-css?)
-                                           simplify? (simplify)
-                                           blobify? (blobify)))]
-      (log/debugf "HTTP GET: %s req-headers:%s status:%s body:%sB cond:%s" url headers (:status response) (count (get response :body)) (select-keys (:headers response) [:etag :last-modified]))
-      (if (= 304 (:status response))
-        {:raw response
-         :status :not-modified
-         :conditional-tokens conditionals}
-        {:raw response
-         :status :ok
-         :body (when parsed-html (hick-r/hickory-to-html parsed-html))
-         :conditional-tokens (select-keys (:headers response) [:etag :last-modified])
-         :summary {:ts (extract-http-timestamp response)
-                   :title (extract-http-title parsed-html)}
-         :hickory parsed-html})))
+        html (when (and (#{200 206} (:status response))
+                        (some? (:body response)))
+               (if sanitize? (raw-sanitize (:body response))
+                   (:body response)))
+        parsed-html (when (some? html) (cond-> (-> html
+                                                   hick/parse hick/as-hickory)
+                                         absolutify-urls? (absolutify-links-in-hick base-url)
+                                         sanitize? (sanitize :remove-css? remove-css?)
+                                         simplify? (simplify)
+                                         blobify? (blobify)))]
+    (log/debugf "HTTP GET: %s req-headers:%s status:%s body:%sB cond:%s" url headers (:status response) (count (get response :body)) (select-keys (:headers response) [:etag :last-modified]))
+    (if (= 304 (:status response))
+      {:raw response
+       :status :not-modified
+       :conditional-tokens conditionals}
+      {:raw response
+       :status :ok
+       :body (when parsed-html (hick-r/hickory-to-html parsed-html))
+       :conditional-tokens (select-keys (:headers response) [:etag :last-modified])
+       :summary {:ts (extract-http-timestamp response)
+                 :title (extract-http-title parsed-html)}
+       :hickory parsed-html})))
