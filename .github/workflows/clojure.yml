@@ -17,7 +17,7 @@ jobs:
         fetch-tags: true
         filter: tree:0
     - name: Install packages
-      run: sudo apt update && sudo apt install -y default-jre-headless leiningen
+      run: sudo apt update && sudo apt install -y openjdk-25-jdk-headless leiningen
     - name: Install dependencies
       run: lein deps
     - name: Run tests with coverage
