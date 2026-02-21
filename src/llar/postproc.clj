@@ -44,7 +44,7 @@
      (when (= format :ttml)
        (conv/ttml2text subtitles)))
    (catch Object _
-     (log/errorf (:throwable &throw-context) "subtitle fetch %s failed" url)
+     (log/warnf "subtitle fetch %s failed" url)
      nil)))
 
 ;; All item processors
