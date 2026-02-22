@@ -19,13 +19,13 @@
            :kaocha.plugin.alpha/spec-test-check
            :kaocha.plugin/cloverage
            :kaocha.plugin/junit-xml]
- :kaocha.plugin.junit-xml/target-file "target/junit.xml"
- :kaocha.plugin.cloverage/opts {:output "target/coverage"
-                                 :codecov? true
-                                 :html? true
-                                 :emma-xml? false
-                                 :text? true
-                                 :summary? true}
+ :junit-xml/target-file "target/junit.xml"
+ :cloverage/opts {:output "target/coverage"
+                  :codecov? true
+                  :html? true
+                  :emma-xml? false
+                  :text? true
+                  :summary? true}
  :color? true
  :fail-fast? false
  :randomize? true
