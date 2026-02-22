@@ -153,6 +153,9 @@ jobs:
     - name: Install packages
       run: sudo apt update && sudo apt-get install -y make libarchive-tools unzip wget
 
+    - name: Initialize lein
+      run: lein deps
+
     - name: build
       run: make
 
