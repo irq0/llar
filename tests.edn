@@ -17,11 +17,8 @@
            :kaocha.plugin/capture-output
            :kaocha.plugin/profiling
            :kaocha.plugin.alpha/spec-test-check
+           :kaocha.plugin/cloverage
            :kaocha.plugin/junit-xml]
-
- ;; Cloverage disabled by default - enable with --plugin kaocha.plugin/cloverage
- ;; :kaocha.plugin/cloverage
-
  :kaocha.plugin.junit-xml/target-file "target/junit.xml"
  :kaocha.plugin.cloverage/opts {:output "target/coverage"
                                  :codecov? true
@@ -29,7 +26,6 @@
                                  :emma-xml? false
                                  :text? true
                                  :summary? true}
-
  :color? true
  :fail-fast? false
  :randomize? true
