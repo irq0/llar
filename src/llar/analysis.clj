@@ -17,8 +17,8 @@
    :de (with-open [rdr (io/reader (io/resource "stopwords_de.txt"))] (set (line-seq rdr)))})
 
 (def tokenizer
-  {:en (nlp/make-tokenizer (io/resource "nlp/models/en-token.bin"))
-   :de (nlp/make-tokenizer (io/resource "nlp/models/de-token.bin"))})
+  {:en (nlp/make-tokenizer (io/resource "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin"))
+   :de (nlp/make-tokenizer (io/resource "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin"))})
 
 (def name-find
   {:de [(nlp/make-name-finder (io/resource "nlp/models/en-ner-location.bin"))
@@ -27,12 +27,17 @@
         (nlp/make-name-finder (io/resource "nlp/models/en-ner-organization.bin"))
         (nlp/make-name-finder (io/resource "nlp/models/en-ner-person.bin"))]})
 
-(nlp-filter/pos-filter verbs-de-en #"^(VB|VV|VA|VM)")
-(nlp-filter/pos-filter not-punctuation #"^[A-Z]+")
+;; UD UPOS tagset (used by opennlp-models 1.3.0 / OpenNLP 2.x)
+;; Verbs: VERB (main verbs) — AUX excluded (auxiliaries are not content words)
+(nlp-filter/pos-filter verbs-de-en #"^VERB$")
+;; Keep everything except punctuation (PUNCT) and symbols (SYM)
+(nlp-filter/pos-filter not-punctuation #"^(?!PUNCT$|SYM$)[A-Z]")
+;; Nouns: NOUN (common) + PROPN (proper nouns)
+(nlp-filter/pos-filter nouns-ud #"^(NOUN|PROPN)$")
 
 (def pos-tagger
-  {:en (nlp/make-pos-tagger (io/resource "nlp/models/en-pos.bin"))
-   :de (nlp/make-pos-tagger (io/resource "nlp/models/de-pos.bin"))})
+  {:en (nlp/make-pos-tagger (io/resource "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin"))
+   :de (nlp/make-pos-tagger (io/resource "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin"))})
 
 (defn find-names [lang tokens]
   (try+
@@ -87,7 +92,7 @@
   (let [text-size (count text)]
     (cond
       (#{:de :en} lang) lang
-      (< text-size 300) :en
+      (< text-size 150) :en
       :else
       (let [detected-lang (keyword (detect-language text))]
         (if (#{:de :en} detected-lang)
@@ -115,7 +120,7 @@
         words (->> all-words
                    (remove stopwords))
         nouns (->> pos
-                   nlp-filter/nouns
+                   nouns-ud
                    (map first)
                    (remove non-word-string-filter)
                    (map string/lower-case)

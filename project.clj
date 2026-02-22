@@ -138,7 +138,12 @@
                  [org.bovinegenius/exploding-fish "0.3.6"]
 
                  ;; data processing and analysis
-                 [clojure-opennlp "0.5.0"]
+                 [clojure-opennlp "0.5.0" :exclusions [org.apache.opennlp/opennlp-tools]]
+                 [org.apache.opennlp/opennlp-tools "2.5.4"]
+                 [org.apache.opennlp/opennlp-models-tokenizer-en "1.3.0"]
+                 [org.apache.opennlp/opennlp-models-tokenizer-de "1.3.0"]
+                 [org.apache.opennlp/opennlp-models-pos-en "1.3.0"]
+                 [org.apache.opennlp/opennlp-models-pos-de "1.3.0"]
                  [org.apache.tika/tika-parsers-standard-package "3.2.3" :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
                  [org.apache.tika/tika-langdetect-optimaize "3.2.3"]
                  [org.apache.tika/tika-core "3.2.3" :exclusions [commons-io]]
