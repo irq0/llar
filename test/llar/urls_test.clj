@@ -79,6 +79,24 @@
     (is (= "https://example.com/foo/bar/"
            (str (uut/absolutify-url "../../../foo/bar/" "https://example.com/first/second/")))))
 
+  (testing "trailing slash preserved"
+    (is (= "https://example.com/path/"
+           (str (uut/absolutify-url "/path/" "https://example.com/")))))
+  (testing "no trailing slash preserved"
+    (is (= "https://example.com/path"
+           (str (uut/absolutify-url "/path" "https://example.com/")))))
+  (testing "query string only input"
+    (is (= "http://example.com/?q=test"
+           (str (uut/absolutify-url "?q=test" "http://example.com")))))
+  (testing "fragment only input"
+    (is (= "#section" (str (uut/absolutify-url "#section" "http://example.com/page")))))
+
+  (testing "protocol-relative URLs use base URL's scheme"
+    (is (= "https://cdn.example.com/asset.js"
+           (str (uut/absolutify-url "//cdn.example.com/asset.js" "https://example.com/"))))
+    (is (= "https://example.com/"
+           (str (uut/absolutify-url "//" "https://example.com/")))))
+
   (testing "Path traversing should be resolved"
     (is (= "https://example.com/baz"
            (str (uut/absolutify-url "../../baz" "https://example.com/foo/bar/"))))))

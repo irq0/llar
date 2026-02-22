@@ -3,6 +3,9 @@
    [clojure.set :refer [union]]
    [clojure.string :as string]
    [clojure.test :refer [deftest is]]
+   [clojure.test.check.clojure-test :refer [defspec]]
+   [clojure.test.check.generators :as gen]
+   [clojure.test.check.properties :as prop]
    [hickory.select :as s]
    [llar.http :as uut]))
 
@@ -159,3 +162,33 @@
                           sanitized)]
     (is (empty? style-attrs) "all style attrs cleared")
     (is (empty? stylesheet-links) "all style sheet links should be removed")))
+
+;; Property-based tests
+
+(def simple-hick-doc
+  {:type :document
+   :content
+   [{:type :element
+     :attrs nil
+     :tag :html
+     :content
+     [{:type :element :attrs nil :tag :head :content []}
+      {:type :element
+       :attrs nil
+       :tag :body
+       :content
+       [{:type :element
+         :attrs {:href "https://example.com/link"}
+         :tag :a
+         :content ["Link text"]}
+        {:type :element
+         :attrs {:src "https://example.com/img.png"}
+         :tag :img
+         :content []}]}]}]})
+
+(defspec sanitize-is-idempotent 20
+  ;; Running sanitize twice should produce the same result as running it once
+  (prop/for-all [_ gen/boolean]
+                (let [once (uut/sanitize simple-hick-doc)
+                      twice (uut/sanitize once)]
+                  (= once twice))))
