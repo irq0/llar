@@ -137,7 +137,9 @@
     raw-base-url]
    {:pre [(s/valid? (s/or :string string? :url :irq0/url) raw-href)
           (s/valid? (s/or :none nil? :string string? :url :irq0/url) raw-base-url)]
-    :post [(s/valid? :irq0/absolute-url %)]}
+    :post [(s/valid? (s/or :absolute :irq0/absolute-url
+                           :fragment (s/and :irq0/url
+                                            #(string/starts-with? (str %) "#"))) %)]}
    (let [url (parse-href raw-href)
          scheme (uri/scheme url)]
      (cond
@@ -145,9 +147,10 @@
        (contains? #{"data" "mailto"} scheme)
        (uri/uri raw-href)
 
-       ;; try to leave fragment only uris alone - they are mostly used for in-page navigation
-       (and (nil? (uri/host url)) (string/starts-with? (uri/path url) "#"))
-       (uri/uri url)
+       ;; try to leave fragment only uris alone - used for in-page navigation
+       ;; (footnotes, headings) in the feed reader's rendered output
+       (string/starts-with? raw-href "#")
+       (uri/uri raw-href)
 
        (uri/absolute? url)
        (append-path-if-not-exist url)
