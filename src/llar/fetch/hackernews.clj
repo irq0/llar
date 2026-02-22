@@ -117,15 +117,16 @@
 
 (defn hn-html-summary [hit]
   (let [{:keys [points url objectID story_text]} hit]
-    (html
-     [:div {:class "summary"}
-      [:div
-       [:p [:span {:class "key"} "Score: "] points " " [:span {:class "key"} "Type: "] (hn-type hit)]
-       (when url [:p [:span {:class "key"} "URL: "] [:a {:href url} url]])
-       [:p [:span {:class "key"} "Comments: "]
-        [:a {:href (str "https://news.ycombinator.com/item?id=" objectID)}
-         (str "https://news.ycombinator.com/item?id=" objectID)]]]]
-     [:p story_text])))
+    (str
+     (html
+      [:div {:class "summary"}
+       [:div
+        [:p [:span {:class "key"} "Score: "] points " " [:span {:class "key"} "Type: "] (hn-type hit)]
+        (when url [:p [:span {:class "key"} "URL: "] [:a {:href url} url]])
+        [:p [:span {:class "key"} "Comments: "]
+         [:a {:href (str "https://news.ycombinator.com/item?id=" objectID)}
+          (str "https://news.ycombinator.com/item?id=" objectID)]]]]
+      [:p story_text]))))
 
 (defn make-hn-entry-from-algolia-hit [hit]
   (let [{:keys [url num_comments title created_at author points objectID story_text]} hit

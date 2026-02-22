@@ -11,15 +11,15 @@
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
    [clojure.string :as string]
-   [hiccup2.core :refer [html]]
+   [hiccup2.core :as h]
    [iapetos.collector.ring :refer [wrap-instrumentation]]
    [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
 
 (defn exception-response [request ex]
   (let [th (stacktrace/parse-exception ex)]
     {:status 500
-
-     :body (str (html
+     :headers {"Content-Type" "text/html; charset=utf-8"}
+     :body (str (h/html
                  [:head
                   [:meta {:charset "utf-8"}]
                   [:title "500 Internal Server Error"]

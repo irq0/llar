@@ -4,8 +4,7 @@
    [clj-stacktrace.repl :as stacktrace-repl]
    [compojure.core :refer [GET POST routes context]]
    [compojure.route :as route]
-   [hiccup2.core :refer [html]]
-   [hiccup.page :refer [html5]]
+   [hiccup2.core :as h]
    [iapetos.export :as prometheus-export]
    [java-time.api :as time]
    [mount.core :as mount]
@@ -50,12 +49,13 @@
    [:script {:src "/static/llar-status.js"}]])
 
 (defn wrap-body [body]
-  (html5
-   (html-header)
-   [:body
-    (concat
-     body
-     (html-footer))]))
+  (str
+   (h/html
+    (html-header)
+    [:body
+     (concat
+      [body]
+      (html-footer))])))
 
 (defn- get-state [k]
   (cond
@@ -98,19 +98,20 @@
 
 (defn pprint-html [x]
   [:pre {:class "clj-pprint"}
-   (let [pr-str-orig pr-str
-         #_:clj-kondo/ignore
-         pr-str  (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
-     (puget/pprint-str
-      x
-      {:width 60
-       :seq-limit 5
-       :sort-keys true
-       :print-color true
-       :color-scheme +light-mode-color-scheme+
-       :print-handlers +pprint-handlers+
-       :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
-       :color-markup :html-inline}))])
+   (h/raw
+    (let [pr-str-orig pr-str
+          #_:clj-kondo/ignore
+          pr-str  (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
+      (puget/pprint-str
+       x
+       {:width 60
+        :seq-limit 5
+        :sort-keys true
+        :print-color true
+        :color-scheme +light-mode-color-scheme+
+        :print-handlers +pprint-handlers+
+        :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
+        :color-markup :html-inline})))])
 
 (defn source-tab []
   [:div
@@ -128,7 +129,7 @@
   (let [k (keyword src-k)
         source (config/get-source k)
         state (get-state k)]
-    (str (html
+    (str (h/html
           [:div
            [:h5 "Source Configuration"]
            (pprint-html source)
@@ -162,7 +163,7 @@
          [:td cell])])]])
 
 (defn memory-tab []
-  (html
+  (h/html
    [:table {:class "datatable table"}
     [:thead
      [:tr
@@ -180,7 +181,7 @@
         [:td value]])]]))
 
 (defn database-tab []
-  (html
+  (h/html
    [:div
     [:div
      [:h5 "Word Count Groups"]
@@ -207,7 +208,7 @@
 (defn state-tab []
   (let [states (mount/find-all-states)
         running (mount/running-states)]
-    (html
+    (h/html
      [:table {:class "table"}
       [:thead
        [:tr
@@ -245,10 +246,10 @@
           stack])
        (sort-by second)
        (map (fn [[group name state top-of-stack stack]]
-              [:tr {:data-stacktrace (html [:ol
-                                            (for [s (stacktrace/parse-trace-elems stack)
-                                                  :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-                                              [:li [:pre formatted]])])
+              [:tr {:data-stacktrace (h/html [:ol
+                                              (for [s (stacktrace/parse-trace-elems stack)
+                                                    :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
+                                                [:li [:pre formatted]])])
                     :class ""}
                [:td {:class "details-control"}]
                [:td {:class "col-xs-1"} group]
@@ -300,30 +301,29 @@
 
 (defn status-index []
   (wrap-body
-   (html
-    [:div {:class "container-fluid mt-3"}
-     [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
-     [:ul {:class "nav nav-underline"}
-      (for [[k _] tabs
-            :let [tab-name (name k)
-                  tab-id (str tab-name "-tab")
-                  tab-href (str "#" tab-name)]]
-        [:li {:class "nav-item"}
-         [:a {:class (str "nav-link" (when (= k :sources) " active"))
-              :id tab-id
-              :data-bs-toggle "tab"
-              :role "tab"
-              :href tab-href}
-          tab-name]])]
-     [:div {:class "tab-content"
-            :id "nav-tab-content"}
-      (for [[k func] tabs
-            :let [tab-name (name k)
-                  cont-id tab-name]]
-        [:div {:class (str "tab-pane pt-2  " (when (= k :sources) " fade show active"))
-               :id cont-id
-               :role "tabpanel"}
-         (func)])]])))
+   [:div {:class "container-fluid mt-3"}
+    [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
+    [:ul {:class "nav nav-underline"}
+     (for [[k _] tabs
+           :let [tab-name (name k)
+                 tab-id (str tab-name "-tab")
+                 tab-href (str "#" tab-name)]]
+       [:li {:class "nav-item"}
+        [:a {:class (str "nav-link" (when (= k :sources) " active"))
+             :id tab-id
+             :data-bs-toggle "tab"
+             :role "tab"
+             :href tab-href}
+         tab-name]])]
+    [:div {:class "tab-content"
+           :id "nav-tab-content"}
+     (for [[k func] tabs
+           :let [tab-name (name k)
+                 cont-id tab-name]]
+       [:div {:class (str "tab-pane pt-2  " (when (= k :sources) " fade show active"))
+              :id cont-id
+              :role "tabpanel"}
+        (func)])]]))
 
 (def update-futures (atom {}))
 

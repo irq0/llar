@@ -68,20 +68,21 @@
     (time/zoned-date-time (time/instant (* 1000 (long t))) (time/zone-id "UTC"))))
 
 (defn reddit-html-summary [c]
-  (html
-   [:h1 (:title c)]
-   [:div {:class "summary"}
-    [:ul
-     (when (some? (:subreddit_name_prefixed c))
-       [:li {:class "item-key-subreddit"}
-        [:span {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
-     [:li {:class "item-key-score"} [:span {:class "key"} "Score: "] (:score c)]
-     [:li {:class "item-key-timestamp"}
-      [:span {:class "key"} "Time: "] (reddit-ts-to-zoned-date-time (:created_utc c))]
-     [:li {:class "item-key-url"} [:a {:href (:url c)} "URL"]]
-     [:li {:class "item-key-comments-url"}
-      [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]
-   [:p {:style "white-space: pre-line"} (:selftext c)]))
+  (str
+   (html
+    [:h1 (:title c)]
+    [:div {:class "summary"}
+     [:ul
+      (when (some? (:subreddit_name_prefixed c))
+        [:li {:class "item-key-subreddit"}
+         [:span {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
+      [:li {:class "item-key-score"} [:span {:class "key"} "Score: "] (:score c)]
+      [:li {:class "item-key-timestamp"}
+       [:span {:class "key"} "Time: "] (reddit-ts-to-zoned-date-time (:created_utc c))]
+      [:li {:class "item-key-url"} [:a {:href (:url c)} "URL"]]
+      [:li {:class "item-key-comments-url"}
+       [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]
+    [:p {:style "white-space: pre-line"} (:selftext c)])))
 
 (defn make-reddit-entry [c]
   {:url (llar-http/absolutify-url (:url c) "https://www.reddit.com")
