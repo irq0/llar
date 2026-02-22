@@ -35,13 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Database layer migrated HugSQL → next.jdbc
 - Docker base image updated to java 25; LTS Node.js from NodeSource; yt-dlp;
 - Consolidated all GitHub Actions into a single "ci.yml"
+- Use newer OpenNLP UD models from Maven JARs
 
 ### Fixes
 
 - NLP data removed from item entry JSON. It should not have been there in the first place.
   Database migrations take care of stripping the fields.
 - IMAP entry/raw content mixup.
-- SAP parser compatibility fix for Java 25
+- SAX parser compatibility fix for Java 25
+- NLP: Fix broken english noun extraction
 
 ## [1.1.0] - 2024-12
 
