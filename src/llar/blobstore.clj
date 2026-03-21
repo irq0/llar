@@ -231,6 +231,28 @@
 
     [file propsfile url-files]))
 
+(defn add-from-local-file!
+  [local-file url extra-props]
+  {:pre [(s/valid? string? (str url))]
+   :post [(s/valid? string? %)]}
+  (let [src-file (io/as-file local-file)
+        content-hash (digest/sha-256 src-file)
+        file (blob-file (appconfig/blob-store-dir) content-hash)
+        propsfile (io/as-file (str file ".props"))
+        lock-key (subs content-hash 0 1)
+        lock-obj (get locks lock-key)]
+    (locking lock-obj
+      (ensure-dir-hierarchy file)
+      (let [exists? (and (.exists propsfile) (.exists file))
+            props (merge {:orig-urls #{url}
+                          :hits 1}
+                         extra-props)]
+        (when-not exists?
+          (io/copy src-file file))
+        (spit propsfile (conv/print-propsfile props))
+        (create-url-index-entry-for-url content-hash url)))
+    content-hash))
+
 (defn add-from-url!
   [url]
   {:pre [(s/valid? :irq0/url url)]

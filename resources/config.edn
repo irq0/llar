@@ -1,8 +1,19 @@
 {:update-max-retry 5
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"
- :api {:dashboard {:port 9999}
-       :reader {:port 8023}}
+ :api {:dashboard {:port 9999 :enabled true}
+       :reader {:port 8023 :enabled true}
+       :podcast {:port 8024
+                 :base-url "http://localhost:8024"
+                 :video-format "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"
+                 :av-downloader-extra-args ["--embed-metadata"
+                                            "--embed-chapters"
+                                            "--embed-thumbnail"
+                                            "--convert-thumbnails" "jpg"
+                                            "--embed-subs"
+                                            "--write-subs"
+                                            "--write-auto-subs"
+                                            "--sub-langs" "en,en-orig,en-en,-live_chat"]}}
  :ui {:default-list-view {:storage :headlines
                           :shopping :headlines
                           :tweet :gallery}
@@ -22,6 +33,7 @@
             :av-downloader-max-concurrent 2}
  :timeouts {:readability 60
             :av-downloader 600
+            :av-downloader-transcode 1800
             :html2text 30}
  :commands {:pandoc "pandoc"
             :w3m "w3m"

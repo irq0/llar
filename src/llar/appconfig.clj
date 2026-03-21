@@ -119,6 +119,10 @@
                :available-commands (:commands appconfig)}))
     cmd))
 
+(defn podcast
+  ([] (get-in appconfig [:api :podcast]))
+  ([key] (get-in appconfig [:api :podcast key])))
+
 (defn credentials [name]
   (try
     (let [credentials (edn/read-string (slurp (get appconfig :credentials-file)))]

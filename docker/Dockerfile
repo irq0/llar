@@ -29,16 +29,16 @@ RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sour
   exiftool \
   locales \
   build-essential \
-  software-properties-common
+  ffmpeg \
+  python3-pip \
+  atomicparsley
 
 RUN wget -qO- https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y --no-install-recommends nodejs
 
-RUN add-apt-repository ppa:tomtomtom/yt-dlp && \
-  apt-get update && apt-get -y --no-install-recommends install \
-  yt-dlp
+RUN pip3 install --break-system-packages "yt-dlp[default,curl-cffi]"
 
-RUN echo '--js-runtimes nodejs' > /etc/yt-dlp.conf
+RUN echo '--js-runtimes node' > /etc/yt-dlp.conf
 
 RUN rm -rf /var/lib/apt/lists/*
 

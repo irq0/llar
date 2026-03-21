@@ -14,7 +14,7 @@
 
 (defonce +kill-timeout-secs+ 120)
 (defonce +semaphore+ (delay (Semaphore. (get-in appconfig [:throttle :command-max-concurrent]))))
-(defonce +semaphore-av-download+ (delay (Semaphore. (get-in appconfig [:throttle :av-download-max-concurrent]))))
+(defonce +semaphore-av-download+ (delay (Semaphore. (get-in appconfig [:throttle :av-downloader-max-concurrent]))))
 
 (defmacro with-throttle [sem & body]
   `(do
@@ -107,6 +107,79 @@
         (string/replace out #"[\n\t]" " ")
         out)
       "")))
+
+(defn media-metadata
+  "Fetch metadata from yt-dlp without downloading"
+  [url]
+  (let [{:keys [exit out err]}
+        (with-throttle @+semaphore-av-download+
+          (sh+timeout (get-in appconfig [:timeouts :av-downloader])
+                      [(appcfg/command :av-downloader)
+                       "--dump-json"
+                       (str url)]))]
+    (if (zero? exit)
+      (cheshire/parse-string out true)
+      (throw+ {:type ::av-metadata-error
+               :url url :err err :ret exit}))))
+
+(defn- download-media-file!
+  "Download media file via yt-dlp into dir. Returns the downloaded File."
+  [url dir]
+  (let [format-spec (or (appcfg/podcast :video-format)
+                        "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]")
+        extra-args (or (appcfg/podcast :av-downloader-extra-args) [])
+        timeout (get-in appconfig [:timeouts :av-downloader-transcode]
+                        (get-in appconfig [:timeouts :av-downloader]))
+        {:keys [exit out err]}
+        (with-throttle @+semaphore-av-download+
+          (sh+timeout timeout
+                      (-> [(appcfg/command :av-downloader)
+                           "--format" format-spec
+                           "--merge-output-format" "mp4"
+                           (str "--output=" (nio2/path dir "media.%(ext)s"))]
+                          (into extra-args)
+                          (conj (str url)))))]
+    (let [media-file (->> (file-seq (nio2/file dir))
+                          (filter #(.isFile %))
+                          (filter #(re-find #"\.(mp4|m4a|mp3|webm)$" (.getName %)))
+                          first)]
+      (cond
+        (and (zero? exit) media-file) media-file
+        (and (not (zero? exit)) media-file)
+        (do (log/warnf "av-downloader exited %d but media file exists, continuing (subtitle/metadata error?): %s"
+                       exit err)
+            media-file)
+        :else
+        (throw+ {:type ::av-download-error
+                 :url url :dir dir :out out :err err :ret exit})))))
+
+(defn download-media
+  "Download media via yt-dlp into dir. Returns {:file File :metadata map :mime-type string} or throws.
+   Caller must manage dir lifecycle (e.g. with-temp-dir). Two-step: metadata fetch then file download."
+  [url dir]
+  (let [metadata (try+
+                  (media-metadata url)
+                  (catch Object e
+                    (log/warn "metadata fetch failed, continuing without" url)
+                    nil))
+        media-file (download-media-file! url dir)
+        ext (some->> (.getName media-file) (re-find #"\.(\w+)$") second)
+        mime-type (case ext
+                    "mp4" "video/mp4"
+                    "m4a" "audio/mp4"
+                    "mp3" "audio/mpeg"
+                    "webm" "video/webm"
+                    "ogg" "audio/ogg"
+                    "video/mp4")]
+    {:file media-file
+     :metadata {:duration (:duration metadata)
+                :title (:title metadata)
+                :thumbnail (:thumbnail metadata)
+                :uploader (:uploader metadata)
+                :width (:width metadata)
+                :height (:height metadata)
+                :ext (or ext (:ext metadata) "mp4")}
+     :mime-type mime-type}))
 
 (defn download-subtitles [url]
   (with-temp-dir dir

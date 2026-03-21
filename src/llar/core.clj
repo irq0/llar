@@ -20,6 +20,7 @@
    [llar.http :as http]
    [llar.config :as config]
    [llar.lab :as lab]
+   [llar.podcast :as podcast]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
@@ -45,12 +46,14 @@
    #'update/state
 
    #'webapp/dashboard
-   #'webapp/reader])
+   #'webapp/reader
+   #'webapp/podcast])
 
 (def wet-states
   [#'config/change-watcher
    #'update/remove-unread-tags
-   #'lab/update-db-search-indices])
+   #'lab/update-db-search-indices
+   #'podcast/podcast-scanner])
 
 (defn -main [& args]
   ;; otherwise date time parsers will fail!

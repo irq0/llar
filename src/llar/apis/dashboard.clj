@@ -16,6 +16,8 @@
    [llar.human :as human]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
+   [llar.apis.podcast :as podcast-api]
+   [llar.podcast :as podcast]
    [llar.update :as update])
   (:import
    [org.apache.commons.text StringEscapeUtils]
@@ -286,12 +288,81 @@
           [:td chime-times]
           [:td (pprint-html pred)]])]]]))
 
+(defn- podcast-status-badge [status]
+  (let [cls (case status
+              :complete "bg-success"
+              :downloading "bg-primary"
+              :pending "bg-warning text-dark"
+              :failed "bg-danger"
+              "bg-secondary")]
+    [:span {:class (str "badge " cls)} (name status)]))
+
+(defn podcast-tab []
+  (let [state @podcast/download-state
+        by-status (group-by (comp :status val) state)]
+    [:div
+     [:div {:class "row mb-3"}
+      (for [[label status cls]
+            [["Complete" :complete "text-success"]
+             ["Downloading" :downloading "text-primary"]
+             ["Pending" :pending "text-warning"]
+             ["Failed" :failed "text-danger"]]]
+        [:div {:class "col-auto"}
+         [:h4 {:class cls} (count (get by-status status [])) " " label]])]
+     (if (empty? state)
+       [:p {:class "text-muted"} "No podcast items tracked. Tag items with \"podcast\" to start."]
+       [:table {:class "table table-sm"}
+        [:thead
+         [:tr
+          [:th "Status"]
+          [:th "Item"]
+          [:th "Source"]
+          [:th "Title / URL"]
+          [:th "Duration"]
+          [:th "Last Attempt"]
+          [:th "Error"]
+          [:th ""]]]
+        [:tbody
+         (for [[item-id info] (sort-by (comp :last-attempt val) #(compare %2 %1) state)
+               :let [{:keys [status media-url metadata last-attempt blob-hash
+                             item-title source-key error]} info]]
+           [:tr
+            [:td (podcast-status-badge status)]
+            [:td [:small {:class "font-monospace"} item-id]]
+            [:td (when source-key
+                   [:small (str source-key)])]
+            [:td
+             (when item-title
+               [:div [:strong item-title]])
+             (if-let [title (:title metadata)]
+               [:div
+                [:span title]
+                [:br]
+                [:small {:class "text-muted"} (human/truncate-ellipsis (str media-url) 60)]]
+               [:small {:class "text-muted"} (human/truncate-ellipsis (str media-url) 80)])
+             (when blob-hash
+               [:div [:small {:class "text-muted font-monospace"} (subs blob-hash 0 12) "..."]])]
+            [:td (when-let [dur (:duration metadata)]
+                   (podcast-api/format-duration dur))]
+            [:td (when last-attempt
+                   (human/datetime-ago last-attempt))]
+            [:td (when error
+                   [:details
+                    [:summary [:small {:class "text-danger"} (human/truncate-ellipsis error 60)]]
+                    [:pre {:class "text-danger small mt-1"} error]])]
+            [:td (when (#{:failed :complete} status)
+                   [:button {:class "btn btn-sm btn-outline-warning"
+                             :onclick (str "fetch('/api/podcast/retry/" item-id "', {method:'POST'})"
+                                           ".then(()=>location.reload())")}
+                    "Retry"])]])]])]))
+
 (defn config-tab []
   [:div [:h5 "appconfig"]
    (map-to-tree (appconfig-redact-secrets))])
 
 (def tabs
   {:sources #'source-tab
+   :podcast #'podcast-tab
    :memory #'memory-tab
    :database #'database-tab
    :schedules #'schedule-tab
@@ -384,6 +455,19 @@
        :body {:source-key k
               :error :not-found}})))
 
+(defn podcast-retry [str-id]
+  (let [item-id (parse-long str-id)]
+    (if-let [info (get @podcast/download-state item-id)]
+      (do
+        (swap! podcast/download-state assoc item-id
+               (-> info
+                   (assoc :status :pending)
+                   (dissoc :error)))
+        {:status 200
+         :body {:item-id item-id :status :pending}})
+      {:status 404
+       :body {:item-id str-id :error :not-found}})))
+
 (defn all-sources-status []
   {:status 200
    :body {:data
@@ -405,7 +489,10 @@
        (source-status source-key))
 
      (GET "/sources" []
-       (all-sources-status)))
+       (all-sources-status))
+
+     (POST "/podcast/retry/:item-id" [item-id]
+       (podcast-retry item-id)))
 
    (GET "/source-details/:key" [key] (source-details key))
 

@@ -4,8 +4,9 @@
    [clojure.tools.logging :as log]
    [llar.metrics :as metrics]
    [llar.apis.dashboard :as dashboard]
+   [llar.apis.podcast :as podcast]
    [llar.apis.reader :as reader]
-   [llar.appconfig :refer [appconfig]]
+   [llar.appconfig :as appconfig :refer [appconfig]]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [clj-stacktrace.core :as stacktrace]
@@ -110,3 +111,17 @@
                (log/infof "reader started: http://localhost:%s/reader" port))
            (log/info "reader disabled in appconfig"))
   :stop (try-stop-app reader))
+
+(defn podcast-app []
+  (->
+   podcast/app
+   podcast/wrap-token-auth
+   ring.middleware.not-modified/wrap-not-modified
+   ring.middleware.params/wrap-params
+   wrap-exception))
+
+(defstate podcast
+  :start (when-let [port (appconfig/podcast :port)]
+           (log/infof "Starting podcast server on port %d" port)
+           (try-start-jetty (podcast-app) port))
+  :stop (try-stop-app podcast))
