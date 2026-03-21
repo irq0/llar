@@ -178,7 +178,9 @@
                 :uploader (:uploader metadata)
                 :width (:width metadata)
                 :height (:height metadata)
-                :ext (or ext (:ext metadata) "mp4")}
+                :ext (or ext (:ext metadata) "mp4")
+                :chapters (:chapters metadata)
+                :description (:description metadata)}
      :mime-type mime-type}))
 
 (defn download-subtitles [url]

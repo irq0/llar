@@ -1,5 +1,6 @@
 (ns llar.podcast
   (:require
+   [clojure.string :as str]
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
@@ -10,7 +11,8 @@
    [llar.persistency :as persistency]
    [llar.postproc :as postproc]
    [llar.sched :refer [defsched]]
-   [llar.store :as store]))
+   [llar.store :as store]
+   [nio2.core :as nio2]))
 
 ;;;; Media URL detection
 
@@ -81,20 +83,36 @@
                     (.getName best) (count sub-files))
         best))))
 
+(defn- download-thumbnail
+  "Download thumbnail image to blob store. Returns hash or nil on failure."
+  [thumbnail-url]
+  (when (and thumbnail-url (not (str/blank? thumbnail-url)))
+    (try+
+     (blobstore/add-from-url! (uri/uri thumbnail-url))
+     (catch Object e
+       (log/warn "podcast: thumbnail download failed:" thumbnail-url e)
+       nil))))
+
 (defn- store-media!
   "Download and store media for an item. Returns updated state entry."
   [media-url]
   (commands/with-temp-dir dir
     (commands/with-retry 2 [:type ::av-download-error]
       (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir)
+            thumbnail-hash (download-thumbnail (:thumbnail metadata))
+            transcript (when-let [sub-file (find-subtitle-file dir)]
+                         (slurp sub-file))
+            enriched-metadata (cond-> metadata
+                                thumbnail-hash (assoc :thumbnail-hash thumbnail-hash)
+                                transcript (assoc :transcript transcript))
             content-hash (blobstore/add-from-local-file!
                           file (uri/uri media-url)
                           {:mime-type mime-type
-                           :podcast-metadata metadata})]
+                           :podcast-metadata enriched-metadata})]
         {:status :complete
          :blob-hash content-hash
          :media-url media-url
-         :metadata metadata
+         :metadata enriched-metadata
          :mime-type mime-type}))))
 
 (defn- scan-podcast-items!

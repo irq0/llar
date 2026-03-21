@@ -1,5 +1,6 @@
 (ns llar.podcast-test
   (:require
+   [cheshire.core :as json]
    [clojure.test :refer [deftest is testing]]
    [clojure.data.xml :as xml]
    [java-time.api :as time]
@@ -73,3 +74,41 @@
       (with-redefs [llar.appconfig/credentials (fn [k] (when (= k :podcast-token) "secret123"))]
         (let [response (wrapped {:params {}})]
           (is (= 403 (:status response))))))))
+
+(deftest test-chapters->json
+  (testing "converts yt-dlp chapters to Podcasting 2.0 JSON"
+    (let [chapters [{:title "Intro" :start_time 0 :end_time 120}
+                    {:title "Main Topic" :start_time 120 :end_time 600}]
+          result (json/parse-string (#'podcast-api/chapters->json chapters) true)]
+      (is (= "1.2.0" (:version result)))
+      (is (= 2 (count (:chapters result))))
+      (is (= 0 (get-in result [:chapters 0 :startTime])))
+      (is (= "Intro" (get-in result [:chapters 0 :title])))
+      (is (= 120 (get-in result [:chapters 0 :endTime])))))
+  (testing "handles chapters without end_time"
+    (let [chapters [{:title "Segment" :start_time 0}]
+          result (json/parse-string (#'podcast-api/chapters->json chapters) true)]
+      (is (= 1 (count (:chapters result))))
+      (is (nil? (get-in result [:chapters 0 :endTime]))))))
+
+(deftest test-format-description-html
+  (testing "includes provenance header"
+    (let [html (#'podcast-api/format-description-html "desc" :my-source "https://example.com/video")]
+      (is (re-find #"<strong>Source:</strong> my-source" html))
+      (is (re-find #"href=\"https://example.com/video\"" html))
+      (is (re-find #"Original" html))))
+  (testing "converts newlines to <br/>"
+    (let [html (#'podcast-api/format-description-html "line1\nline2" :src nil)]
+      (is (re-find #"line1<br/>" html))))
+  (testing "escapes HTML entities"
+    (let [html (#'podcast-api/format-description-html "a<b>c" :src nil)]
+      (is (re-find #"a&lt;b&gt;c" html))))
+  (testing "linkifies URLs"
+    (let [html (#'podcast-api/format-description-html "visit https://example.com now" :src nil)]
+      (is (re-find #"<a href=\"https://example.com\">https://example.com</a>" html))))
+  (testing "handles nil source-key"
+    (let [html (#'podcast-api/format-description-html "desc" nil nil)]
+      (is (not (re-find #"Source:" html)))))
+  (testing "handles blank description"
+    (let [html (#'podcast-api/format-description-html "" :src nil)]
+      (is (string? html)))))
