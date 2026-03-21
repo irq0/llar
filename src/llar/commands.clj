@@ -197,7 +197,7 @@
 
 (defn download-subtitles [url]
   (with-temp-dir dir
-    (with-retry 5 [:type ::av-download-error :ret 1]
+    (with-retry 2 [:type ::av-download-error :ret 1]
       (let [{:keys [exit out err]}
             (with-throttle @+semaphore-av-download+
               (sh+timeout (get-in appconfig [:timeouts :av-downloader])
