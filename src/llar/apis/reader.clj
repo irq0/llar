@@ -8,7 +8,7 @@
    [compojure.core :refer [context GET POST routes]]
    [compojure.route :as route]
    [hiccup.page :refer [html5]]
-   [hiccup2.core :refer [html]]
+   [hiccup2.core :as h :refer [html]]
    [java-time.api :as time]
    [iapetos.core :as prometheus]
    [org.bovinegenius [exploding-fish :as uri]]
@@ -630,14 +630,14 @@
   (if (and (nil? sel-descr) (nil? sel-content-type))
     (let [description (get-in doc [:data :description])
           contents (get-in doc [:data :content])]
-      (or (get contents "text/html")
+      (or (some-> (get contents "text/html") h/raw)
           (when-let [text (get contents "text/plain")] [:p {:style "white-space: pre-line"} text])
-          (get description "text/html")
+          (some-> (get description "text/html") h/raw)
           (when-let [text (get description "text/plain")] [:p {:style "white-space: pre-line"} text])
           nil))
     (if (= sel-content-type "text/plain")
       [:p {:style "white-space: pre-line"} (get-in doc [:data sel-descr sel-content-type])]
-      (get-in doc [:data sel-descr sel-content-type]))))
+      (some-> (get-in doc [:data sel-descr sel-content-type]) h/raw))))
 
 (defn main-show-item
   "Show Item View"
