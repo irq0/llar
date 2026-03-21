@@ -142,6 +142,9 @@
      (catch [:type :llar.http/request-error] _
        (make-next-state state :perm-fail 0 &throw-context))
 
+     (catch [:type :llar.fetch.feed/rome-failure] _
+       (make-next-state state :perm-fail 0 &throw-context))
+
      (catch [:type :llar.http/unexpected-error] _
        (make-next-state state :bug 0 &throw-context))
 
