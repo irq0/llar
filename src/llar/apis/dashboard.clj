@@ -123,6 +123,7 @@
       [:th "Source"]
       [:th "Last Success / Update"]
       [:th "Last Attempt / Start"]
+      [:th "Stats"]
       [:th "Actions"]]]]])
 
 (defn source-details [src-k]
@@ -354,7 +355,8 @@
                 :future (str fut)}}))))
 
 (defn- source-status-row [k src state]
-  (let [status (:status state)]
+  (let [status (:status state)
+        {:keys [fetched processed db]} (:stats state)]
     [k ; key
      (str (if status (name status) "?") (when (= :temp-fail status) (str " (" (:retry-count state) ")"))) ; status for humans
      (str (:src src)) ; source name
@@ -363,7 +365,8 @@
              human/datetime-ago)
      (some-> (or (:last-attempt-ts state) ; last attempt or start
                  (:start-ts state))
-             human/datetime-ago)]))
+             human/datetime-ago)
+     (if fetched (str fetched "/" processed "/" db) "")]))
 
 (defn source-status [str-k]
   (let [k (keyword str-k)
