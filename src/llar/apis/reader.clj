@@ -148,6 +148,9 @@
    {:tag :archive
     :icon-set "fas fa-archive icon-is-set"
     :icon-unset "fas fa-archive"}
+   {:tag :podcast
+    :icon-set "fas fa-tv icon-is-set"
+    :icon-unset "fas fa-tv"}
    {:tag :in-progress
     :icon-set "fas fa-cog icon-is-set"
     :icon-unset "fas fa-cog"}])
