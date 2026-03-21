@@ -107,7 +107,8 @@
                                                        fetched)
                                          :feed feed
                                          :update-step :postproc
-                                         :skip skip-proc}))))
+                                         :skip skip-proc})
+                                 "postproc failed" ex)))
 
            dbks (try+
                  (if-not skip-store

@@ -248,6 +248,8 @@
                 :feed feed
                 :error ex}))
      (catch Object _
-       (log/warn (:throwable &throw-context) "postprocessing failed during parallel item proc: " (str src)
-                 feed state items)
-       (throw+ {:type ::postproc-fail :itemsc (count items) :feed feed})))))
+       (let [cause (:throwable &throw-context)]
+         (log/warn cause "postprocessing failed during parallel item proc: " (str src)
+                   feed state items)
+         (throw+ {:type ::postproc-fail :itemsc (count items) :feed feed
+                  :error (ex-message cause)} "postprocessing failed" cause))))))
