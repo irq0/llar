@@ -213,7 +213,7 @@
         (if (zero? exit)
           (if-let [filename (second (re-find #"(?m)^.*Destination: (.*llar.*)$" out))]
             {:format :ttml
-             :subtitles (slurp filename)}
+             :subtitles (slurp filename :encoding "UTF-8")}
             (throw+ {:type ::av-download-error
                      :detail "cannot find destination in output"
                      :tmp-dir dir

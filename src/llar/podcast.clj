@@ -100,7 +100,7 @@
     (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir)
           thumbnail-hash (download-thumbnail (:thumbnail metadata))
           transcript (when-let [sub-file (find-subtitle-file dir)]
-                       (slurp sub-file))
+                       (slurp sub-file :encoding "UTF-8"))
           enriched-metadata (cond-> metadata
                               thumbnail-hash (assoc :thumbnail-hash thumbnail-hash)
                               transcript (assoc :transcript transcript))
