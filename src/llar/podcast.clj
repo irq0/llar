@@ -4,7 +4,7 @@
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [org.bovinegenius [exploding-fish :as uri]]
-   [slingshot.slingshot :refer [throw+ try+]]
+   [slingshot.slingshot :refer [try+]]
    [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [llar.commands :as commands]

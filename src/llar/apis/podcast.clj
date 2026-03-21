@@ -9,7 +9,7 @@
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [slingshot.slingshot :refer [try+]]
-   [llar.appconfig :as appconfig :refer [appconfig]]
+   [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [llar.persistency :as persistency]
    [llar.podcast :as podcast]

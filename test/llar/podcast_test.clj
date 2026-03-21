@@ -2,12 +2,10 @@
   (:require
    [cheshire.core :as json]
    [clojure.test :refer [deftest is testing]]
-   [clojure.data.xml :as xml]
    [java-time.api :as time]
+   [llar.appconfig]
    [llar.apis.podcast :as podcast-api]
-   [llar.podcast :as uut])
-  (:import
-   [java.time ZonedDateTime]))
+   [llar.podcast :as uut]))
 
 (deftest test-format-duration
   (testing "formats seconds as HH:MM:SS"
