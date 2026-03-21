@@ -146,6 +146,8 @@
                                           {:url (str base-url "/transcript/" blob-hash "?token=" token)
                                            :type "text/plain"
                                            :language "en"}))
+                           (xml/element (xml/qname itunes-ns "explicit") {} "false")
+                           (xml/element (xml/qname itunes-ns "episodeType") {} "full")
                            (xml/element (xml/qname content-ns "encoded") {}
                                         (xml/cdata (format-description-html
                                                     (or description plain-desc)
@@ -185,6 +187,9 @@
                          (xml/element :description {} "Media from LLAR - Live Long and Read")
                          (xml/element :language {} "en")
                          (xml/element (xml/qname itunes-ns "author") {} "LLAR")
+                         (xml/element (xml/qname itunes-ns "explicit") {} "false")
+                         (xml/element (xml/qname itunes-ns "type") {} "episodic")
+                         (xml/element (xml/qname itunes-ns "summary") {} "Media from LLAR - Live Long and Read")
                          (xml/element (xml/qname itunes-ns "category") {:text "Technology"})
                          item-elements)))))
 
