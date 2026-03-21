@@ -108,15 +108,27 @@
         out)
       "")))
 
+(def ^:private +cookies-tmp-file+ "/tmp/llar-yt-cookies.txt")
+
+(defn- av-downloader-cookies-args
+  "Return [\"--cookies\" path] if :youtube-cookies is set in credentials.
+   Writes cookie content to a fixed temp file for yt-dlp to read."
+  []
+  (if-let [cookies (appcfg/credentials :youtube-cookies)]
+    (do (spit +cookies-tmp-file+ cookies)
+        ["--cookies" +cookies-tmp-file+])
+    []))
+
 (defn media-metadata
   "Fetch metadata from yt-dlp without downloading"
   [url]
   (let [{:keys [exit out err]}
         (with-throttle @+semaphore-av-download+
           (sh+timeout (get-in appconfig [:timeouts :av-downloader])
-                      [(appcfg/command :av-downloader)
-                       "--dump-json"
-                       (str url)]))]
+                      (into [(appcfg/command :av-downloader)
+                             "--dump-json"]
+                            (conj (av-downloader-cookies-args)
+                                  (str url)))))]
     (if (zero? exit)
       (cheshire/parse-string out true)
       (throw+ {:type ::av-metadata-error
@@ -139,6 +151,7 @@
                            "--write-info-json"
                            "--no-clean-info-json"
                            (str "--output=" (nio2/path dir "media.%(ext)s"))]
+                          (into (av-downloader-cookies-args))
                           (into extra-args)
                           (conj (str url)))))
         media-file (->> (file-seq (nio2/file dir))
@@ -201,14 +214,15 @@
       (let [{:keys [exit out err]}
             (with-throttle @+semaphore-av-download+
               (sh+timeout (get-in appconfig [:timeouts :av-downloader])
-                          [(appcfg/command :av-downloader)
-                           "--skip-download"
-                           "--write-subs"
-                           "--write-auto-subs"
-                           "--sub-langs=.*-orig"
-                           "--sub-format=ttml"
-                           (str "--output=" (nio2/path dir "llar"))
-                           (str url)]))]
+                          (-> [(appcfg/command :av-downloader)
+                               "--skip-download"
+                               "--write-subs"
+                               "--write-auto-subs"
+                               "--sub-langs=.*-orig"
+                               "--sub-format=ttml"
+                               (str "--output=" (nio2/path dir "llar"))]
+                              (into (av-downloader-cookies-args))
+                              (conj (str url)))))]
         (log/debugf "av-downloader subtitles: %s -> %d dir:%s err:%s out:%s" url exit dir err out)
         (if (zero? exit)
           (if-let [filename (second (re-find #"(?m)^.*Destination: (.*llar.*)$" out))]
