@@ -450,8 +450,8 @@
         (log/warnf "server Error (%s): %s %s" status headers body)
         (throw+ (merge {:type ::server-error-retry-later
                         :code status
-                        :message (or message reason-phrase)})
-                context))
+                        :message (or message reason-phrase)}
+                       context)))
       (#{408 429} status)
       (do
         (log/warnf "client Error (overloaded?) (%s): %s" status reason-phrase)
