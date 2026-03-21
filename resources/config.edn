@@ -27,7 +27,8 @@
                   [:bookmark :type]
                   [:recreation :source-tag]]}
  :throttle {:command-max-concurrent 20
-            :av-downloader-max-concurrent 2}
+            :av-downloader-max-concurrent 2
+            :streaming-max-concurrent 1}
  :timeouts {:readability 60
             :av-downloader 600
             :av-downloader-transcode 1800

@@ -315,6 +315,24 @@
    :post [(spec/valid? source? %)]}
   (->HackerNews tag (merge +hn-default-args+ args)))
 
+;;; Streaming
+
+(defrecord StreamingChannel
+           [url args]
+  Source
+  (source-type [_] ::fetch)
+  Object
+  (toString [src] (str "[StreamingChannel: " (:url src) "]")))
+
+(def +streaming-default-args+
+  {:max-results 30})
+
+(defn streaming-channel
+  [url & {:as args}]
+  {:pre [(spec/valid? :irq0/url-str url)]
+   :post [(spec/valid? source? %)]}
+  (->StreamingChannel (uri/uri url) (merge +streaming-default-args+ args)))
+
 (defn feed? [src]
   (some #(instance? % src) [Feed SelectorFeed WordpressJsonFeed Reddit]))
 
@@ -326,3 +344,6 @@
 
 (defn mailbox? [src]
   (some #(instance? % src) [ImapMailbox]))
+
+(defn streaming-channel? [src]
+  (instance? StreamingChannel src))

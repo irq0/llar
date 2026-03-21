@@ -20,6 +20,7 @@
    [llar.fetch.reddit]
    [llar.fetch.twitter]
    [llar.fetch.hackernews]
+   [llar.fetch.streaming]
    [llar.postproc :as proc]))
 
 ;; contains all loaded sources
