@@ -119,6 +119,8 @@
    :tech "fas fa-microchip"
    :deep-tech "fas fa-microchip"
    :youtube-channel "fab fa-youtube"
+   :streaming-channel "fas fa-tv"
+   :has-audio "fas fa-headphones"
    :sci "fas fa-flask"
    :gaming "fas fa-gamepad"
    :music "fas fa-music"
@@ -822,6 +824,15 @@
 
        (string/includes? site "youtube")
        [:span (icon "fab fa-youtube") "&nbsp;" path-last]
+
+       (string/includes? site "soundcloud")
+       [:span (icon "fab fa-soundcloud") "&nbsp;" path-last]
+
+       (string/includes? site "bandcamp")
+       [:span (icon "fab fa-bandcamp") "&nbsp;" path-last]
+
+       (string/includes? site "media.ccc.de")
+       [:span (icon "fas fa-tv") "&nbsp;" path-last]
 
        (and (string/includes? site "amazon") (neg? path-len))
        (let [dp-entry (.indexOf path-seq "dp")]

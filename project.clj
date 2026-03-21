@@ -38,6 +38,7 @@
                 :version-file "resources/version.edn"
                 :version-file-keys [:ref :version :timestamp :ref-short :tag]}
 
+  :repositories [["jitpack" "https://jitpack.io"]]
   :exclusions [org.slf4j/slf4j-nop]
   ;; Note: build uberjar before lein run
   :dependencies [[org.clojure/clojure "1.12.4"]
@@ -148,6 +149,9 @@
                  [org.apache.tika/tika-langdetect-optimaize "3.2.3"]
                  [org.apache.tika/tika-core "3.2.3" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
+
+                 ;; streaming services
+                 [com.github.TeamNewPipe/NewPipeExtractor "v0.26.0"]
 
                  ;; testing
                  [clj-test-containers "0.7.4"]
