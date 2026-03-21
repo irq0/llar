@@ -140,20 +140,20 @@
                            "--no-clean-info-json"
                            (str "--output=" (nio2/path dir "media.%(ext)s"))]
                           (into extra-args)
-                          (conj (str url)))))]
-    (let [media-file (->> (file-seq (nio2/file dir))
-                          (filter #(.isFile %))
-                          (filter #(re-find #"\.(mp4|m4a|mp3|webm)$" (.getName %)))
-                          first)]
-      (cond
-        (and (zero? exit) media-file) media-file
-        (and (not (zero? exit)) media-file)
-        (do (log/warnf "av-downloader exited %d but media file exists, continuing (subtitle/metadata error?): %s"
-                       exit err)
-            media-file)
-        :else
-        (throw+ {:type ::av-download-error
-                 :url url :dir dir :out out :err err :ret exit})))))
+                          (conj (str url)))))
+        media-file (->> (file-seq (nio2/file dir))
+                        (filter #(.isFile %))
+                        (filter #(re-find #"\.(mp4|m4a|mp3|webm)$" (.getName %)))
+                        first)]
+    (cond
+      (and (zero? exit) media-file) media-file
+      (and (not (zero? exit)) media-file)
+      (do (log/warnf "av-downloader exited %d but media file exists, continuing (subtitle/metadata error?): %s"
+                     exit err)
+          media-file)
+      :else
+      (throw+ {:type ::av-download-error
+               :url url :dir dir :out out :err err :ret exit}))))
 
 (defn- read-info-json
   "Read .info.json sidecar file from dir if it exists."
