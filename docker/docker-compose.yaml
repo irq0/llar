@@ -60,6 +60,7 @@ services:
     mem_limit: 4g
     ports:
       - "8023:8023"
+      - "8024:8024"
       - "9999:9999"
       - "42000:42000"
     environment:

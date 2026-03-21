@@ -71,6 +71,7 @@ RUN mkdir -p /llar/wekafiles && chown llar:llar /llar/wekafiles
 USER llar:llar
 WORKDIR /llar
 EXPOSE 8023
+EXPOSE 8024
 EXPOSE 9999
 EXPOSE 42000
 
