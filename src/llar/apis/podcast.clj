@@ -2,6 +2,7 @@
   (:require
    [cheshire.core :as json]
    [clojure.data.xml :as xml]
+   [clojure.java.io :as io]
    [clojure.string :as str]
    [compojure.core :refer [GET routes]]
    [compojure.route :as route]
@@ -14,6 +15,7 @@
    [llar.podcast :as podcast]
    [llar.store :as store])
   (:import
+   [java.io FileInputStream]
    [java.time ZonedDateTime]
    [java.time.format DateTimeFormatter]
    [java.util Locale]))
@@ -186,6 +188,41 @@
                          (xml/element (xml/qname itunes-ns "category") {:text "Technology"})
                          item-elements)))))
 
+;;;; Byte-range support
+
+(defn- parse-byte-range
+  "Parse Range header value. Returns [start end] or nil."
+  [range-header size]
+  (when range-header
+    (when-let [[_ start end] (re-matches #"bytes=(\d+)-(\d*)" range-header)]
+      (let [s (Long/parseLong start)
+            e (if (str/blank? end) (dec size) (Long/parseLong end))]
+        (when (<= 0 s e (dec size))
+          [s e])))))
+
+(defn- serve-blob
+  "Serve blob with Range request support. Returns Ring response."
+  [blob range-header]
+  (let [file (:file blob)
+        size (:size blob)
+        hash (:hash blob)
+        common-headers {"Content-Type" (:mime-type blob)
+                        "Accept-Ranges" "bytes"
+                        "Etag" hash}]
+    (if-let [[start end] (parse-byte-range range-header size)]
+      (let [length (inc (- end start))
+            fis (FileInputStream. (io/as-file file))]
+        (.position (.getChannel fis) start)
+        {:status 206
+         :headers (merge common-headers
+                         {"Content-Length" (str length)
+                          "Content-Range" (format "bytes %d-%d/%d" start end size)})
+         :body fis})
+      {:status 200
+       :headers (merge common-headers
+                       {"Content-Length" (str size)})
+       :body file})))
+
 ;;;; Routes
 
 (def app
@@ -196,23 +233,17 @@
         :headers {"Content-Type" "application/rss+xml; charset=utf-8"}
         :body (generate-feed-xml (podcast-base-url) token)}))
 
-   (GET "/media/:hash" [hash]
-     (try+
-      (let [blob (blobstore/get-blob hash)]
-        {:status 200
-         :headers {"Content-Type" (:mime-type blob)
-                   "Content-Length" (str (:size blob))
-                   "Accept-Ranges" "bytes"
-                   "Etag" hash
-                   "Last-Modified" (time/format
-                                    (time/formatter "EEE, dd MMM yyyy HH:mm:ss z")
-                                    (:created blob))}
-         :body (:data blob)})
-      (catch Object e
-        (log/warn e "podcast: media get-blob failed:" hash)
-        {:status 404
-         :headers {"Content-Type" "text/plain"}
-         :body "Not Found"})))
+   (GET "/media/:hash" req
+     (let [hash (get-in req [:params :hash])
+           range-header (get-in req [:headers "range"])]
+       (try+
+        (let [blob (blobstore/get-blob hash)]
+          (serve-blob blob range-header))
+        (catch Object e
+          (log/warn e "podcast: media get-blob failed:" hash)
+          {:status 404
+           :headers {"Content-Type" "text/plain"}
+           :body "Not Found"}))))
 
    (GET "/artwork/:hash" [hash]
      (try+
