@@ -1,20 +1,22 @@
 function set_row_color_by_status(row, status) {
-  if (status == "ok") {
+  if (status === "ok") {
     $(row).addClass("table-success");
   } else if (status != null && status.startsWith("temp-fail")) {
     $(row).addClass("table-warning");
-  } else if (status == "updating") {
+  } else if (status === "updating") {
     $(row).addClass("table-info");
-  } else if (status == "perm-fail") {
+  } else if (status === "perm-fail") {
     $(row).addClass("table-danger");
-  } else if (status == "bug") {
+  } else if (status === "bug") {
     $(row).addClass("table-dark");
-  } else if (status == "new") {
+  } else if (status === "new") {
     $(row).addClass("table-primary");
   }
 }
 
-function update_source_row(url, source_key, row) {
+function update_source_row(url, source_key, row, retries) {
+  if (retries === undefined) retries = 0;
+  if (retries > 120) return;
   $.getJSON(url, (result) => {
     var new_row = result["row"];
     var actions_html = sources_row_actions_html(source_key);
@@ -23,10 +25,12 @@ function update_source_row(url, source_key, row) {
     if (result["update-status"]["done"]) {
       msg = "<p>Update: " + result["update-status"]["result"] + "</p>";
     } else {
-      setTimeout(update_source_row, 1000, url, source_key, row);
+      setTimeout(update_source_row, 1000, url, source_key, row, retries + 1);
     }
     new_row.push(actions_html + msg);
     row.data(new_row).draw();
+  }).fail(function () {
+    console.error("Failed to poll update status for " + source_key);
   });
 }
 
@@ -87,9 +91,13 @@ $(document).ready(function () {
     } else {
       $.ajax({
         url: "/source-details/" + k,
-      }).done(function (msg) {
-        row.child(msg).show();
-      });
+      })
+        .done(function (msg) {
+          row.child(msg).show();
+        })
+        .fail(function () {
+          row.child("<em>Failed to load details</em>").show();
+        });
     }
   });
 
@@ -106,11 +114,13 @@ $(document).ready(function () {
     var row = sources_datatable.row(tr);
     var status_url = "/api/source/" + k;
 
-    $.post("/api/update/" + k, { overwrite: overwrite }, (data, status) => {
-      if (status == "success") {
+    $.post("/api/update/" + k, { overwrite: overwrite })
+      .done(function () {
         setTimeout(update_source_row, 1000, status_url, k, row);
-      }
-    });
+      })
+      .fail(function () {
+        console.error("Failed to trigger update for " + k);
+      });
   });
 
   $("#threads-datatable").on("click", "td.details-control", function () {
