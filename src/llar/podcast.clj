@@ -97,23 +97,22 @@
   "Download and store media for an item. Returns updated state entry."
   [media-url]
   (commands/with-temp-dir dir
-    (commands/with-retry 2 [:type ::av-download-error]
-      (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir)
-            thumbnail-hash (download-thumbnail (:thumbnail metadata))
-            transcript (when-let [sub-file (find-subtitle-file dir)]
-                         (slurp sub-file))
-            enriched-metadata (cond-> metadata
-                                thumbnail-hash (assoc :thumbnail-hash thumbnail-hash)
-                                transcript (assoc :transcript transcript))
-            content-hash (blobstore/add-from-local-file!
-                          file (uri/uri media-url)
-                          {:mime-type mime-type
-                           :podcast-metadata enriched-metadata})]
-        {:status :complete
-         :blob-hash content-hash
-         :media-url media-url
-         :metadata enriched-metadata
-         :mime-type mime-type}))))
+    (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir)
+          thumbnail-hash (download-thumbnail (:thumbnail metadata))
+          transcript (when-let [sub-file (find-subtitle-file dir)]
+                       (slurp sub-file))
+          enriched-metadata (cond-> metadata
+                              thumbnail-hash (assoc :thumbnail-hash thumbnail-hash)
+                              transcript (assoc :transcript transcript))
+          content-hash (blobstore/add-from-local-file!
+                        file (uri/uri media-url)
+                        {:mime-type mime-type
+                         :podcast-metadata enriched-metadata})]
+      {:status :complete
+       :blob-hash content-hash
+       :media-url media-url
+       :metadata enriched-metadata
+       :mime-type mime-type})))
 
 (defn- scan-podcast-items!
   "Scan for podcast-tagged items, detect media URLs, update download state"
@@ -150,9 +149,31 @@
    (catch Object e
      (log/error e "podcast scanner: failed to scan items"))))
 
+(def ^:private +max-download-attempts+ 3)
+(def ^:private +retry-cooldown-minutes+ 30)
+
+(defn- retry-failed-downloads!
+  "Move :failed items past their cooldown back to :pending for retry."
+  []
+  (let [now (time/zoned-date-time)]
+    (doseq [[item-id state] @download-state
+            :when (= :failed (:status state))
+            :let [attempt (or (:attempt state) 1)
+                  retry-after (:retry-after state)]
+            :when (and (< attempt +max-download-attempts+)
+                       retry-after
+                       (time/after? now retry-after))]
+      (log/infof "podcast: retrying failed download for item %s (attempt %d/%d)"
+                 item-id (inc attempt) +max-download-attempts+)
+      (swap! download-state assoc item-id
+             (-> state
+                 (assoc :status :pending)
+                 (assoc :attempt (inc attempt)))))))
+
 (defn- process-pending-downloads!
   "Process one pending download at a time"
   []
+  (retry-failed-downloads!)
   (when-let [[item-id state] (->> @download-state
                                   (filter (fn [[_ v]] (= :pending (:status v))))
                                   first)]
@@ -165,14 +186,24 @@
               (merge (select-keys state [:item-title :source-key]) result))
        (log/infof "podcast: download complete for item %s -> %s" item-id (:blob-hash result)))
      (catch Object e
-       (log/warn "podcast: download failed for item" item-id e)
-       (swap! download-state assoc item-id
-              {:status :failed
-               :media-url (:media-url state)
-               :item-title (:item-title state)
-               :source-key (:source-key state)
-               :error (str e)
-               :last-attempt (time/zoned-date-time)})))))
+       (let [attempt (or (:attempt state) 1)
+             retryable? (< attempt +max-download-attempts+)
+             retry-after (when retryable?
+                           (time/plus (time/zoned-date-time)
+                                      (time/minutes +retry-cooldown-minutes+)))]
+         (log/warnf "podcast: download failed for item %s (attempt %d/%d, %s): %s"
+                    item-id attempt +max-download-attempts+
+                    (if retryable? (str "retry after " retry-after) "giving up")
+                    e)
+         (swap! download-state assoc item-id
+                {:status (if retryable? :failed :perm-failed)
+                 :media-url (:media-url state)
+                 :item-title (:item-title state)
+                 :source-key (:source-key state)
+                 :attempt attempt
+                 :retry-after retry-after
+                 :error (str e)
+                 :last-attempt (time/zoned-date-time)}))))))
 
 (defn- podcast-scanner-tick! []
   (scan-podcast-items!)

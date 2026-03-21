@@ -136,6 +136,8 @@
                       (-> [(appcfg/command :av-downloader)
                            "--format" format-spec
                            "--merge-output-format" "mp4"
+                           "--write-info-json"
+                           "--no-clean-info-json"
                            (str "--output=" (nio2/path dir "media.%(ext)s"))]
                           (into extra-args)
                           (conj (str url)))))]
@@ -153,16 +155,26 @@
         (throw+ {:type ::av-download-error
                  :url url :dir dir :out out :err err :ret exit})))))
 
+(defn- read-info-json
+  "Read .info.json sidecar file from dir if it exists."
+  [dir]
+  (let [info-file (->> (file-seq (nio2/file dir))
+                       (filter #(.isFile %))
+                       (filter #(string/ends-with? (.getName %) ".info.json"))
+                       first)]
+    (when info-file
+      (try+
+       (cheshire/parse-string (slurp info-file) true)
+       (catch Object e
+         (log/warn "failed to parse info.json sidecar:" (.getName info-file) e)
+         nil)))))
+
 (defn download-media
   "Download media via yt-dlp into dir. Returns {:file File :metadata map :mime-type string} or throws.
-   Caller must manage dir lifecycle (e.g. with-temp-dir). Two-step: metadata fetch then file download."
+   Caller must manage dir lifecycle (e.g. with-temp-dir). Metadata extracted from .info.json sidecar."
   [url dir]
-  (let [metadata (try+
-                  (media-metadata url)
-                  (catch Object e
-                    (log/warn "metadata fetch failed, continuing without" url)
-                    nil))
-        media-file (download-media-file! url dir)
+  (let [media-file (download-media-file! url dir)
+        metadata (read-info-json dir)
         ext (some->> (.getName media-file) (re-find #"\.(\w+)$") second)
         mime-type (case ext
                     "mp4" "video/mp4"
