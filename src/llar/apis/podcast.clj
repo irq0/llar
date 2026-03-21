@@ -18,7 +18,8 @@
    [java.io FileInputStream]
    [java.time ZonedDateTime]
    [java.time.format DateTimeFormatter]
-   [java.util Locale]))
+   [java.util Locale]
+   [org.apache.commons.io.input BoundedInputStream]))
 
 (defn wrap-token-auth [handler]
   (fn [request]
@@ -217,12 +218,15 @@
     (if-let [[start end] (parse-byte-range range-header size)]
       (let [length (inc (- end start))
             fis (FileInputStream. (io/as-file file))]
-        (.position (.getChannel fis) start)
+        (.skip fis start)
         {:status 206
          :headers (merge common-headers
                          {"Content-Length" (str length)
                           "Content-Range" (format "bytes %d-%d/%d" start end size)})
-         :body fis})
+         :body (-> (BoundedInputStream/builder)
+                   (.setInputStream fis)
+                   (.setMaxCount length)
+                   (.get))})
       {:status 200
        :headers (merge common-headers
                        {"Content-Length" (str size)})
