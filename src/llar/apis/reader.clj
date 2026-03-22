@@ -163,7 +163,7 @@
   #{:interesting :saved :archive :unread})
 
 (defn icon [ico & args]
-  [:i (assoc (apply hash-map args) :class ico) "&thinsp;"])
+  [:i (assoc (apply hash-map args) :class ico) "\u2009"])
 
 (extend-protocol FormEncodeable
   clojure.lang.Keyword
@@ -399,7 +399,7 @@
           :title (format "Show %s items" str-ks)
           :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
       (if-let [ico (get icons (keyword str-ks) +tag-icon-default+)]
-        [:span (icon ico) "&nbsp;" str-ks]
+        [:span (icon ico) "\u00a0" str-ks]
         str-ks)]]))
 
 (defn group-nav
@@ -439,7 +439,7 @@
                                                  (= (:filter x) k))
                                         " active"))
                :href (make-site-href [(:uri x)] {:filter k} x)}
-           (icon ico) "&nbsp;" [:span name]]])]
+           (icon ico) "\u00a0" [:span name]]])]
 
       ;; favorites
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
@@ -453,7 +453,7 @@
                                              (= (keyword active-key) key)) " active"))
                :title (format "Show items with %s %s" (name group) (name key))
                :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
-           (when-let [ico (get icons key +tag-icon-default+)] [:span (icon ico) "&nbsp;"])
+           (when-let [ico (get icons key +tag-icon-default+)] [:span (icon ico) "\u00a0"])
 
            (name key)]])]
 
@@ -465,12 +465,12 @@
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
              :href (make-site-href ["/reader/tools/saved-overview"] x)}
-         (icon "fas fa-project-diagram") "&nbsp;" "Saved Overview"]]]
+         (icon "fas fa-project-diagram") "\u00a0" "Saved Overview"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
              :href (make-site-href ["/reader/tools/search"] x)}
-         (icon "fas fa-search") "&nbsp;" "Search"]]]
+         (icon "fas fa-search") "\u00a0" "Search"]]]
 
       ;; list style
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
@@ -480,7 +480,7 @@
        (for [[key {:keys [name ico]}] +list-styles+]
          [:li {:class "nav-item"}
           [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style key} x)}
-           (icon ico) "&nbsp;" name]])]
+           (icon ico) "\u00a0" name]])]
 
       ;; item tags
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
@@ -531,7 +531,7 @@
               nice-url (second (re-find #"(?:\[Bookmark: ([\w\.]+)\]|(.+))" bookmark-name))]
           [:span pill
            [:span {:class "sidebar-heading-2"}
-            (icon "fas fa-bookmark") "&nbsp;" nice-url]])
+            (icon "fas fa-bookmark") "\u00a0" nice-url]])
 
         :else
         [:span
@@ -575,7 +575,7 @@
                                :icon-set "fas fa-check-circle icon-is-set"
                                :icon-unset "far fa-circle"
                                :is-set? true})
-          "&nbsp;"
+          "\u00a0"
           tag])]
       [:form {:class "add-custom-tag" :data-id item-id}
        [:div {:class "input-group mb-3"}
@@ -589,7 +589,7 @@
    [:a {:class "btn"
         :data-bs-toggle "modal"
         :data-bs-target (str "#add-custom-tag-" item-id)}
-    "&nbsp;" (icon "fas fa-tag") (string/join ", " tags)]])
+    "\u00a0" (icon "fas fa-tag") (string/join ", " tags)]])
 
 (defn video-content? [item]
   (let [{:keys [_entry url]} item
@@ -667,7 +667,7 @@
       [:div {:class "btn-group btn-group-sm p-2 flex-grow-1" :role "group"}
        [:a {:class "btn" :title "Reading Time Estimate"}
         (icon "far fa-file-word")
-        "&nbsp;"
+        "\u00a0"
         (:estimate reading-estimate) "m"
         "&nbsp;&nbsp;"
         nwords "&nbsp;words"]
@@ -676,30 +676,30 @@
         [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
          [:a {:class "btn"}
           "&nbsp;&nbsp;"
-          (icon "far fa-calendar") "&nbsp;" (human/datetime-ago ts)]])
+          (icon "far fa-calendar") "\u00a0" (human/datetime-ago ts)]])
       [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
        [:a {:target "_blank"
             :title "Open Item URL"
             :href url
             :role "button"
             :class "btn"}
-        "&nbsp;" (icon "fas fa-external-link-alt")]
+        "\u00a0" (icon "fas fa-external-link-alt")]
        [:a {:class "btn"
             :title "Show internal data representation of this item"
             :href (make-site-href [id "dump"] x)}
-        "&nbsp;" (icon "fas fa-code")]
+        "\u00a0" (icon "fas fa-code")]
        [:a {:class "btn"
             :title "Focus Content"
             :href (make-site-href [id "focus"] {:data "content"
                                                 :content-type "text/html"} x)}
-        "&nbsp;" (icon "fas fa-expand")]
+        "\u00a0" (icon "fas fa-expand")]
        [:a {:class "btn"
             :title "Open Raw content"
             :href (make-site-href [id "download"] {:data "content"
                                                    :content-type "text/html"} x)}
-        "&nbsp;" (icon "fas fa-remove-format")]
+        "\u00a0" (icon "fas fa-remove-format")]
        [:a {:class "btn" :id "btn-annotation-mode" :title "Annotation Mode (a)"}
-        "&nbsp;" (icon "fas fa-pen-fancy")]]
+        "\u00a0" (icon "fas fa-pen-fancy")]]
 
       [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
        [:div {:class "dropdown show "}
@@ -768,7 +768,7 @@
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
   [k v]
-  [:li (icon "far fa-file") [:strong (str k)] "&nbsp;"
+  [:li (icon "far fa-file") [:strong (str k)] "\u00a0"
    (cond
      (nil? v)
      [:span "nil"]
@@ -830,45 +830,45 @@
          path-last (or (last path-seq) "")]
      (cond
        (string/includes? site "wikipedia")
-       [:span (icon "fab fa-wikipedia-w") "&nbsp;" (string/replace path-last #"_" " ")]
+       [:span (icon "fab fa-wikipedia-w") "\u00a0" (string/replace path-last #"_" " ")]
 
        (and (string/includes? site "github") (= path-len 2))
-       [:span (icon "fab fa-github") "&nbsp;" (subs path 1)]
+       [:span (icon "fab fa-github") "\u00a0" (subs path 1)]
 
        (string/includes? site "twitter")
        (if (= path-len 1)
-         [:span (icon "fab fa-twitter") "&nbsp;" (first path-seq)]
-         [:span (icon "fab fa-twitter") "&nbsp;" (first path-seq) "(status)"])
+         [:span (icon "fab fa-twitter") "\u00a0" (first path-seq)]
+         [:span (icon "fab fa-twitter") "\u00a0" (first path-seq) "(status)"])
 
        (string/includes? site "spotify")
-       [:span (icon "fab fa-spotify") "&nbsp;" path-last]
+       [:span (icon "fab fa-spotify") "\u00a0" path-last]
 
        (string/includes? site "facebook")
        (cond
          (= path-len 1)
-         [:span (icon "fab fa-facebook-f") "&nbsp;" (first path-seq)]
+         [:span (icon "fab fa-facebook-f") "\u00a0" (first path-seq)]
          (= (first path-seq) "events")
-         [:span (icon "fab fa-facebook-f") "&nbsp;" "event"]
+         [:span (icon "fab fa-facebook-f") "\u00a0" "event"]
          :else
-         [:span (icon "fab fa-facebook-f") "&nbsp;" (take-last 2 path-seq)])
+         [:span (icon "fab fa-facebook-f") "\u00a0" (take-last 2 path-seq)])
 
        (string/includes? site "youtube")
-       [:span (icon "fab fa-youtube") "&nbsp;" path-last]
+       [:span (icon "fab fa-youtube") "\u00a0" path-last]
 
        (string/includes? site "soundcloud")
-       [:span (icon "fab fa-soundcloud") "&nbsp;" path-last]
+       [:span (icon "fab fa-soundcloud") "\u00a0" path-last]
 
        (string/includes? site "bandcamp")
-       [:span (icon "fab fa-bandcamp") "&nbsp;" path-last]
+       [:span (icon "fab fa-bandcamp") "\u00a0" path-last]
 
        (string/includes? site "media.ccc.de")
-       [:span (icon "fas fa-tv") "&nbsp;" path-last]
+       [:span (icon "fas fa-tv") "\u00a0" path-last]
 
        (and (string/includes? site "amazon") (neg? path-len))
        (let [dp-entry (.indexOf path-seq "dp")]
          (cond
            (pos? dp-entry)
-           [:span (icon "fab fa-amazon") "&nbsp;"
+           [:span (icon "fab fa-amazon") "\u00a0"
             (string/replace (nth path-seq (dec dp-entry)) #"[_-]" " ")]))
 
        (> (count str-url) 23)
@@ -953,7 +953,7 @@
      [:ul {:class "list-inline"}
       [:li {:class "list-inline-item"}
        (icon "far fa-calendar")
-       "&nbsp;"
+       "\u00a0"
        [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
        [:span " - "]
        [:span {:class "timestamp"} (human/datetime-ago ts)]]
@@ -962,17 +962,17 @@
               human-time (:estimate estimate)]
           [:li {:class "list-inline-item"}
            [:a {:class "btn"}
-            "&nbsp;" (icon "far fa-file-word") "&nbsp;" human-time "&thinsp;" "min"]]))
+            "\u00a0" (icon "far fa-file-word") "\u00a0" human-time "\u2009" "min"]]))
       (when (contains? options :mark-read-on-view)
         [:li {:class "list-inline-item"}
          (icon "fas fa-glasses")])
 
       (when (string? source-key)
         [:li {:class "list-inline-item"}
-         "&nbsp;"
+         "\u00a0"
          (icon "fas fa-rss") source-key
          (when (= (:type item) :item-type/link)
-           [:span "&nbsp;"
+           [:span "\u00a0"
             (when-let [comments-url (:comments-url entry)]
               [:a {:href comments-url} "(comments)"])
             " → " (human/host-identifier url)])
@@ -983,7 +983,7 @@
 
       (when-not (string/blank? author)
         [:li {:class "list-inline-item"}
-         "&nbsp;"
+         "\u00a0"
          (icon "far fa-user") author])]
 
      [:div {:class "clearfix"}
@@ -1030,21 +1030,21 @@
        (tags-button-group id tags)
        (tags-button-modal id tags)
        [:a {:class "btn" :href url}
-        "&nbsp;" (icon "fas fa-external-link-alt")]
+        "\u00a0" (icon "fas fa-external-link-alt")]
        [:a {:class "btn"
             :title "Show internal data representation of this item"
             :href (make-site-href [link-prefix "item/by-id" id "dump"] x)}
-        "&nbsp;" (icon "fas fa-code")]
+        "\u00a0" (icon "fas fa-code")]
        [:a {:class "btn"
             :title "Show item HTML focus mode"
             :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
                                                                          :content-type "text/html"} x)}
-        "&nbsp;" (icon "fas fa-expand")]
+        "\u00a0" (icon "fas fa-expand")]
        [:a {:class "btn"
             :title "Open Raw HTML content"
             :href (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
                                                                             :content-type "text/html"} x)}
-        "&nbsp;" (icon "fas fa-remove-format")]]
+        "\u00a0" (icon "fas fa-remove-format")]]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
        (for [btn +tag-buttons+
@@ -1072,11 +1072,11 @@
             (if (string/blank? title)
               "(no title)"
               title)]
-           "&nbsp;"
+           "\u00a0"
            [:span {:class "source"}
             source-key
             (when (= (:type item) :item-type/link)
-              [:span "&nbsp;"
+              [:span "\u00a0"
                " → " (human/host-identifier url)])
             (when (and (string? url) (string? (:url source))
                        (not= (human/host-identifier url)
@@ -1504,7 +1504,7 @@
            [:ul {:class "list-inline"}
             [:li {:class "list-inline-item"}
              (icon "far fa-calendar")
-             "&nbsp;"
+             "\u00a0"
              [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
              [:span " - "]
              [:span {:class "timestamp"} (human/datetime-ago ts)]]
@@ -1513,19 +1513,19 @@
                     human-time (:estimate estimate)]
                 [:li {:class "list-inline-item"}
                  [:a {:class "btn"}
-                  "&nbsp;" (icon "far fa-file-word") "&nbsp;" human-time "&thinsp;" "min"]]))
+                  "\u00a0" (icon "far fa-file-word") "\u00a0" human-time "\u2009" "min"]]))
             (when (string? source-key)
               [:li {:class "list-inline-item"}
-               "&nbsp;"
+               "\u00a0"
                (icon "fas fa-rss") source-key
                (when (= (:type item) :item-type/link)
-                 [:span "&nbsp;"
+                 [:span "\u00a0"
                   (when-let [comments-url (:comments-url entry)]
                     [:a {:href comments-url} "(comments)"])
                   " → " (human/host-identifier url)])])
             (when-not (string/blank? author)
               [:li {:class "list-inline-item"}
-               "&nbsp;"
+               "\u00a0"
                (icon "far fa-user") author])]
            [:div {:class "clearfix"}
 
@@ -1545,7 +1545,7 @@
                   :title "Show item in focus mode"
                   :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"] {:data "content"
                                                                                                          :content-type "text/html"} x)}
-              "&nbsp;" (icon "fas fa-expand")]]
+              "\u00a0" (icon "fas fa-expand")]]
             [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
              (for [btn +tag-buttons+
                    :when (show-button-in-this-view? x btn)]
