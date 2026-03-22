@@ -53,6 +53,13 @@
       (.setObject stmt i obj))))
 
 (extend-protocol prepare/SettableParameter
+  java.nio.ByteBuffer
+  (set-parameter [buf ^java.sql.PreparedStatement stmt ^long i]
+    (let [arr (byte-array (.remaining buf))]
+      (.get buf arr)
+      (.setBytes stmt i arr))))
+
+(extend-protocol prepare/SettableParameter
   clojure.lang.IPersistentVector
   (set-parameter [v ^java.sql.PreparedStatement stmt ^long i]
     (let [conn (.getConnection stmt)
