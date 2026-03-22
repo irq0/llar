@@ -1,5 +1,7 @@
 (ns llar.podcast-test
   (:require
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
    [cheshire.core :as json]
    [clojure.test :refer [deftest is testing]]
    [java-time.api :as time]
@@ -110,3 +112,82 @@
   (testing "handles blank description"
     (let [html (#'podcast-api/format-description-html "" :src nil)]
       (is (string? html)))))
+
+;;;; Retention configuration tests
+
+(deftest test-episode-limit-for-source
+  (testing "returns per-source override when set"
+    (reset! uut/source-retention-overrides {:my-source 10})
+    (is (= 10 (uut/episode-limit-for-source :my-source)))
+    (reset! uut/source-retention-overrides {}))
+  (testing "falls back to global config"
+    (reset! uut/source-retention-overrides {})
+    (with-redefs [llar.appconfig/podcast (fn
+                                           ([] {:retention {:default-episode-limit 30}})
+                                           ([k] (get {:retention {:default-episode-limit 30}} k)))]
+      (is (= 30 (uut/episode-limit-for-source :other-source)))))
+  (testing "falls back to 25 when no config"
+    (reset! uut/source-retention-overrides {})
+    (with-redefs [llar.appconfig/podcast (fn
+                                           ([] nil)
+                                           ([_] nil))]
+      (is (= 25 (uut/episode-limit-for-source :any-source))))))
+
+;;;; Podcast index tests
+
+(deftest test-podcast-index-read-write
+  (let [tmp-dir (System/getProperty "java.io.tmpdir")
+        test-dir (str tmp-dir "/llar-test-" (System/currentTimeMillis))]
+    (.mkdirs (io/as-file test-dir))
+    (try
+      (with-redefs [llar.appconfig/blob-store-dir (fn [] test-dir)]
+        (testing "read returns empty map when file missing"
+          (is (= {} (uut/read-podcast-index))))
+
+        (testing "add-to-podcast-index! creates and writes entries"
+          (uut/add-to-podcast-index! "hash1" {:item-id 1 :source-key :src-a :item-title "Ep 1"})
+          (uut/add-to-podcast-index! "hash2" {:item-id 2 :source-key :src-b :item-title "Ep 2"})
+          (let [index (uut/read-podcast-index)]
+            (is (= 2 (count index)))
+            (is (= 1 (get-in index ["hash1" :item-id])))
+            (is (= :src-b (get-in index ["hash2" :source-key])))))
+
+        (testing "remove-from-podcast-index! removes entry"
+          (uut/remove-from-podcast-index! "hash1")
+          (let [index (uut/read-podcast-index)]
+            (is (= 1 (count index)))
+            (is (nil? (get index "hash1")))
+            (is (some? (get index "hash2"))))))
+      (finally
+        (doseq [f (reverse (file-seq (io/as-file test-dir)))]
+          (.delete f))))))
+
+;;;; Eviction candidates tests
+
+(deftest test-eviction-candidates
+  (testing "returns completed items for source, oldest first, excluding saved"
+    (let [t1 (time/zoned-date-time 2026 1 1)
+          t2 (time/zoned-date-time 2026 2 1)
+          t3 (time/zoned-date-time 2026 3 1)]
+      (reset! uut/download-state
+              {100 {:status :complete :source-key :src-a :blob-hash "h1" :completed-at t1}
+               101 {:status :complete :source-key :src-a :blob-hash "h2" :completed-at t2}
+               102 {:status :complete :source-key :src-a :blob-hash "h3" :completed-at t3}
+               200 {:status :complete :source-key :src-b :blob-hash "h4" :completed-at t1}
+               300 {:status :pending :source-key :src-a :blob-hash nil}})
+      ;; Mock: item 101 is saved, others are not
+      (with-redefs [llar.persistency/get-item-by-id
+                    (fn [_ id]
+                      (case id
+                        101 {:tags ["saved" "podcast"]}
+                        {:tags ["podcast"]}))]
+        (let [candidates (uut/eviction-candidates :src-a)]
+          ;; Should return items 100 and 102 (not 101 which is saved, not 300 which is pending)
+          (is (= [100 102] (mapv first candidates)))
+          ;; Oldest first
+          (is (= t1 (:completed-at (second (first candidates))))))
+
+        ;; Different source returns its own items
+        (let [candidates (uut/eviction-candidates :src-b)]
+          (is (= [200] (mapv first candidates)))))
+      (reset! uut/download-state {}))))

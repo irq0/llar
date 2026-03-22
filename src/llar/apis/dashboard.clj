@@ -2,7 +2,7 @@
   (:require
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
-   [compojure.core :refer [GET POST routes context]]
+   [compojure.core :refer [DELETE GET POST routes context]]
    [compojure.route :as route]
    [hiccup2.core :as h]
    [iapetos.export :as prometheus-export]
@@ -10,6 +10,8 @@
    [mount.core :as mount]
    [puget.printer :as puget]
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
+   [clojure.tools.logging :as log]
+   [llar.blobstore :as blobstore]
    [llar.appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.converter]
@@ -299,7 +301,11 @@
 
 (defn podcast-tab []
   (let [state @podcast/download-state
-        by-status (group-by (comp :status val) state)]
+        by-status (group-by (comp :status val) state)
+        stats (try (podcast/podcast-disk-stats)
+                   (catch Exception e
+                     (log/warn e "podcast-tab: failed to compute disk stats")
+                     nil))]
     [:div
      [:div {:class "row mb-3"}
       (for [[label status cls]
@@ -308,7 +314,44 @@
              ["Pending" :pending "text-warning"]
              ["Failed" :failed "text-danger"]]]
         [:div {:class "col-auto"}
-         [:h4 {:class cls} (count (get by-status status [])) " " label]])]
+         [:h4 {:class cls} (count (get by-status status [])) " " label]])
+      (when (and stats (pos? (:total-size stats)))
+        [:div {:class "col-auto"}
+         [:h4 {:class "text-info"}
+          (human/filesize (:total-size stats)) " total"]])]
+
+     ;; Per-source retention summary
+     (let [overrides @podcast/source-retention-overrides
+           by-source (or (:by-source stats) {})
+           ;; Normalize by-source keys to keywords for matching with overrides
+           by-source-kw (into {} (map (fn [[k v]] [(keyword k) v]) by-source))
+           ;; Merge in override-only sources that have no episodes yet
+           all-sources (merge (into {} (for [[src _] overrides
+                                             :when (not (contains? by-source-kw src))]
+                                         [src {:size 0 :episode-count 0
+                                               :limit (podcast/episode-limit-for-source src)}]))
+                              by-source-kw)]
+       (when (seq all-sources)
+         [:div {:class "mb-3"}
+          [:h6 "Retention by Source"]
+          [:table {:class "table table-sm table-bordered"}
+           [:thead [:tr [:th "Source"] [:th "Episodes"] [:th "Limit"] [:th "Disk"]]]
+           [:tbody
+            (for [[src {:keys [size episode-count limit]}]
+                  (sort-by (comp :episode-count val) #(compare %2 %1) all-sources)]
+              [:tr
+               [:td (if src (name src) [:em "unknown"])]
+               [:td {:class (when (>= episode-count limit) "text-warning fw-bold")}
+                episode-count]
+               [:td {:class (when (contains? overrides src) "fw-bold")}
+                limit]
+               [:td (if (pos? size) (human/filesize size) "0 B")]])]]]))
+
+     [:div {:class "mb-3"}
+      [:button {:class "btn btn-sm btn-outline-secondary"
+                :onclick "fetch('/api/podcast/enforce-retention', {method:'POST'}).then(()=>location.reload())"}
+       "Enforce Retention Now"]]
+
      (if (empty? state)
        [:p {:class "text-muted"} "No podcast items tracked. Tag items with \"podcast\" to start."]
        [:table {:class "table table-sm"}
@@ -319,6 +362,7 @@
           [:th "Source"]
           [:th "Title / URL"]
           [:th "Duration"]
+          [:th "Size"]
           [:th "Last Attempt"]
           [:th "Error"]
           [:th ""]]]
@@ -344,17 +388,27 @@
                [:div [:small {:class "text-muted font-monospace"} (subs blob-hash 0 12) "..."]])]
             [:td (when-let [dur (:duration metadata)]
                    (podcast-api/format-duration dur))]
+            [:td (when blob-hash
+                   (let [sz (podcast/blob-file-size blob-hash)]
+                     (when (pos? sz) (human/filesize sz))))]
             [:td (when last-attempt
                    (human/datetime-ago last-attempt))]
             [:td (when error
                    [:details
                     [:summary [:small {:class "text-danger"} (human/truncate-ellipsis error 60)]]
                     [:pre {:class "text-danger small mt-1"} error]])]
-            [:td (when (#{:failed :complete} status)
-                   [:button {:class "btn btn-sm btn-outline-warning"
-                             :onclick (str "fetch('/api/podcast/retry/" item-id "', {method:'POST'})"
-                                           ".then(()=>location.reload())")}
-                    "Retry"])]])]])]))
+            [:td
+             (when (#{:failed :complete} status)
+               [:button {:class "btn btn-sm btn-outline-warning me-1"
+                         :onclick (str "fetch('/api/podcast/retry/" item-id "', {method:'POST'})"
+                                       ".then(()=>location.reload())")}
+                "Retry"])
+             (when (#{:complete :failed :perm-failed :pending} status)
+               [:button {:class "btn btn-sm btn-outline-danger"
+                         :onclick (str "if(confirm('Delete episode and blob?'))"
+                                       "fetch('/api/podcast/" item-id "', {method:'DELETE'})"
+                                       ".then(()=>location.reload())")}
+                "Delete"])]])]])]))
 
 (defn config-tab []
   [:div [:h5 "appconfig"]
@@ -468,6 +522,23 @@
       {:status 404
        :body {:item-id str-id :error :not-found}})))
 
+(defn podcast-delete [str-id]
+  (let [item-id (parse-long str-id)]
+    (if-let [info (get @podcast/download-state item-id)]
+      (let [blob-hash (:blob-hash info)
+            other-refs (->> @podcast/download-state
+                            (filter (fn [[id v]] (and (not= id item-id)
+                                                      (= blob-hash (:blob-hash v)))))
+                            count)]
+        (when (and blob-hash (zero? other-refs))
+          (blobstore/delete-blob! blob-hash)
+          (podcast/remove-from-podcast-index! blob-hash))
+        (swap! podcast/download-state dissoc item-id)
+        {:status 200
+         :body {:item-id item-id :deleted true :blob-deleted (and blob-hash (zero? other-refs))}})
+      {:status 404
+       :body {:item-id str-id :error :not-found}})))
+
 (defn all-sources-status []
   {:status 200
    :body {:data
@@ -492,7 +563,15 @@
        (all-sources-status))
 
      (POST "/podcast/retry/:item-id" [item-id]
-       (podcast-retry item-id)))
+       (podcast-retry item-id))
+
+     (DELETE "/podcast/:item-id" [item-id]
+       (podcast-delete item-id))
+
+     (POST "/podcast/enforce-retention" []
+       (future (podcast/enforce-retention!))
+       {:status 200
+        :body {:status :retention-started}}))
 
    (GET "/source-details/:key" [key] (source-details key))
 

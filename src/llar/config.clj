@@ -12,6 +12,7 @@
    [llar.fetchutils :refer [make-reddit-proc]]
    [llar.human :as human]
    [llar.src :as src]
+   [llar.podcast :as podcast]
    [llar.fetch.custom]
    [llar.fetch.feed]
    [llar.fetch.http]
@@ -216,6 +217,15 @@
         (eval form)
         (catch Exception e
           (log/error e "failed to load autoread scheduler def" (second form))))
+
+      (and (list? form) (#{'podcast-retention} (first form)))
+      (try
+        (let [source-key (keyword (second form))
+              limit (nth form 2)]
+          (log/debugf "loading podcast retention override: %s -> %d" source-key limit)
+          (swap! podcast/source-retention-overrides assoc source-key limit))
+        (catch Exception e
+          (log/error e "failed to load podcast-retention def" (second form))))
       :else
       (log/warnf "unknown config definition \"%s\". Skipping." form))))
 
