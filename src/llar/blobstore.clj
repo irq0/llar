@@ -260,6 +260,43 @@
   (or (find-in-url-index url)
       (download-and-add! url)))
 
+(defn delete-blob!
+  "Delete blob and its .props file, plus all URL index symlinks pointing to it.
+   Thread-safe via the existing subtree lock mechanism. Idempotent."
+  [content-hash]
+  {:pre [(s/valid? string? content-hash)]}
+  (let [file (blob-file (appconfig/blob-store-dir) content-hash)
+        propsfile (io/as-file (str file ".props"))
+        lock-key (subs content-hash 0 1)
+        lock-obj (get locks lock-key)]
+    (locking lock-obj
+      (let [props (when (.exists propsfile)
+                    (try+
+                     (read-propsfile propsfile)
+                     (catch Object _
+                       (log/warn "delete-blob!: could not read props for" content-hash)
+                       nil)))
+            urls (:orig-urls props)]
+        ;; Remove URL index symlinks and dupe entries
+        (doseq [url urls]
+          (let [url-hash (digest/sha-256 (str url))
+                link (-> (blob-file (appconfig/blob-store-url-index-dir) url-hash) .toPath)
+                link-props (-> (str link ".props") io/as-file .toPath)
+                dupe-file (-> (blob-file (appconfig/blob-store-dupes-dir) url-hash) io/as-file .toPath)]
+            (try+
+             (java.nio.file.Files/deleteIfExists link-props)
+             (java.nio.file.Files/deleteIfExists link)
+             (java.nio.file.Files/deleteIfExists dupe-file)
+             (catch Object e
+               (log/warnf "delete-blob!: failed to remove index entries for url %s: %s" url e)))))
+        ;; Remove blob file and props
+        (let [deleted-blob? (java.nio.file.Files/deleteIfExists (.toPath file))
+              deleted-props? (java.nio.file.Files/deleteIfExists (.toPath propsfile))]
+          (when (or deleted-blob? deleted-props?)
+            (log/infof "delete-blob!: removed %s (blob=%s props=%s)"
+                       (subs content-hash 0 12) deleted-blob? deleted-props?))
+          deleted-blob?)))))
+
 (defn get-local-filename [hash]
   (blob-file (appconfig/blob-store-dir) hash))
 
