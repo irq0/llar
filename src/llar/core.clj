@@ -53,7 +53,8 @@
   [#'config/change-watcher
    #'update/remove-unread-tags
    #'lab/update-db-search-indices
-   #'podcast/podcast-scanner])
+   #'podcast/podcast-scanner
+   #'podcast/podcast-retention-enforcer])
 
 (defn -main [& args]
   ;; otherwise date time parsers will fail!

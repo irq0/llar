@@ -10,7 +10,8 @@
                                             "--embed-chapters"
                                             "--write-subs"
                                             "--write-auto-subs"
-                                            "--sub-langs" "en,en-orig,en-en,-live_chat"]}}
+                                            "--sub-langs" "en,en-orig,en-en,-live_chat"]
+                 :retention {:default-episode-limit 25}}}
  :ui {:default-list-view {:storage :headlines
                           :shopping :headlines
                           :tweet :gallery}

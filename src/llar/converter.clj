@@ -10,6 +10,7 @@
    [puget.printer :as puget]
    [llar.contentdetect :as contentdetect])
   (:import
+   [java.time ZonedDateTime]
    [org.bovinegenius.exploding_fish Uri]))
 
 (defmulti base64-encode class)
@@ -52,7 +53,10 @@
 (def +propsfile-handlers+
   {Uri
    (puget/tagged-handler
-    'org.irq0.🖖/url str)})
+    'org.irq0.🖖/url str)
+   ZonedDateTime
+   (puget/tagged-handler
+    'org.irq0.🖖/datetime #(time/format :iso-zoned-date-time %))})
 
 (defn print-propsfile [props]
   (puget/render-str (puget/canonical-printer +propsfile-handlers+)
