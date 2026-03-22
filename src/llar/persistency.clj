@@ -50,6 +50,11 @@
   (sources-merge-in-tags-counts [this sources])
   (get-sources [this config-sources]))
 
+(defprotocol AnnotationPersistency
+  (get-annotations [this item-id])
+  (create-annotation! [this item-id selector body])
+  (delete-annotation! [this annotation-id]))
+
 (defprotocol DataStoreSearch
   (update-index! [this])
   (search [this query args] [this query]))

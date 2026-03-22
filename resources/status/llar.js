@@ -167,6 +167,9 @@ $("body").keypress(function (event) {
   if ($("body").hasClass("modal-open")) {
     return;
   }
+  if ($(event.target).is("input, textarea, select, [contenteditable]")) {
+    return;
+  }
   if ($("#item-content-body").length > 0) {
     var main_top = $("#item-content-body").offset().top;
     var main_bottom = window.innerHeight;
@@ -189,6 +192,9 @@ $("body").keypress(function (event) {
     } else if (event.key == "P") {
       $("#btn-tag-unread").trigger("click");
       window.history.back();
+    } else if (event.key == "a") {
+      event.preventDefault();
+      toggleAnnotationMode();
     } else if (event.which == 32) {
       // space
       event.preventDefault();
@@ -442,4 +448,415 @@ $(document).ready(function () {
       () => location.reload(),
     );
   });
+
+  // annotation mode
+  $("#btn-annotation-mode").on("click", function () {
+    toggleAnnotationMode();
+  });
+
+  $("#btn-highlight-selection").on("click", function () {
+    createHighlight();
+  });
+
+  $("#btn-add-item-note").on("click", function () {
+    createItemNote();
+  });
 });
+
+//
+// Annotation Mode
+//
+
+var annotationModeActive = false;
+var annotations = [];
+var pendingSelector = null;
+var highlightRanges = new Map();
+
+function getItemId() {
+  return $("#item-meta").data("id");
+}
+
+function toggleAnnotationMode() {
+  if (!$("#item-content-body").length) return;
+  annotationModeActive = !annotationModeActive;
+  var btn = $("#btn-annotation-mode");
+
+  if (annotationModeActive) {
+    btn.addClass("active");
+    $("#annotation-bottom-bar").show();
+    $("#item-content-body").addClass("annotation-mode-active");
+    loadAnnotations();
+    $("#item-content-body").on("mouseup.annotation", onTextSelected);
+    $("#item-content-body").on("click.annotation-delete", onHighlightClick);
+  } else {
+    btn.removeClass("active");
+    $("#annotation-bottom-bar").hide();
+    $("#annotation-item-notes").hide();
+    $("#annotation-selection-actions").hide();
+    $("#item-content-body").removeClass("annotation-mode-active");
+    clearHighlights();
+    $("#item-content-body").off("mouseup.annotation");
+    $("#item-content-body").off("click.annotation-delete");
+    pendingSelector = null;
+  }
+}
+
+function loadAnnotations() {
+  var itemId = getItemId();
+  if (!itemId) return;
+  $.getJSON("/reader/annotation/" + itemId, function (data) {
+    annotations = data.annotations || [];
+    renderHighlights();
+    renderNotes();
+  });
+}
+
+//
+// Text Selection
+//
+
+function getTextOffset(container, node, offset) {
+  var walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  var pos = 0;
+  while (walker.nextNode()) {
+    if (walker.currentNode === node) {
+      return pos + offset;
+    }
+    pos += walker.currentNode.textContent.length;
+  }
+  return pos + offset;
+}
+
+function getContainerText(container) {
+  var walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  var text = "";
+  while (walker.nextNode()) {
+    text += walker.currentNode.textContent;
+  }
+  return text;
+}
+
+function onTextSelected() {
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+    $("#annotation-selection-actions").hide();
+    pendingSelector = null;
+    return;
+  }
+
+  var range = sel.getRangeAt(0);
+  var container = document.getElementById("item-content-body");
+  if (!container || !container.contains(range.startContainer)) {
+    return;
+  }
+
+  if (sel.toString().trim().length === 0) {
+    $("#annotation-selection-actions").hide();
+    pendingSelector = null;
+    return;
+  }
+
+  var fullText = getContainerText(container);
+  var start = getTextOffset(container, range.startContainer, range.startOffset);
+  var end = getTextOffset(container, range.endContainer, range.endOffset);
+  // Derive exact from DOM text, not sel.toString() which normalizes whitespace
+  var exact = fullText.substring(start, end);
+  var prefixStart = Math.max(0, start - 32);
+  var suffixEnd = Math.min(fullText.length, end + 32);
+
+  pendingSelector = {
+    position: { type: "TextPositionSelector", start: start, end: end },
+    quote: {
+      type: "TextQuoteSelector",
+      exact: exact,
+      prefix: fullText.substring(prefixStart, start),
+      suffix: fullText.substring(end, suffixEnd),
+    },
+  };
+
+  $("#annotation-selection-actions").show();
+}
+
+//
+// CRUD
+//
+
+function createHighlight() {
+  if (!pendingSelector) return;
+  var itemId = getItemId();
+  $.post(
+    "/reader/annotation/" + itemId,
+    { selector: JSON.stringify(pendingSelector) },
+    function (data) {
+      annotations.push(data.annotation);
+      window.getSelection().removeAllRanges();
+      pendingSelector = null;
+      $("#annotation-selection-actions").hide();
+      renderHighlights();
+    },
+  ).fail(function (xhr) {
+    console.error("[annotations] highlight create failed:", xhr.status);
+  });
+}
+
+function createItemNote() {
+  var input = $("#annotation-note-input");
+  var text = input.val();
+  if (!text || text.trim().length === 0) return;
+  var itemId = getItemId();
+  $.post("/reader/annotation/" + itemId, { body: text }, function (data) {
+    annotations.push(data.annotation);
+    input.val("");
+    renderNotes();
+  }).fail(function (xhr) {
+    console.error("[annotations] note create failed:", xhr.status);
+  });
+}
+
+function deleteAnnotation(id) {
+  $.ajax({
+    type: "DELETE",
+    url: "/reader/annotation/" + id,
+    success: function () {
+      annotations = annotations.filter(function (a) {
+        return a.id !== id;
+      });
+      renderHighlights();
+      renderNotes();
+    },
+    error: function (xhr) {
+      console.error("[annotations] delete failed:", xhr.status);
+    },
+  });
+}
+
+//
+// Highlight Rendering
+//
+
+function clearHighlights() {
+  CSS.highlights.delete("llar-annotation");
+  highlightRanges.clear();
+}
+
+function createRangeFromOffsets(container, start, end) {
+  var walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  var pos = 0;
+  var startNode = null,
+    startOffset = 0,
+    endNode = null,
+    endOffset = 0;
+
+  while (walker.nextNode()) {
+    var node = walker.currentNode;
+    var len = node.textContent.length;
+    if (!startNode && pos + len > start) {
+      startNode = node;
+      startOffset = start - pos;
+    }
+    if (pos + len >= end) {
+      endNode = node;
+      endOffset = end - pos;
+      break;
+    }
+    pos += len;
+  }
+
+  if (!startNode || !endNode) return null;
+  try {
+    var range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    return range;
+  } catch (e) {
+    return null;
+  }
+}
+
+function normalizeWS(s) {
+  return s.replace(/\s+/g, " ");
+}
+
+// Build a regex from text that treats any whitespace in the needle as \s+
+function textToFlexibleRegex(text) {
+  var parts = text.split(/\s+/);
+  var escaped = parts.map(function (p) {
+    return p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  });
+  return new RegExp(escaped.join("\\s+"));
+}
+
+function findByQuoteSelector(container, quote) {
+  var fullText = getContainerText(container);
+
+  // First try exact match
+  var idx = fullText.indexOf(quote.exact);
+  if (idx !== -1) {
+    return createRangeFromOffsets(container, idx, idx + quote.exact.length);
+  }
+
+  // Flexible whitespace match: turn the exact text into a regex
+  // where whitespace runs match any whitespace
+  var regex = textToFlexibleRegex(quote.exact);
+  var match = regex.exec(fullText);
+  if (match) {
+    return createRangeFromOffsets(
+      container,
+      match.index,
+      match.index + match[0].length,
+    );
+  }
+
+  return null;
+}
+
+function renderHighlights() {
+  clearHighlights();
+  var container = document.getElementById("item-content-body");
+  if (!container) return;
+
+  var highlights = annotations.filter(function (a) {
+    return a.selector != null;
+  });
+
+  var ranges = [];
+
+  highlights.forEach(function (ann) {
+    var sel = ann.selector;
+    var range = null;
+
+    // Primary: TextPositionSelector
+    if (sel.position) {
+      range = createRangeFromOffsets(
+        container,
+        sel.position.start,
+        sel.position.end,
+      );
+      if (
+        range &&
+        sel.quote &&
+        normalizeWS(range.toString()) !== normalizeWS(sel.quote.exact)
+      ) {
+        range = null;
+      }
+    }
+
+    // Fallback: TextQuoteSelector
+    if (!range && sel.quote) {
+      range = findByQuoteSelector(container, sel.quote);
+    }
+
+    if (range) {
+      highlightRanges.set(ann.id, range);
+      ranges.push(range);
+    }
+  });
+
+  if (ranges.length > 0) {
+    var highlight = new Highlight(...ranges);
+    CSS.highlights.set("llar-annotation", highlight);
+  }
+  renderHighlightLinks();
+}
+
+function renderHighlightLinks() {
+  var list = $("#annotation-highlight-list");
+  list.empty();
+  var idx = 0;
+  annotations.forEach(function (ann) {
+    if (!ann.selector || !highlightRanges.has(ann.id)) return;
+    idx++;
+    var raw = ann.selector.quote ? ann.selector.quote.exact : "";
+    var text = raw.replace(/\s+/g, " ").substring(0, 30);
+    var link = $("<a>")
+      .addClass("badge bg-warning text-dark me-1")
+      .attr("href", "#")
+      .text(idx + ": " + text + (text.length >= 30 ? "\u2026" : ""))
+      .on("click", function (e) {
+        e.preventDefault();
+        var range = highlightRanges.get(ann.id);
+        if (range) {
+          var rect = range.getBoundingClientRect();
+          window.scrollTo({
+            top: window.scrollY + rect.top - 80,
+            behavior: "smooth",
+          });
+        }
+      });
+    list.append(link);
+  });
+  if (idx > 0) list.show();
+  else list.hide();
+}
+
+function onHighlightClick(event) {
+  if (!window.getSelection().isCollapsed) return;
+
+  var caretPos = document.caretPositionFromPoint
+    ? document.caretPositionFromPoint(event.clientX, event.clientY)
+    : document.caretRangeFromPoint(event.clientX, event.clientY);
+
+  if (!caretPos) return;
+
+  var clickNode = caretPos.offsetNode || caretPos.startContainer;
+  var clickOffset = caretPos.offset || caretPos.startOffset;
+
+  for (var [annId, range] of highlightRanges) {
+    if (range.isPointInRange(clickNode, clickOffset)) {
+      deleteAnnotation(annId);
+      return;
+    }
+  }
+}
+
+//
+// Notes Panel
+//
+
+function renderNotes() {
+  var notes = annotations.filter(function (a) {
+    return a.selector == null && a.body != null;
+  });
+  var panel = $("#annotation-item-notes");
+  var list = panel.find(".notes-list");
+  list.empty();
+
+  if (notes.length === 0) {
+    panel.hide();
+    return;
+  }
+
+  notes.forEach(function (note) {
+    var noteEl = $("<div>").addClass(
+      "d-flex justify-content-between align-items-start mb-1",
+    );
+    var textEl = $("<span>").text(note.body);
+    var delBtn = $("<button>")
+      .addClass("btn btn-sm btn-outline-danger ms-2")
+      .html('<i class="fas fa-times"></i>')
+      .on("click", function () {
+        deleteAnnotation(note.id);
+      });
+    noteEl.append(textEl).append(delBtn);
+    list.append(noteEl);
+  });
+
+  if (annotationModeActive) {
+    panel.show();
+  }
+}

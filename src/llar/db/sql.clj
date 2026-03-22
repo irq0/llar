@@ -45,7 +45,12 @@
  conflict-items-ignore-dupe-snip
  tag-cond-by-id
  tag-cond-by-source-id-in
- tag-cond-le-ts)
+ tag-cond-le-ts
+ get-annotations-for-item
+ get-annotation-by-id
+ create-annotation
+ delete-annotation
+ count-annotations-for-item)
 
 (hugsql/def-db-fns (io/resource "sql/items.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/sources.sql") {:quoting :ansi})
@@ -53,3 +58,4 @@
 (hugsql/def-db-fns (io/resource "sql/search.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/tags.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/item.sql") {:quoting :ansi})
+(hugsql/def-db-fns (io/resource "sql/annotations.sql") {:quoting :ansi})

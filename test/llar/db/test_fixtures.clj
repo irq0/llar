@@ -76,7 +76,7 @@
   "Truncates all tables in the test database, preserving schema.
   Useful for resetting state between tests."
   [db]
-  (jdbc/execute! db ["TRUNCATE TABLE item_data, items, sources, tags RESTART IDENTITY CASCADE"]))
+  (jdbc/execute! db ["TRUNCATE TABLE annotations, item_data, items, sources, tags RESTART IDENTITY CASCADE"]))
 
 (defn seed-default-tags!
   "Seeds the default tags (unread, saved, in-progress, archive) into the test database with specific IDs."

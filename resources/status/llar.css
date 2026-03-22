@@ -556,6 +556,30 @@ div.item-content-body p > code {
   color: #f83;
 }
 
+/* Annotation highlights (CSS Custom Highlight API) */
+::highlight(llar-annotation) {
+  background-color: #e67e22;
+  color: inherit;
+}
+
+#annotation-bottom-bar {
+  z-index: 1030;
+}
+
+#btn-annotation-mode.active {
+  color: #e67e22;
+}
+
+.annotation-mode-active {
+  columns: unset !important;
+}
+
+#annotation-highlight-list a {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
 #headlines td,
 #headlines th {
   border-top: none;
