@@ -156,10 +156,13 @@
                                                     (str original-url))))]))))
 
 (defn generate-feed-xml
-  "Generate full RSS 2.0 podcast feed XML string"
-  [base-url token]
+  "Generate full RSS 2.0 podcast feed XML string.
+   Optional opts map: {:source-key :some-source} to filter by source."
+  [base-url token & [{:keys [source-key]}]]
   (let [completed (->> @podcast/download-state
                        (filter (fn [[_ v]] (= :complete (:status v))))
+                       (cond->>
+                        source-key (filter (fn [[_ v]] (= source-key (:source-key v)))))
                        (into {}))
         ;; TODO: add TTS support for text articles in the future
         all-items (try+
@@ -176,21 +179,27 @@
                                      [item dl-info])))
                            (sort-by (fn [[item _]] (:ts item)) #(compare %2 %1))
                            (map (fn [[item dl-info]]
-                                  (make-item-xml item dl-info base-url token))))]
+                                  (make-item-xml item dl-info base-url token))))
+        feed-title (if source-key
+                     (str "LLAR Podcast - " (name source-key))
+                     "LLAR Podcast")
+        feed-desc (if source-key
+                    (str "Media from LLAR - " (name source-key))
+                    "Media from LLAR - Live Long and Read")]
     (xml/emit-str
      (xml/element :rss {:version "2.0"
                         (keyword "xmlns" "itunes") itunes-ns
                         (keyword "xmlns" "podcast") podcast-ns
                         (keyword "xmlns" "content") content-ns}
                   (apply xml/element :channel {}
-                         (xml/element :title {} "LLAR Podcast")
+                         (xml/element :title {} feed-title)
                          (xml/element :link {} base-url)
-                         (xml/element :description {} "Media from LLAR - Live Long and Read")
+                         (xml/element :description {} feed-desc)
                          (xml/element :language {} "en")
                          (xml/element (xml/qname itunes-ns "author") {} "LLAR")
                          (xml/element (xml/qname itunes-ns "explicit") {} "false")
                          (xml/element (xml/qname itunes-ns "type") {} "episodic")
-                         (xml/element (xml/qname itunes-ns "summary") {} "Media from LLAR - Live Long and Read")
+                         (xml/element (xml/qname itunes-ns "summary") {} feed-desc)
                          (xml/element (xml/qname itunes-ns "category") {:text "Technology"})
                          item-elements)))))
 
@@ -241,6 +250,13 @@
        {:status 200
         :headers {"Content-Type" "application/rss+xml; charset=utf-8"}
         :body (generate-feed-xml (podcast-base-url) token)}))
+
+   (GET "/feed/:source-key.xml" req
+     (let [token (get-in req [:params "token"])
+           source-key (keyword (get-in req [:params :source-key]))]
+       {:status 200
+        :headers {"Content-Type" "application/rss+xml; charset=utf-8"}
+        :body (generate-feed-xml (podcast-base-url) token {:source-key source-key})}))
 
    (GET "/media/:hash" req
      (let [hash (get-in req [:params :hash])
