@@ -19,7 +19,7 @@
            :kaocha.plugin.alpha/spec-test-check
            :kaocha.plugin/cloverage
            :kaocha.plugin/junit-xml]
- :junit-xml/target-file "target/junit.xml"
+ :kaocha.plugin.junit-xml/target-file "target/junit.xml"
  :cloverage/opts {:output "target/coverage"
                   :codecov? true
                   :html? true
