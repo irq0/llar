@@ -23,19 +23,19 @@
 
 (defonce ^:dynamic *domain-blocklist* (atom #{}))
 
-(def +http-user-agent+
+(defn +http-user-agent+ []
   {:bot "Mozilla/5.0 (compatible); Googlebot/2.1; +http://www.google.com/bot.html)"
    :browser "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
    :default (format "Mozilla/5.0 (compatible; llar/%s; +http://llar.dev)" (get-in appconfig [:version :version]))})
 
 (defn resolve-user-agent [kw-or-s]
   (cond (string? kw-or-s) kw-or-s
-        (keyword? kw-or-s) (get +http-user-agent+ kw-or-s)
+        (keyword? kw-or-s) (get (+http-user-agent+) kw-or-s)
         :else (throw+ {:type ::invalid-user-agent
                        :msg "Use string or keyword"
                        :offending-value kw-or-s
                        :offending-type (type kw-or-s)
-                       :keywords (keys +http-user-agent+)})))
+                       :keywords (keys (+http-user-agent+))})))
 
 (def public-blocklists
   ["https://raw.githubusercontent.com/austinheap/sophos-xg-block-lists/master/adguard.txt"
