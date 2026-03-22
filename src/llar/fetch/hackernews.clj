@@ -12,7 +12,7 @@
    [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]
    [digest]
-   [hiccup2.core :refer [html]]
+   [hiccup2.core :refer [html raw]]
    [clj-http.client :as http]
    [java-time.api :as time]
    [clojure.string :as string]
@@ -126,7 +126,7 @@
         [:p [:span {:class "key"} "Comments: "]
          [:a {:href (str "https://news.ycombinator.com/item?id=" objectID)}
           (str "https://news.ycombinator.com/item?id=" objectID)]]]]
-      [:p story_text]))))
+      (when story_text (raw story_text))))))
 
 (defn make-hn-entry-from-algolia-hit [hit]
   (let [{:keys [url num_comments title created_at author points objectID story_text]} hit
