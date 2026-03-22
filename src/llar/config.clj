@@ -21,6 +21,7 @@
    [llar.fetch.twitter]
    [llar.fetch.hackernews]
    [llar.fetch.streaming]
+   [llar.fetch.github]
    [llar.postproc :as proc]))
 
 ;; contains all loaded sources

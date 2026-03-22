@@ -347,3 +347,46 @@
 
 (defn streaming-channel? [src]
   (instance? StreamingChannel src))
+
+;;; GitHub Search
+
+(def github-search-types #{:issues :repos})
+
+(spec/def :irq0-gh/search-type github-search-types)
+(spec/def :irq0-gh/query string?)
+(spec/def :irq0-gh/per-page pos-int?)
+(spec/def :irq0-gh/sort keyword?)
+(spec/def :irq0-gh/order #{:asc :desc})
+(spec/def :irq0-gh/args (spec/keys :opt-un [:irq0-gh/per-page :irq0-gh/sort :irq0-gh/order]))
+
+(defrecord GitHubSearch
+           [search-type query args]
+  Source
+  (source-type [_] ::fetch)
+  Object
+  (toString [src] (format "[GitHubSearch/%s: %s]" (name (:search-type src)) (:query src))))
+
+(def +github-search-default-args+
+  {:per-page 30
+   :order :desc})
+
+(defn github-issues
+  "Search GitHub issues/PRs. Query uses GitHub search syntax.
+   Date tokens like {{last-week}} are expanded at fetch time."
+  [query & {:as args}]
+  {:pre [(spec/valid? :irq0-gh/query query)
+         (spec/valid? (spec/nilable :irq0-gh/args) args)]
+   :post [(spec/valid? source? %)]}
+  (->GitHubSearch :issues query (merge +github-search-default-args+ args)))
+
+(defn github-repos
+  "Search GitHub repositories. Query uses GitHub search syntax.
+   Date tokens like {{last-week}} are expanded at fetch time."
+  [query & {:as args}]
+  {:pre [(spec/valid? :irq0-gh/query query)
+         (spec/valid? (spec/nilable :irq0-gh/args) args)]
+   :post [(spec/valid? source? %)]}
+  (->GitHubSearch :repos query (merge +github-search-default-args+ args)))
+
+(defn github-search? [src]
+  (instance? GitHubSearch src))
