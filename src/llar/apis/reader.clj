@@ -5,7 +5,7 @@
    [clojure.string :as string]
    [clojure.tools.logging :as log]
    [compojure.coercions :refer [as-int]]
-   [compojure.core :refer [context GET POST routes]]
+   [compojure.core :refer [context GET POST DELETE routes]]
    [compojure.route :as route]
    [hiccup.page :refer [html5]]
    [hiccup2.core :as h :refer [html]]
@@ -14,6 +14,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
+   [cheshire.core :as cheshire]
    [llar.appconfig :refer [appconfig postgresql-config]]
    [llar.blobstore :as blobstore]
    [llar.config :as config]
@@ -27,7 +28,8 @@
    [llar.persistency :as persistency]
    [llar.postproc :as proc]
    [llar.store :refer [store-items!]]
-   [llar.update :as update])
+   [llar.update :as update]
+   [llar.db.annotations])
   (:import
    [org.apache.commons.text StringEscapeUtils]))
 
@@ -126,7 +128,8 @@
    :music "fas fa-music"
    :magazine "fas fa-newspaper"
    :recreation "fas fa-umbrella-beach"
-   :highlight "fas fa-sun"})
+   :highlight "fas fa-sun"
+   :has-annotations "fas fa-pen-fancy"})
 
 (def +group-icons+
   {:item-tags "fas fa-tag"
@@ -694,7 +697,9 @@
             :title "Open Raw content"
             :href (make-site-href [id "download"] {:data "content"
                                                    :content-type "text/html"} x)}
-        "&nbsp;" (icon "fas fa-remove-format")]]
+        "&nbsp;" (icon "fas fa-remove-format")]
+       [:a {:class "btn" :id "btn-annotation-mode" :title "Annotation Mode (a)"}
+        "&nbsp;" (icon "fas fa-pen-fancy")]]
 
       [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
        [:div {:class "dropdown show "}
@@ -718,6 +723,13 @@
                           :content-type content-type}
                          x)}
               (str (name descr) " - " content-type)]))]]]]
+     [:div {:id "annotation-item-notes"
+            :class "container-fluid mb-2"
+            :style "display:none;"}
+      [:div {:class "card"}
+       [:div {:class "card-header py-1"}
+        [:small (icon "fas fa-sticky-note") " Notes"]]
+       [:div {:class "card-body p-2 notes-list"}]]]
      [:div {:id "item-content-body-container" :class "container-fluid"}
       [:div {:class "row"}
        [:div {:class "col-11"}
@@ -736,7 +748,22 @@
            :else
            (if-let [content (get-html-content item selected-data selected-content-type)]
              content
-             (render-special-item-content item #{})))]]]]]))
+             (render-special-item-content item #{})))]]]]
+     [:div {:id "annotation-bottom-bar"
+            :class "fixed-bottom bg-light border-top p-2"
+            :style "display:none;"}
+      [:div {:class "container-fluid"}
+       [:div {:id "annotation-highlight-list" :class "mb-1 small" :style "display:none;"}]
+       [:div {:class "d-flex align-items-center gap-2"}
+        [:div {:id "annotation-selection-actions" :style "display:none;"}
+         [:button {:class "btn btn-warning btn-sm" :id "btn-highlight-selection"}
+          (icon "fas fa-highlighter") " Highlight"]]
+        [:div {:class "flex-grow-1"}
+         [:div {:class "input-group input-group-sm"}
+          [:textarea {:class "form-control form-control-sm" :id "annotation-note-input"
+                      :rows "2" :placeholder "Add a note..."}]
+          [:button {:class "btn btn-outline-secondary" :id "btn-add-item-note"}
+           (icon "fas fa-sticky-note")]]]]]]]))
 
 (defn list-entry-kv
   "Helper: Key/Value Pair to pretty HTML <li>"
@@ -1695,6 +1722,27 @@
          :set (persistency/item-set-tags! frontend-db id [tag])
          :del (persistency/item-remove-tags! frontend-db id [tag]))))
 
+(defn reader-get-annotations [item-id]
+  {:status 200
+   :body {:annotations (persistency/get-annotations frontend-db item-id)}})
+
+(defn reader-create-annotation [item-id selector-str body]
+  (try
+    (let [selector (when selector-str (cheshire/parse-string selector-str true))]
+      {:status 200
+       :body {:annotation (persistency/create-annotation! frontend-db item-id selector body)}})
+    (catch Exception e
+      (log/warn e "create-annotation failed" item-id)
+      {:status 400
+       :body {:error (str "Failed to create annotation: " (ex-message e))}})))
+
+(defn reader-delete-annotation [annotation-id]
+  (if-let [result (persistency/delete-annotation! frontend-db annotation-id)]
+    {:status 200
+     :body result}
+    {:status 404
+     :body {:error "Annotation not found"}}))
+
 (defn as-keyword
   "Compojure Helper: Parse a string into keyword"
   [s]
@@ -1718,6 +1766,14 @@
         action :<< as-keyword
         tag :<< as-keyword]
        (reader-item-modify item-id action tag))
+
+     (context "/annotation" []
+       (GET "/:item-id" [item-id :<< as-int]
+         (reader-get-annotations item-id))
+       (POST "/:item-id" [item-id :<< as-int selector body]
+         (reader-create-annotation item-id selector body))
+       (DELETE "/:id" [id :<< as-int]
+         (reader-delete-annotation id)))
 
      (POST "/bookmark/add"
        [url type :<< as-keyword]
