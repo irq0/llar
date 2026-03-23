@@ -8,6 +8,7 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.persistency :refer [ItemPersistency ItemTagsPersistency]]
+   [llar.tags :as tags]
    [next.jdbc :as jdbc])
   (:import
    (llar.db.core PostgresqlDataStore)))
@@ -45,7 +46,7 @@
        :title (:title summary)
        :author (simplify-author (:authors entry))
        :type (keyword "item_type" (name (:type item)))
-       :tags (into [] (map name (or (:tags meta) [])))
+       :tags (into [] (tags/normalize-tags (or (:tags meta) [])))
        :nlp-nwords (or (:nwords nlp) -1)
        :nlp-urls (into [] (or (:urls nlp) []))
        :nlp-names (into [] (or (:names nlp) []))
@@ -83,7 +84,7 @@
   {:id .. :hash ..} :data ({:id :mime_type :type :is_binary})"
   [db item args]
   (jdbc/with-transaction [tx (:datasource db)]
-    (sql/ensure-tags tx {:tags (map (fn [kw] [(name kw)]) (get-in item [:meta :tags]))})
+    (sql/ensure-tags tx {:tags (map vector (tags/normalize-tags (get-in item [:meta :tags])))})
     (when-let [{:keys [id hash]} (store-item-without-data! tx item args)]
       {:item {:id id :hash hash}
        :data (store-item-data! tx id item)})))
@@ -100,18 +101,19 @@
   PostgresqlDataStore
 
   (item-set-tags! [this item-id tags]
-    (sql/ensure-tags this {:tags (map (fn [kw] [(name kw)]) tags)})
-    (->>
-     (sql/set-tags this
-                   {:tags (vec (map name tags))
-                    :where [(sql/tag-cond-by-id {:id item-id})]})
-     (map :tagi)
-     first))
+    (let [normalized (vec (tags/normalize-tags tags))]
+      (sql/ensure-tags this {:tags (map vector normalized)})
+      (->>
+       (sql/set-tags this
+                     {:tags normalized
+                      :where [(sql/tag-cond-by-id {:id item-id})]})
+       (map :tagi)
+       first)))
 
   (item-remove-tags! [this item-id tags]
     (->>
      (sql/remove-tags this
-                      {:tags (vec (map name tags))
+                      {:tags (vec (tags/normalize-tags tags))
                        :where [(sql/tag-cond-by-id {:id item-id})]})
      (map :tagi)
      first))

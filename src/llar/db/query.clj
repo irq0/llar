@@ -4,6 +4,7 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.converter :as conv]
+   [llar.tags :as tags]
    [digest])
   (:import (llar.db.core PostgresqlDataStore)))
 
@@ -96,7 +97,7 @@
                  (merge (get config-sources key)))))
          (sql/get-sources-with-item-tags-count
           this
-          {:item-tag (name item-tag)
+          {:item-tag (tags/normalize-tag item-tag)
            :simple-filter (simple-filter-to-sql simple-filter)})))
 
   (sources-merge-in-tags-counts [this sources]
@@ -154,7 +155,7 @@
                   (conj [simple-filter])
 
                   (keyword? with-tag)
-                  (conj (sql/cond-with-tag {:tag (name with-tag)}))
+                  (conj (sql/cond-with-tag {:tag (tags/normalize-tag with-tag)}))
 
                   (keyword? with-type)
                   (conj (sql/cond-with-type {:type (keyword "item_type" (name with-type))})))))))
@@ -172,7 +173,7 @@
       :group-by-columns (choose-recent-items-group-by-colums args)}))
 
   (get-items-by-tag [this tag]
-    (sql/get-items-by-tag this {:tag (name tag)}))
+    (sql/get-items-by-tag this {:tag (tags/normalize-tag tag)}))
 
   (get-item-by-id [this id]
     (process-items-row
