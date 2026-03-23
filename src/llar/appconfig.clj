@@ -46,6 +46,11 @@
 (s/def :irq0-appconfig/favorites (s/coll-of (s/tuple keyword? :irq0-appconfig/view-group)))
 (s/def :irq0-appconfig/ui (s/keys :req-un [:irq0-appconfig/default-list-view :irq0-appconfig/favorites]))
 
+(s/def :irq0-appconfig/highlight-boost-hours number?)
+(s/def :irq0-appconfig/rarity-boost-cap-hours number?)
+(s/def :irq0-appconfig/ranking (s/keys :opt-un [:irq0-appconfig/highlight-boost-hours
+                                                :irq0-appconfig/rarity-boost-cap-hours]))
+
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/blob-store-dir
                    :irq0-appconfig/credentials-file
@@ -53,7 +58,8 @@
                    :irq0-appconfig/commands
                    :irq0-appconfig/api
                    :irq0-appconfig/ui
-                   :irq0-appconfig/postgresql]))
+                   :irq0-appconfig/postgresql]
+          :opt-un [:irq0-appconfig/ranking]))
 
 (defn verify-config [config]
   (let [conform (s/conform :irq0-llar/appconfig config)]

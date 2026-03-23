@@ -39,4 +39,6 @@
             :lynx "lynx"
             :av-downloader "yt-dlp"
             :html2text "html2text"}
+ :ranking {:highlight-boost-hours 48
+           :rarity-boost-cap-hours 168}
  :blob-store-dir "/var/lib/llar/blobs"}

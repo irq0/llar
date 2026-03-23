@@ -125,3 +125,18 @@
 
 ;; (highlight words "llar" "rss")
 ;; (highlight authors "Douglas Engelbart")
+
+;;
+;; Sort Order Defaults
+;;
+;; Set default sort order for source tags or item tags
+;; Available orders: :newest, :ranked, :oldest
+;;
+;; (sort-default TAG-KEY SORT-ORDER)
+;; TAG-KEY - keyword matching a source tag or item tag
+;; SORT-ORDER - one of :newest, :ranked, :oldest
+
+;; Example:
+;; (sort-default :blog :ranked)
+;; (sort-default :highlight :ranked)
+;; (sort-default :saved :newest)

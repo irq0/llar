@@ -95,6 +95,16 @@
              :ico "far fa-images"
              :fn #'gallery-list-items}})
 
+(def +sort-orders+
+  {nil {:name "Default"
+        :ico "far fa-circle"}
+   :newest {:name "Newest First"
+            :ico "fas fa-sort-amount-down"}
+   :ranked {:name "Ranked"
+            :ico "fas fa-star"}
+   :oldest {:name "Oldest First"
+            :ico "fas fa-sort-amount-up"}})
+
 (def +filter-overrides+
   {:saved :total})
 ;; icons? see https://fontawesome.com/v5/icons
@@ -202,7 +212,7 @@
   ([path params x]
    (let [params (into {}
                       (remove (fn [[k v]] (or (nil? k) (nil? v)))
-                              (merge (select-keys x [:filter :list-style :query :days-ago :with-source-key]) params)))
+                              (merge (select-keys x [:filter :list-style :sort-order :query :days-ago :with-source-key]) params)))
          query-string (when (some? params) (form-encode params))]
      (if (string/blank? query-string)
        (string/join "/" path)
@@ -266,7 +276,10 @@
         next-item-href (when (> (count items) 1)
                          (make-site-href [link-prefix "item/by-id"
                                           (-> items second :id)]
-                                         {:mark :read} x))
+                                         (cond-> {:mark :read}
+                                           (some? (:ranked-pos (first items)))
+                                           (assoc :ranked-pos (inc (:ranked-pos (first items)))))
+                                         x))
 
         next-item-button (when (> (count items) 1)
                            [:a {:class "btn btn-secondary"
@@ -290,7 +303,9 @@
               :href (make-site-href [(:uri x)] x)}
           (icon "fas fa-step-backward")]
          [:a {:class "navbar-toggler"
-              :href (make-site-href [(:uri x)] (:range-before x) x)}
+              :href (if (:page-offset x)
+                      (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
+                      (make-site-href [(:uri x)] (:range-before x) x))}
           (icon "fas fa-forward")]
          [:a {:class "navbar-toggler btn-mark-view-read"
               :href "#"}
@@ -361,7 +376,9 @@
 
             [:a {:class "btn btn-secondary"
                  :title "Forward N items"
-                 :href (make-site-href [(:uri x)] (:range-before x) x)}
+                 :href (if (:page-offset x)
+                         (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
+                         (make-site-href [(:uri x)] (:range-before x) x))}
              (icon "fas fa-forward")]
 
             [:a {:class "btn btn-secondary btn-mark-view-read"
@@ -480,6 +497,16 @@
        (for [[key {:keys [name ico]}] +list-styles+]
          [:li {:class "nav-item"}
           [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style key} x)}
+           (icon ico) "\u00a0" name]])]
+
+      ;; sort order
+      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                        "align-items-center px-3 mt-4 mb-1 text-muted")}
+       [:span "Sort Order"]]
+      [:ul {:class "nav flex-column" :id "sort-order-select"}
+       (for [[key {:keys [name ico]}] +sort-orders+]
+         [:li {:class "nav-item"}
+          [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:sort-order key} x)}
            (icon ico) "\u00a0" name]])]
 
       ;; item tags
@@ -945,7 +972,9 @@
                                     (map #(str "option-" (name %)) options)))}
      [:h4 {:class "h4"}
       [:a {:href (make-site-href [link-prefix "item/by-id" id]
-                                 {:mark :read} x)}
+                                 (cond-> {:mark :read}
+                                   (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                 x)}
        (if (string/blank? title)
          "(no title)"
          title)]]
@@ -1068,7 +1097,9 @@
          [:tr {:data-id id}
           [:th {:class "title"}
            [:a {:href (make-site-href [link-prefix "item/by-id" id]
-                                      {:mark :read} x)}
+                                      (cond-> {:mark :read}
+                                        (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                      x)}
             (if (string/blank? title)
               "(no title)"
               title)]
@@ -1151,7 +1182,9 @@
            [:div {:class "card-body"}
             [:p {:class "card-title"}
              [:a {:href (make-site-href [link-prefix "item/by-id" id]
-                                        {:mark :read} x)}
+                                        (cond-> {:mark :read}
+                                          (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                        x)}
               (if (string/blank? title)
                 "(no title)"
                 title)]]
@@ -1199,6 +1232,15 @@
       :else
       :preview)))
 
+(defn get-sort-order [x]
+  (let [selected (:sort-order x)
+        group-item (:group-item x)
+        defaults (config/get-sort-order-defaults)]
+    (cond
+      (keyword? selected) selected
+      (keyword? (get defaults group-item)) (get defaults group-item)
+      :else :newest)))
+
 (defn list-items [x]
   ((get-in +list-styles+ [(get-list-style x) :fn]) x))
 
@@ -1221,21 +1263,33 @@
   [sources params]
   (let [{:keys [range-before mode group-name item-id group-item source-key]} params
         fltr (:filter params)
-        common-args {:before (when-not (empty? range-before) range-before)
+        effective-sort (get-sort-order params)
+        ranking-config (get-in appconfig [:ranking] {})
+        common-args {:sort-order effective-sort
+                     :ranked (= effective-sort :ranked)
+                     :highlight-boost (get ranking-config :highlight-boost-hours 48.0)
+                     :rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
                      :simple-filter fltr
                      :with-data? false
                      :limit (if (= mode :get-moar-items)
                               1
-                              +max-items+)}]
+                              +max-items+)}
+        common-args (if (= effective-sort :ranked)
+                      (assoc common-args :offset (or (:page-offset params) 0))
+                      (assoc common-args :before (when-not (empty? range-before) range-before)))]
 
     (cond
       (contains? #{:show-item :download :dump-item :focus-item} mode)
       (let [current-item (persistency/get-item-by-id frontend-db item-id)
-            next-items (get-items-for-current-view
-                        sources
-                        (-> params
-                            (assoc :range-before (select-keys current-item [:ts :id]))
-                            (assoc :mode :get-moar-items)))]
+            ranked-pos (:ranked-pos params)
+            next-items (if (and (= effective-sort :ranked) (some? ranked-pos))
+                         (persistency/get-items-recent frontend-db
+                                                       (merge common-args {:offset (inc ranked-pos) :limit 1}))
+                         (get-items-for-current-view
+                          sources
+                          (-> params
+                              (assoc :range-before (select-keys current-item [:ts :id]))
+                              (assoc :mode :get-moar-items))))]
         (into [current-item] next-items))
 
       (and (= group-name :default) (= group-item :all) (= source-key :all))
@@ -1381,14 +1435,22 @@
                             (get-active-group-sources sources params))))
 
          selected-sources (get-selected-sources active-sources params)
+         effective-sort (get-sort-order params)
+         base-offset (or (:page-offset params) 0)
+         fetched @items
+         annotated-items (if (= effective-sort :ranked)
+                           (map-indexed (fn [idx item] (assoc item :ranked-pos (+ base-offset idx))) fetched)
+                           fetched)
          params (merge params {:sources sources
                                :active-sources active-sources
                                :selected-sources selected-sources
-                               :items @items
+                               :items annotated-items
                                :item-tags @item-tags
                                :filter orig-fltr
-                               :range-recent (-> @items first (select-keys [:ts :id]))
-                               :range-before (-> @items last (select-keys [:ts :id]))})]
+                               :range-recent (-> fetched first (select-keys [:ts :id]))
+                               :range-before (-> fetched last (select-keys [:ts :id]))
+                               :page-offset (when (= effective-sort :ranked)
+                                              (+ base-offset (count fetched)))})]
      params)
    (catch Object _
      (throw+ {:type ::gather-data-error
@@ -1824,6 +1886,8 @@
                         :source-key source-key
                         :mode :list-items
                         :list-style (as-keyword (get-in req [:params :list-style]))
+                        :sort-order (as-keyword (get-in req [:params :sort-order]))
+                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
                         :range-before {:id id
                                        :ts ts}}))
 
@@ -1834,6 +1898,8 @@
                         :group-item group-item
                         :source-key source-key
                         :list-style (as-keyword (get-in req [:params :list-style]))
+                        :sort-order (as-keyword (get-in req [:params :sort-order]))
+                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
                         :mode :list-items}))
 
        (context
@@ -1851,6 +1917,10 @@
                           :source-key source-key
                           :item-id item-id
                           :mode :show-item
+                          :list-style (as-keyword (get-in req [:params :list-style]))
+                          :sort-order (as-keyword (get-in req [:params :sort-order]))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)
                           :content-type content-type
                           :data data}))
 
@@ -1863,7 +1933,11 @@
                           :group-item group-item
                           :source-key source-key
                           :item-id item-id
-                          :mode :show-item}))
+                          :mode :show-item
+                          :list-style (as-keyword (get-in req [:params :list-style]))
+                          :sort-order (as-keyword (get-in req [:params :sort-order]))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)}))
 
          (GET "/download"
            [data :<< as-keyword
@@ -1887,6 +1961,9 @@
                           :source-key source-key
                           :item-id item-id
                           :mode :focus-item
+                          :sort-order (as-keyword (get-in req [:params :sort-order]))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)
                           :data data
                           :content-type content-type}))
          (GET "/dump" []
@@ -1896,13 +1973,18 @@
                           :group-item group-item
                           :source-key source-key
                           :item-id item-id
-                          :mode :dump-item}))))
+                          :mode :dump-item
+                          :sort-order (as-keyword (get-in req [:params :sort-order]))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)}))))
 
      (GET "/" [] (reader-index
                   {:group-name :default
                    :group-item :all
                    :source-key :all
                    :list-style (as-keyword (get-in req [:params :list-style]))
+                   :sort-order (as-keyword (get-in req [:params :sort-order]))
+                   :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
                    :mode :list-items})))
 
    (GET "/preview" []

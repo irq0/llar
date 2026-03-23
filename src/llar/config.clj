@@ -32,7 +32,12 @@
 ;; see llar.sched for other schedulers
 (defonce fetch-scheds (atom {}))
 
+;; contains per-tag sort order defaults loaded from .llar files
+(defonce sort-order-defaults (atom {}))
+
 (defn get-sources [] @srcs)
+
+(defn get-sort-order-defaults [] @sort-order-defaults)
 
 (defn get-source [k] (get @srcs k))
 
@@ -227,6 +232,17 @@
           (swap! podcast/source-retention-overrides assoc source-key limit))
         (catch Exception e
           (log/error e "failed to load podcast-retention def" (second form))))
+
+      (and (list? form) (#{'sort-default} (first form)))
+      (try
+        (let [tag-key (keyword (second form))
+              order (keyword (nth form 2))]
+          (when-not (#{:newest :ranked :oldest} order)
+            (log/warnf "sort-default: unknown sort order '%s' for tag '%s'" order tag-key))
+          (log/debugf "loading sort-default: %s -> %s" tag-key order)
+          (swap! sort-order-defaults assoc tag-key order))
+        (catch Exception e
+          (log/error e "failed to load sort-default def" (second form))))
       :else
       (log/warnf "unknown config definition \"%s\". Skipping." form))))
 
