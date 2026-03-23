@@ -157,8 +157,8 @@
         (when diff-url (list " · " [:a {:href diff-url} "Diff"]))]]))))
 
 (defn- repo-html-summary [hit]
-  (let [{:keys [description html_url stargazers_count
-                forks_count language topics owner homepage license]} hit
+  (let [{:keys [description stargazers_count
+                forks_count language topics homepage]} hit
         license-name (get-in hit [:license :spdx_id])]
     (str
      (html
