@@ -49,7 +49,7 @@
 (defn format-body
   "Format annotations as plain text.
    Notes as '- ' list items on top, highlights as plain paragraphs below."
-  [item annotations]
+  [_item annotations]
   (let [highlights (filter #(some? (:selector %)) annotations)
         notes (filter #(and (some? (:body %))
                             (nil? (:selector %))) annotations)]

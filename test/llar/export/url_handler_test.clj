@@ -1,5 +1,6 @@
 (ns llar.export.url-handler-test
   (:require
+   [clojure.string]
    [clojure.test :refer [deftest is testing]]
    [llar.export.url-handler :as url-handler]))
 
