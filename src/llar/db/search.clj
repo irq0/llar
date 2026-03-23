@@ -1,5 +1,6 @@
 (ns llar.db.search
   (:require
+   [clojure.tools.logging :as log]
    [digest]
    [java-time.api :as time]
    [llar.db.core]
@@ -14,6 +15,9 @@
 
 (defn- refresh-idf [db]
   (jdbc/execute! db ["refresh materialized view idf_top_words"]))
+
+(defn- refresh-source-stats [db]
+  (jdbc/execute! db ["REFRESH MATERIALIZED VIEW CONCURRENTLY source_stats"]))
 
 (extend-protocol DataStoreSearch
   PostgresqlDataStore
@@ -33,7 +37,10 @@
 
   (update-index! [this]
     (refresh-search-index this)
-    (refresh-idf this)))
+    (refresh-idf this)
+    (try (refresh-source-stats this)
+         (catch Exception e
+           (log/warn e "Failed to refresh source_stats materialized view")))))
 
 (defn saved-items-tf-idf [db]
   (rest (map (fn [{:keys [id json_agg]}]

@@ -40,6 +40,8 @@
             :av-downloader "yt-dlp"
             :html2text "html2text"}
  :blob-store-dir "/var/lib/llar/blobs"
+ :ranking {:highlight-boost-hours 48
+           :rarity-boost-cap-hours 168}
  ;; Annotation export. Uncomment and configure to enable.
  ;; Zotero: add :zotero {:api-key "..." :user-id "..."} to credentials.edn
  ;; URL handler: opens a URL with {title}, {url}, {id}, {source}, {body} placeholders

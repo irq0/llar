@@ -1,6 +1,6 @@
 (ns llar.db.query
   (:require
-   [llar.persistency :refer [StatsQueries SourceQueries ItemQueries]]
+   [llar.persistency :refer [StatsQueries SourceQueries ItemQueries RankingQueries]]
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.converter :as conv]
@@ -122,16 +122,27 @@
       :else (sql/item-select-default-snip))))
 
 (defn- choose-recent-items-from-snip [args]
-  (let [{:keys [with-data? with-preview-data?]} args]
+  (let [{:keys [with-data? with-preview-data?]} args
+        ranked (= (:sort-order args) :ranked)]
     (cond
-      with-data? (sql/item-from-join-with-data-table-snip)
-      with-preview-data? (sql/item-from-join-with-preview-data-snip)
-      :else (sql/item-from-join-default-snip))))
+      (and ranked with-data?)          (sql/item-from-join-with-data-table-ranked-snip)
+      (and ranked with-preview-data?)  (sql/item-from-join-with-preview-data-ranked-snip)
+      ranked                           (sql/item-from-join-ranked-snip)
+      with-data?                       (sql/item-from-join-with-data-table-snip)
+      with-preview-data?               (sql/item-from-join-with-preview-data-snip)
+      :else                            (sql/item-from-join-default-snip))))
 
 (defn- choose-recent-items-group-by-colums [args]
   (let [{:keys [with-data? with-preview-data?]} args]
     (when (or with-data? with-preview-data?)
       ["items.id"])))
+
+(defn- choose-order-by-snip [args]
+  (case (:sort-order args)
+    :ranked (sql/order-by-ranked-snip {:highlight-boost (or (:highlight-boost args) 48.0)
+                                       :rarity-cap (or (:rarity-cap args) 168.0)})
+    :oldest (sql/order-by-oldest-snip)
+    (sql/order-by-newest-snip)))
 
 (defn- make-recent-items-where-cond-vec
   "Convert get-items-recent filter parameter into a list of sqlvec where clauses"
@@ -142,7 +153,9 @@
      (interpose ["and"]
                 (cond-> []
                   (map? before)
-                  (conj (sql/cond-before before))
+                  (conj (if (= (:sort-order args) :oldest)
+                          (sql/cond-after before)
+                          (sql/cond-before before)))
 
                   (coll? with-source-keys)
                   (conj (sql/cond-with-source-keys {:keys
@@ -163,13 +176,15 @@
 (extend-protocol ItemQueries
   PostgresqlDataStore
 
-  (get-items-recent [this {:keys [limit] :or {limit 42} :as args}]
+  (get-items-recent [this {:keys [limit offset] :or {limit 42} :as args}]
     (sql/get-items-recent
      this
      {:select (choose-recent-items-select-snip args)
       :from (choose-recent-items-from-snip args)
       :where (make-recent-items-where-cond-vec args)
+      :order-by (choose-order-by-snip args)
       :limit limit
+      :offset offset
       :group-by-columns (choose-recent-items-group-by-colums args)}))
 
   (get-items-by-tag [this tag]
@@ -183,3 +198,12 @@
        :select (sql/item-select-with-data-snip)
        :from (sql/item-from-join-with-data-table-snip)
        :group-by-columns ["items.id"]}))))
+
+(extend-protocol RankingQueries
+  PostgresqlDataStore
+
+  (get-source-stats [this args]
+    (sql/get-source-stats this args))
+
+  (get-ranked-vs-time-preview [this args]
+    (sql/get-ranked-vs-time-preview this args)))

@@ -19,11 +19,18 @@
  item-from-join-default-snip
  item-from-join-with-data-table-snip
  item-from-join-with-preview-data-snip
+ item-from-join-ranked-snip
+ item-from-join-with-preview-data-ranked-snip
+ item-from-join-with-data-table-ranked-snip
  cond-before
+ cond-after
  cond-with-source-keys
  cond-with-source-ids
  cond-with-tag
  cond-with-type
+ order-by-newest-snip
+ order-by-oldest-snip
+ order-by-ranked-snip
  get-items-recent
  get-item-by-id
  store-item
@@ -50,7 +57,9 @@
  get-annotation-by-id
  create-annotation
  delete-annotation
- count-annotations-for-item)
+ count-annotations-for-item
+ get-source-stats
+ get-ranked-vs-time-preview)
 
 (hugsql/def-db-fns (io/resource "sql/items.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/sources.sql") {:quoting :ansi})
@@ -59,3 +68,5 @@
 (hugsql/def-db-fns (io/resource "sql/tags.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/item.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/annotations.sql") {:quoting :ansi})
+(hugsql/def-db-fns (io/resource "sql/ranking.sql") {:quoting :ansi})
+(hugsql/def-sqlvec-fns (io/resource "sql/ranking.sql") {:quoting :ansi})

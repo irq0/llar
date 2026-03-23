@@ -41,6 +41,13 @@
     :simple-filter see #'simple-filter-to-sql  -  only items matching simple filter
     :with-source-keys [$source-key ..]  -  only items from source in vec
 
+    Sorting options:
+    :sort-order  -  :newest (default), :oldest, or :ranked
+    :offset      -  integer offset for non-cursor pagination
+    :highlight-boost  -  hours subtracted for highlighted items (default 48.0)
+    :rarity-cap  -  max hours for rarity boost (default 168.0)
+    :ranked      -  when truthy, joins source_stats for ranked sorting
+
     Return item without data when :with-data? or :with-preview-data? is not specified")
   (get-item-by-id [this item-id])
   (get-items-by-tag [this tag]))
@@ -54,6 +61,10 @@
   (get-annotations [this item-id])
   (create-annotation! [this item-id selector body])
   (delete-annotation! [this annotation-id]))
+
+(defprotocol RankingQueries
+  (get-source-stats [this args])
+  (get-ranked-vs-time-preview [this args]))
 
 (defprotocol DataStoreSearch
   (update-index! [this])

@@ -1,5 +1,6 @@
 (ns llar.apis.dashboard
   (:require
+   [cheshire.core :as cheshire]
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
    [compojure.core :refer [DELETE GET POST routes context]]
@@ -12,7 +13,7 @@
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
-   [llar.appconfig :refer [appconfig-redact-secrets]]
+   [llar.appconfig :refer [appconfig appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.converter]
    [llar.human :as human]
@@ -50,6 +51,7 @@
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js"}]
    [:script {:src "/static/datatables/dataTables.buttons.min.js"}]
    [:script {:src "/static/datatables/buttons.bootstrap5.min.js"}]
+   [:script {:src "/static/chartjs/chart.umd.min.js"}]
    [:script {:src "/static/llar-status.js"}]])
 
 (defn wrap-body [body]
@@ -410,6 +412,142 @@
                                        ".then(()=>location.reload())")}
                 "Delete"])]])]])]))
 
+(defn ranking-tab []
+  (let [reader-db reader/frontend-db
+        ranking-config (get-in appconfig [:ranking] {})
+        rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
+        highlight-boost (get ranking-config :highlight-boost-hours 48.0)
+        stats (try (persistency/get-source-stats reader-db {:rarity-cap rarity-cap})
+                   (catch Exception e
+                     (log/warn e "ranking-tab: failed to get source stats")
+                     []))
+        preview (try (persistency/get-ranked-vs-time-preview
+                      reader-db
+                      {:highlight-boost highlight-boost :rarity-cap rarity-cap})
+                     (catch Exception e
+                       (log/warn e "ranking-tab: failed to get ranked preview")
+                       []))
+        top-30-rarity (take 30 (sort-by :rarity_boost_hours #(compare %2 %1) stats))
+        top-30-highlight (take 30 (sort-by :highlight_count #(compare %2 %1)
+                                           (filter #(pos? (:highlight_count %)) stats)))
+        ranked-top-10 (take 10 preview)
+        time-top-10 (take 10 (sort-by :ts #(compare %2 %1) preview))
+        rarity-chart-data {:labels (mapv (comp name :source_key) top-30-rarity)
+                           :values (mapv :rarity_boost_hours top-30-rarity)}
+        highlight-chart-data {:labels (mapv (comp name :source_key) top-30-highlight)
+                              :values (mapv :highlight_count top-30-highlight)}]
+    [:div
+     [:h5 "Ranking Analytics"]
+     [:p {:class "text-muted"}
+      "Rarity cap: " rarity-cap "h, Highlight boost: " highlight-boost "h"]
+
+     ;; Charts row
+     [:div {:class "row mb-4"}
+      [:div {:class "col-md-6"}
+       [:h6 "Rarity Boost Distribution (top 30)"]
+       [:canvas {:id "rarity-boost-chart" :height "400"}]]
+      [:div {:class "col-md-6"}
+       [:h6 "Highlight Distribution (top 30)"]
+       [:canvas {:id "highlight-chart" :height "400"}]]]
+
+     ;; Source stats table
+     [:div {:class "mb-4"}
+      [:h6 "Source Stats"]
+      [:table {:class "datatable table"}
+       [:thead
+        [:tr
+         [:th "Source Key"]
+         [:th "Items/Day"]
+         [:th "Rarity Boost (h)"]
+         [:th "Highlight Count"]
+         [:th "Items (7d)"]]]
+       [:tbody
+        (for [row stats]
+          [:tr
+           [:td (name (:source_key row))]
+           [:td (format "%.2f" (double (or (:items_per_day row) 0)))]
+           [:td (format "%.1f" (double (or (:rarity_boost_hours row) 0)))]
+           [:td (:highlight_count row)]
+           [:td (:items_7d row)]])]]]
+
+     ;; Ranked vs Time comparison
+     [:div {:class "row mb-4"}
+      [:div {:class "col-md-6"}
+       [:h6 "Top 10 by Ranked Order"]
+       [:ol
+        (for [item ranked-top-10]
+          [:li [:strong (or (:title item) "(no title)")]
+           [:br]
+           [:small {:class "text-muted"}
+            (name (:source_key item))
+            " | age: " (format "%.1f" (double (:effective_age_hours item))) "h"
+            (when (:is_highlighted item) " | highlighted")]])]]
+      [:div {:class "col-md-6"}
+       [:h6 "Top 10 by Time (newest)"]
+       [:ol
+        (for [item time-top-10]
+          [:li [:strong (or (:title item) "(no title)")]
+           [:br]
+           [:small {:class "text-muted"}
+            (name (:source_key item))
+            " | effective age: " (format "%.1f" (double (:effective_age_hours item))) "h"
+            (when (:is_highlighted item) " | highlighted")]])]]]
+
+     ;; Chart.js initialization
+     [:script
+      (h/raw
+       (format "
+document.addEventListener('DOMContentLoaded', function() {
+  var rarityData = %s;
+  var highlightData = %s;
+
+  if (document.getElementById('rarity-boost-chart')) {
+    new Chart(document.getElementById('rarity-boost-chart'), {
+      type: 'bar',
+      data: {
+        labels: rarityData.labels,
+        datasets: [{
+          label: 'Rarity Boost (hours)',
+          data: rarityData.values,
+          backgroundColor: 'rgba(54, 162, 235, 0.6)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } }
+      }
+    });
+  }
+
+  if (document.getElementById('highlight-chart')) {
+    new Chart(document.getElementById('highlight-chart'), {
+      type: 'bar',
+      data: {
+        labels: highlightData.labels,
+        datasets: [{
+          label: 'Highlight Count',
+          data: highlightData.values,
+          backgroundColor: 'rgba(255, 206, 86, 0.6)',
+          borderColor: 'rgba(255, 206, 86, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } }
+      }
+    });
+  }
+});"
+               (cheshire/generate-string rarity-chart-data)
+               (cheshire/generate-string highlight-chart-data)))]]))
+
 (defn config-tab []
   [:div [:h5 "appconfig"]
    (map-to-tree (appconfig-redact-secrets))])
@@ -417,6 +555,7 @@
 (def tabs
   {:sources #'source-tab
    :podcast #'podcast-tab
+   :ranking #'ranking-tab
    :memory #'memory-tab
    :database #'database-tab
    :schedules #'schedule-tab
