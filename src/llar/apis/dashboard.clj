@@ -413,7 +413,7 @@
                 "Delete"])]])]])]))
 
 (defn ranking-tab []
-  (let [reader-db (reader/frontend-db)
+  (let [reader-db reader/frontend-db
         ranking-config (get-in appconfig [:ranking] {})
         rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
         highlight-boost (get ranking-config :highlight-boost-hours 48.0)
