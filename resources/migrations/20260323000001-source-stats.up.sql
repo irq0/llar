@@ -7,5 +7,5 @@ SELECT
 FROM items
 WHERE ts > now() - interval '90 days'
 GROUP BY source_id;
-
+--;;
 CREATE UNIQUE INDEX source_stats_source_id_idx ON source_stats (source_id);
