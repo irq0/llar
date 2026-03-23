@@ -1,6 +1,5 @@
 (ns llar.podcast
   (:require
-   [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.logging :as log]
@@ -76,7 +75,7 @@
        (let [content (slurp f)]
          (if (str/blank? content)
            {}
-           (edn/read-string content)))
+           (conv/read-edn-propsfile content)))
        (catch Object e
          (log/warn "podcast: failed to read podcast index, returning empty:" e)
          {}))
