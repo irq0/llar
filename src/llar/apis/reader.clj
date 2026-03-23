@@ -15,7 +15,7 @@
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.core :as cheshire]
-   [llar.appconfig :refer [appconfig postgresql-config]]
+   [llar.appconfig :refer [appconfig postgresql-config credentials]]
    [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.core :as db]
@@ -29,7 +29,9 @@
    [llar.postproc :as proc]
    [llar.store :refer [store-items!]]
    [llar.update :as update]
-   [llar.db.annotations])
+   [llar.db.annotations]
+   [llar.export.zotero :as zotero]
+   [llar.export.url-handler :as url-handler])
   (:import
    [org.apache.commons.text StringEscapeUtils]))
 
@@ -699,7 +701,27 @@
                                                    :content-type "text/html"} x)}
         "\u00a0" (icon "fas fa-remove-format")]
        [:a {:class "btn" :id "btn-annotation-mode" :title "Annotation Mode (a)"}
-        "\u00a0" (icon "fas fa-pen-fancy")]]
+        "\u00a0" (icon "fas fa-pen-fancy")]
+       (let [has-zotero (some? (credentials :zotero))
+             has-url-handler (some? (get-in appconfig [:export :url-handler]))
+             url-handler-cfg (get-in appconfig [:export :url-handler])]
+         (when (or has-zotero has-url-handler)
+           [:div {:class "dropdown d-inline-block"}
+            [:a {:class "btn dropdown-toggle btn-sm"
+                 :href "#"
+                 :role "button"
+                 :id "export-dropdown"
+                 :data-bs-toggle "dropdown"
+                 :title "Export annotations"}
+             (icon "fas fa-file-export")]
+            [:div {:class "dropdown-menu"}
+             (when has-zotero
+               [:a {:class "dropdown-item" :id "btn-export-zotero" :href "#"}
+                (icon "fas fa-book") " Zotero"])
+             (when has-url-handler
+               [:a {:class "dropdown-item" :id "btn-export-url-handler" :href "#"}
+                (icon (or (:icon url-handler-cfg) "fas fa-external-link-alt"))
+                " " (or (:name url-handler-cfg) "Open in app")])]]))]
 
       [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
        [:div {:class "dropdown show "}
@@ -1743,6 +1765,36 @@
     {:status 404
      :body {:error "Annotation not found"}}))
 
+(defn reader-export-zotero [item-id]
+  (try+
+   (let [item (persistency/get-item-by-id frontend-db item-id)
+         annotations (persistency/get-annotations frontend-db item-id)
+         result (zotero/export-item! item annotations)]
+     {:status 200
+      :body {:success true :zotero-key (:parent-key result)}})
+   (catch [:type :llar.export.zotero/zotero-auth-error] _
+     {:status 401
+      :body {:error "Zotero authentication failed"}})
+   (catch [:type :llar.export.zotero/credentials-missing] _
+     {:status 500
+      :body {:error "Zotero credentials not configured"}})
+   (catch Object e
+     (log/warn e "Zotero export failed for item" item-id)
+     {:status 500
+      :body {:error (str "Export failed: " (ex-message e))}})))
+
+(defn reader-export-url-handler [item-id]
+  (try
+    (let [item (persistency/get-item-by-id frontend-db item-id)
+          annotations (persistency/get-annotations frontend-db item-id)
+          url (url-handler/build-export-url item annotations)]
+      {:status 200
+       :body {:url url}})
+    (catch Exception e
+      (log/warn e "URL handler export failed for item" item-id)
+      {:status 500
+       :body {:error (str "Export failed: " (ex-message e))}})))
+
 (defn as-keyword
   "Compojure Helper: Parse a string into keyword"
   [s]
@@ -1774,6 +1826,12 @@
          (reader-create-annotation item-id selector body))
        (DELETE "/:id" [id :<< as-int]
          (reader-delete-annotation id)))
+
+     (context "/export" []
+       (POST "/:item-id/zotero" [item-id :<< as-int]
+         (reader-export-zotero item-id))
+       (GET "/:item-id/url-handler" [item-id :<< as-int]
+         (reader-export-url-handler item-id)))
 
      (POST "/bookmark/add"
        [url type :<< as-keyword]

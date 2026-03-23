@@ -39,4 +39,11 @@
             :lynx "lynx"
             :av-downloader "yt-dlp"
             :html2text "html2text"}
- :blob-store-dir "/var/lib/llar/blobs"}
+ :blob-store-dir "/var/lib/llar/blobs"
+ ;; Annotation export. Uncomment and configure to enable.
+ ;; Zotero: add :zotero {:api-key "..." :user-id "..."} to credentials.edn
+ ;; URL handler: opens a URL with {title}, {url}, {id}, {source}, {body} placeholders
+ :export {:url-handler {:name "Org-roam"
+                        :icon "fas fa-brain"
+                        :template "org-protocol://roam-ref?template=R&ref={url}&title={title}&body={body}%0A%0A{source}%20%7C%20%F0%9F%96%96-id%3A{id}"}}
+ }

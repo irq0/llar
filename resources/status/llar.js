@@ -461,6 +461,16 @@ $(document).ready(function () {
   $("#btn-add-item-note").on("click", function () {
     createItemNote();
   });
+
+  // export buttons
+  $("#btn-export-zotero").on("click", function (e) {
+    e.preventDefault();
+    exportToZotero();
+  });
+  $("#btn-export-url-handler").on("click", function (e) {
+    e.preventDefault();
+    exportToUrlHandler();
+  });
 });
 
 //
@@ -859,4 +869,57 @@ function renderNotes() {
   if (annotationModeActive) {
     panel.show();
   }
+}
+
+//
+// Export Functions
+//
+
+function exportToZotero() {
+  var itemId = getItemId();
+  if (!itemId) return;
+  var btn = $("#btn-export-zotero");
+  btn.addClass("disabled");
+  $.post("/reader/export/" + itemId + "/zotero", function () {
+    btn.removeClass("disabled");
+    showExportFlash("success", "Exported to Zotero");
+  }).fail(function (xhr) {
+    btn.removeClass("disabled");
+    var msg = "Export failed";
+    try {
+      msg = JSON.parse(xhr.responseText).error;
+    } catch (e) {
+      /* ignore parse error */
+    }
+    showExportFlash("danger", msg);
+  });
+}
+
+function exportToUrlHandler() {
+  var itemId = getItemId();
+  if (!itemId) return;
+  $.getJSON("/reader/export/" + itemId + "/url-handler", function (data) {
+    if (data.url) window.open(data.url, "_blank");
+  }).fail(function (xhr) {
+    var msg = "Export failed";
+    try {
+      msg = JSON.parse(xhr.responseText).error;
+    } catch (e) {
+      /* ignore parse error */
+    }
+    showExportFlash("danger", msg);
+  });
+}
+
+function showExportFlash(type, message) {
+  var flash = $("<div>")
+    .addClass("alert alert-" + type + " position-fixed bottom-0 end-0 m-3")
+    .css("z-index", 9999)
+    .text(message)
+    .appendTo("body");
+  setTimeout(function () {
+    flash.fadeOut(function () {
+      flash.remove();
+    });
+  }, 3000);
 }
