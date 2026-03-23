@@ -1262,24 +1262,28 @@
         :list-items (list-items x)
         "Unknown mode")]]))
 
-(defn get-items-for-current-view
-  "Fetch current view items from database"
-  [sources params]
-  (let [{:keys [range-before mode group-name item-id group-item source-key]} params
-        fltr (:filter params)
-        effective-sort (get-sort-order params)
+(defn- build-items-query-args
+  "Build common query args from params and effective sort order."
+  [params effective-sort]
+  (let [{:keys [range-before mode]} params
         ranking-config (get-in appconfig [:ranking] {})
         common-args {:sort-order effective-sort
                      :highlight-boost (get ranking-config :highlight-boost-hours 48.0)
                      :rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
-                     :simple-filter fltr
+                     :simple-filter (:filter params)
                      :with-data? false
                      :limit (if (= mode :get-moar-items)
                               1
-                              +max-items+)}
-        common-args (if (= effective-sort :ranked)
-                      (assoc common-args :offset (or (:page-offset params) 0))
-                      (assoc common-args :before (when-not (empty? range-before) range-before)))]
+                              +max-items+)}]
+    (if (= effective-sort :ranked)
+      (assoc common-args :offset (or (:page-offset params) 0))
+      (assoc common-args :before (when-not (empty? range-before) range-before)))))
+
+(defn- get-items-for-current-view*
+  "Fetch current view items from database for the given sort order."
+  [sources params effective-sort]
+  (let [{:keys [mode group-name item-id group-item source-key]} params
+        common-args (build-items-query-args params effective-sort)]
 
     (cond
       (contains? #{:show-item :download :dump-item :focus-item} mode)
@@ -1288,11 +1292,12 @@
             next-items (if (and (= effective-sort :ranked) (some? ranked-pos))
                          (persistency/get-items-recent frontend-db
                                                        (merge common-args {:offset (inc ranked-pos) :limit 1}))
-                         (get-items-for-current-view
+                         (get-items-for-current-view*
                           sources
                           (-> params
                               (assoc :range-before (select-keys current-item [:ts :id]))
-                              (assoc :mode :get-moar-items))))]
+                              (assoc :mode :get-moar-items))
+                          effective-sort))]
         (into [current-item] next-items))
 
       (and (= group-name :default) (= group-item :all) (= source-key :all))
@@ -1355,6 +1360,19 @@
 
       :else
       [])))
+
+(defn get-items-for-current-view
+  "Fetch current view items. Falls back to :newest sort if ranked query fails
+  (e.g. source_stats materialized view doesn't exist yet)."
+  [sources params]
+  (let [effective-sort (get-sort-order params)]
+    (if (= effective-sort :ranked)
+      (try
+        (get-items-for-current-view* sources params :ranked)
+        (catch Exception e
+          (log/warn e "Ranked query failed, falling back to :newest sort")
+          (get-items-for-current-view* sources params :newest)))
+      (get-items-for-current-view* sources params effective-sort))))
 
 (defn get-active-group-sources
   "Return active sources, might hit database"
