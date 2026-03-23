@@ -107,6 +107,28 @@ from items
      and item_data.type = 'description'
      and mime_type = 'text/plain'
 
+-- :snip item-from-join-ranked-snip
+from items
+  inner join sources on items.source_id = sources.id
+  left join source_stats ss on items.source_id = ss.source_id
+
+-- :snip item-from-join-with-data-table-ranked-snip
+from items
+  inner join sources on items.source_id = sources.id
+  left join item_data on
+    items.id = item_data.item_id
+    and (item_data.type = 'content' or item_data.type = 'description')
+  left join source_stats ss on items.source_id = ss.source_id
+
+-- :snip item-from-join-with-preview-data-ranked-snip
+from items
+  inner join sources on items.source_id = sources.id
+  left join item_data on
+     items.id = item_data.item_id
+     and item_data.type = 'description'
+     and mime_type = 'text/plain'
+  left join source_stats ss on items.source_id = ss.source_id
+
 -- :name get-item-by-id :? :1
 :snip:select
 :snip:from
@@ -117,6 +139,23 @@ where
 
 -- :snip cond-before
 (items.ts, items.id) < (:ts, :id)
+
+-- :snip cond-after
+(items.ts, items.id) > (:ts, :id)
+
+-- :snip order-by-newest-snip
+order by items.ts desc, items.id desc
+
+-- :snip order-by-oldest-snip
+order by items.ts asc, items.id asc
+
+-- :snip order-by-ranked-snip
+order by (
+  extract(epoch from now() - items.ts) / 3600.0
+  - CASE WHEN items.tagi @@ (SELECT format('(%s)', id)::query_int FROM tags WHERE tag = 'highlight')
+    THEN :highlight-boost ELSE 0.0 END
+  - LEAST(:rarity-cap, 24.0 / GREATEST(COALESCE(ss.items_per_day, 1.0), 0.01))
+) ASC, items.id DESC
 
 -- :snip cond-with-source-keys
 sources.key in (:v*:keys)
@@ -135,6 +174,6 @@ items.type = :type::item_type
 :snip:from
 --~ (when (:where params) "where :snip*:where")
 --~ (when (:group-by-columns params) "group by :i*:group-by-columns")
-order by
-  items.ts desc, items.id desc
+:snip:order-by
 limit :limit
+--~ (when (:offset params) "offset :offset")
