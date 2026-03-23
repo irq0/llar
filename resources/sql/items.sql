@@ -151,7 +151,7 @@ order by items.ts asc, items.id asc
 
 -- :snip order-by-ranked-snip
 order by (
-  extract(epoch from now() - items.ts) / 3600.0
+  GREATEST(0, extract(epoch from now() - items.ts) / 3600.0)
   - CASE WHEN items.tagi @@ (SELECT format('(%s)', id)::query_int FROM tags WHERE tag = 'highlight')
     THEN :highlight-boost ELSE 0.0 END
   - LEAST(:rarity-cap, 24.0 / GREATEST(COALESCE(ss.items_per_day, 1.0), 0.01))
