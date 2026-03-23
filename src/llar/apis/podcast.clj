@@ -159,11 +159,10 @@
   "Generate full RSS 2.0 podcast feed XML string.
    Optional opts map: {:source-key :some-source} to filter by source."
   [base-url token & [{:keys [source-key]}]]
-  (let [completed (->> @podcast/download-state
-                       (filter (fn [[_ v]] (= :complete (:status v))))
-                       (cond->>
-                        source-key (filter (fn [[_ v]] (= source-key (:source-key v)))))
-                       (into {}))
+  (let [completed (cond->> (->> @podcast/download-state
+                                (filter (fn [[_ v]] (= :complete (:status v)))))
+                    source-key (filter (fn [[_ v]] (= source-key (:source-key v))))
+                    true (into {}))
         ;; TODO: add TTS support for text articles in the future
         all-items (try+
                    (persistency/get-items-recent store/backend-db
