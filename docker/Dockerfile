@@ -31,7 +31,8 @@ RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sour
   build-essential \
   ffmpeg \
   python3-pip \
-  atomicparsley
+  atomicparsley \
+  fonts-noto-color-emoji
 
 RUN wget -qO- https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y --no-install-recommends nodejs

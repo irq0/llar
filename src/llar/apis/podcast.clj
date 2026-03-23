@@ -15,10 +15,13 @@
    [llar.podcast :as podcast]
    [llar.store :as store])
   (:import
-   [java.io FileInputStream]
+   [java.awt Color Font RenderingHints]
+   [java.awt.image BufferedImage]
+   [java.io ByteArrayInputStream ByteArrayOutputStream FileInputStream]
    [java.time ZonedDateTime]
    [java.time.format DateTimeFormatter]
    [java.util Locale]
+   [javax.imageio ImageIO]
    [org.apache.commons.io.input BoundedInputStream]))
 
 (defn wrap-token-auth [handler]
@@ -155,6 +158,47 @@
                                                     source-key
                                                     (str original-url))))]))))
 
+(def ^:private +max-channel-image-cache+ 50)
+
+(defn- generate-channel-image
+  "Generate a 1400x1400 PNG with Spock emoji and label text."
+  [label]
+  (let [size 1400
+        label (subs label 0 (min (count label) 30))
+        img (BufferedImage. size size BufferedImage/TYPE_INT_ARGB)
+        g (.createGraphics img)
+        baos (ByteArrayOutputStream.)
+        font-size (min 180 (int (/ (* 180 12) (max 1 (count label)))))]
+    (try
+      (.setRenderingHint g RenderingHints/KEY_ANTIALIASING
+                         RenderingHints/VALUE_ANTIALIAS_ON)
+      (.setRenderingHint g RenderingHints/KEY_TEXT_ANTIALIASING
+                         RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
+      ;; Dark background
+      (.setColor g (Color. 20 20 40))
+      (.fillRect g 0 0 size size)
+      ;; Spock emoji
+      (.setFont g (Font. Font/SANS_SERIF Font/PLAIN 600))
+      (.setColor g (Color. 255 200 50))
+      (let [text "\uD83D\uDD96"
+            fm (.getFontMetrics g)
+            x (int (/ (- size (.stringWidth fm text)) 2))
+            y (int (- (/ size 2) 40))]
+        (.drawString g text x y))
+      ;; Label text
+      (.setFont g (Font. Font/SANS_SERIF Font/BOLD font-size))
+      (.setColor g (Color. 200 200 220))
+      (let [fm (.getFontMetrics g)
+            x (int (/ (- size (.stringWidth fm label)) 2))
+            y (int (+ (/ size 2) 300))]
+        (.drawString g label x y))
+      (finally
+        (.dispose g)))
+    (ImageIO/write img "png" baos)
+    (.toByteArray baos)))
+
+(defonce ^:private channel-image-cache (atom {}))
+
 (defn generate-feed-xml
   "Generate full RSS 2.0 podcast feed XML string.
    Optional opts map: {:source-key :some-source} to filter by source."
@@ -172,35 +216,43 @@
                      (log/error e "podcast: failed to query items for feed")
                      []))
         items-by-id (into {} (map (juxt :id identity) all-items))
-        item-elements (->> completed
-                           (keep (fn [[item-id dl-info]]
-                                   (when-let [item (get items-by-id item-id)]
-                                     [item dl-info])))
-                           (sort-by (fn [[item _]] (:ts item)) #(compare %2 %1))
-                           (map (fn [[item dl-info]]
-                                  (make-item-xml item dl-info base-url token))))
+        sorted-pairs (->> completed
+                          (keep (fn [[item-id dl-info]]
+                                  (when-let [item (get items-by-id item-id)]
+                                    [item dl-info])))
+                          (sort-by (fn [[item _]] (:ts item)) #(compare %2 %1)))
+        item-elements (map (fn [[item dl-info]]
+                             (make-item-xml item dl-info base-url token))
+                           sorted-pairs)
         feed-title (if source-key
                      (str "LLAR Podcast - " (name source-key))
                      "LLAR Podcast")
         feed-desc (if source-key
                     (str "Media from LLAR - " (name source-key))
-                    "Media from LLAR - Live Long and Read")]
+                    "Media from LLAR - Live Long and Read")
+        image-url (str base-url "/channel-image.png?token=" token
+                       (when source-key (str "&source=" (name source-key))))
+        channel-elements [(xml/element :title {} feed-title)
+                          (xml/element :link {} base-url)
+                          (xml/element :description {} feed-desc)
+                          (xml/element :language {} "en")
+                          (xml/element (xml/qname itunes-ns "image") {:href image-url})
+                          (xml/element :image {}
+                                       (xml/element :url {} image-url)
+                                       (xml/element :title {} feed-title)
+                                       (xml/element :link {} base-url))
+                          (xml/element (xml/qname itunes-ns "author") {} "LLAR")
+                          (xml/element (xml/qname itunes-ns "explicit") {} "false")
+                          (xml/element (xml/qname itunes-ns "type") {} "episodic")
+                          (xml/element (xml/qname itunes-ns "summary") {} feed-desc)
+                          (xml/element (xml/qname itunes-ns "category") {:text "Technology"})]]
     (xml/emit-str
      (xml/element :rss {:version "2.0"
                         (keyword "xmlns" "itunes") itunes-ns
                         (keyword "xmlns" "podcast") podcast-ns
                         (keyword "xmlns" "content") content-ns}
                   (apply xml/element :channel {}
-                         (xml/element :title {} feed-title)
-                         (xml/element :link {} base-url)
-                         (xml/element :description {} feed-desc)
-                         (xml/element :language {} "en")
-                         (xml/element (xml/qname itunes-ns "author") {} "LLAR")
-                         (xml/element (xml/qname itunes-ns "explicit") {} "false")
-                         (xml/element (xml/qname itunes-ns "type") {} "episodic")
-                         (xml/element (xml/qname itunes-ns "summary") {} feed-desc)
-                         (xml/element (xml/qname itunes-ns "category") {:text "Technology"})
-                         item-elements)))))
+                         (concat channel-elements item-elements))))))
 
 ;;;; Byte-range support
 
@@ -269,6 +321,26 @@
            :headers {"Content-Type" "text/plain"}
            :body "Not Found"}))))
 
+   (GET "/channel-image.png" req
+     (try+
+      (let [label (or (get-in req [:params "source"]) "LLAR")
+            bytes (or (get @channel-image-cache label)
+                      (when (< (count @channel-image-cache) +max-channel-image-cache+)
+                        (let [b (generate-channel-image label)]
+                          (swap! channel-image-cache assoc label b)
+                          b))
+                      (generate-channel-image label))]
+        {:status 200
+         :headers {"Content-Type" "image/png"
+                   "Content-Length" (str (count bytes))
+                   "Cache-Control" "public, max-age=604800"}
+         :body (ByteArrayInputStream. bytes)})
+      (catch Object e
+        (log/warn e "podcast: channel-image generation failed")
+        {:status 500
+         :headers {"Content-Type" "text/plain"}
+         :body "Internal Server Error"})))
+
    (GET "/artwork/:hash" [hash]
      (try+
       (let [blob (blobstore/get-blob hash)]
@@ -277,7 +349,7 @@
                    "Content-Length" (str (:size blob))
                    "Cache-Control" "public, max-age=86400"
                    "Etag" hash}
-         :body (:data blob)})
+         :body (:file blob)})
       (catch Object e
         (log/warn e "podcast: artwork get-blob failed:" hash)
         {:status 404
