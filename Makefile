@@ -6,13 +6,14 @@ ibmplex_version := 6.3.0
 fontawesome_version := 6.7.1
 bootstrap_version := 5.3.3
 jquery_version := 3.7.1
+chartjs_version := 4.4.8
 jquery_datatables_version := 2.1.8
 datatables_buttons_version := 3.2.0
 llar_uberjar := target/llar-$(LLAR_VERSION)-standalone.jar
 
 all: web-3rd-party uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables chartjs uberjar docker-image
 
 resources/status/ibmplex/Web/LICENSE.txt:
 	mkdir -p resources/status/ibmplex
@@ -77,8 +78,13 @@ resources/status/datatables/buttons.bootstrap5.min.js:
 
 datatables: resources/status/datatables/dataTables.bootstrap5.min.css resources/status/datatables/dataTables.min.js resources/status/datatables/dataTables.bootstrap5.min.js resources/status/datatables/buttons.bootstrap5.min.css resources/status/datatables/dataTables.buttons.min.js resources/status/datatables/buttons.bootstrap5.min.js
 
+resources/status/chartjs/chart.umd.min.js:
+	mkdir -p resources/status/chartjs
+	wget --quiet -nc -O resources/status/chartjs/chart.umd.min.js "https://cdn.jsdelivr.net/npm/chart.js@$(chartjs_version)/dist/chart.umd.min.js"
+chartjs: resources/status/chartjs/chart.umd.min.js
 
-web-3rd-party: datatables popper waypoints hammer-js jquery bootstrap fontawesome ibmplex
+
+web-3rd-party: datatables popper waypoints hammer-js jquery bootstrap fontawesome ibmplex chartjs
 
 clean-web-3rd-party:
 	rm -rf resources/status/datatables
@@ -89,6 +95,7 @@ clean-web-3rd-party:
 	rm -rf resources/status/bootstrap
 	rm -rf resources/status/fontawesome
 	rm -rf resources/status/ibmplex
+	rm -rf resources/status/chartjs
 
 $(llar_uberjar): $(CLOJURE_FILES)
 	@echo "Building uberjar with version $(LLAR_VERSION)"
