@@ -1,6 +1,7 @@
 (ns llar.apis.podcast
   (:require
    [cheshire.core :as json]
+   [clj-http.client :as http]
    [clojure.data.xml :as xml]
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -15,7 +16,7 @@
    [llar.podcast :as podcast]
    [llar.store :as store])
   (:import
-   [java.awt Color Font RenderingHints]
+   [java.awt Color Font Graphics2D RenderingHints]
    [java.awt.image BufferedImage]
    [java.io ByteArrayInputStream ByteArrayOutputStream FileInputStream]
    [java.time ZonedDateTime]
@@ -159,39 +160,70 @@
                                                     (str original-url))))]))))
 
 (def ^:private +max-channel-image-cache+ 50)
+(def ^:private +artwork-size+ 1400)
+(def ^:private +bg-image-url+
+  "https://upload.wikimedia.org/wikipedia/commons/b/b4/Astronaut_Salutes_Nimoy_From_Orbit.jpg")
+
+(defonce ^:private bg-image
+  (delay
+    (try
+      (let [response (http/get +bg-image-url+ {:as :byte-array
+                                               :socket-timeout 15000
+                                               :connection-timeout 10000})
+            src (ImageIO/read (io/input-stream (:body response)))]
+        (when-not src
+          (throw (ex-info "ImageIO could not decode background image" {})))
+        (let [size +artwork-size+
+              sw (.getWidth src)
+              sh (.getHeight src)
+              side (min sw sh)
+              sx (int (/ (- sw side) 2))
+              sy (int (/ (- sh side) 2))
+              img (BufferedImage. size size BufferedImage/TYPE_INT_RGB)
+              g (.createGraphics img)]
+          (try
+            (.setRenderingHint g RenderingHints/KEY_INTERPOLATION
+                               RenderingHints/VALUE_INTERPOLATION_BILINEAR)
+            (.drawImage g src 0 0 size size sx sy (+ sx side) (+ sy side) nil)
+            (finally
+              (.dispose g)))
+          img))
+      (catch Exception e
+        (log/warn e "podcast: failed to download background image")
+        nil))))
+
+(defn- draw-label [^Graphics2D g ^String label size]
+  (let [label (subs label 0 (min (count label) 30))
+        font-size (min 180 (int (/ (* 180 12) (max 1 (count label)))))]
+    ;; Semi-transparent bar behind text
+    (.setColor g (Color. 0 0 0 160))
+    (.fillRect g 0 (- size 280) size 280)
+    ;; Label text
+    (.setFont g (Font. Font/SANS_SERIF Font/BOLD font-size))
+    (.setColor g (Color. 255 255 255))
+    (let [fm (.getFontMetrics g)
+          x (int (/ (- size (.stringWidth fm label)) 2))
+          y (int (- size 80))]
+      (.drawString g label x y))))
 
 (defn- generate-channel-image
-  "Generate a 1400x1400 PNG with Spock emoji and label text."
+  "Generate a 1400x1400 PNG: Nimoy salute photo background with label overlay."
   [label]
-  (let [size 1400
-        label (subs label 0 (min (count label) 30))
-        img (BufferedImage. size size BufferedImage/TYPE_INT_ARGB)
+  (let [size +artwork-size+
+        img (BufferedImage. size size BufferedImage/TYPE_INT_RGB)
         g (.createGraphics img)
-        baos (ByteArrayOutputStream.)
-        font-size (min 180 (int (/ (* 180 12) (max 1 (count label)))))]
+        baos (ByteArrayOutputStream.)]
     (try
       (.setRenderingHint g RenderingHints/KEY_ANTIALIASING
                          RenderingHints/VALUE_ANTIALIAS_ON)
       (.setRenderingHint g RenderingHints/KEY_TEXT_ANTIALIASING
                          RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
-      ;; Dark background
-      (.setColor g (Color. 20 20 40))
-      (.fillRect g 0 0 size size)
-      ;; Spock emoji
-      (.setFont g (Font. Font/SANS_SERIF Font/PLAIN 600))
-      (.setColor g (Color. 255 200 50))
-      (let [text "\uD83D\uDD96"
-            fm (.getFontMetrics g)
-            x (int (/ (- size (.stringWidth fm text)) 2))
-            y (int (- (/ size 2) 40))]
-        (.drawString g text x y))
-      ;; Label text
-      (.setFont g (Font. Font/SANS_SERIF Font/BOLD font-size))
-      (.setColor g (Color. 200 200 220))
-      (let [fm (.getFontMetrics g)
-            x (int (/ (- size (.stringWidth fm label)) 2))
-            y (int (+ (/ size 2) 300))]
-        (.drawString g label x y))
+      (if-let [bg @bg-image]
+        (.drawImage g bg 0 0 nil)
+        (do
+          (.setColor g (Color. 20 20 40))
+          (.fillRect g 0 0 size size)))
+      (draw-label g label size)
       (finally
         (.dispose g)))
     (ImageIO/write img "png" baos)
@@ -325,11 +357,14 @@
      (try+
       (let [label (or (get-in req [:params "source"]) "LLAR")
             bytes (or (get @channel-image-cache label)
-                      (when (< (count @channel-image-cache) +max-channel-image-cache+)
-                        (let [b (generate-channel-image label)]
-                          (swap! channel-image-cache assoc label b)
-                          b))
-                      (generate-channel-image label))]
+                      (let [b (generate-channel-image label)]
+                        (when (< (count @channel-image-cache) +max-channel-image-cache+)
+                          (swap! channel-image-cache
+                                 (fn [cache]
+                                   (if (< (count cache) +max-channel-image-cache+)
+                                     (assoc cache label b)
+                                     cache))))
+                        b))]
         {:status 200
          :headers {"Content-Type" "image/png"
                    "Content-Length" (str (count bytes))

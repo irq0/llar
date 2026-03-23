@@ -1,5 +1,6 @@
 (ns llar.podcast
   (:require
+   [clj-http.client :as http]
    [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.logging :as log]
@@ -14,7 +15,12 @@
    [llar.store :as store]
    [org.bovinegenius [exploding-fish :as uri]]
    [nio2.core :as nio2]
-   [slingshot.slingshot :refer [try+]]))
+   [slingshot.slingshot :refer [try+]])
+  (:import
+   [java.awt Color RenderingHints]
+   [java.awt.image BufferedImage]
+   [java.io ByteArrayOutputStream]
+   [javax.imageio ImageIO]))
 
 ;;;; Media URL detection
 
@@ -147,12 +153,51 @@
                     (.getName best) (count sub-files))
         best))))
 
+(def ^:private +artwork-size+ 1400)
+
+(defn- pad-to-square-png
+  "Read image bytes, center on a dark square background of +artwork-size+ px, return PNG bytes."
+  [image-bytes]
+  (let [src (ImageIO/read (io/input-stream image-bytes))
+        _ (when-not src (throw (ex-info "ImageIO could not decode thumbnail image" {})))
+        sw (.getWidth src)
+        sh (.getHeight src)
+        size +artwork-size+
+        scale (min (/ (double size) sw) (/ (double size) sh))
+        dw (int (* sw scale))
+        dh (int (* sh scale))
+        dx (int (/ (- size dw) 2))
+        dy (int (/ (- size dh) 2))
+        img (BufferedImage. size size BufferedImage/TYPE_INT_ARGB)
+        g (.createGraphics img)
+        baos (ByteArrayOutputStream.)]
+    (try
+      (.setRenderingHint g RenderingHints/KEY_INTERPOLATION
+                         RenderingHints/VALUE_INTERPOLATION_BILINEAR)
+      (.setColor g (Color. 20 20 40))
+      (.fillRect g 0 0 size size)
+      (.drawImage g src dx dy dw dh nil)
+      (finally
+        (.dispose g)))
+    (ImageIO/write img "png" baos)
+    (.toByteArray baos)))
+
 (defn- download-thumbnail
-  "Download thumbnail image to blob store. Returns hash or nil on failure."
+  "Download thumbnail, pad to square 1400x1400 PNG, store in blob store. Returns hash or nil."
   [thumbnail-url]
   (when (and thumbnail-url (not (str/blank? thumbnail-url)))
     (try+
-     (blobstore/add-from-url! (uri/uri thumbnail-url))
+     (let [response (http/get thumbnail-url {:as :byte-array
+                                             :socket-timeout 10000
+                                             :connection-timeout 5000})
+           padded (pad-to-square-png (:body response))
+           tmp-file (java.io.File/createTempFile "podcast-thumb" ".png")]
+       (try
+         (io/copy padded tmp-file)
+         (blobstore/add-from-local-file! tmp-file (uri/uri thumbnail-url)
+                                         {:mime-type "image/png"})
+         (finally
+           (.delete tmp-file))))
      (catch Object e
        (log/warn "podcast: thumbnail download failed:" thumbnail-url e)
        nil))))
