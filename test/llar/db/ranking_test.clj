@@ -6,6 +6,7 @@
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-tag
                                   create-test-item]]
+   [clojure.set :as set]
    [llar.persistency :as persistency]
    [next.jdbc :as jdbc]
    [next.jdbc.result-set]))
@@ -15,6 +16,14 @@
 
 (defn- refresh-source-stats! [db]
   (jdbc/execute! db ["REFRESH MATERIALIZED VIEW source_stats"]))
+
+(defn- ranked-args
+  "Common args for ranked queries. Merge overrides as needed."
+  [overrides]
+  (merge {:sort-order :ranked
+          :highlight-boost 48.0
+          :rarity-cap 168.0}
+         overrides))
 
 (defn- get-source-stats-raw [db]
   (jdbc/execute! db ["SELECT * FROM source_stats"]
@@ -144,11 +153,7 @@
                           :title "Rare New"
                           :ts same-ts))
       (let [results (persistency/get-items-recent *test-db*
-                                                  {:sort-order :ranked
-                                                   :ranked true
-                                                   :highlight-boost 48.0
-                                                   :rarity-cap 168.0
-                                                   :limit 2})
+                                                  (ranked-args {:limit 2}))
             top-titles (mapv :title results)]
         (is (= 2 (count results)))
         (is (= "Rare New" (first top-titles))
@@ -177,11 +182,7 @@
                         :tags #{})
       (refresh-source-stats! *test-db*)
       (let [results (persistency/get-items-recent *test-db*
-                                                  {:sort-order :ranked
-                                                   :ranked true
-                                                   :highlight-boost 48.0
-                                                   :rarity-cap 168.0
-                                                   :limit 2})]
+                                                  (ranked-args {:limit 2}))]
         (is (= 2 (count results)))
         (is (= "Highlighted Item" (:title (first results)))
             "Highlighted item should rank first due to 48h boost")))))
@@ -228,11 +229,7 @@
                         :ts now
                         :tags #{})
       (let [results (persistency/get-items-recent *test-db*
-                                                  {:sort-order :ranked
-                                                   :ranked true
-                                                   :highlight-boost 48.0
-                                                   :rarity-cap 168.0
-                                                   :limit 2})
+                                                  (ranked-args {:limit 2}))
             top-titles (mapv :title results)]
         (is (= 2 (count results)))
         ;; Rare+highlighted item: age ~72h, rarity boost ~168h, highlight boost 48h
@@ -268,7 +265,7 @@
         (is (= 5 (count page2)) "Page 2 should have 5 items")
         (let [page1-ids (set (map :id page1))
               page2-ids (set (map :id page2))]
-          (is (empty? (clojure.set/intersection page1-ids page2-ids))
+          (is (empty? (set/intersection page1-ids page2-ids))
               "No ID overlap between pages"))))))
 
 ;; ---------------------------------------------------------------------------
@@ -296,7 +293,7 @@
         (is (= 5 (count page2)) "Page 2 should have 5 items")
         (let [page1-ids (set (map :id page1))
               page2-ids (set (map :id page2))]
-          (is (empty? (clojure.set/intersection page1-ids page2-ids))
+          (is (empty? (set/intersection page1-ids page2-ids))
               "No ID overlap between pages"))
         ;; Page 1 should have the 5 oldest items (Item 9 through Item 5)
         (is (= "Item 9" (:title (first page1))) "Page 1 first item should be oldest")
@@ -326,24 +323,14 @@
                           :ts (time/minus now (time/hours (* i 3)))))
       (refresh-source-stats! *test-db*)
       (let [page1 (persistency/get-items-recent *test-db*
-                                                {:sort-order :ranked
-                                                 :ranked true
-                                                 :highlight-boost 48.0
-                                                 :rarity-cap 168.0
-                                                 :limit 5
-                                                 :offset 0})
+                                                (ranked-args {:limit 5 :offset 0}))
             page2 (persistency/get-items-recent *test-db*
-                                                {:sort-order :ranked
-                                                 :ranked true
-                                                 :highlight-boost 48.0
-                                                 :rarity-cap 168.0
-                                                 :limit 5
-                                                 :offset 5})]
+                                                (ranked-args {:limit 5 :offset 5}))]
         (is (= 5 (count page1)) "Page 1 should have 5 items")
         (is (= 5 (count page2)) "Page 2 should have 5 items")
         (let [page1-ids (set (map :id page1))
               page2-ids (set (map :id page2))]
-          (is (empty? (clojure.set/intersection page1-ids page2-ids))
+          (is (empty? (set/intersection page1-ids page2-ids))
               "No ID overlap between pages"))))))
 
 ;; ---------------------------------------------------------------------------
@@ -366,11 +353,7 @@
       ;; Actually, to test the NULL case properly, we need to NOT refresh at all.
       ;; The materialized view was populated during migration with no data, so it's empty.
       (let [results (persistency/get-items-recent *test-db*
-                                                  {:sort-order :ranked
-                                                   :ranked true
-                                                   :highlight-boost 48.0
-                                                   :rarity-cap 168.0
-                                                   :limit 5})]
+                                                  (ranked-args {:limit 5}))]
         (is (= 3 (count results)) "Should return all 3 items despite empty source_stats")
         (is (every? some? (map :title results)) "All items should have titles")))))
 
@@ -397,18 +380,9 @@
                           :ts (time/minus now (time/hours (* i 5)))))
       (refresh-source-stats! *test-db*)
       (let [full-list (persistency/get-items-recent *test-db*
-                                                    {:sort-order :ranked
-                                                     :ranked true
-                                                     :highlight-boost 48.0
-                                                     :rarity-cap 168.0
-                                                     :limit 13})
+                                                    (ranked-args {:limit 13}))
             single (persistency/get-items-recent *test-db*
-                                                 {:sort-order :ranked
-                                                  :ranked true
-                                                  :highlight-boost 48.0
-                                                  :rarity-cap 168.0
-                                                  :limit 1
-                                                  :offset 4})]
+                                                 (ranked-args {:limit 1 :offset 4}))]
         (is (= 13 (count full-list)) "Full list should have 13 items")
         (is (= 1 (count single)) "Single result should have 1 item")
         (is (= (:id (nth full-list 4)) (:id (first single)))

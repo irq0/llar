@@ -96,14 +96,14 @@
              :fn #'gallery-list-items}})
 
 (def +sort-orders+
-  {nil {:name "Default"
-        :ico "far fa-circle"}
-   :newest {:name "Newest First"
+  {:newest {:name "Newest First"
             :ico "fas fa-sort-amount-down"}
    :ranked {:name "Ranked"
             :ico "fas fa-star"}
    :oldest {:name "Oldest First"
             :ico "fas fa-sort-amount-up"}})
+
+(declare get-sort-order)
 
 (def +filter-overrides+
   {:saved :total})
@@ -503,11 +503,13 @@
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Sort Order"]]
-      [:ul {:class "nav flex-column" :id "sort-order-select"}
-       (for [[key {:keys [name ico]}] +sort-orders+]
-         [:li {:class "nav-item"}
-          [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:sort-order key} x)}
-           (icon ico) "\u00a0" name]])]
+      (let [active-sort (get-sort-order x)]
+        [:ul {:class "nav flex-column" :id "sort-order-select"}
+         (for [[key {:keys [name ico]}] +sort-orders+]
+           [:li {:class "nav-item"}
+            [:a {:class (str "nav-link" (when (= key active-sort) " active"))
+                 :href (make-site-href [(:uri x)] {:sort-order key} x)}
+             (icon ico) "\u00a0" name]])])
 
       ;; item tags
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
@@ -1232,13 +1234,15 @@
       :else
       :preview)))
 
+(def +valid-sort-orders+ #{:newest :ranked :oldest})
+
 (defn get-sort-order [x]
   (let [selected (:sort-order x)
         group-item (:group-item x)
         defaults (config/get-sort-order-defaults)]
     (cond
-      (keyword? selected) selected
-      (keyword? (get defaults group-item)) (get defaults group-item)
+      (+valid-sort-orders+ selected) selected
+      (+valid-sort-orders+ (get defaults group-item)) (get defaults group-item)
       :else :newest)))
 
 (defn list-items [x]
@@ -1266,7 +1270,6 @@
         effective-sort (get-sort-order params)
         ranking-config (get-in appconfig [:ranking] {})
         common-args {:sort-order effective-sort
-                     :ranked (= effective-sort :ranked)
                      :highlight-boost (get ranking-config :highlight-boost-hours 48.0)
                      :rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
                      :simple-filter fltr
@@ -1887,7 +1890,7 @@
                         :mode :list-items
                         :list-style (as-keyword (get-in req [:params :list-style]))
                         :sort-order (as-keyword (get-in req [:params :sort-order]))
-                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
                         :range-before {:id id
                                        :ts ts}}))
 
@@ -1899,7 +1902,7 @@
                         :source-key source-key
                         :list-style (as-keyword (get-in req [:params :list-style]))
                         :sort-order (as-keyword (get-in req [:params :sort-order]))
-                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
                         :mode :list-items}))
 
        (context
@@ -1919,8 +1922,8 @@
                           :mode :show-item
                           :list-style (as-keyword (get-in req [:params :list-style]))
                           :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
                           :content-type content-type
                           :data data}))
 
@@ -1936,8 +1939,8 @@
                           :mode :show-item
                           :list-style (as-keyword (get-in req [:params :list-style]))
                           :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)}))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))
 
          (GET "/download"
            [data :<< as-keyword
@@ -1962,8 +1965,8 @@
                           :item-id item-id
                           :mode :focus-item
                           :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
                           :data data
                           :content-type content-type}))
          (GET "/dump" []
@@ -1975,8 +1978,8 @@
                           :item-id item-id
                           :mode :dump-item
                           :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long)}))))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))))
 
      (GET "/" [] (reader-index
                   {:group-name :default
@@ -1984,7 +1987,7 @@
                    :source-key :all
                    :list-style (as-keyword (get-in req [:params :list-style]))
                    :sort-order (as-keyword (get-in req [:params :sort-order]))
-                   :page-offset (some-> (get-in req [:params :page-offset]) parse-long)
+                   :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
                    :mode :list-items})))
 
    (GET "/preview" []

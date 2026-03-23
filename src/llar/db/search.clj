@@ -1,5 +1,6 @@
 (ns llar.db.search
   (:require
+   [clojure.tools.logging :as log]
    [digest]
    [java-time.api :as time]
    [llar.db.core]
@@ -37,7 +38,9 @@
   (update-index! [this]
     (refresh-search-index this)
     (refresh-idf this)
-    (refresh-source-stats this)))
+    (try (refresh-source-stats this)
+         (catch Exception e
+           (log/warn e "Failed to refresh source_stats materialized view")))))
 
 (defn saved-items-tf-idf [db]
   (rest (map (fn [{:keys [id json_agg]}]

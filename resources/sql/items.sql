@@ -176,4 +176,4 @@ items.type = :type::item_type
 --~ (when (:group-by-columns params) "group by :i*:group-by-columns")
 :snip:order-by
 limit :limit
---~ (when (:offset params) "offset :offset")
+--~ (when (some? (:offset params)) "offset :offset")

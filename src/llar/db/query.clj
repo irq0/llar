@@ -121,7 +121,8 @@
       :else (sql/item-select-default-snip))))
 
 (defn- choose-recent-items-from-snip [args]
-  (let [{:keys [with-data? with-preview-data? ranked]} args]
+  (let [{:keys [with-data? with-preview-data?]} args
+        ranked (= (:sort-order args) :ranked)]
     (cond
       (and ranked with-data?)          (sql/item-from-join-with-data-table-ranked-snip)
       (and ranked with-preview-data?)  (sql/item-from-join-with-preview-data-ranked-snip)
