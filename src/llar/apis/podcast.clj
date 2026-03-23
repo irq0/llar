@@ -237,7 +237,9 @@
   [base-url token & [{:keys [source-key]}]]
   (let [completed (cond->> (->> @podcast/download-state
                                 (filter (fn [[_ v]] (= :complete (:status v)))))
-                    source-key (filter (fn [[_ v]] (= source-key (:source-key v))))
+                    source-key (filter (fn [[_ v]]
+                                         (= (name source-key)
+                                            (name (:source-key v)))))
                     true (into {}))
         ;; TODO: add TTS support for text articles in the future
         all-items (try+
