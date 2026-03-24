@@ -1,7 +1,6 @@
 (ns llar.apis.podcast
   (:require
    [cheshire.core :as json]
-   [clj-http.client :as http]
    [clojure.data.xml :as xml]
    [clojure.java.io :as io]
    [clojure.string :as str]
@@ -161,16 +160,10 @@
 
 (def ^:private +max-channel-image-cache+ 50)
 (def ^:private +artwork-size+ 1400)
-(def ^:private +bg-image-url+
-  "https://upload.wikimedia.org/wikipedia/commons/b/b4/Astronaut_Salutes_Nimoy_From_Orbit.jpg")
-
 (defonce ^:private bg-image
   (delay
     (try
-      (let [response (http/get +bg-image-url+ {:as :byte-array
-                                               :socket-timeout 15000
-                                               :connection-timeout 10000})
-            src (ImageIO/read (io/input-stream (:body response)))]
+      (let [src (ImageIO/read (io/resource "podcast/nimoy-salute.jpg"))]
         (when-not src
           (throw (ex-info "ImageIO could not decode background image" {})))
         (let [size +artwork-size+
@@ -189,7 +182,7 @@
               (.dispose g)))
           img))
       (catch Exception e
-        (log/warn e "podcast: failed to download background image")
+        (log/warn e "podcast: failed to load background image")
         nil))))
 
 (defn- draw-label [^Graphics2D g ^String label size]
