@@ -160,30 +160,37 @@
 
 (def ^:private +max-channel-image-cache+ 50)
 (def ^:private +artwork-size+ 1400)
-(defonce ^:private bg-image
-  (delay
-    (try
-      (let [src (ImageIO/read (io/resource "podcast/nimoy-salute.jpg"))]
-        (when-not src
-          (throw (ex-info "ImageIO could not decode background image" {})))
-        (let [size +artwork-size+
-              sw (.getWidth src)
-              sh (.getHeight src)
-              side (min sw sh)
-              sx (int (/ (- sw side) 2))
-              sy (int (/ (- sh side) 2))
-              img (BufferedImage. size size BufferedImage/TYPE_INT_RGB)
-              g (.createGraphics img)]
-          (try
-            (.setRenderingHint g RenderingHints/KEY_INTERPOLATION
-                               RenderingHints/VALUE_INTERPOLATION_BILINEAR)
-            (.drawImage g src 0 0 size size sx sy (+ sx side) (+ sy side) nil)
-            (finally
-              (.dispose g)))
-          img))
-      (catch Exception e
-        (log/warn e "podcast: failed to load background image")
-        nil))))
+(defonce ^:private channel-image-cache (atom {}))
+(defonce ^:private bg-image-cache (atom nil))
+
+(defn- load-bg-image
+  "Load and crop background image. Caches on success, retries on failure."
+  []
+  (or @bg-image-cache
+      (try
+        (let [src (ImageIO/read (io/resource "podcast/nimoy-salute.jpg"))]
+          (when-not src
+            (throw (ex-info "ImageIO could not decode background image" {})))
+          (let [size +artwork-size+
+                sw (.getWidth src)
+                sh (.getHeight src)
+                side (min sw sh)
+                sx (int (/ (- sw side) 2))
+                sy (int (/ (- sh side) 2))
+                img (BufferedImage. size size BufferedImage/TYPE_INT_RGB)
+                g (.createGraphics img)]
+            (try
+              (.setRenderingHint g RenderingHints/KEY_INTERPOLATION
+                                 RenderingHints/VALUE_INTERPOLATION_BILINEAR)
+              (.drawImage g src 0 0 size size sx sy (+ sx side) (+ sy side) nil)
+              (finally
+                (.dispose g)))
+            (reset! bg-image-cache img)
+            (reset! channel-image-cache {})
+            img))
+        (catch Exception e
+          (log/warn e "podcast: failed to load background image")
+          nil))))
 
 (defn- draw-label [^Graphics2D g ^String label size]
   (let [label (subs label 0 (min (count label) 30))
@@ -211,7 +218,7 @@
                          RenderingHints/VALUE_ANTIALIAS_ON)
       (.setRenderingHint g RenderingHints/KEY_TEXT_ANTIALIASING
                          RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
-      (if-let [bg @bg-image]
+      (if-let [bg (load-bg-image)]
         (.drawImage g bg 0 0 nil)
         (do
           (.setColor g (Color. 20 20 40))
@@ -221,8 +228,6 @@
         (.dispose g)))
     (ImageIO/write img "png" baos)
     (.toByteArray baos)))
-
-(defonce ^:private channel-image-cache (atom {}))
 
 (defn generate-feed-xml
   "Generate full RSS 2.0 podcast feed XML string.
