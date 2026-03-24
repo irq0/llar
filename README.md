@@ -139,3 +139,7 @@ or check out [my config](https://github.com/irq0/llar-config).
 
 The credentials file contains secrets made available with the `$credentials` function in `.llar` config files.
 See [credentials.edn.example](resources/credentials.edn.example).
+
+## Links
+
+[![Hypercommit](https://img.shields.io/badge/Hypercommit-DB2475)](https://hypercommit.com/llar)
