@@ -5,7 +5,7 @@
     "browserify-fs": "^1.0.0",
     "buffer": "^6.0.3",
     "deasync": "^0.1.30",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.3.2",
     "events": "^3.3.0",
     "jsdom": "^26.0.0",
     "metascraper": "^5.46.18",
