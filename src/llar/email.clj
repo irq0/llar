@@ -12,10 +12,28 @@
   []
   (boolean (appconfig/mail)))
 
+(defn- server
+  "postal server map. With a :host in the :mail config, relay over SMTP to it;
+  otherwise an empty map, which makes postal pipe to the local `sendmail`. Auth
+  :user/:pass come from the credentials entry named by :credentials. Maps our
+  :tls (implicit TLS) and :starttls config to postal's :ssl and :tls."
+  []
+  (let [cfg (appconfig/mail)]
+    (if (:host cfg)
+      (let [creds (some-> (:credentials cfg) appconfig/credentials)
+            user (or (:user creds) (:username creds))
+            pass (or (:pass creds) (:password creds))]
+        (cond-> (select-keys cfg [:host :port])
+          user (assoc :user user)
+          pass (assoc :pass pass)
+          (:tls cfg) (assoc :ssl true)
+          (:starttls cfg) (assoc :tls true)))
+      {})))
+
 (defn send-message!
-  "Send msg (a postal message map: :to, :subject, :body, optionally :from) via
-  the local MTA. :from defaults to the :mail :from config. Passing an empty
-  server map makes postal pipe the message to the local `sendmail` binary."
+  "Send msg (a postal message map: :to, :subject, :body, optionally :from). Uses
+  SMTP when a :mail :host is configured, otherwise the local `sendmail` binary.
+  :from defaults to the :mail :from config."
   [msg]
   (let [from (or (:from msg) (appconfig/mail :from))]
-    (postal/send-message {} (assoc msg :from from))))
+    (postal/send-message (server) (assoc msg :from from))))
