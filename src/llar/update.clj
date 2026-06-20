@@ -14,6 +14,7 @@
    [llar.postproc :as proc]
    [llar.sched :refer [defsched] :as sched]
    [llar.store :as store :refer [store-items!]]
+   [llar.digest :as digest]
    [llar.persistency :as persistency]))
 
 ;;;; Update - Combines fetch and persistency with additional state management
@@ -324,7 +325,16 @@
     (persistency/remove-unread-for-items-of-source-older-then!
      store/backend-db
      keys
-     (time/minus (time/zoned-date-time) period))))
+     (time/minus (time/zoned-date-time) period)))
+  ;; Digest: issue-windowed autoread. Keep the most recent
+  ;; keep-unread-issues issues :unread; clear :unread on older issues.
+  (when-let [digest-cfg (appconfig/digest)]
+    (let [keep-recent (or (:keep-unread-issues digest-cfg) 1)
+          stale (digest/issues-outside-window keep-recent)]
+      (log/infof "remove-unread-tags: digest issues outside latest %d to clear: %s"
+                 keep-recent stale)
+      (doseq [i stale]
+        (persistency/remove-unread-for-items-with-tag! store/backend-db (digest/issue-tag i))))))
 
 (defmacro defsched-feed-by-filter [sched-name chime-times pred]
   `(defstate ~sched-name

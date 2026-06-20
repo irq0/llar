@@ -15,7 +15,7 @@
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.core :as cheshire]
-   [llar.appconfig :refer [appconfig postgresql-config credentials]]
+   [llar.appconfig :refer [appconfig postgresql-config credentials digest]]
    [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.core :as db]
@@ -170,6 +170,19 @@
    {:tag :in-progress
     :icon-set "fas fa-cog icon-is-set"
     :icon-unset "fas fa-cog"}])
+
+(def +digest-tag-button+
+  "Shown only when the digest feature is configured (:api :digest)."
+  {:tag :digest
+   :icon-set "fas fa-book-reader icon-is-set"
+   :icon-unset "fas fa-book-reader"})
+
+(defn tag-buttons
+  "First-class tag buttons, including feature-gated ones. The :digest button is
+  only offered when the digest feature is configured."
+  []
+  (cond-> +tag-buttons+
+    (digest) (conj +digest-tag-button+)))
 
 (def +headline-view-tag-buttons+
   "Select from +tag-buttons+"
@@ -378,7 +391,7 @@
 
            (= mode :show-item)
            [:div {:class "col-xs-8 col-ld-12"}
-            (for [btn +tag-buttons+]
+            (for [btn (tag-buttons)]
               (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
             next-item-button])])]]))
 
@@ -408,7 +421,7 @@
   (let [active-group (:group-name x)
         active-key (name (:group-item x))
         icons (merge
-               (into {} (for [{:keys [tag icon-set]} +tag-buttons+]
+               (into {} (for [{:keys [tag icon-set]} (tag-buttons)]
                           [tag (string/replace icon-set #"icon-is-set" "")]))
                +tag-icons-without-buttons+)]
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-left" " mode-" (name (:mode x)))
@@ -1078,7 +1091,7 @@
         "\u00a0" (icon "fas fa-remove-format")]]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
-       (for [btn +tag-buttons+
+       (for [btn (tag-buttons)
              :when (show-button-in-this-view? x btn)]
          (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]))
 
@@ -1140,7 +1153,7 @@
                                                                                 :content-type "text/html"} x)}
                (icon "fas fa-expand")]]
              [:li
-              (for [btn +tag-buttons+
+              (for [btn (tag-buttons)
                     :when (show-button-in-this-view? x btn)]
                 (tag-button id
                             (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]]])]]]))
@@ -1196,7 +1209,7 @@
             (concat
              [[:a {:class "btn" :href url}
                (icon "fas fa-external-link-alt")]]
-             (for [btn +tag-buttons+
+             (for [btn (tag-buttons)
                    :when (show-button-in-this-view? x btn)]
                (tag-button id
                            (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]])])]))
@@ -1630,7 +1643,7 @@
                                                                                                          :content-type "text/html"} x)}
               "\u00a0" (icon "fas fa-expand")]]
             [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
-             (for [btn +tag-buttons+
+             (for [btn (tag-buttons)
                    :when (show-button-in-this-view? x btn)]
                (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]])])]))
 

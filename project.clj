@@ -116,6 +116,9 @@
                  [com.draines/postal "2.0.5"]
                  [io.forward/clojure-mail "1.0.8" :exclusions [medley javax.activation/activation]]
 
+                 ;; epub generation (kindle digest)
+                 [io.documentnode/epub4j-core "4.2.1"]
+
                  ;; database
                  [com.layerware/hugsql-core "0.5.3"]
                  [com.layerware/hugsql-adapter-next-jdbc "0.5.3"]

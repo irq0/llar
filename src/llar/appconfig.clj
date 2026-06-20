@@ -26,7 +26,20 @@
 (s/def :irq0-appconfig/jetty-config (s/keys :req-un [:irq0-appconfig/port]))
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
 (s/def :irq0-appconfig/reader :irq0-appconfig/jetty-config)
-(s/def :irq0-appconfig/api (s/keys :opt-un [:irq0-appconfig/reader :irq0-appconfig/dashboard]))
+;; Digest delivery (e-reader magazines). Optional. Lives under :api :digest.
+;; Uses the general top-level :mail config for sending.
+(s/def :irq0-appconfig/digest
+  (s/and map?
+         #(string? (:to %))))
+(s/def :irq0-appconfig/api (s/keys :opt-un [:irq0-appconfig/reader
+                                            :irq0-appconfig/dashboard
+                                            :irq0-appconfig/digest]))
+
+;; General outgoing mail config. Optional, top-level. Mail is handed to the
+;; host's local MTA via the sendmail binary; :from is the default From address.
+(s/def :irq0-appconfig/mail
+  (s/and map?
+         #(or (nil? (:from %)) (string? (:from %)))))
 (s/def :irq0-appconfig/blob-store-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/credentials-file :irq0/path-exists)
 (s/def :irq0-appconfig/runtime-config-dir :irq0/path-exists-is-dir)
@@ -59,7 +72,8 @@
                    :irq0-appconfig/api
                    :irq0-appconfig/ui
                    :irq0-appconfig/postgresql]
-          :opt-un [:irq0-appconfig/ranking]))
+          :opt-un [:irq0-appconfig/ranking
+                   :irq0-appconfig/mail]))
 
 (defn verify-config [config]
   (let [conform (s/conform :irq0-llar/appconfig config)]
@@ -128,6 +142,18 @@
 (defn podcast
   ([] (get-in appconfig [:api :podcast]))
   ([key] (get-in appconfig [:api :podcast key])))
+
+(defn digest
+  ([] (get-in appconfig [:api :digest]))
+  ([key] (get-in appconfig [:api :digest key])))
+
+(defn mail
+  ([] (get appconfig :mail))
+  ([key] (get-in appconfig [:mail key])))
+
+(defn reader
+  ([] (get-in appconfig [:api :reader]))
+  ([key] (get-in appconfig [:api :reader key])))
 
 (defn credentials [name]
   (try

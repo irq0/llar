@@ -21,6 +21,7 @@
    [llar.config :as config]
    [llar.lab :as lab]
    [llar.podcast :as podcast]
+   [llar.digest :as digest]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
@@ -54,7 +55,8 @@
    #'update/remove-unread-tags
    #'lab/update-db-search-indices
    #'podcast/podcast-scanner
-   #'podcast/podcast-retention-enforcer])
+   #'podcast/podcast-retention-enforcer
+   #'digest/digest-scheduler])
 
 (defn -main [& args]
   ;; otherwise date time parsers will fail!

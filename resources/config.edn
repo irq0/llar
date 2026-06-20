@@ -13,7 +13,19 @@
                                             "--write-subs"
                                             "--write-auto-subs"
                                             "--sub-langs" "en,en-orig,en-en,-live_chat"]
-                 :retention {:default-episode-limit 25}}}
+                 :retention {:default-episode-limit 25}}
+       ;; Digest delivery: emails an EPUB magazine to an e-reader (Kindle,
+       ;; PocketBook, Onyx Boox, ...). Uncomment and configure to enable.
+       ;; Requires the top-level :mail config below for sending.
+       ;; :to is the device's email-to-library address. For Kindle, :from must be
+       ;; on your Amazon "Approved Personal Document E-mail List" (defaults to the
+       ;; :mail :from if omitted).
+       ;; :digest {:to "you_abc123@kindle.com"
+       ;;          :from "llar@mydomain.tld"
+       ;;          :schedule :sundays          ; canned schedule keyword (see llar.sched)
+       ;;          :keep-unread-issues 1        ; recent issues kept :unread before auto-clearing older
+       ;;          :inline-images? true}
+       }
  :ui {:default-list-view {:storage :headlines
                           :shopping :headlines
                           :tweet :gallery}
@@ -42,6 +54,10 @@
             :av-downloader "yt-dlp"
             :html2text "html2text"}
  :blob-store-dir "/var/lib/llar/blobs"
+ ;; General outgoing mail (used by the digest feature; reusable elsewhere).
+ ;; Mail is handed to the host's local MTA via the sendmail binary; just set the
+ ;; default From address. Requires a working MTA (postfix/exim/...) on the host.
+ ;; :mail {:from "llar@mydomain.tld"}
  :ranking {:highlight-boost-hours 48
            :rarity-boost-cap-hours 168}
  ;; Annotation export. Uncomment and configure to enable.

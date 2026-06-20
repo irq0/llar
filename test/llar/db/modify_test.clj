@@ -193,11 +193,11 @@
 
 (deftest test-remove-unread-for-items-with-tag
   (testing "remove-unread-for-items-with-tag! clears :unread only for items carrying that tag"
-    (create-test-tag *test-db* :kindle-issue-1)
-    (create-test-tag *test-db* :kindle-issue-2)
-    (let [in-issue (:id (create-test-item *test-db* :hash "issue1-item" :tags #{:unread :kindle-issue-1}))
-          other (:id (create-test-item *test-db* :hash "issue2-item" :tags #{:unread :kindle-issue-2}))]
-      (persistency/remove-unread-for-items-with-tag! *test-db* :kindle-issue-1)
+    (create-test-tag *test-db* :digest-issue-1)
+    (create-test-tag *test-db* :digest-issue-2)
+    (let [in-issue (:id (create-test-item *test-db* :hash "issue1-item" :tags #{:unread :digest-issue-1}))
+          other (:id (create-test-item *test-db* :hash "issue2-item" :tags #{:unread :digest-issue-2}))]
+      (persistency/remove-unread-for-items-with-tag! *test-db* :digest-issue-1)
       (let [a (first (jdbc/execute! *test-db*
                                     ["SELECT * FROM items WHERE id = ?" in-issue]
                                     {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
@@ -206,6 +206,24 @@
                                     {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
         (is (= 1 (count (:tagi a))) "issue-1 item keeps only its issue tag (unread cleared)")
         (is (= 2 (count (:tagi b))) "issue-2 item is untouched")))))
+
+(deftest test-digest-tag-transition
+  (testing ":digest -> :digest-issue-N transition leaves other tags intact"
+    (create-test-tag *test-db* :digest)
+    (create-test-tag *test-db* :digest-issue-5)
+    (let [item-id (:id (create-test-item *test-db* :hash "queued-item" :tags #{:unread :saved :digest}))]
+      (persistency/item-set-tags! *test-db* item-id [:digest-issue-5])
+      (persistency/item-remove-tags! *test-db* item-id [:digest])
+      (let [stored (first (jdbc/execute! *test-db*
+                                         ["SELECT tagi @@ (select format('(%s)', id) from tags where tag = 'digest')::query_int as has_digest,
+                                                  tagi @@ (select format('(%s)', id) from tags where tag = 'digest-issue-5')::query_int as has_issue,
+                                                  tagi @@ '1' as saved, tagi @@ '0' as unread
+                                           FROM items WHERE id = ?" item-id]
+                                         {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+        (is (false? (:has_digest stored)) ":digest removed after send")
+        (is (true? (:has_issue stored)) ":digest-issue-5 added")
+        (is (true? (:saved stored)) ":saved preserved")
+        (is (true? (:unread stored)) ":unread preserved (cleared later by issue window)")))))
 
 (deftest test-transaction-rollback
   (testing "Items and item_data table stay consistent"
