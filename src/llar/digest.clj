@@ -279,7 +279,7 @@
                     :content (str "LLAR Digest #" issue-n " attached.")}
                    {:type :attachment
                     :content epub-file
-                    :name (str "llar-digest-" issue-n ".epub")
+                    :file-name (str "LLAR Digest #" issue-n ".epub")
                     :content-type "application/epub+zip"}]}
      (appconfig/digest :from) (assoc :from (appconfig/digest :from)))))
 

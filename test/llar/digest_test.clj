@@ -6,9 +6,10 @@
    [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [llar.digest :as uut]
+   [llar.email :as email]
    [llar.persistency :as persistency])
   (:import
-   [java.io ByteArrayInputStream]
+   [java.io ByteArrayInputStream File]
    [java.util.zip ZipFile]))
 
 (deftest issue-tag-roundtrip-test
@@ -180,6 +181,26 @@
                 (is (string/includes? ch1 "https://example.com/cat.png"))
                 (is (not (string/includes? ch1 "images/img-1"))))
               (finally (.delete f)))))))))
+
+(deftest send-digest-attachment-filename-test
+  (testing "attachment uses postal's :file-name so Send-to-Kindle titles it nicely
+            instead of leaking the randomized temp filename"
+    (let [sent (atom nil)
+          ;; mimics File/createTempFile in render-epub! — the leaky source of the
+          ;; \"llar-digest-2-<random>\" title before the fix
+          tmp (File/createTempFile "llar-digest-2-" ".epub")]
+      (try
+        (with-redefs [appconfig/digest (fn ([] {:to "dev@kindle.com"})
+                                         ([k] (get {:to "dev@kindle.com"} k)))
+                      email/send-message! (fn [msg] (reset! sent msg) :sent)]
+          (uut/send-digest! 2 tmp))
+        (let [att (->> (:body @sent) (filter #(= :attachment (:type %))) first)]
+          (is (some? att) "an attachment part is sent")
+          (is (= "LLAR Digest #2.epub" (:file-name att))
+              "postal honors :file-name; the Kindle title derives from it")
+          (is (nil? (:name att)) "the ignored :name key is no longer used")
+          (is (= tmp (:content att)) "the rendered epub file is attached"))
+        (finally (.delete tmp))))))
 
 (deftest grouping-test
   (testing "items are grouped by source in first-seen order; chapters numbered globally"
