@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Podcast System
+
+- Media download via yt-dlp with automatic subtitle extraction and chapter support
+- Count-based episode retention with per-source limits
+- Podcast disk usage stats on dashboard
+
+#### Digest Magazines (e-reader)
+
+- Collect items tagged `:digest` into an EPUB "magazine" and email it
+  to an e-reader (Kindle, PocketBook, Onyx Boox, ...) on a schedule
+- Tag-based state machine: `:digest` queues an item, `:digest-issue-N`
+  records the issue it was sent in
+- Issue-windowed autoread: keep the most recent `:keep-unread-issues`
+  issues unread, auto-clear `:unread` on older ones
+- Reader shows a `:digest` tag button to queue items, but only when
+  the feature is configured
+- Each article shows author, source, absolute date and a reading-time
+  estimate, with links to the original and back into LLAR (`:api
+  :reader :base-url`)
+- Cover/TOC page (title, date, article count, grouped contents) and
+  chapters grouped by source
+- Configured under `:api :digest`; sends via the general `:mail` transport
+
+#### Streaming Channel Source
+
+- New StreamingChannel source type using NewPipeExtractor
+
+#### Ranked Sorting
+
+- Reader list sorting by highlight boost and source rarity
+- Configurable boost weights via appconfig
+- Dashboard ranking analytics tab
+
+#### Annotations
+
+- Annotatate items in the reader frontend
+
+#### Export
+
+- Export item + annotations via url handler (e.g org-protocol)
+- Export item + annotations to Zotero via Zotero API
+
+#### GitHub Fetcher
+
+- New GitHub source type for fetching repository activity
+
+### Changed
+
+- Dashboard: fetch stats display (fetched/processed/db)
+- Reader: podcast tag button, HTML entity replacement with Unicode
+- Tags: normalization to lower case
+- Postproc: preserve error context in processing pipeline
+- Update: classify Rome parse failures as permanent failures
+- Docker: expose podcast port 8024, add fonts-noto-color-emoji
+
+### Fixes
+
+- Reader: fix HTML escaping
+- HTTP: fix retry-later error message, fix version in user-agent
+- DB: handle ByteBuffer in prep statements, fix migration version collision
+- Dashboard: access frontend-db as value not function
+- Podcast: fix propsfile reading, byte-range fix, source-key type mismatch in per-source feeds
+- Kaocha: junit test file fix
+- Human: force US locale for duration formatting
+
 ## [2.0.0] - 2026-02-22
 
 ### Added
