@@ -648,13 +648,10 @@
   "Show Item Helper: Get best content to display in full"
   [doc sel-descr sel-content-type]
   (if (and (nil? sel-descr) (nil? sel-content-type))
-    (let [description (get-in doc [:data :description])
-          contents (get-in doc [:data :content])]
-      (or (some-> (get contents "text/html") h/raw)
-          (when-let [text (get contents "text/plain")] [:p {:style "white-space: pre-line"} text])
-          (some-> (get description "text/html") h/raw)
-          (when-let [text (get description "text/plain")] [:p {:style "white-space: pre-line"} text])
-          nil))
+    (when-let [{:keys [mime data]} (item/best-content doc)]
+      (if (= mime "text/plain")
+        [:p {:style "white-space: pre-line"} data]
+        (h/raw data)))
     (if (= sel-content-type "text/plain")
       [:p {:style "white-space: pre-line"} (get-in doc [:data sel-descr sel-content-type])]
       (some-> (get-in doc [:data sel-descr sel-content-type]) h/raw))))

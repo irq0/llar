@@ -37,6 +37,23 @@
                                    :irq0-fetch-item/pub-ts
                                    :irq0-fetch-item/updated-ts
                                    :irq0-fetch-item/descriptions]))
+
+(defn best-content
+  "Pick the best available content body from a queried item doc (as returned by
+  `get-items-recent`/`get-item-by-id` with item data joined). Prefers the full
+  content over the (often truncated) description, and HTML over plain text.
+  Returns {:mime \"text/html\"|\"text/plain\" :data string} or nil when no body exists."
+  [doc]
+  (let [contents (get-in doc [:data :content])
+        description (get-in doc [:data :description])]
+    (some (fn [[mime m]]
+            (when-let [data (get m mime)]
+              {:mime mime :data data}))
+          [["text/html" contents]
+           ["text/plain" contents]
+           ["text/html" description]
+           ["text/plain" description]])))
+
 (defn reading-time-estimate
   "Estimate reading time (minutes) and difficulty for a queried item doc, based
   on its word count and average top-word length."

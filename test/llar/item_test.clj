@@ -75,6 +75,23 @@
   (testing "missing title fails spec"
     (is (not (s/valid? :irq0/item-summary {:ts (time/zoned-date-time)})))))
 
+(deftest best-content-test
+  (testing "prefers content html over everything"
+    (is (= {:mime "text/html" :data "<p>c</p>"}
+           (llar.item/best-content {:data {:content {"text/html" "<p>c</p>"
+                                                     "text/plain" "c"}
+                                           :description {"text/html" "<p>d</p>"}}}))))
+  (testing "falls back to content plain when no html"
+    (is (= {:mime "text/plain" :data "c"}
+           (llar.item/best-content {:data {:content {"text/plain" "c"}}}))))
+  (testing "falls back to description when no content"
+    (is (= {:mime "text/html" :data "<p>d</p>"}
+           (llar.item/best-content {:data {:description {"text/html" "<p>d</p>"
+                                                         "text/plain" "d"}}}))))
+  (testing "nil when no body present"
+    (is (nil? (llar.item/best-content {:data {}})))
+    (is (nil? (llar.item/best-content {})))))
+
 (deftest item-hash-spec-test
   (testing "valid hashes"
     (are [h] (s/valid? :irq0/item-hash h)
