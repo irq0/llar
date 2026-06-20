@@ -23,6 +23,7 @@ repos:
         exclude: >-
           (?x)^(
             resources/status/img/.*|
+            resources/podcast/nimoy-salute\.jpg|
             doc/img/.*|
             resources/nlp/models.*
           )$
