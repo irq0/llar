@@ -21,7 +21,8 @@
 (defprotocol ItemTagsPersistency
   (item-set-tags! [this item-id tags])
   (item-remove-tags! [this item-id tags])
-  (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts]))
+  (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts])
+  (remove-unread-for-items-with-tag! [this tag]))
 
 (defprotocol StatsQueries
   (get-table-row-counts [this])

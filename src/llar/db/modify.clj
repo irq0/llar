@@ -129,4 +129,11 @@
                                 ["AND"]
                                 ["tagi @@ '0'"]
                                 ["AND"]
-                                (sql/tag-cond-le-ts {:ts older-then-ts})]}))))
+                                (sql/tag-cond-le-ts {:ts older-then-ts})]})))
+
+  (remove-unread-for-items-with-tag! [this tag]
+    (sql/remove-tags this
+                     {:tags ["unread"]
+                      :where [(sql/cond-with-tag {:tag (tags/normalize-tag tag)})
+                              ["AND"]
+                              ["tagi @@ '0'"]]})))

@@ -191,6 +191,22 @@
           (is (empty? (:tagi old-stored)) "Old item should have no tags")
           (is (= 1 (count (:tagi new-stored))) "New item should still have unread tag"))))))
 
+(deftest test-remove-unread-for-items-with-tag
+  (testing "remove-unread-for-items-with-tag! clears :unread only for items carrying that tag"
+    (create-test-tag *test-db* :kindle-issue-1)
+    (create-test-tag *test-db* :kindle-issue-2)
+    (let [in-issue (:id (create-test-item *test-db* :hash "issue1-item" :tags #{:unread :kindle-issue-1}))
+          other (:id (create-test-item *test-db* :hash "issue2-item" :tags #{:unread :kindle-issue-2}))]
+      (persistency/remove-unread-for-items-with-tag! *test-db* :kindle-issue-1)
+      (let [a (first (jdbc/execute! *test-db*
+                                    ["SELECT * FROM items WHERE id = ?" in-issue]
+                                    {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
+            b (first (jdbc/execute! *test-db*
+                                    ["SELECT * FROM items WHERE id = ?" other]
+                                    {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+        (is (= 1 (count (:tagi a))) "issue-1 item keeps only its issue tag (unread cleared)")
+        (is (= 2 (count (:tagi b))) "issue-2 item is untouched")))))
+
 (deftest test-transaction-rollback
   (testing "Items and item_data table stay consistent"
     ;; Store an item successfully
