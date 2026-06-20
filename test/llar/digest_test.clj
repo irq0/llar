@@ -4,9 +4,11 @@
    [clojure.test :refer [deftest is testing]]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
+   [llar.blobstore :as blobstore]
    [llar.digest :as uut]
    [llar.persistency :as persistency])
   (:import
+   [java.io ByteArrayInputStream]
    [java.util.zip ZipFile]))
 
 (deftest issue-tag-roundtrip-test
@@ -108,6 +110,76 @@
             (is (string/includes? cover "unknown"))       ; item without a source-key
             (is (string/includes? cover "chapter-1.xhtml")))))
       (finally (.delete f)))))
+
+(def ^:private blob-hash-hex
+  "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90")
+
+(defn- chapter-1 [entries]
+  (some (fn [[k v]] (when (string/includes? k "chapter-1") v)) entries))
+
+(deftest blob-hash-test
+  (testing "extracts the content hash from a root-relative blobstore src"
+    (is (= blob-hash-hex (#'uut/blob-hash (str "/blob/" blob-hash-hex)))))
+  (testing "also matches when a base url made the src absolute"
+    (is (= blob-hash-hex (#'uut/blob-hash (str "https://reader.example/blob/" blob-hash-hex)))))
+  (testing "nil for remote, data and blank srcs (never matched -> never downloaded)"
+    (is (nil? (#'uut/blob-hash "https://example.com/cat.png")))
+    (is (nil? (#'uut/blob-hash "data:image/png;base64,AAAA")))
+    (is (nil? (#'uut/blob-hash "")))
+    (is (nil? (#'uut/blob-hash nil)))))
+
+(deftest inline-blobstore-images-test
+  (let [img-bytes (.getBytes "fake-png-bytes" "UTF-8")
+        items [{:id 1 :title "With Image" :source-key :blog-a
+                :entry {:url "https://example.com/1"}
+                :data {:content {"text/html"
+                                 (str "<p>before <img src=\"/blob/" blob-hash-hex
+                                      "\"/> after</p>")}}}]]
+    (testing "blobstored <img> is embedded from the blobstore and rewritten to a local href"
+      (with-redefs [blobstore/get-blob (fn [h]
+                                         (is (= blob-hash-hex h) "looked up by the hash from src")
+                                         {:data (ByteArrayInputStream. img-bytes)
+                                          :mime-type "image/png"
+                                          :size (count img-bytes)})]
+        (let [f (uut/render-epub! 1 items {:inline-images? true})]
+          (try
+            (let [entries (zip-entries f)
+                  ch1 (chapter-1 entries)
+                  img-entry (some (fn [[k v]] (when (string/ends-with? k "images/img-1.png") v)) entries)]
+              (is (some? img-entry)
+                  "image embedded as an epub resource, extension from mime-type")
+              (is (= "fake-png-bytes" img-entry)
+                  "embedded bytes come straight from the blobstore")
+              (is (string/includes? ch1 "src=\"images/img-1.png\"")
+                  "chapter <img> rewritten to the embedded resource")
+              (is (not (string/includes? ch1 "/blob/"))
+                  "no dangling blobstore reference left behind"))
+            (finally (.delete f))))))
+
+    (testing "oversized blob is left as a /blob/ reference, not embedded"
+      (with-redefs [blobstore/get-blob (fn [_]
+                                         {:data (ByteArrayInputStream. img-bytes)
+                                          :mime-type "image/png"
+                                          :size (inc (* 5 1024 1024))})]
+        (let [f (uut/render-epub! 1 items {:inline-images? true})]
+          (try
+            (let [ch1 (chapter-1 (zip-entries f))]
+              (is (string/includes? ch1 (str "/blob/" blob-hash-hex)))
+              (is (not (string/includes? ch1 "images/img-1"))))
+            (finally (.delete f))))))
+
+    (testing "non-blobstore <img> is never fetched and left untouched"
+      (let [remote-items [{:id 1 :title "Remote Image" :source-key :blog-a
+                           :entry {:url "https://example.com/1"}
+                           :data {:content {"text/html"
+                                            "<p><img src=\"https://example.com/cat.png\"/></p>"}}}]]
+        (with-redefs [blobstore/get-blob (fn [_] (throw (ex-info "must not fetch non-blob images" {})))]
+          (let [f (uut/render-epub! 1 remote-items {:inline-images? true})]
+            (try
+              (let [ch1 (chapter-1 (zip-entries f))]
+                (is (string/includes? ch1 "https://example.com/cat.png"))
+                (is (not (string/includes? ch1 "images/img-1"))))
+              (finally (.delete f)))))))))
 
 (deftest grouping-test
   (testing "items are grouped by source in first-seen order; chapters numbered globally"

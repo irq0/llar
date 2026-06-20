@@ -14,11 +14,11 @@
   Read-state (clearing :unread) is handled issue-windowed by the autoread
   scheduler in llar.update; see remove-unread-for-items-with-tag!."
   (:require
-   [clj-http.client :as http]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
+   [llar.blobstore :as blobstore]
    [llar.email :as email]
    [llar.item :as item]
    [llar.persistency :as persistency]
@@ -97,27 +97,31 @@
       (second (re-find #"\.(jpe?g|png|gif|webp|svg)(?:\?|$)" (str url)))
       "jpg"))
 
+(defn- blob-hash
+  "Content hash for an <img> src that references the local blobstore
+  (\"/blob/<hash>\", possibly made absolute by a base URL), or nil otherwise."
+  [src]
+  (second (re-find #"/blob/([0-9a-fA-F]+)" (str src))))
+
 (defn- inline-images!
-  "Fetch <img> sources referenced in the jsoup document, add them as EPUB
-  resources on book, and rewrite the src to the local href. Best-effort: any
-  image that fails to fetch or is too large keeps its remote URL."
+  "Embed locally-blobstored <img> images into book as EPUB resources and rewrite
+  the src to the local href. Images are NEVER downloaded: by fetch time item HTML
+  has its images rewritten to the blobstore (see llar.http/blobify), so we read
+  the bytes straight from the blobstore. Any <img> that is not a blobstore
+  reference, or whose blob is missing or too large, is left untouched."
   [^Document doc ^Book book counter]
   (doseq [^Element img (.select doc "img")]
-    (let [src (.attr img "abs:src")]
-      (when-not (string/blank? src)
-        (try
-          (let [{:keys [body headers status]}
-                (http/get src {:as :byte-array
-                               :socket-timeout 15000
-                               :connection-timeout 15000
-                               :throw-exceptions false})]
-            (when (and (= 200 status) body (<= (count body) max-image-bytes))
-              (let [href (str "images/img-" (swap! counter inc) "."
-                              (image-extension (get headers "Content-Type") src))]
-                (.add (.getResources book) (Resource. ^bytes body href))
-                (.attr img "src" href))))
-          (catch Exception e
-            (log/debugf "digest: failed to inline image %s: %s" src (ex-message e))))))))
+    (when-let [hash (blob-hash (.attr img "src"))]
+      (try
+        (let [{:keys [data mime-type size]} (blobstore/get-blob hash)]
+          (when (and data (<= (or size 0) max-image-bytes))
+            (let [^bytes body (with-open [^java.io.InputStream in data] (.readAllBytes in))
+                  href (str "images/img-" (swap! counter inc) "."
+                            (image-extension mime-type hash))]
+              (.add (.getResources book) (Resource. body href))
+              (.attr img "src" href))))
+        (catch Exception e
+          (log/debugf "digest: failed to embed blob image %s: %s" hash (ex-message e)))))))
 
 (defn llar-item-url
   "Absolute URL to view the item in the LLAR reader, or nil if no reader
