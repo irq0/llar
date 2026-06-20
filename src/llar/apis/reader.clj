@@ -23,6 +23,7 @@
    [llar.fetch.bookmark :as bookmark]
    [llar.http :refer [try-blobify-url!]]
    [llar.human :as human]
+   [llar.item :as item]
    [llar.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
@@ -181,26 +182,6 @@
   clojure.lang.Keyword
   (form-encode* [x encoding]
     (form-encode* (name x) encoding)))
-
-(defn reading-time-estimate [item]
-  (let [words-per-min 200
-        {:keys [nwords top-words]} item
-        top-word-strings (map first (get top-words "words" []))
-        avg-word-len (if (seq top-word-strings)
-                       (/ (reduce + (map count top-word-strings))
-                          (count top-word-strings))
-                       5.0)
-        level (cond
-                (< avg-word-len 4.5) :easy
-                (< avg-word-len 6.0) :medium
-                :else :hard)
-        factor (case level
-                 :easy 1
-                 :medium 1.5
-                 :hard 2)
-        estimate (* (/ (or nwords 0) words-per-min) factor)]
-    {:estimate (int (Math/ceil estimate))
-     :difficulty level}))
 
 (defn parse-youtube-url
   [url]
@@ -684,7 +665,7 @@
   (let [item (first (:items x))
         selected-data (:data x)
         selected-content-type (:content-type x)
-        reading-estimate (reading-time-estimate item)
+        reading-estimate (item/reading-time-estimate item)
         {:keys [id url data ts tags entry nwords]} item
         lang (if (#{"de" "en"} (:language entry))
                (:language entry)
@@ -1011,7 +992,7 @@
        [:span " - "]
        [:span {:class "timestamp"} (human/datetime-ago ts)]]
       (when (>= nwords 0)
-        (let [estimate (reading-time-estimate item)
+        (let [estimate (item/reading-time-estimate item)
               human-time (:estimate estimate)]
           [:li {:class "list-inline-item"}
            [:a {:class "btn"}
@@ -1139,7 +1120,7 @@
               [:span " → " (human/host-identifier url)])]]
 
           [:td {:class "nwords" :title "Reading time estimate in minutes"}
-           (let [estimate (reading-time-estimate item)
+           (let [estimate (item/reading-time-estimate item)
                  human-time (:estimate estimate)]
              human-time)]
 
@@ -1614,7 +1595,7 @@
              [:span " - "]
              [:span {:class "timestamp"} (human/datetime-ago ts)]]
             (when (>= nwords 0)
-              (let [estimate (reading-time-estimate item)
+              (let [estimate (item/reading-time-estimate item)
                     human-time (:estimate estimate)]
                 [:li {:class "list-inline-item"}
                  [:a {:class "btn"}

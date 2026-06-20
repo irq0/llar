@@ -37,3 +37,25 @@
                                    :irq0-fetch-item/pub-ts
                                    :irq0-fetch-item/updated-ts
                                    :irq0-fetch-item/descriptions]))
+(defn reading-time-estimate
+  "Estimate reading time (minutes) and difficulty for a queried item doc, based
+  on its word count and average top-word length."
+  [item]
+  (let [words-per-min 200
+        {:keys [nwords top-words]} item
+        top-word-strings (map first (get top-words "words" []))
+        avg-word-len (if (seq top-word-strings)
+                       (/ (reduce + (map count top-word-strings))
+                          (count top-word-strings))
+                       5.0)
+        level (cond
+                (< avg-word-len 4.5) :easy
+                (< avg-word-len 6.0) :medium
+                :else :hard)
+        factor (case level
+                 :easy 1
+                 :medium 1.5
+                 :hard 2)
+        estimate (* (/ (or nwords 0) words-per-min) factor)]
+    {:estimate (int (Math/ceil estimate))
+     :difficulty level}))
