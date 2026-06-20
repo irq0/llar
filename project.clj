@@ -44,14 +44,14 @@
   :dependencies [[org.clojure/clojure "1.12.4"]
                  ;; logging
                  [org.clojure/tools.logging "1.3.1"]
-                 [org.slf4j/slf4j-api "2.0.17"]
-                 [org.slf4j/jcl-over-slf4j "2.0.17"]
-                 [org.slf4j/jul-to-slf4j "2.0.17"]
-                 [org.slf4j/osgi-over-slf4j "2.0.17"]
+                 [org.slf4j/slf4j-api "2.0.18"]
+                 [org.slf4j/jcl-over-slf4j "2.0.18"]
+                 [org.slf4j/jul-to-slf4j "2.0.18"]
+                 [org.slf4j/osgi-over-slf4j "2.0.18"]
 
-                 [org.apache.logging.log4j/log4j-slf4j2-impl "2.25.3"]
-                 [org.apache.logging.log4j/log4j-core "2.25.3"]
-                 [org.apache.logging.log4j/log4j-api "2.25.3"]
+                 [org.apache.logging.log4j/log4j-slf4j2-impl "2.26.0"]
+                 [org.apache.logging.log4j/log4j-core "2.26.0"]
+                 [org.apache.logging.log4j/log4j-api "2.26.0"]
 
                  ;; leaf node deps
                  [org.clojure/data.priority-map "1.2.1"]
@@ -59,24 +59,24 @@
                  [org.clojure/data.xml "0.2.0-alpha8"]
                  [org.clojure/data.json "2.5.2"]
                  [org.clojure/test.check "1.1.3"]
-                 [org.clojure/tools.cli "1.3.250"]
+                 [org.clojure/tools.cli "1.4.256"]
                  [org.clojure/tools.reader "1.6.0"]
-                 [dev.weavejester/medley "1.9.0"]
-                 [com.fasterxml.jackson.core/jackson-databind "2.21.0"]
-                 [org.jsoup/jsoup "1.22.1"]
+                 [dev.weavejester/medley "1.10.0"]
+                 [com.fasterxml.jackson.core/jackson-databind "2.22.0"]
+                 [org.jsoup/jsoup "1.22.2"]
                  [org.apache.httpcomponents/httpcore "4.4.16"]
-                 [org.bouncycastle/bcpkix-jdk18on "1.82"]
-                 [org.bouncycastle/bcprov-jdk18on "1.82"]
-                 [org.bouncycastle/bcutil-jdk18on "1.82"]
+                 [org.bouncycastle/bcpkix-jdk18on "1.84"]
+                 [org.bouncycastle/bcprov-jdk18on "1.84"]
+                 [org.bouncycastle/bcutil-jdk18on "1.84"]
                  [javax.activation/activation "1.1.1"]
-                 [net.java.dev.jna/jna "5.18.1"]
-                 [riddley "0.2.0"]
-                 [cheshire "6.1.0"]
+                 [net.java.dev.jna/jna "5.19.1"]
+                 [riddley "0.2.2"]
+                 [cheshire "6.2.0"]
                  [bk/ring-gzip "0.3.0"]
-                 [org.tukaani/xz "1.11"]
+                 [org.tukaani/xz "1.12"]
                  [table "0.5.0"]
                  [nio2 "0.2.3"]
-                 [mount "0.1.23"]
+                 [mount "0.1.24"]
                  [tolitius/mount-up "0.1.3"]
                  [digest "1.4.10"]
                  [clj-stacktrace "0.2.8"]
@@ -85,15 +85,15 @@
                  [slingshot "0.12.2"]
                  [io.github.clj-kondo/config-slingshot-slingshot "1.0.0"]
                  [org.apache.commons/commons-text "1.15.0"]
-                 [commons-io/commons-io "2.21.0"]
+                 [commons-io/commons-io "2.22.0"]
                  [com.sun.activation/jakarta.activation "2.0.1"]
                  [com.google.guava/guava "31.1-jre"]
-                 [cider/cider-nrepl "0.58.0"]
+                 [cider/cider-nrepl "0.59.0"]
                  [potemkin "0.4.9" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
-                 [nrepl "1.5.2"]
-                 [djblue/portal "0.62.2"]
-                 [org.clojure/core.async "1.8.741" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
+                 [nrepl "1.7.0"]
+                 [djblue/portal "0.65.0"]
+                 [org.clojure/core.async "1.9.865" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
                  [byte-streams "0.2.4" :exclusions [riddley]]
                  [com.nextjournal/beholder "1.0.3"]
 
@@ -103,7 +103,7 @@
 
                  ;; monitoring
                  [io.prometheus/simpleclient_hotspot "0.16.0"]
-                 [clj-commons/iapetos "0.1.14"]
+                 [clj-commons/iapetos "0.1.15"]
                  [com.clojure-goes-fast/clj-memory-meter "0.4.0"]
 
                  ;; apis
@@ -117,21 +117,21 @@
                  [io.forward/clojure-mail "1.0.8" :exclusions [medley javax.activation/activation]]
 
                  ;; epub generation (kindle digest)
-                 [io.documentnode/epub4j-core "4.2.1"]
+                 [io.documentnode/epub4j-core "4.2.3"]
 
                  ;; database
                  [com.layerware/hugsql-core "0.5.3"]
                  [com.layerware/hugsql-adapter-next-jdbc "0.5.3"]
-                 [com.github.seancorfield/next.jdbc "1.3.1093"]
+                 [com.github.seancorfield/next.jdbc "1.3.1108"]
 
-                 [hikari-cp "4.0.0" :exclusions [org.slf4j/slf4j-api]]
-                 [org.postgresql/postgresql "42.7.9"]
-                 [migratus "1.6.5" :exclusions [org.clojure/tools.logging]]
+                 [hikari-cp "4.1.0" :exclusions [org.slf4j/slf4j-api]]
+                 [org.postgresql/postgresql "42.7.11"]
+                 [migratus "1.6.6" :exclusions [org.clojure/tools.logging]]
 
                  ;; webapp
-                 [ring/ring-core "1.15.3"  :exclusions [commons-io]]
-                 [ring/ring-devel "1.15.3"  :exclusions [commons-io]]
-                 [ring/ring-jetty-adapter "1.15.3" :exclusions [commons-io]]
+                 [ring/ring-core "1.15.4"  :exclusions [commons-io]]
+                 [ring/ring-devel "1.15.4"  :exclusions [commons-io]]
+                 [ring/ring-jetty-adapter "1.15.4" :exclusions [commons-io]]
                  [ring/ring-json "0.5.1" :exclusions [cheshire]]
                  [ring/ring-codec "1.3.0"]
                  [compojure "1.7.2" :exclusions [commons-io medley]]
@@ -143,21 +143,21 @@
 
                  ;; data processing and analysis
                  [clojure-opennlp "0.5.0" :exclusions [org.apache.opennlp/opennlp-tools]]
-                 [org.apache.opennlp/opennlp-tools "2.5.4"]
+                 [org.apache.opennlp/opennlp-tools "2.5.9"]
                  [org.apache.opennlp/opennlp-models-tokenizer-en "1.3.0"]
                  [org.apache.opennlp/opennlp-models-tokenizer-de "1.3.0"]
                  [org.apache.opennlp/opennlp-models-pos-en "1.3.0"]
                  [org.apache.opennlp/opennlp-models-pos-de "1.3.0"]
-                 [org.apache.tika/tika-parsers-standard-package "3.2.3" :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
-                 [org.apache.tika/tika-langdetect-optimaize "3.2.3"]
-                 [org.apache.tika/tika-core "3.2.3" :exclusions [commons-io]]
+                 [org.apache.tika/tika-parsers-standard-package "3.3.1" :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
+                 [org.apache.tika/tika-langdetect-optimaize "3.3.1"]
+                 [org.apache.tika/tika-core "3.3.1" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
 
                  ;; streaming services
-                 [com.github.TeamNewPipe/NewPipeExtractor "v0.26.0"]
+                 [com.github.TeamNewPipe/NewPipeExtractor "0.26.3"]
 
                  ;; testing
                  [clj-test-containers "0.7.4"]
-                 [org.testcontainers/postgresql "1.19.7"]
+                 [org.testcontainers/postgresql "1.21.4"]
                  [lambdaisland/kaocha-cloverage "1.1.89"]
                  [lambdaisland/kaocha-junit-xml "1.17.101"]])
