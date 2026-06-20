@@ -1,8 +1,10 @@
 (ns llar.email
-  "General outgoing email via the host's local MTA (the `sendmail` binary: postal
-  finds /usr/sbin/sendmail etc., or $SENDMAIL). No SMTP, port, auth or TLS —
-  delivery and queuing are the MTA's job. Thin wrapper over postal so other
-  features can send mail without knowing the transport."
+  "General outgoing email. Two transports, chosen by config: with a :mail :host
+  set, mail is relayed over SMTP to that server (e.g. a postfix on the container
+  host); otherwise it is piped to the host's local `sendmail` binary (postal
+  finds /usr/sbin/sendmail etc., or $SENDMAIL). Either way delivery, queuing and
+  retrying are the MTA's job. Thin wrapper over postal so other features can send
+  mail without knowing the transport."
   (:require
    [llar.appconfig :as appconfig]
    [postal.core :as postal]))

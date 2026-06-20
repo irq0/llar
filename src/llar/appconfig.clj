@@ -35,11 +35,24 @@
                                             :irq0-appconfig/dashboard
                                             :irq0-appconfig/digest]))
 
-;; General outgoing mail config. Optional, top-level. Mail is handed to the
-;; host's local MTA via the sendmail binary; :from is the default From address.
+;; General outgoing mail config. Optional, top-level. :from is the default From
+;; address. With :host set, mail is relayed over SMTP to that server (:credentials
+;; names a credentials.edn entry holding :user/:pass; :starttls or :tls for
+;; encryption); otherwise it is handed to the host's local MTA via the sendmail
+;; binary. STARTTLS on the submission port:
+;;   :mail {:from "llar@example.org"
+;;          :host "mail.example.org" :port 587
+;;          :credentials :smtp :starttls true}
+;; with credentials.edn: {:smtp {:user "llar@example.org" :pass "secret"}}
+;; Implicit TLS instead: :mail {... :port 465 :credentials :smtp :tls true}
 (s/def :irq0-appconfig/mail
   (s/and map?
-         #(or (nil? (:from %)) (string? (:from %)))))
+         #(or (nil? (:from %)) (string? (:from %)))
+         #(or (nil? (:host %)) (string? (:host %)))
+         #(or (nil? (:port %)) (int? (:port %)))
+         #(or (nil? (:credentials %)) (keyword? (:credentials %)))
+         #(or (nil? (:tls %)) (boolean? (:tls %)))
+         #(or (nil? (:starttls %)) (boolean? (:starttls %)))))
 (s/def :irq0-appconfig/blob-store-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/credentials-file :irq0/path-exists)
 (s/def :irq0-appconfig/runtime-config-dir :irq0/path-exists-is-dir)
