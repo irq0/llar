@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-20
+
 ### Added
 
 #### Podcast System
+
+LLAR can now turn audio or video sources into a private podcast feed.
+It downloads the media and serves a per-source and combined RSS feed.
+The feed URL must be public to work with most podcast clients. Tested
+with Podcasts on the Apple TV.
+
+Because downloaded media adds up, each source keeps only a
+configurable number of recent episodes and automatically deletes older
+ones. The dashboard shows how much disk the whole library is using.
 
 - Media download via yt-dlp with automatic subtitle extraction and chapter support
 - Count-based episode retention with per-source limits
@@ -17,8 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Digest Magazines (e-reader)
 
+Instead of reading everything in the browser, you can now mark items
+with a :digest tag and have LLAR bundle them into an EPUB magazine
+and email them to your e-reader.
+
 - Collect items tagged `:digest` into an EPUB "magazine" and email it
-  to an e-reader (Kindle, PocketBook, Onyx Boox, ...) on a schedule
+  to an e-reader (tested with Kindle) on a schedule
 - Tag-based state machine: `:digest` queues an item, `:digest-issue-N`
   records the issue it was sent in
 - Issue-windowed autoread: keep the most recent `:keep-unread-issues`
@@ -30,13 +45,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   :reader :base-url`)
 - Cover/TOC page (title, date, article count, grouped contents) and
   chapters grouped by source
-- Configured under `:api :digest`; sends via the general `:mail` transport
+- Configured under `:api :digest`; sends via the general mail transport
 
 #### Streaming Channel Source
 
-- New StreamingChannel source type using NewPipeExtractor
+A new source type built on NewPipeExtractor lets you follow video channels.
 
 #### Ranked Sorting
+
+The reader list no longer has to be strictly newest-first. A new
+ranked sort boosts items you've highlighted and items from sources
+that post rarely. The boost weights are configurable, and a new
+dashboard analytics tab lets you see how the ranking is behaving.
 
 - Reader list sorting by highlight boost and source rarity
 - Configurable boost weights via appconfig
@@ -44,7 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Annotations
 
-- Annotatate items in the reader frontend
+You can highlight and annotate items right in the reader frontend.
+Annotations can be exported with the item to Zotero through the Zotero
+API, or hand it off via a URL handler such as org-protocol into
+org-roam.
 
 #### Export
 
@@ -53,7 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### GitHub Fetcher
 
-- New GitHub source type for fetching repository activity
+You can now add a GitHub repository as a source and follow its activity.
+
+#### Outgoing Email
+
+- Generic outgoing mail transport, used by the digest feature and
+  reusable by other features
 
 ### Changed
 
@@ -63,6 +91,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Postproc: preserve error context in processing pipeline
 - Update: classify Rome parse failures as permanent failures
 - Docker: expose podcast port 8024, add fonts-noto-color-emoji
+- Node.js tooling: removed unused browserify/polyfill packages, cutting
+  the dependency tree roughly in half and resolving all known npm
+  advisories; upgraded jsdom (26 → 29), metascraper (5.51) and DOMPurify
 
 ### Fixes
 
@@ -120,7 +151,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### initial tagged release
 
-[Unreleased]: https://github.com/irq0/llar/compare/2.0.0...HEAD
+[Unreleased]: https://github.com/irq0/llar/compare/3.0.0...HEAD
+[3.0.0]: https://github.com/irq0/llar/compare/2.0.0...3.0.0
 [2.0.0]: https://github.com/irq0/llar/compare/1.1.0...2.0.0
 [1.1.0]: https://github.com/irq0/llar/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/irq0/llar/releases/tag/1.0.0
