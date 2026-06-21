@@ -133,6 +133,81 @@
       [:th "Stats"]
       [:th "Actions"]]]]])
 
+(def +failure-states+
+  #{:temp-fail :perm-fail :bug})
+
+(defn- source-summary [k src state]
+  (let [status (or (:status state) :new)]
+    {:key k
+     :source src
+     :status status
+     :retry-count (:retry-count state)
+     :last-success (:last-successful-fetch-ts state)
+     :last-attempt (:last-attempt-ts state)
+     :start-ts (:start-ts state)
+     :last-finished (:last-finished-ts state)
+     :last-exception (:last-exception state)}))
+
+(defn- source-summary-row [{:keys [key status retry-count last-success last-attempt start-ts last-exception]}]
+  [:tr
+   [:td [:a {:href "#sources"
+             :data-bs-toggle "tab"} (name key)]]
+   [:td (name status)]
+   [:td (or retry-count "")]
+   [:td (some-> last-success human/datetime-ago)]
+   [:td (some-> (or last-attempt start-ts) human/datetime-ago)]
+   [:td (or (some-> last-exception :data :reason-class name)
+            (some-> last-exception :data :type name)
+            "")]])
+
+(defn- source-summary-table [title rows]
+  [:div {:class "col-lg-4 mb-3"}
+   [:h5 title]
+   (if (seq rows)
+     [:table {:class "table table-sm"}
+      [:thead
+       [:tr
+        [:th "Source"]
+        [:th "Status"]
+        [:th "Retries"]
+        [:th "Last Success"]
+        [:th "Last Attempt"]
+        [:th "Reason"]]]
+      [:tbody
+       (for [row rows]
+         (source-summary-row row))]]
+     [:p {:class "text-muted"} "None"])])
+
+(defn overview-tab []
+  (let [sources (for [[k src] (config/get-sources)]
+                  (source-summary k src (get-state k)))
+        counts (frequencies (map :status sources))
+        updating (filter #(= :updating (:status %)) sources)
+        failures (filter #(+failure-states+ (:status %)) sources)
+        stale (filter :last-success sources)
+        summary [["Total" (count sources) "text-primary"]
+                 ["OK" (get counts :ok 0) "text-success"]
+                 ["Updating" (count updating) "text-info"]
+                 ["New" (get counts :new 0) "text-primary"]
+                 ["Temp Fail" (get counts :temp-fail 0) "text-warning"]
+                 ["Perm Fail" (get counts :perm-fail 0) "text-danger"]
+                 ["Bug" (get counts :bug 0) "text-dark"]]]
+    [:div
+     [:div {:class "row mb-3"}
+      (for [[label value cls] summary]
+        [:div {:class "col-auto"}
+         [:h4 {:class cls} value " " label]])]
+     [:div {:class "row"}
+      (source-summary-table
+       "Failures"
+       (take 10 (sort-by (juxt :status #(or (:retry-count %) 0)) failures)))
+      (source-summary-table
+       "Updating"
+       (take 10 (sort-by #(or (:start-ts %) (:last-attempt %)) updating)))
+      (source-summary-table
+       "Stale"
+       (take 10 (sort-by :last-success stale)))]]))
+
 (defn source-details [src-k]
   (let [k (keyword src-k)
         source (config/get-source k)
@@ -554,7 +629,8 @@
    (map-to-tree (appconfig-redact-secrets))])
 
 (def tabs
-  {:sources #'source-tab
+  {:overview #'overview-tab
+   :sources #'source-tab
    :podcast #'podcast-tab
    :ranking #'ranking-tab
    :memory #'memory-tab
@@ -566,7 +642,7 @@
    :config #'config-tab})
 
 (defn- tab-pane-body [k func]
-  (if (= :sources k)
+  (if (= :overview k)
     (func)
     [:div {:class "dashboard-tab-placeholder text-muted"
            :data-tab-loaded "false"}
@@ -582,18 +658,23 @@
                  tab-id (str tab-name "-tab")
                  tab-href (str "#" tab-name)]]
        [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when (= k :sources) " active"))
+        [:a {:class (str "nav-link" (when (= k :overview) " active"))
              :id tab-id
              :data-bs-toggle "tab"
              :role "tab"
              :href tab-href}
          tab-name]])]
+    [:div {:class "my-2"}
+     [:button {:id "dashboard-reload-tab"
+               :class "btn btn-sm btn-outline-secondary"
+               :type "button"}
+      "Reload current tab"]]
     [:div {:class "tab-content"
            :id "nav-tab-content"}
      (for [[k func] tabs
            :let [tab-name (name k)
                  cont-id tab-name]]
-       [:div {:class (str "tab-pane pt-2  " (when (= k :sources) " fade show active"))
+       [:div {:class (str "tab-pane pt-2  " (when (= k :overview) " fade show active"))
               :data-tab-name tab-name
               :id cont-id
               :role "tabpanel"}
@@ -601,7 +682,7 @@
 
 (defn dashboard-tab [tab-name]
   (let [k (keyword tab-name)]
-    (if-let [func (and (not= :sources k) (get tabs k))]
+    (if-let [func (get tabs k)]
       {:status 200
        :headers {"Content-Type" "text/html; charset=utf-8"}
        :body (str (h/html (func)))}

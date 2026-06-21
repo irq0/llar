@@ -45,6 +45,41 @@ function sources_row_actions_html(source_key) {
 }
 
 function initialize_datatables(container) {
+  var sources_table = $(container).find("#sources-datatable");
+  if (sources_table.length && !$.fn.DataTable.isDataTable(sources_table[0])) {
+    sources_table.DataTable({
+      paging: true,
+      pageLength: 100,
+      deferRender: true,
+      searching: true,
+      ajax: {
+        url: "/api/sources",
+        dataSrc: function (json) {
+          var rows = json.data;
+          for (var row = 0, row_count = rows.length; row < row_count; row++) {
+            var source_key = rows[row][0];
+            rows[row].push(sources_row_actions_html(source_key));
+          }
+          return rows;
+        },
+      },
+      dom: "Bfrtip",
+      rowCallback: function (row, data) {
+        set_row_color_by_status(row, data[1]);
+      },
+      columnDefs: [{ width: "40ch", targets: 2 }],
+      buttons: [
+        {
+          text: '<i title="Refresh table" class="fas fa-refresh">&thinsp;</i>',
+          action: function (e, dt) {
+            console.log("Reloading");
+            dt.ajax.reload();
+          },
+        },
+      ],
+    });
+  }
+
   $(container)
     .find(".datatable")
     .each(function () {
@@ -73,7 +108,7 @@ function load_dashboard_tab(target_selector) {
   var tab_name = pane.data("tab-name");
   var placeholder = pane.find(".dashboard-tab-placeholder");
 
-  if (!tab_name || tab_name === "sources" || pane.data("tab-loaded")) {
+  if (!tab_name || tab_name === "overview" || pane.data("tab-loaded")) {
     return;
   }
 
@@ -95,40 +130,47 @@ function load_dashboard_tab(target_selector) {
     });
 }
 
+function reload_dashboard_tab(target_selector) {
+  var pane = $(target_selector);
+  var tab_name = pane.data("tab-name");
+
+  if (!tab_name) {
+    return;
+  }
+
+  if (
+    tab_name === "sources" &&
+    $("#sources-datatable").length &&
+    $.fn.DataTable.isDataTable($("#sources-datatable")[0])
+  ) {
+    $("#sources-datatable").DataTable().ajax.reload();
+    return;
+  }
+
+  pane.data("tab-loaded", false);
+  pane.html(
+    '<div class="dashboard-tab-placeholder text-muted">Loading...</div>',
+  );
+  $.ajax({
+    url: "/tab/" + tab_name,
+  })
+    .done(function (html) {
+      pane.data("tab-loaded", true);
+      pane.html(html);
+      initialize_datatables(pane);
+    })
+    .fail(function () {
+      pane.data("tab-loaded", false);
+      pane
+        .find(".dashboard-tab-placeholder")
+        .removeClass("text-muted")
+        .addClass("text-danger")
+        .text("Failed to reload tab.");
+    });
+}
+
 $(document).ready(function () {
   initialize_datatables(document);
-
-  var sources_datatable = $("#sources-datatable").DataTable({
-    paging: true,
-    pageLength: 100,
-    deferRender: true,
-    searching: true,
-    ajax: {
-      url: "/api/sources",
-      dataSrc: function (json) {
-        var rows = json.data;
-        for (var row = 0, row_count = rows.length; row < row_count; row++) {
-          var source_key = rows[row][0];
-          rows[row].push(sources_row_actions_html(source_key));
-        }
-        return rows;
-      },
-    },
-    dom: "Bfrtip",
-    rowCallback: function (row, data) {
-      set_row_color_by_status(row, data[1]);
-    },
-    columnDefs: [{ width: "40ch", targets: 2 }],
-    buttons: [
-      {
-        text: '<i title="Refresh table" class="fas fa-refresh">&thinsp;</i>',
-        action: function (e, dt) {
-          console.log("Reloading");
-          dt.ajax.reload();
-        },
-      },
-    ],
-  });
 
   $('a[data-bs-toggle="tab"]').on("click", function () {
     load_dashboard_tab($(this).attr("href"));
@@ -138,35 +180,46 @@ $(document).ready(function () {
     load_dashboard_tab($(event.target).attr("href"));
   });
 
-  $("#sources-datatable").on("click", ".btn-source-details", function () {
-    var k = $(this).data("source-key");
-    var tr = $(this).closest("tr");
-    var row = sources_datatable.row(tr);
-    if (row.child.isShown()) {
-      row.child.hide();
-    } else {
-      $.ajax({
-        url: "/source-details/" + k,
-      })
-        .done(function (msg) {
-          row.child(msg).show();
-        })
-        .fail(function () {
-          row.child("<em>Failed to load details</em>").show();
-        });
-    }
+  $("#dashboard-reload-tab").on("click", function () {
+    reload_dashboard_tab($(".tab-pane.active").first());
   });
 
-  $("#sources-datatable").on("click", "tr", function () {
+  $(document).on(
+    "click",
+    "#sources-datatable .btn-source-details",
+    function () {
+      var k = $(this).data("source-key");
+      var tr = $(this).closest("tr");
+      var sources_datatable = $("#sources-datatable").DataTable();
+      var row = sources_datatable.row(tr);
+      if (row.child.isShown()) {
+        row.child.hide();
+      } else {
+        $.ajax({
+          url: "/source-details/" + k,
+        })
+          .done(function (msg) {
+            row.child(msg).show();
+          })
+          .fail(function () {
+            row.child("<em>Failed to load details</em>").show();
+          });
+      }
+    },
+  );
+
+  $(document).on("click", "#sources-datatable tr", function () {
     var tr = $(this);
+    var sources_datatable = $("#sources-datatable").DataTable();
     var row = sources_datatable.row(tr);
     row.child.hide();
   });
 
-  $("#sources-datatable").on("click", ".btn-update-source", function () {
+  $(document).on("click", "#sources-datatable .btn-update-source", function () {
     var k = $(this).data("source-key");
     var overwrite = $(this).data("overwrite");
     var tr = $(this).closest("tr");
+    var sources_datatable = $("#sources-datatable").DataTable();
     var row = sources_datatable.row(tr);
     var status_url = "/api/source/" + k;
 
