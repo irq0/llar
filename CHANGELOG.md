@@ -167,6 +167,7 @@ You can now add a GitHub repository as a source and follow its activity.
 ### initial tagged release
 
 [Unreleased]: https://github.com/irq0/llar/compare/3.0.0...HEAD
+[3.1.0]: https://github.com/irq0/llar/compare/3.0.0...3.1.0
 [3.0.0]: https://github.com/irq0/llar/compare/2.0.0...3.0.0
 [2.0.0]: https://github.com/irq0/llar/compare/1.1.0...2.0.0
 [1.1.0]: https://github.com/irq0/llar/compare/1.0.0...1.1.0
