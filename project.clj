@@ -10,6 +10,7 @@
              "-XX:TieredStopAtLevel=1"
              "-Djdk.attach.allowAttachSelf=true"
              "-Dtika.config=tika-config.xml"
+             "-Dlog4j2.statusLoggerLevel=ERROR"
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
 
   :aot :all
