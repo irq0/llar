@@ -10,7 +10,7 @@ services:
       - ./initdb.d:/docker-entrypoint-initdb.d
     shm_size: '246MB'
   llar-init-db:
-    image: ghcr.io/irq0/llar:latest
+    image: ${LLAR_IMAGE:-ghcr.io/irq0/llar:latest}
     user: root
     links:
       - db
@@ -43,7 +43,7 @@ services:
     environment:
       LLAR_CONFIG: /llar/config.edn
   llar:
-    image: ghcr.io/irq0/llar:latest
+    image: ${LLAR_IMAGE:-ghcr.io/irq0/llar:latest}
     user: llar
     links:
       - db

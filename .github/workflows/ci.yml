@@ -119,6 +119,8 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
+    outputs:
+      image-ref: ${{ steps.image.outputs.ref }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -188,3 +190,73 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
+
+    - name: select e2e image
+      id: image
+      env:
+        TAGS: ${{ steps.meta.outputs.tags }}
+      run: |
+        IMAGE_REF="$(printf '%s\n' "$TAGS" | grep ':sha-' | head -n1)"
+        test -n "$IMAGE_REF"
+        echo "ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+
+  compose-e2e:
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name != 'pull_request'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull image built by docker job
+      run: docker pull '${{ needs.docker.outputs.image-ref }}'
+
+    - name: Create CI credentials
+      run: |
+        cat > docker/credentials.edn <<'EOF'
+        {:twitter-api {}
+         :lwn {}
+         :imap {}
+         :smtp {}
+         :zotero {}
+         :podcast-token "ci"
+         :reddit {}}
+        EOF
+
+    - name: Validate compose
+      env:
+        LLAR_IMAGE: ${{ needs.docker.outputs.image-ref }}
+      run: docker compose -f docker/docker-compose.yaml config
+
+    - name: Start compose stack
+      env:
+        LLAR_IMAGE: ${{ needs.docker.outputs.image-ref }}
+      run: docker compose -f docker/docker-compose.yaml up -d
+
+    - name: Wait for application
+      run: |
+        timeout 180 bash -c '
+          until curl -fsS http://localhost:9999/metrics >/dev/null; do
+            docker compose -f docker/docker-compose.yaml ps
+            sleep 5
+          done
+        '
+
+    - name: Run e2e checks
+      run: |
+        curl -fsS http://localhost:9999/metrics >/dev/null
+        curl -fsS http://localhost:8023/reader >/dev/null
+
+    - name: Compose logs
+      if: always()
+      run: docker compose -f docker/docker-compose.yaml logs --no-color
+
+    - name: Cleanup compose stack
+      if: always()
+      run: docker compose -f docker/docker-compose.yaml down -v --remove-orphans
