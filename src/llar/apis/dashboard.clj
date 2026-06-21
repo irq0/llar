@@ -53,7 +53,7 @@
    [:script {:src "/static/datatables/dataTables.buttons.min.js"}]
    [:script {:src "/static/datatables/buttons.bootstrap5.min.js"}]
    [:script {:src "/static/chartjs/chart.umd.min.js"}]
-   [:script {:src "/static/llar-status.js"}]])
+   [:script {:src "/static/llar-status.js?v=dashboard-lazy-tabs-1"}]])
 
 (defn wrap-body [body]
   (str
@@ -498,7 +498,7 @@
      [:script
       (h/raw
        (format "
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
   var rarityData = %s;
   var highlightData = %s;
 
@@ -545,7 +545,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
-});"
+})();"
                (cheshire/generate-string rarity-chart-data)
                (cheshire/generate-string highlight-chart-data)))]]))
 
@@ -564,6 +564,13 @@ document.addEventListener('DOMContentLoaded', function() {
    :metrics #'metrics-tab
    :threads #'thread-tab
    :config #'config-tab})
+
+(defn- tab-pane-body [k func]
+  (if (= :sources k)
+    (func)
+    [:div {:class "dashboard-tab-placeholder text-muted"
+           :data-tab-loaded "false"}
+     "Click tab to load..."]))
 
 (defn status-index []
   (wrap-body
@@ -587,9 +594,19 @@ document.addEventListener('DOMContentLoaded', function() {
            :let [tab-name (name k)
                  cont-id tab-name]]
        [:div {:class (str "tab-pane pt-2  " (when (= k :sources) " fade show active"))
+              :data-tab-name tab-name
               :id cont-id
               :role "tabpanel"}
-        (func)])]]))
+        (tab-pane-body k func)])]]))
+
+(defn dashboard-tab [tab-name]
+  (let [k (keyword tab-name)]
+    (if-let [func (and (not= :sources k) (get tabs k))]
+      {:status 200
+       :headers {"Content-Type" "text/html; charset=utf-8"}
+       :body (str (h/html (func)))}
+      {:status 404
+       :body (str "Unknown dashboard tab: " tab-name)})))
 
 (def update-futures (atom {}))
 
@@ -714,6 +731,8 @@ document.addEventListener('DOMContentLoaded', function() {
         :body {:status :retention-started}}))
 
    (GET "/source-details/:key" [key] (source-details key))
+
+   (GET "/tab/:tab-name" [tab-name] (dashboard-tab tab-name))
 
    (GET "/metrics" []
      {:status 200

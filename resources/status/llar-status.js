@@ -44,13 +44,65 @@ function sources_row_actions_html(source_key) {
 <i title="Show state details" class="fas fa-info-circle"></i></a>`;
 }
 
+function initialize_datatables(container) {
+  $(container)
+    .find(".datatable")
+    .each(function () {
+      if (!$.fn.DataTable.isDataTable(this)) {
+        $(this).DataTable({
+          paging: true,
+          pageLength: 100,
+          deferRender: true,
+        });
+      }
+    });
+
+  var threads_table = $(container).find("#threads-datatable");
+  if (threads_table.length && !$.fn.DataTable.isDataTable(threads_table[0])) {
+    threads_table.DataTable({
+      paging: true,
+      pageLength: 100,
+      deferRender: true,
+      searching: true,
+    });
+  }
+}
+
+function load_dashboard_tab(target_selector) {
+  var pane = $(target_selector);
+  var tab_name = pane.data("tab-name");
+  var placeholder = pane.find(".dashboard-tab-placeholder");
+
+  if (!tab_name || tab_name === "sources" || pane.data("tab-loaded")) {
+    return;
+  }
+
+  pane.data("tab-loaded", true);
+  placeholder.text("Loading...");
+  $.ajax({
+    url: "/tab/" + tab_name,
+  })
+    .done(function (html) {
+      pane.html(html);
+      initialize_datatables(pane);
+    })
+    .fail(function () {
+      pane.data("tab-loaded", false);
+      placeholder
+        .removeClass("text-muted")
+        .addClass("text-danger")
+        .text("Failed to load tab.");
+    });
+}
+
 $(document).ready(function () {
-  $(".datatable").DataTable({
-    paging: false,
-    searching: false,
-  });
+  initialize_datatables(document);
+
   var sources_datatable = $("#sources-datatable").DataTable({
-    paging: false,
+    paging: true,
+    pageLength: 100,
+    deferRender: true,
+    searching: true,
     ajax: {
       url: "/api/sources",
       dataSrc: function (json) {
@@ -77,9 +129,13 @@ $(document).ready(function () {
       },
     ],
   });
-  var threads_datatable = $("#threads-datatable").DataTable({
-    paging: false,
-    searching: false,
+
+  $('a[data-bs-toggle="tab"]').on("click", function () {
+    load_dashboard_tab($(this).attr("href"));
+  });
+
+  $('a[data-bs-toggle="tab"]').on("shown.bs.tab", function (event) {
+    load_dashboard_tab($(event.target).attr("href"));
   });
 
   $("#sources-datatable").on("click", ".btn-source-details", function () {
@@ -123,9 +179,10 @@ $(document).ready(function () {
       });
   });
 
-  $("#threads-datatable").on("click", "td.details-control", function () {
+  $(document).on("click", "#threads-datatable td.details-control", function () {
     console.log("Clicked");
     var tr = $(this).closest("tr");
+    var threads_datatable = $("#threads-datatable").DataTable();
     var row = threads_datatable.row(tr);
     if (row.child.isShown()) {
       row.child.hide();
