@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-06-21
+
+### Changed
+
+- Silence log4j2 INFO messages on startup
+- Prometheus metrics overhaul: Add fine-grained metrics to track the
+  source update process. Track postprocessing exceptions
+- Dashboard: Load tabs on demand
+- Dashboard: Add overview tab
+
+### Fixes
+
+- Repl: Fix repl startup. Broke due to dependency upgrade.
+- Prometheus: Set Content-type version
+
 ## [3.0.0] - 2026-06-20
 
 ### Added
