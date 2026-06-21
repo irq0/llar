@@ -139,7 +139,7 @@
       (loop [forms []]
         (let [form (try (read reader nil :eof)
                         (catch Exception e
-                          (log/error e "Error reading config file" path)
+                          (log/errorf "Error reading config file %s: %s" path (ex-message e))
                           :eof))]
           (if (= form :eof)
             forms
