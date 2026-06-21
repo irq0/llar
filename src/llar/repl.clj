@@ -11,7 +11,7 @@
 (add-tap #'portal/submit)
 
 (defn nrepl-handler []
-  (apply default-handler (concat cider-middleware [#'wrap-portal #'wrap-repl])))
+  (apply default-handler (concat (map resolve cider-middleware) [#'wrap-portal #'wrap-repl])))
 
 (defstate nrepl-server
   :start (start-server :port 42000 :handler (nrepl-handler))
