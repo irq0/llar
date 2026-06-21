@@ -23,6 +23,7 @@
    [llar.podcast :as podcast]
    [llar.update :as update])
   (:import
+   [io.prometheus.client.exporter.common TextFormat]
    [org.apache.commons.text StringEscapeUtils]
    [org.bovinegenius.exploding_fish Uri]))
 
@@ -716,6 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
    (GET "/metrics" []
      {:status 200
+      :headers {"Content-Type" TextFormat/CONTENT_TYPE_004}
       :body (prometheus-export/text-format metrics/prom-registry)})
 
    (route/resources "/static" {:root "status"})
