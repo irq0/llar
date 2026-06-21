@@ -443,6 +443,7 @@
                    status message context)
         (throw+ (merge {:type ::request-error
                         :code status
+                        :reason-class :http-4xx
                         :message (or message reason-phrase)}
                        context)))
       (#{500 501 502 503 504} status)
@@ -450,6 +451,7 @@
         (log/warnf "server Error (%s): %s %s" status headers body)
         (throw+ (merge {:type ::server-error-retry-later
                         :code status
+                        :reason-class :http-5xx
                         :message (or message reason-phrase)}
                        context)))
       (#{408 429} status)
@@ -457,6 +459,7 @@
         (log/warnf "client Error (overloaded?) (%s): %s" status reason-phrase)
         (throw+ (merge {:type ::client-error-retry-later
                         :code status
+                        :reason-class (if (= 429 status) :rate-limited :timeout)
                         :reason (:reason-phrase ex)
                         :message (html2text body :tool :html2text)}
                        context))))))
@@ -469,45 +472,57 @@
          (= (:type (ex-data e#)) :clj-http.client/unexceptional-status)
          (http-resp-throw (ex-data e#) (merge ~throw-extra))
          :else
-         (throw+ (merge {:type ::unexpected-error} ~throw-extra))))
+         (throw+ (merge {:type ::unexpected-error
+                         :reason-class :unexpected}
+                        ~throw-extra))))
 
      (catch java.net.UnknownHostException e#
        (log/error e# "host resolution error" ~throw-extra)
-       (throw+ (merge {:type ::server-error-retry-later} ~throw-extra)))
+       (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :dns}
+                      ~throw-extra)))
 
      (catch javax.net.ssl.SSLHandshakeException e#
        (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :ssl
                        :message (str "SSL Handshake failed: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.net.ConnectException e#
        (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :connect
                        :message (str "Connection refused (gone?): " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.security.cert.CertificateExpiredException e#
        (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :ssl
                        :message (str "Certificate expired: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch javax.net.ssl.SSLPeerUnverifiedException e#
        (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :ssl
                        :message (str "SSL Peer verification error: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.net.SocketException e#
        (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :io
                        :message (str "SocketException: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.io.EOFException e#
        (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :io
                        :message (str "EOF Exception: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.lang.Throwable e#
        (log/error e# "unexpected error: " ~throw-extra)
-       (throw+ (merge {:type ::unexpected-error} ~throw-extra)))))
+       (throw+ (merge {:type ::unexpected-error
+                       :reason-class :unexpected}
+                      ~throw-extra)))))
 
 (defn fetch
   "Generic HTTP fetcher"

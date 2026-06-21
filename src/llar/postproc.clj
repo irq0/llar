@@ -3,8 +3,10 @@
    [clojure.set :refer [intersection union]]
    [clojure.string :as string]
    [clojure.tools.logging :as log]
+   [iapetos.core :as prometheus]
    [llar.commands :refer [download-subtitles]]
    [llar.converter :as conv]
+   [llar.metrics :as metrics]
    [slingshot.slingshot :refer [throw+ try+]]))
 
 ;;;; Postprocessing and Filtering
@@ -109,6 +111,16 @@
 
 ;;; Postprocessing utilities
 
+(defn- observe-degraded-item-exception! [item hint throwable]
+  (prometheus/inc metrics/prom-registry
+                  :llar/degraded-item-exceptions-total
+                  {:source (let [k (get-in item [:meta :source-key])]
+                             (if (keyword? k) (name k) (str (or k "unknown"))))
+                   :source_type (metrics/source-type-label (get-in item [:meta :source]))
+                   :step (metrics/label-value hint)
+                   :reason_class (metrics/label-value (metrics/exception-reason-class throwable))
+                   :exception_class (metrics/exception-class-label throwable)}))
+
 (defn- wrap-proc-fn [item func hint]
   (fn [& args]
     (try+
@@ -116,6 +128,7 @@
        (log/debugf "proc %s: (%s %s)" (str item) func (count args))
        new)
      (catch Object e
+       (observe-degraded-item-exception! item hint (:throwable &throw-context))
        (log/warnf (:throwable &throw-context) "proc %s: (%s %s %s) FAILED: %s %s"
                   (str item) func (count args) hint e (ex-message e))
        nil))))

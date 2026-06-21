@@ -22,20 +22,86 @@
 
 (defonce prom-registry
   (-> metrics/prom-registry
-      (prometheus/subsystem "update")
       (prometheus/register
-       (prometheus/gauge :llar/update-duration-millis
-                         {:description "Time it took to fetch and process a source"
+       (prometheus/gauge :llar/source-state
+                         {:description "Current source state. Exactly one status should be 1 per source."
+                          :labels [:source :status]})
+       (prometheus/gauge :llar/source-last-attempt-unixtime
+                         {:description "Last time a source update was attempted."
                           :labels [:source]})
-       (prometheus/gauge :llar/statuses
-                         {:description "Number of fetched sources for each status"
+       (prometheus/gauge :llar/source-last-success-unixtime
+                         {:description "Last time a source update succeeded."
+                          :labels [:source]})
+       (prometheus/gauge :llar/source-last-failure-unixtime
+                         {:description "Last time a source update failed."
+                          :labels [:source]})
+       (prometheus/gauge :llar/source-last-duration-seconds
+                         {:description "Duration of the last completed source update."
+                          :labels [:source]})
+       (prometheus/gauge :llar/source-last-items
+                         {:description "Item counts from the last completed source update."
+                          :labels [:source :stage]})
+       (prometheus/gauge :llar/source-in-progress
+                         {:description "Whether a source update is currently in progress."
+                          :labels [:source]})
+       (prometheus/gauge :llar/source-update-start-unixtime
+                         {:description "Last time a source update started."
+                          :labels [:source]})
+       (prometheus/gauge :llar/source-last-failure-info
+                         {:description "Classification of the latest source failure. Value is 1 for the active classification."
+                          :labels [:source :source_type :status :step :reason_class]})
+       (prometheus/counter :llar/update-attempts-total
+                           {:description "Completed source update attempts."
+                            :labels [:source_type :result :step :reason_class]})
+       (prometheus/counter :llar/update-failures-total
+                           {:description "Completed failed source update attempts."
+                            :labels [:source_type :step :reason_class]})
+       (prometheus/histogram :llar/update-duration-seconds
+                             {:description "Source update duration by bounded fleet labels."
+                              :labels [:source_type :result]
+                              :buckets [0.5 1 2.5 5 10 30 60 120 300 600 1800]})
+       (prometheus/counter :llar/items-processed-total
+                           {:description "Items seen at update stages."
+                            :labels [:source_type :stage :result]})
+       (prometheus/gauge :llar/sources-total
+                         {:description "Number of sources by current status."
                           :labels [:status]})
-       (prometheus/gauge :llar/last-success-unixtime
-                         {:description "Last time the source was successfully fetched"
-                          :labels [:source]}))))
+       (prometheus/gauge :llar/sources-in-progress-total
+                         {:description "Number of source updates currently in progress."})
+       (prometheus/gauge :llar/sources-stuck-total
+                         {:description "Number of source updates running longer than the stuck threshold."}))))
 
 (def +available-states+
   [:ok :new :temp-fail :perm-fail :bug :updating])
+
+(def ^:private +item-stages+
+  [:fetched :processed :stored])
+
+(def ^:private +stuck-threshold+
+  (time/minutes 20))
+
+(def ^:private +failure-states+
+  #{:temp-fail :perm-fail :bug})
+
+(defn- update-step [state]
+  (let [step (get-in state [:last-exception :data :update-step])]
+    (case step
+      :postproc :postproc
+      :store :store
+      (if (+failure-states+ (:status state)) :fetch :none))))
+
+(defn- reason-class [state]
+  (if (+failure-states+ (:status state))
+    (metrics/reason-class-from-data (get-in state [:last-exception :data]))
+    :none))
+
+(defn- failure-info-labels [k feed state]
+  (when (+failure-states+ (:status state))
+    {:source (name k)
+     :source_type (metrics/source-type-label (:src feed))
+     :status (metrics/label-value (:status state))
+     :step (metrics/label-value (update-step state))
+     :reason_class (metrics/label-value (reason-class state))}))
 
 (defstate state
   :start (atom {}))
@@ -190,12 +256,115 @@
   (doseq [[k _v] (config/get-sources)]
     (set-status! k :new)))
 
+(defn- stuck? [state]
+  (and (= :updating (:status state))
+       (:last-attempt-ts state)
+       (time/before? (:last-attempt-ts state)
+                     (time/minus (time/zoned-date-time) +stuck-threshold+))))
+
 (defn- observe-state-summary-metrics []
-  (let [states (group-by :status (vals (get-current-state)))]
+  (let [states (vals (get-current-state))
+        states-by-status (group-by :status states)
+        in-progress (count (get states-by-status :updating []))
+        stuck (count (filter stuck? states))]
     (doseq [status +available-states+]
-      (prometheus/observe prom-registry :llar/statuses
-                          {:status (name status)}
-                          (count (get states status []))))))
+      (prometheus/set prom-registry :llar/sources-total
+                      {:status (metrics/label-value status)}
+                      (count (get states-by-status status []))))
+    (prometheus/set prom-registry :llar/sources-in-progress-total in-progress)
+    (prometheus/set prom-registry :llar/sources-stuck-total stuck)))
+
+(defn- observe-source-state! [k state]
+  (let [source (name k)]
+    (doseq [status +available-states+]
+      (prometheus/set prom-registry :llar/source-state
+                      {:source source
+                       :status (metrics/label-value status)}
+                      (if (= status (:status state)) 1 0)))
+    (prometheus/set prom-registry :llar/source-in-progress
+                    {:source source}
+                    (if (= :updating (:status state)) 1 0))
+    (when-let [ts (:last-attempt-ts state)]
+      (prometheus/set prom-registry :llar/source-last-attempt-unixtime
+                      {:source source}
+                      (/ (time/to-millis-from-epoch ts) 1000.0)))
+    (when-let [ts (:last-successful-fetch-ts state)]
+      (prometheus/set prom-registry :llar/source-last-success-unixtime
+                      {:source source}
+                      (/ (time/to-millis-from-epoch ts) 1000.0)))
+    (when-let [dur (:last-duration state)]
+      (prometheus/set prom-registry :llar/source-last-duration-seconds
+                      {:source source}
+                      (/ (.toMillis dur) 1000.0)))
+    (doseq [stage +item-stages+
+            :let [metric-stage (if (= stage :stored) :stored stage)
+                  stat-key (if (= stage :stored) :db stage)
+                  value (get-in state [:stats stat-key])]]
+      (when (some? value)
+        (prometheus/set prom-registry :llar/source-last-items
+                        {:source source
+                         :stage (metrics/label-value metric-stage)}
+                        value)))
+    (when (+failure-states+ (:status state))
+      (when-let [ts (:last-finished-ts state)]
+        (prometheus/set prom-registry :llar/source-last-failure-unixtime
+                        {:source source}
+                        (/ (time/to-millis-from-epoch ts) 1000.0))))))
+
+(defn- observe-update-start! [k state]
+  (let [source (name k)]
+    (prometheus/set prom-registry :llar/source-in-progress
+                    {:source source}
+                    1)
+    (when-let [ts (:last-attempt-ts state)]
+      (prometheus/set prom-registry :llar/source-update-start-unixtime
+                      {:source source}
+                      (/ (time/to-millis-from-epoch ts) 1000.0))
+      (prometheus/set prom-registry :llar/source-last-attempt-unixtime
+                      {:source source}
+                      (/ (time/to-millis-from-epoch ts) 1000.0))))
+  (observe-source-state! k state)
+  (observe-state-summary-metrics))
+
+(defn- observe-failure-info! [k feed previous-state new-state]
+  (when-let [labels (failure-info-labels k feed previous-state)]
+    (prometheus/set prom-registry :llar/source-last-failure-info labels 0))
+  (when-let [labels (failure-info-labels k feed new-state)]
+    (prometheus/set prom-registry :llar/source-last-failure-info labels 1)))
+
+(defn- observe-update-complete! [k feed previous-state new-state]
+  (let [source-type (metrics/source-type-label (:src feed))
+        result (metrics/label-value (:status new-state))
+        step (metrics/label-value (update-step new-state))
+        reason (metrics/label-value (reason-class new-state))
+        duration (some-> (:last-duration new-state) .toMillis (/ 1000.0))]
+    (observe-source-state! k new-state)
+    (observe-failure-info! k feed previous-state new-state)
+    (prometheus/inc prom-registry :llar/update-attempts-total
+                    {:source_type source-type
+                     :result result
+                     :step step
+                     :reason_class reason})
+    (when duration
+      (prometheus/observe prom-registry :llar/update-duration-seconds
+                          {:source_type source-type
+                           :result result}
+                          duration))
+    (doseq [[stage value] [[:fetched (get-in new-state [:stats :fetched])]
+                           [:processed (get-in new-state [:stats :processed])]
+                           [:stored (get-in new-state [:stats :db])]]
+            :when (some? value)]
+      (prometheus/inc prom-registry :llar/items-processed-total
+                      {:source_type source-type
+                       :stage (metrics/label-value stage)
+                       :result result}
+                      value))
+    (when (+failure-states+ (:status new-state))
+      (prometheus/inc prom-registry :llar/update-failures-total
+                      {:source_type source-type
+                       :step step
+                       :reason_class reason}))
+    (observe-state-summary-metrics)))
 
 ;;; Update API
 
@@ -252,25 +421,20 @@
         (do
           (swap! state update k assoc :status :updating)
           (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
+          (observe-update-start! k (get @state k))
           (let [kw-args (mapcat identity (dissoc args :force))
                 new-state (apply update-feed! k kw-args)
                 new-status (:status new-state)]
-            (when-let [dur (:last-duration new-state)]
-              (prometheus/observe prom-registry
-                                  :llar/update-duration-millis
-                                  {:source (str k)}
-                                  (.toMillis dur)))
-            (when-let [success-ts (:last-successful-fetch-ts new-state)]
-              (prometheus/observe prom-registry :llar/last-success-unixtime
-                                  {:source (str k)}
-                                  (/ (time/to-millis-from-epoch success-ts) 1000)))
             (log/debugf "[%s] State: %s -> %s " k
                         cur-status new-status)
             (swap! state (fn [current]
                            (assoc current k new-state)))
-            (observe-state-summary-metrics)
+            (observe-update-complete! k (config/get-source k) cur-state new-state)
             new-status))
-        cur-status))))
+        (do
+          (observe-source-state! k cur-state)
+          (observe-state-summary-metrics)
+          cur-status)))))
 
 (defn updateable-sources []
   (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) (config/get-sources))))

@@ -1,12 +1,14 @@
 (ns llar.postproc-test
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [iapetos.core :as prometheus]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
    [llar.apis.reader :as reader]
    [llar.fetch :as fetch]
    [llar.fetch.hackernews]
    [llar.item]
+   [llar.metrics :as metrics]
    [llar.postproc :as uut]
    [llar.repl :as repl]
    [llar.src :as src]
@@ -91,3 +93,33 @@
   (testing "regular URL is not a video"
     (is (not (uut/video-url? "https://example.com/article")))
     (is (not (uut/video-url? nil)))))
+
+(deftest degraded-item-exception-metrics-test
+  (let [source (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml")
+        item {:meta {:source source
+                     :source-name (str source)
+                     :source-key :acm
+                     :fetch-ts (time/zoned-date-time)
+                     :tags #{}
+                     :version 2}
+              :summary {:ts (time/zoned-date-time)
+                        :title "The AI-Native Developer"}
+              :hash (fetch/make-item-hash "acm")
+              :entry {:url nil :contents {}}}
+        proc (#'uut/wrap-proc-fn
+              item
+              (fn [_]
+                (throw (ex-info "blocked"
+                                {:type :llar.http/request-error
+                                 :code 403
+                                 :message "Enable JavaScript and cookies to continue"})))
+              "per-feed-proc-post")]
+    (is (nil? (proc item)))
+    (is (pos? (prometheus/value
+               metrics/prom-registry
+               :llar/degraded-item-exceptions-total
+               {:source "acm"
+                :source_type "feed"
+                :step "per_feed_proc_post"
+                :reason_class "http_4xx"
+                :exception_class "clojure.lang.ExceptionInfo"})))))

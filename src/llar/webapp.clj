@@ -55,6 +55,26 @@
         (log/error ex "Exception during request" request)
         (exception-response request ex)))))
 
+(def +prom-shorten-path-of+
+  ["/blob" "/static" "/reader/item/by-id/"])
+
+(def +prom-route-patterns+
+  [[#"^/api/source/[^/]+$" "/api/source/:source-key"]
+   [#"^/api/update/[^/]+$" "/api/update/:source-key"]
+   [#"^/source-details/[^/]+$" "/source-details/:key"]
+   [#"^/api/podcast/retry/[^/]+$" "/api/podcast/retry/:item-id"]
+   [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]])
+
+(defn prom-path-fn [request]
+  (let [uri (:uri request)]
+    (or
+     (some #(when (string/starts-with? uri %) %) +prom-shorten-path-of+)
+     (some (fn [[re replacement]]
+             (when (re-matches re uri)
+               replacement))
+           +prom-route-patterns+)
+     uri)))
+
 (defn dashboard-app []
   (->
    dashboard/app
@@ -66,15 +86,8 @@
    ring.middleware.gzip/wrap-gzip
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception
+   (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})
    ring.middleware.lint/wrap-lint))
-
-(def +prom-shorten-path-of+
-  ["/blob" "/static" "/reader/item/by-id/"])
-
-(defn prom-path-fn [request]
-  (if-let [prefix (some #(when (string/starts-with? (:uri request) %) %) +prom-shorten-path-of+)]
-    prefix
-    (:uri request)))
 
 (defn reader-app [prom-registry]
   (->
@@ -118,7 +131,8 @@
    podcast/wrap-token-auth
    ring.middleware.not-modified/wrap-not-modified
    ring.middleware.params/wrap-params
-   wrap-exception))
+   wrap-exception
+   (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})))
 
 (defstate podcast
   :start (when-let [port (appconfig/podcast :port)]
