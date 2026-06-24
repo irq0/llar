@@ -119,21 +119,28 @@
      first))
 
   (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts]
-    (let [source-ids (map :id
-                          (sql/resolve-source-keys-to-ids
-                           this
-                           {:keys (vec (map name source-keys))}))]
-      (sql/remove-tags this
-                       {:tags ["unread"]
-                        :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
-                                ["AND"]
-                                ["tagi @@ '0'"]
-                                ["AND"]
-                                (sql/tag-cond-le-ts {:ts older-then-ts})]})))
+    (if (seq source-keys)
+      (let [source-ids (seq (map :id
+                                 (sql/resolve-source-keys-to-ids
+                                  this
+                                  {:keys (vec (map name source-keys))})))]
+        (if source-ids
+          (sql/remove-tags this
+                           {:tags ["unread"]
+                            :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
+                                    ["AND"]
+                                    ["tagi @@ '0'"]
+                                    ["AND"]
+                                    (sql/tag-cond-le-ts {:ts older-then-ts})]})
+          []))
+      []))
 
   (remove-unread-for-items-with-tag! [this tag]
-    (sql/remove-tags this
-                     {:tags ["unread"]
-                      :where [(sql/cond-with-tag {:tag (tags/normalize-tag tag)})
-                              ["AND"]
-                              ["tagi @@ '0'"]]})))
+    (let [tag (tags/normalize-tag tag)]
+      (if (some #(= tag (keyword (:tag %))) (sql/get-tags this))
+        (sql/remove-tags this
+                         {:tags ["unread"]
+                          :where [(sql/cond-with-tag {:tag tag})
+                                  ["AND"]
+                                  ["tagi @@ '0'"]]})
+        []))))

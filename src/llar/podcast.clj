@@ -309,7 +309,11 @@
                                  :item-title (:item-title state)})]
        (swap! download-state assoc item-id
               (merge (select-keys state [:item-title :source-key]) result))
-       (log/infof "podcast: download complete for item %s -> %s" item-id (:blob-hash result)))
+       (log/infof "podcast: download complete for item %s -> %s" item-id (:blob-hash result))
+       {:item-id item-id
+        :result :complete
+        :blob-hash (:blob-hash result)
+        :mime-type (:mime-type result)})
      (catch Object e
        (let [attempt (or (:attempt state) 1)
              retryable? (< attempt +max-download-attempts+)
@@ -328,7 +332,12 @@
                  :attempt attempt
                  :retry-after retry-after
                  :error (str e)
-                 :last-attempt (time/zoned-date-time)}))))))
+                 :last-attempt (time/zoned-date-time)})
+         {:item-id item-id
+          :result (if retryable? :failed :perm-failed)
+          :attempt attempt
+          :retry-after retry-after
+          :error (str e)})))))
 
 ;;;; State rebuild from podcast index
 
@@ -468,11 +477,23 @@
 
 ;;;; Scheduler
 
+(defn- download-state-counts []
+  (frequencies (map (comp :status val) @download-state)))
+
 (defn- podcast-scanner-tick! []
-  (when (compare-and-set! state-rebuilt? false true)
-    (rebuild-state-from-index!))
-  (scan-podcast-items!)
-  (process-pending-downloads!))
+  (let [before (download-state-counts)
+        rebuilt? (compare-and-set! state-rebuilt? false true)]
+    (when rebuilt?
+      (rebuild-state-from-index!))
+    (scan-podcast-items!)
+    (let [after-scan (download-state-counts)
+          processed (process-pending-downloads!)
+          after-process (download-state-counts)]
+      {:rebuilt? rebuilt?
+       :before before
+       :after-scan after-scan
+       :after-process after-process
+       :processed processed})))
 
 (defsched podcast-scanner :now-and-every-5-minutes
   (when (appconfig/podcast)
@@ -480,4 +501,7 @@
 
 (defsched podcast-retention-enforcer :hourly
   (when (appconfig/podcast)
-    (enforce-retention!)))
+    (let [before (download-state-counts)]
+      (enforce-retention!)
+      {:before before
+       :after (download-state-counts)})))

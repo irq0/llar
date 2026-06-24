@@ -4,7 +4,6 @@
    [java-time.api :as time]
    [mount.core :refer [defstate]]
    [slingshot.slingshot :refer [throw+ try+]]
-   [chime.core :as chime]
    [llar.metrics :as metrics]
    [llar.appconfig :as appconfig]
    [llar.config :as config]
@@ -479,50 +478,140 @@
         result (doall (pmap #(apply update! % args) unfetched-keys))]
     result))
 
+(defn- throwable-error [throwable]
+  {:message (ex-message throwable)
+   :data (ex-data throwable)
+   :class (some-> throwable class str)})
+
+(defn- autoread-config-error [sched-name reason detail sched]
+  {:name sched-name
+   :status :error
+   :reason reason
+   :period (:period sched)
+   :source-count 0
+   :sources []
+   :error detail})
+
+(defn- validate-autoread-sched [sched-name {:keys [period pred] :as sched}]
+  (cond
+    (nil? period)
+    (autoread-config-error sched-name :invalid-period "missing period" sched)
+
+    (not (ifn? pred))
+    (autoread-config-error sched-name :invalid-predicate "predicate is not callable" sched)
+
+    :else
+    (try
+      (time/minus (time/zoned-date-time) period)
+      nil
+      (catch Throwable t
+        (autoread-config-error sched-name :invalid-period (throwable-error t) sched)))))
+
+(defn remove-unread-for-autoread-sched! [sched-name {:keys [period pred]}]
+  (let [sched {:period period :pred pred}]
+    (or (validate-autoread-sched sched-name sched)
+        (let [matched-keys (atom [])]
+          (try+
+           (let [sources (updateable-sources)
+                 filtered (filter pred sources)
+                 keys (mapv first filtered)]
+             (reset! matched-keys keys)
+             (log/infof "remove-unread-tags: %s keys to untag if older then %s: %s"
+                        sched-name period keys)
+             (if (seq keys)
+               (let [result (persistency/remove-unread-for-items-of-source-older-then!
+                             store/backend-db
+                             keys
+                             (time/minus (time/zoned-date-time) period))]
+                 {:name sched-name
+                  :status :ok
+                  :period period
+                  :source-count (count keys)
+                  :sources keys
+                  :updated-items (count result)})
+               {:name sched-name
+                :status :skipped
+                :reason :no-matching-sources
+                :period period
+                :source-count 0
+                :sources []}))
+           (catch Object _
+             (let [throwable (:throwable &throw-context)
+                   keys @matched-keys]
+               (log/error throwable "remove-unread-tags: autoread rule failed" sched-name)
+               {:name sched-name
+                :status :error
+                :period period
+                :source-count (count keys)
+                :sources keys
+                :error (throwable-error throwable)})))))))
+
+(defn remove-unread-tags-status [autoread-results digest-result]
+  (if (or (some #(= :error (:status %)) autoread-results)
+          (= :error (:status digest-result)))
+    :error
+    :ok))
+
 (defsched remove-unread-tags :early-morning
-  (doseq [[sched-name {:keys [period pred]}] (config/get-autoread-scheds)
-          :let [sources (updateable-sources)
-                filtered (filter pred sources)
-                keys (mapv first filtered)]]
-    (log/infof "remove-unread-tags: %s keys to untag if older then %s: %s"
-               sched-name period keys)
-    (persistency/remove-unread-for-items-of-source-older-then!
-     store/backend-db
-     keys
-     (time/minus (time/zoned-date-time) period)))
-  ;; Digest: issue-windowed autoread. Keep the most recent
-  ;; keep-unread-issues issues :unread; clear :unread on older issues.
-  (when-let [digest-cfg (appconfig/digest)]
-    (let [keep-recent (or (:keep-unread-issues digest-cfg) 1)
-          stale (digest/issues-outside-window keep-recent)]
-      (log/infof "remove-unread-tags: digest issues outside latest %d to clear: %s"
-                 keep-recent stale)
-      (doseq [i stale]
-        (persistency/remove-unread-for-items-with-tag! store/backend-db (digest/issue-tag i))))))
+  (let [autoread-results
+        (doall
+         (for [[sched-name sched] (config/get-autoread-scheds)]
+           (remove-unread-for-autoread-sched! sched-name sched)))
+        ;; Digest: issue-windowed autoread. Keep the most recent
+        ;; keep-unread-issues issues :unread; clear :unread on older issues.
+        digest-result
+        (when-let [digest-cfg (appconfig/digest)]
+          (let [keep-recent (or (:keep-unread-issues digest-cfg) 1)
+                stale (digest/issues-outside-window keep-recent)]
+            (try+
+             (log/infof "remove-unread-tags: digest issues outside latest %d to clear: %s"
+                        keep-recent stale)
+             (let [results (doall
+                            (for [i stale]
+                              (persistency/remove-unread-for-items-with-tag!
+                               store/backend-db
+                               (digest/issue-tag i))))]
+               {:status :ok
+                :keep-recent keep-recent
+                :cleared-issue-count (count stale)
+                :cleared-issues stale
+                :updated-items (reduce + (map count results))})
+             (catch Object _
+               (let [throwable (:throwable &throw-context)]
+                 (log/error throwable "remove-unread-tags: digest cleanup failed")
+                 {:status :error
+                  :keep-recent keep-recent
+                  :cleared-issue-count (count stale)
+                  :cleared-issues stale
+                  :error (throwable-error throwable)})))))]
+    {:status (remove-unread-tags-status autoread-results digest-result)
+     :autoread autoread-results
+     :digest digest-result}))
 
 (defmacro defsched-feed-by-filter [sched-name chime-times pred]
   `(defstate ~sched-name
-     :start (vary-meta (chime/chime-at
-                        (sched/resolve-chime-times ~chime-times)
-                        (fn [~'$TIME]
-                          (prometheus/set-to-current-time  ~'llar.metrics/prom-registry
-                                                           :llar-sched/last-run
-                                                           {:schedule (str '~sched-name)})
-                          (metrics/with-log-exec-time-named ~sched-name
-                            (let [sources# (updateable-sources)
-                                  filtered# (filter (fn [[k# source#]]
-                                                      (let [~'$KEY k#
-                                                            ~'$SRC (:src source#)
-                                                            ~'$TAGS (:tags source#)]
-                                                        ~pred))
-                                                    sources#)
-                                  keys# (mapv first filtered#)
-                                  result# (pmap update! keys#)]
-                              (log/infof "Scheduled feed update %s: %s"
-                                         '~sched-name (vec (interleave keys# result#)))))))
-                       merge
-                       {:sched-name (str '~sched-name)
-                        :chime-times (when (keyword? ~chime-times) ~chime-times)
-                        :sched-type :update-feed-by-filter
-                        :pred (quote ~pred)})
+     :start (let [schedule# (sched/make-schedule
+                             {:key (keyword '~sched-name)
+                              :mount-state ~(str "#'" (ns-name *ns*) "/" sched-name)
+                              :sched-name (str '~sched-name)
+                              :chime-times (when (keyword? ~chime-times) ~chime-times)
+                              :sched-type :update-feed-by-filter
+                              :pred (quote ~pred)
+                              :run-fn (fn []
+                                        (let [sources# (updateable-sources)
+                                              filtered# (filter (fn [[k# source#]]
+                                                                  (let [~'$KEY k#
+                                                                        ~'$SRC (:src source#)
+                                                                        ~'$TAGS (:tags source#)]
+                                                                    ~pred))
+                                                                sources#)
+                                              keys# (mapv first filtered#)
+                                              results# (doall (pmap update! keys#))]
+                                          (log/infof "Scheduled feed update %s: %s"
+                                                     '~sched-name (vec (interleave keys# results#)))
+                                          {:keys keys#
+                                           :results results#
+                                           :count (count keys#)}))})
+                  started# (sched/start-schedule! schedule# ~chime-times)]
+              started#)
      :stop (.close ~sched-name)))

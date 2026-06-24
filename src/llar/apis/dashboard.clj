@@ -10,6 +10,7 @@
    [java-time.api :as time]
    [mount.core :as mount]
    [puget.printer :as puget]
+   [clojure.string :as string]
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
@@ -21,6 +22,7 @@
    [llar.persistency :as persistency]
    [llar.apis.podcast :as podcast-api]
    [llar.podcast :as podcast]
+   [llar.sched :as sched]
    [llar.update :as update])
   (:import
    [io.prometheus.client.exporter.common TextFormat]
@@ -344,29 +346,54 @@
   [:div
    [:a {:href "/metrics"} "Prometheus Metrics"]])
 
+(defn- datetime-until [ts]
+  (let [raw-duration (time/duration (time/zoned-date-time) ts)
+        duration (-> raw-duration
+                     (.minusNanos (.getNano raw-duration)))]
+    (str "in " (subs (string/lower-case (str duration)) 2))))
+
 (defn schedule-tab []
-  (let [states (mount/find-all-states)]
+  (let [schedules (sched/find-schedules)]
     [:div
      [:table {:class "table"}
       [:thead
        [:tr
         [:th "Name"]
-        [:th "State "]
+        [:th "State"]
         [:th "Type"]
         [:th "Canned"]
-        [:th "Code"]]]
+        [:th "Next Run"]
+        [:th "Running?"]
+        [:th "Last Started"]
+        [:th "Last Finished"]
+        [:th "Duration"]
+        [:th "Trigger"]
+        [:th "Result"]
+        [:th "Exception"]
+        [:th "Actions"]]]
       [:tbody
-       (for [state-name states
-             :let [state (mount/current-state state-name)
-                   {:keys [sched-name sched-type chime-times pred]} (meta state)]
-             :when (re-find #"chime\.core" (str state))]
-
+       (for [schedule schedules
+             :let [{:keys [key mount-state sched-name sched-type chime-times
+                           next-run-at running? last-started-at last-finished-at last-duration
+                           last-trigger last-result last-exception]}
+                   (sched/snapshot schedule)]]
          [:tr
           [:td sched-name]
-          [:td state-name]
+          [:td mount-state]
           [:td sched-type]
           [:td chime-times]
-          [:td (pprint-html pred)]])]]]))
+          [:td (some-> next-run-at datetime-until)]
+          [:td (if running? "yes" "no")]
+          [:td (some-> last-started-at human/datetime-ago)]
+          [:td (some-> last-finished-at human/datetime-ago)]
+          [:td (some-> last-duration str)]
+          [:td (some-> last-trigger name)]
+          [:td (when (some? last-result) (pprint-html last-result))]
+          [:td (when (some? last-exception) (pprint-html last-exception))]
+          [:td [:button {:type "button"
+                         :class "btn btn-sm btn-primary btn-run-schedule"
+                         :data-schedule-key (name key)}
+                "Run"]]])]]]))
 
 (defn- podcast-status-badge [status]
   (let [cls (case status
@@ -747,6 +774,25 @@
        :body {:source-key k
               :error :not-found}})))
 
+(defn run-schedule [schedule-name]
+  (let [{:keys [error schedule matches]} (sched/find-schedule schedule-name)]
+    (case error
+      :not-found
+      {:status 404
+       :body {:schedule schedule-name
+              :error :not-found}}
+
+      :ambiguous
+      {:status 409
+       :body {:schedule schedule-name
+              :error :ambiguous
+              :matches matches}}
+
+      (let [result (sched/trigger-schedule! schedule)]
+        {:status 200
+         :body {:schedule schedule-name
+                :result result}}))))
+
 (defn podcast-retry [str-id]
   (let [item-id (parse-long str-id)]
     (if-let [info (get @podcast/download-state item-id)]
@@ -799,6 +845,9 @@
 
      (GET "/sources" []
        (all-sources-status))
+
+     (POST "/schedule/:schedule-name/run" [schedule-name]
+       (run-schedule schedule-name))
 
      (POST "/podcast/retry/:item-id" [item-id]
        (podcast-retry item-id))
