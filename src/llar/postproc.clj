@@ -128,8 +128,8 @@
        (log/debugf "proc %s: (%s %s)" (str item) func (count args))
        new)
      (catch Object e
-       (observe-degraded-item-exception! item hint (:throwable &throw-context))
-       (log/warnf (:throwable &throw-context) "proc %s: (%s %s %s) FAILED: %s %s"
+       (observe-degraded-item-exception! item hint e)
+       (log/warnf e "proc %s: (%s %s %s) FAILED: %s %s"
                   (str item) func (count args) hint e (ex-message e))
        nil))))
 
