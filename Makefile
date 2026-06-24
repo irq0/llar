@@ -9,7 +9,7 @@ jquery_version := 3.7.1
 chartjs_version := 4.4.8
 jquery_datatables_version := 2.1.8
 datatables_buttons_version := 3.2.0
-llar_uberjar := target/llar-$(LLAR_VERSION)-standalone.jar
+llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
 
 all: web-3rd-party uberjar
 

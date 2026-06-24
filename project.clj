@@ -13,7 +13,7 @@
              "-Dlog4j2.statusLoggerLevel=ERROR"
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
 
-  :aot :all
+  :target-path "target/%s"
   :main llar.core
   :plugins [[dev.weavejester/lein-cljfmt "0.16.0"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]
             [lambdaisland/kaocha "1.91.1392"] [lambdaisland/kaocha-cloverage "1.1.89"]]

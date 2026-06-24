@@ -51,7 +51,7 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 
 RUN mkdir -p /opt/llar /llar
-COPY --chown=0:0 target/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
+COPY --chown=0:0 target/uberjar/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
 ENV LLAR_CONFIG=/llar/config.edn
 ENV WEKA_HOME=/llar/wekafiles
