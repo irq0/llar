@@ -2,6 +2,9 @@
   (:require
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing]]
+   [hiccup2.core :as h]
+   [java-time.api :as time]
+   [llar.sched :as sched]
    [llar.apis.dashboard :as uut]))
 
 (deftest status-index-renders-non-source-tabs-lazily
@@ -57,3 +60,45 @@
       (is (string/starts-with? (get-in response [:headers "Content-Type"])
                                "text/plain; version=0.0.4"))
       (is (string/includes? (:body response) "# HELP")))))
+
+(deftest schedule-tab-renders-runtime-state
+  (let [schedule (sched/make-schedule
+                  {:key :daily
+                   :mount-state "#'llar.test/daily"
+                   :sched-name "daily"
+                   :sched-type :defsched
+                   :chime-times :hourly
+                   :schedule-times [(time/plus (time/zoned-date-time) (time/minutes 5))]
+                   :pred '(do :work)
+                   :run-fn (constantly :ok)})]
+    (swap! (:state* schedule) assoc
+           :running? false
+           :last-trigger :manual
+           :last-result {:count 1})
+    (with-redefs [sched/find-schedules (constantly [schedule])]
+      (let [body (str (h/html (uut/schedule-tab)))]
+        (is (string/includes? body "daily"))
+        (is (string/includes? body "Next Run"))
+        (is (string/includes? body "in "))
+        (is (string/includes? body "llar.test/daily"))
+        (is (string/includes? body "manual"))
+        (is (string/includes? body ":count"))
+        (is (string/includes? body "btn-run-schedule"))))))
+
+(deftest run-schedule-route-handles-resolution-results
+  (testing "unknown schedule"
+    (with-redefs [sched/find-schedule (constantly {:error :not-found})]
+      (is (= 404 (:status (uut/run-schedule "missing"))))))
+
+  (testing "ambiguous schedule"
+    (with-redefs [sched/find-schedule (constantly {:error :ambiguous
+                                                   :matches [{:key :x}]})]
+      (is (= 409 (:status (uut/run-schedule "x"))))))
+
+  (testing "known schedule"
+    (with-redefs [sched/find-schedule (constantly {:schedule :schedule})
+                  sched/trigger-schedule! (constantly :triggered)]
+      (let [response (uut/app {:request-method :post
+                               :uri "/api/schedule/daily/run"})]
+        (is (= 200 (:status response)))
+        (is (= :triggered (get-in response [:body :result])))))))

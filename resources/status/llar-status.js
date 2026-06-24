@@ -232,6 +232,17 @@ $(document).ready(function () {
       });
   });
 
+  $(document).on("click", ".btn-run-schedule", function () {
+    var k = $(this).data("schedule-key");
+    $.post("/api/schedule/" + k + "/run")
+      .done(function () {
+        reload_dashboard_tab($(".tab-pane.active").first());
+      })
+      .fail(function () {
+        console.error("Failed to trigger schedule " + k);
+      });
+  });
+
   $(document).on("click", "#threads-datatable td.details-control", function () {
     console.log("Clicked");
     var tr = $(this).closest("tr");

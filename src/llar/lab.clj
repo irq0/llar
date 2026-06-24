@@ -159,8 +159,18 @@
     (catch weka.core.WekaException ex
       (log/info "saved items clustering failed: " (ex-message ex)))))
 
+(defn- saved-cluster-stats []
+  (let [{:keys [clusters last-update]} @current-clustered-saved-items
+        groups (or clusters {})]
+    {:last-update last-update
+     :cluster-count (count groups)
+     :item-count (reduce + (map count (vals groups)))}))
+
 (defsched update-db-search-indices
   :now-and-early-morning
   (log/info "updating database search indices")
-  (persistency/update-index! backend-db)
-  (update-saved-clusters!))
+  (let [index-result (persistency/update-index! backend-db)]
+    (update-saved-clusters!)
+    {:updated-indexes? true
+     :index-result index-result
+     :saved-clusters (saved-cluster-stats)}))
