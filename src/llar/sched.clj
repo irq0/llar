@@ -144,68 +144,110 @@
       (fn [_time]
         (run-schedule! schedule :scheduled))))))
 
-(defn- nowish []
-  (time/plus (time/zoned-date-time) (time/seconds (rand-int 120))))
+(defn- now-and-schedule-times [schedule-times]
+  (let [now (time/zoned-date-time)
+        startup-window-end (time/plus now (time/seconds 120))
+        startup-time (time/plus now (time/seconds (rand-int 120)))]
+    (cons startup-time
+          (drop-while #(not (time/before? startup-window-end %))
+                      schedule-times))))
 
-(defn canned-scheds [kw]
-  (case kw
-    :during-daytime
-    (->>
-     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
-                                           (ZoneId/systemDefault))
-                         (Duration/ofHours 1))
-     (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
-     (chime/without-past-times))
-    :sundays
-    (->>
-     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
+(def canned-schedules
+  "Registry of supported canned schedules.
+
+  Each entry contains doc-facing metadata plus a :schedule-times factory. The
+  factory returns a fresh lazy sequence of chime times when the schedule starts."
+  (array-map
+   :during-daytime
+   {:description "Daily at 10:00, 12:00, 13:00, 14:00, 16:00, and 18:00."
+    :schedule-times (fn []
+                      (->>
+                       (chime/periodic-seq
+                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
+                                          (ZoneId/systemDefault))
+                        (Duration/ofHours 1))
+                       (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
+                       (chime/without-past-times)))}
+
+   :sundays
+   {:description "Weekly on Sunday at 05:00."
+    :schedule-times (fn []
+                      (->>
+                       (chime/periodic-seq
+                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
+                                          (ZoneId/systemDefault))
+                        (Duration/ofDays 1))
+                       (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
+                       (chime/without-past-times)))}
+
+   :early-morning
+   {:description "Daily at 07:00."
+    :schedule-times (fn []
+                      (->>
+                       (chime/periodic-seq
+                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
+                                          (ZoneId/systemDefault))
+                        (Duration/ofDays 1))
+                       (chime/without-past-times)))}
+
+   :now-and-early-morning
+   {:description "Once within the next 0-120 seconds, then daily at 07:00."
+    :schedule-times (fn []
+                      (now-and-schedule-times
+                       (->>
+                        (chime/periodic-seq
+                         (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
                                            (ZoneId/systemDefault))
                          (Duration/ofDays 1))
-     (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
-     (chime/without-past-times))
-    :early-morning
-    (->>
-     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
-                                           (ZoneId/systemDefault))
-                         (Duration/ofDays 1))
-     (chime/without-past-times))
-    :now-and-early-morning
-    (->
-     (->>
-      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
-                                            (ZoneId/systemDefault))
-                          (Duration/ofDays 1))
-      (chime/without-past-times))
-     (conj (nowish)))
-    :now-and-hourly
-    (->
-     (->>
-      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
-                                            (ZoneId/systemDefault))
-                          (Duration/ofHours 1))
-      (chime/without-past-times))
-     (conj (nowish)))
-    :hourly
-    (->>
-     (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                        (chime/without-past-times))))}
+
+   :now-and-hourly
+   {:description "Once within the next 0-120 seconds, then every hour."
+    :schedule-times (fn []
+                      (now-and-schedule-times
+                       (->>
+                        (chime/periodic-seq
+                         (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
                                            (ZoneId/systemDefault))
                          (Duration/ofHours 1))
-     (chime/without-past-times))
-    :now-and-every-5-minutes
-    (->
-     (->>
-      (chime/periodic-seq (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
-                                            (ZoneId/systemDefault))
-                          (Duration/ofMinutes 5))
-      (chime/without-past-times))
-     (conj (nowish)))))
+                        (chime/without-past-times))))}
+
+   :hourly
+   {:description "Every hour."
+    :schedule-times (fn []
+                      (->>
+                       (chime/periodic-seq
+                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                          (ZoneId/systemDefault))
+                        (Duration/ofHours 1))
+                       (chime/without-past-times)))}
+
+   :now-and-every-5-minutes
+   {:description "Once within the next 0-120 seconds, then every 5 minutes."
+    :schedule-times (fn []
+                      (now-and-schedule-times
+                       (->>
+                        (chime/periodic-seq
+                         (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                           (ZoneId/systemDefault))
+                         (Duration/ofMinutes 5))
+                        (chime/without-past-times))))}))
+
+(defn canned-schedule-metadata
+  "Return doc-safe metadata for supported canned schedules."
+  []
+  (into (array-map)
+        (map (fn [[k v]]
+               [k (dissoc v :schedule-times)]))
+        canned-schedules))
 
 (defn resolve-chime-times [chime-times-or-keyword]
   (if (keyword? chime-times-or-keyword)
-    (if-let [canned (canned-scheds chime-times-or-keyword)]
-      canned
+    (if-let [schedule-times (get-in canned-schedules [chime-times-or-keyword :schedule-times])]
+      (schedule-times)
       (throw+ {:type ::unknown-canned-sched
-               :keyword chime-times-or-keyword}))
+               :keyword chime-times-or-keyword
+               :supported (keys canned-schedules)}))
     chime-times-or-keyword))
 
 (defmacro defsched [sched-name chime-times-or-keyword & body]

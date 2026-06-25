@@ -51,6 +51,49 @@
         schedule (test-schedule {:schedule-times [past future]})]
     (is (= future (:next-run-at (uut/snapshot schedule))))))
 
+(deftest canned-schedule-metadata-is-doc-safe
+  (let [metadata (uut/canned-schedule-metadata)]
+    (is (= [:during-daytime
+            :sundays
+            :early-morning
+            :now-and-early-morning
+            :now-and-hourly
+            :hourly
+            :now-and-every-5-minutes]
+           (keys metadata)))
+    (is (= (keys uut/canned-schedules) (keys metadata)))
+    (is (every? fn? (map :schedule-times (vals uut/canned-schedules))))
+    (is (every? string? (map :description (vals metadata))))
+    (is (not-any? :schedule-times (vals metadata)))))
+
+(deftest resolves-canned-schedule-keywords
+  (is (seq (take 1 (uut/resolve-chime-times :hourly))))
+  (try
+    (uut/resolve-chime-times :not-a-schedule)
+    (is false "Expected unknown canned schedule to throw")
+    (catch clojure.lang.ExceptionInfo ex
+      (is (= :llar.sched/unknown-canned-sched (:type (ex-data ex))))
+      (is (= :not-a-schedule (:keyword (ex-data ex))))
+      (is (= (keys (uut/canned-schedule-metadata)) (:supported (ex-data ex)))))))
+
+(deftest now-and-canned-schedules-are-ordered
+  (doseq [schedule-key [:now-and-early-morning
+                        :now-and-hourly
+                        :now-and-every-5-minutes]
+          :let [times (take 5 (uut/resolve-chime-times schedule-key))]]
+    (is (apply <= (map #(time/to-millis-from-epoch %) times))
+        (str schedule-key " should return ascending times"))))
+
+(deftest now-and-schedule-times-skips-startup-window
+  (let [base (time/zoned-date-time)
+        near-cadence (time/plus base (time/seconds 60))
+        later-cadence (time/plus base (time/seconds 180))]
+    (with-redefs [clojure.core/rand-int (constantly 30)]
+      (let [[startup next-cadence] (take 2 (#'uut/now-and-schedule-times
+                                            [near-cadence later-cadence]))]
+        (is (time/before? startup near-cadence))
+        (is (= later-cadence next-cadence))))))
+
 (deftest run-schedule-records-failure
   (let [ex (ex-info "boom" {:type :test/boom})
         schedule (test-schedule {:run-fn (fn [] (throw ex))})]
