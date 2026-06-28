@@ -132,7 +132,7 @@ Runtime configuration. Automatically loaded when files in the `:runtime-config-d
 Specify sources to fetch, schedules, highlight rules here.
 
 Files are (almost) Clojure code with extra constructs for convenience. They use the extension `.llar`.
-See [readme.llar](config/readme.llar) for documentation
+See the [configuration documentation](https://docs.llar.dev/config.html)
 or check out [my config](https://github.com/irq0/llar-config).
 
 ### Credentials

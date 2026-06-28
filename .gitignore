@@ -17,3 +17,7 @@ pom.xml.asc
 /.lsp
 /node_modules
 /.worktrees
+/doc/config.html
+/doc/static
+!/.github/
+!/.github/workflows/
