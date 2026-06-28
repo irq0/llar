@@ -17,6 +17,7 @@
    [llar.appconfig :refer [appconfig appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.converter]
+   [llar.docs.config :as docs.config]
    [llar.human :as human]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
@@ -655,6 +656,9 @@
   [:div [:h5 "appconfig"]
    (map-to-tree (appconfig-redact-secrets))])
 
+(defn docs-tab []
+  (docs.config/docs-fragment))
+
 (def tabs
   {:overview #'overview-tab
    :sources #'source-tab
@@ -666,6 +670,7 @@
    :state #'state-tab
    :metrics #'metrics-tab
    :threads #'thread-tab
+   :docs #'docs-tab
    :config #'config-tab})
 
 (defn- tab-pane-body [k func]

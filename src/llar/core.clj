@@ -19,6 +19,7 @@
    [llar.db.search]
    [llar.http :as http]
    [llar.config :as config]
+   [llar.docs.config :as docs.config]
    [llar.lab :as lab]
    [llar.podcast :as podcast]
    [llar.digest :as digest]
@@ -35,6 +36,7 @@
   [[nil "--init-db" "Initialize new database and exit"]
    [nil "--dry" "Start without live, schedulers, etc"]
    [nil "--nrepl" "Start nrepl server"]
+   [nil "--write-docs DIR" "Write static documentation to DIR and exit"]
    ["-h" "--help"]])
 
 (def essential-states
@@ -58,6 +60,10 @@
    #'podcast/podcast-retention-enforcer
    #'digest/digest-scheduler])
 
+(defn write-docs! [docs-dir]
+  (doseq [path (docs.config/write-static! docs-dir)]
+    (log/info "wrote documentation file" (str path))))
+
 (defn -main [& args]
   ;; otherwise date time parsers will fail!
   (java.util.Locale/setDefault java.util.Locale/ENGLISH)
@@ -70,6 +76,10 @@
       (when errors
         (log/error errors))
       (System/exit 1))
+
+    (when-let [docs-dir (:write-docs options)]
+      (write-docs! docs-dir)
+      (System/exit 0))
 
     (mount/in-clj-mode)
     (mount-up/on-upndown :info mount-up/log :before)

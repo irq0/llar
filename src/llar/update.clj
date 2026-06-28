@@ -588,30 +588,38 @@
      :autoread autoread-results
      :digest digest-result}))
 
-(defmacro defsched-feed-by-filter [sched-name chime-times pred]
-  `(defstate ~sched-name
-     :start (let [schedule# (sched/make-schedule
-                             {:key (keyword '~sched-name)
-                              :mount-state ~(str "#'" (ns-name *ns*) "/" sched-name)
-                              :sched-name (str '~sched-name)
-                              :chime-times (when (keyword? ~chime-times) ~chime-times)
-                              :sched-type :update-feed-by-filter
-                              :pred (quote ~pred)
-                              :run-fn (fn []
-                                        (let [sources# (updateable-sources)
-                                              filtered# (filter (fn [[k# source#]]
-                                                                  (let [~'$KEY k#
-                                                                        ~'$SRC (:src source#)
-                                                                        ~'$TAGS (:tags source#)]
-                                                                    ~pred))
-                                                                sources#)
-                                              keys# (mapv first filtered#)
-                                              results# (doall (pmap update! keys#))]
-                                          (log/infof "Scheduled feed update %s: %s"
-                                                     '~sched-name (vec (interleave keys# results#)))
-                                          {:keys keys#
-                                           :results results#
-                                           :count (count keys#)}))})
-                  started# (sched/start-schedule! schedule# ~chime-times)]
-              started#)
-     :stop (.close ~sched-name)))
+(defmacro defsched-feed-by-filter
+  "Schedule updates for all fetchable sources matching a predicate."
+  {:llar.config/kind :construct
+   :llar.config/form "(sched-fetch SCHED-NAME CHIME-TIMES PREDICATE)"
+   :llar.config/order 30
+   :llar.config/keys ["PREDICATE can use the source predicate bindings"
+                      "CHIME-TIMES can be a canned schedule keyword or a chime time sequence"]
+   :llar.config/example "(sched-fetch my-feeds :now-and-hourly\n  (some #{:my-feed-group} $TAGS))"}
+  [sched-name chime-times pred]
+  (let [source-key (gensym "source-key")
+        source (gensym "source")]
+    `(defstate ~sched-name
+       :start (let [schedule# (sched/make-schedule
+                               {:key (keyword '~sched-name)
+                                :mount-state ~(str "#'" (ns-name *ns*) "/" sched-name)
+                                :sched-name (str '~sched-name)
+                                :chime-times (when (keyword? ~chime-times) ~chime-times)
+                                :sched-type :update-feed-by-filter
+                                :pred (quote ~pred)
+                                :run-fn (fn []
+                                          (let [sources# (updateable-sources)
+                                                filtered# (filter (fn [[~source-key ~source]]
+                                                                    (let [~@(config/source-predicate-let-bindings source-key source)]
+                                                                      ~pred))
+                                                                  sources#)
+                                                keys# (mapv first filtered#)
+                                                results# (doall (pmap update! keys#))]
+                                            (log/infof "Scheduled feed update %s: %s"
+                                                       '~sched-name (vec (interleave keys# results#)))
+                                            {:keys keys#
+                                             :results results#
+                                             :count (count keys#)}))})
+                    started# (sched/start-schedule! schedule# ~chime-times)]
+                started#)
+       :stop (.close ~sched-name))))

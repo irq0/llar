@@ -36,6 +36,11 @@
   (toString [src] (str "[GenericWebsite: " (:url src) "]")))
 
 (defn website
+  "Generic website fetch."
+  {:llar.config/kind :source
+   :llar.config/order 10
+   :llar.config/specs [:irq0/url-str :irq0-src-args/user-agent]
+   :llar.config/example "(src/website \"https://example.org/article.html\")"}
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or :none nil?
@@ -51,6 +56,11 @@
   (toString [src] (str "[Custom: " (name (:id src)) "]")))
 
 (defn custom
+  "Custom function source returning LLAR item data."
+  {:llar.config/kind :source
+   :llar.config/order 20
+   :llar.config/specs [keyword? fn?]
+   :llar.config/example "(src/custom :my-source (fn [] []))"}
   [id fn]
   {:pre [(spec/valid? keyword? id)
          (spec/valid? fn? fn)]
@@ -66,6 +76,11 @@
   (toString [src] (str "[PaywalledWebsite: " (:url src) "]")))
 
 (defn website+paywall
+  "Website fetch using a cookie store function."
+  {:llar.config/kind :source
+   :llar.config/order 30
+   :llar.config/specs [:irq0/url-str fn? :irq0-src-args/user-agent]
+   :llar.config/example "(src/website+paywall \"https://example.org\" cookie-store)"}
   [url
    cookie-getter
    & {:as args}]
@@ -87,6 +102,12 @@
   (toString [src] (str "[Feed: " (:url src) "]")))
 
 (defn feed
+  "RSS, Atom, and similar feed formats."
+  {:llar.config/kind :source
+   :llar.config/order 40
+   :llar.config/specs [:irq0/url-str :irq0-src-args/user-agent :irq0-src-args/force-update?]
+   :llar.config/defaults +feed-default-args+
+   :llar.config/example "(src/feed \"https://github.com/irq0/llar/releases.atom\")"}
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or
@@ -129,6 +150,11 @@
             :irq0-src-selectors/description]))
 
 (defn selector-feed
+  "Build a feed from an HTML page using Hickory selectors."
+  {:llar.config/kind :source
+   :llar.config/order 50
+   :llar.config/specs [:irq0-src-selectors/selectors :irq0-src-selectors/extractors]
+   :llar.config/example "(src/selector-feed \"https://example.org\" {:urls (S/tag :a)} {} {})"}
   [url selectors extractors args]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? :irq0-src-selectors/selectors selectors)
@@ -145,6 +171,12 @@
   (toString [src] (str "[WpJsonFeed: " (:url src) "]")))
 
 (defn wp-json
+  "WordPress REST API posts."
+  {:llar.config/kind :source
+   :llar.config/order 60
+   :llar.config/specs [:irq0/url-str :irq0-src-args/user-agent :irq0-src-args/force-update?]
+   :llar.config/defaults +feed-default-args+
+   :llar.config/example "(src/wp-json \"https://example.org/wp-json/\")"}
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or :none nil?
@@ -169,7 +201,11 @@
   (toString [src] (str "[TwitterSearch: " (:query src) "]")))
 
 (defn twitter-search
-  "Search twitter https://dev.twitter.com/rest/public/search"
+  "Twitter search source."
+  {:llar.config/kind :source
+   :llar.config/order 70
+   :llar.config/specs [string? :irq0-src-twitter/credentials]
+   :llar.config/example "(src/twitter-search \"clojure\" ($credentials :twitter-api))"}
   [query
    oauth-creds]
   {:pre [(spec/valid? string? query)
@@ -194,6 +230,11 @@
   (toString [src] (format "[TwitterApi/%s: %s]" (:api-fn src) (:params src))))
 
 (defn twitter-timeline
+  "Twitter home timeline source."
+  {:llar.config/kind :source
+   :llar.config/order 80
+   :llar.config/specs [:irq0-src-twitter/credentials]
+   :llar.config/example "(src/twitter-timeline ($credentials :twitter-api))"}
   [oauth-creds]
   {:pre [(spec/valid? :irq0-src-twitter/credentials oauth-creds)]
    :post [(spec/valid? source? %)]}
@@ -215,7 +256,11 @@
   (toString [src] (str "[Readability: " (:url src) "]")))
 
 (defn readability
-  "Fetch URL and pass through readability tool"
+  "Single web page processed through article extraction."
+  {:llar.config/kind :source
+   :llar.config/order 90
+   :llar.config/specs [:irq0/url-str :irq0-src-args/user-agent]
+   :llar.config/example "(src/readability \"https://example.org/article.html\")"}
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)
          (spec/valid? (spec/or :none nil?
@@ -237,7 +282,11 @@
   (toString [src] (format "[Reddit: r/%s/%s/%s]" (:subreddit src) (:listing src) (:timeframe src))))
 
 (defn reddit
-  "Fetch Reddit Feed"
+  "Reddit listing source."
+  {:llar.config/kind :source
+   :llar.config/order 100
+   :llar.config/specs [string? reddit-supported-listings reddit-supported-timeframes]
+   :llar.config/example "(src/reddit \"clojure\" :top :week)"}
   ([subreddit
     listing]
    (reddit subreddit listing :week))
@@ -272,7 +321,11 @@
   (toString [src] (format "[IMAP: %s]" (:uri src))))
 
 (defn imap
-  "Fetch from IMAP Mailbox"
+  "IMAP or IMAPS mailbox source using credentials from credentials.edn."
+  {:llar.config/kind :source
+   :llar.config/order 110
+   :llar.config/specs [string? :irq0-src-mailbox/credentials]
+   :llar.config/example "(src/imap \"imaps://imap.example.org/INBOX\" ($credentials :imap))"}
   [url-str
    creds]
   {:pre [(spec/valid? string? url-str)
@@ -309,6 +362,12 @@
   {:count 1000})
 
 (defn hn
+  "Hacker News via Algolia."
+  {:llar.config/kind :source
+   :llar.config/order 120
+   :llar.config/specs [:irq0-hn/tag :irq0-hn/args]
+   :llar.config/defaults +hn-default-args+
+   :llar.config/example "(src/hn :front_page :query \"clojure\" :min-score 20)"}
   [tag & {:as args}]
   {:pre [(spec/valid? :irq0-hn/tag tag)
          (spec/valid? (spec/nilable :irq0-hn/args) args)]
@@ -328,6 +387,12 @@
   {:max-results 30})
 
 (defn streaming-channel
+  "Streaming channel source such as supported video/audio channels."
+  {:llar.config/kind :source
+   :llar.config/order 130
+   :llar.config/specs [:irq0/url-str]
+   :llar.config/defaults +streaming-default-args+
+   :llar.config/example "(src/streaming-channel \"https://www.youtube.com/@veritasium\")"}
   [url & {:as args}]
   {:pre [(spec/valid? :irq0/url-str url)]
    :post [(spec/valid? source? %)]}
@@ -373,6 +438,11 @@
 (defn github-issues
   "Search GitHub issues/PRs. Query uses GitHub search syntax.
    Date tokens like {{last-week}} are expanded at fetch time."
+  {:llar.config/kind :source
+   :llar.config/order 140
+   :llar.config/specs [:irq0-gh/query :irq0-gh/args]
+   :llar.config/defaults +github-search-default-args+
+   :llar.config/example "(src/github-issues \"repo:ceph/ceph is:pr created:>{{last-week}}\")"}
   [query & {:as args}]
   {:pre [(spec/valid? :irq0-gh/query query)
          (spec/valid? (spec/nilable :irq0-gh/args) args)]
@@ -382,6 +452,11 @@
 (defn github-repos
   "Search GitHub repositories. Query uses GitHub search syntax.
    Date tokens like {{last-week}} are expanded at fetch time."
+  {:llar.config/kind :source
+   :llar.config/order 150
+   :llar.config/specs [:irq0-gh/query :irq0-gh/args]
+   :llar.config/defaults +github-search-default-args+
+   :llar.config/example "(src/github-repos \"language:clojure stars:>20\" :sort :stars)"}
   [query & {:as args}]
   {:pre [(spec/valid? :irq0-gh/query query)
          (spec/valid? (spec/nilable :irq0-gh/args) args)]

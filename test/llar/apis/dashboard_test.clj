@@ -52,6 +52,13 @@
       (is (= 200 (:status response)))
       (is (string/includes? (:body response) "memory tab")))))
 
+(deftest docs-tab-renders-config-docs
+  (let [response (uut/dashboard-tab "docs")]
+    (is (= 200 (:status response)))
+    (is (string/includes? (:body response) "LLAR Configuration"))
+    (is (string/includes? (:body response) "sched-fetch"))
+    (is (string/includes? (:body response) ":now-and-hourly"))))
+
 (deftest metrics-endpoint-has-prometheus-content-type
   (testing "/metrics returns a non-blank Prometheus text format content type"
     (let [response (uut/app {:request-method :get
