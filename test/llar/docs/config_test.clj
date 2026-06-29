@@ -23,6 +23,10 @@
     (is (string/includes? html "fetch"))
     (is (string/includes? html "sched-fetch"))
     (is (string/includes? html "src/feed"))
+    (is (string/includes? html "Runtime Config Settings"))
+    (is (string/includes? html "[:reader :favorites]"))
+    (is (string/includes? html "[:ui :favorites]"))
+    (is (string/includes? html "(rc [:reader :ranking] VALUE)"))
     (is (not (string/includes? html "<script")))
     (doseq [schedule-key (keys (sched/canned-schedule-metadata))]
       (is (string/includes? html (str schedule-key))))))
@@ -59,6 +63,7 @@
   (let [construct-names (set (map :symbol (uut/runtime-constructs)))]
     (is (contains? construct-names 'fetch))
     (is (contains? construct-names 'sched-fetch))
+    (is (contains? construct-names 'rc))
     (is (contains? construct-names 'sort-default))))
 
 (deftest config-engine-registry-drives-runtime-docs

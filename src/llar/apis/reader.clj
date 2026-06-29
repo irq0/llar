@@ -28,6 +28,7 @@
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
    [llar.postproc :as proc]
+   [llar.rc :as rc]
    [llar.store :refer [store-items!]]
    [llar.update :as update]
    [llar.db.annotations]
@@ -459,7 +460,7 @@
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Favorites"]]
       [:ul {:class "nav flex-column"}
-       (for [[key group] (get-in appconfig [:ui :favorites])]
+       (for [[key group] (rc/rc [:reader :favorites])]
          [:li {:class "nav-item"}
           [:a {:class (str "nav-link" (when (and
                                              (= active-group group)
@@ -1236,7 +1237,7 @@
 
 (defn get-list-style [x]
   (let [selected-style (:list-style x)
-        hinted-style (get-in appconfig [:ui :default-list-view] (:group-item x))]
+        hinted-style (rc/rc [:reader :default-list-view (:group-item x)])]
     (cond
       (and (nil? selected-style) (keyword? hinted-style))
       hinted-style
@@ -1279,7 +1280,7 @@
   "Build common query args from params and effective sort order."
   [params effective-sort]
   (let [{:keys [range-before mode]} params
-        ranking-config (get-in appconfig [:ranking] {})
+        ranking-config (rc/rc [:reader :ranking])
         common-args {:sort-order effective-sort
                      :highlight-boost (get ranking-config :highlight-boost-hours 48.0)
                      :rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)

@@ -13,6 +13,7 @@
    [llar.human :as human]
    [llar.src :as src]
    [llar.podcast :as podcast]
+   [llar.rc]
    [llar.fetch.custom]
    [llar.fetch.feed]
    [llar.fetch.http]
@@ -340,6 +341,10 @@
 (defconfig-symbol sort-default
   :doc-var llar.config/sort-default
   :handler-fn llar.config/handle-sort-default-config-form!)
+
+(defconfig-symbol rc
+  :var llar.rc/rc
+  :handler-fn llar.config/handle-eval-config-form!)
 
 (defconfig-symbol srcs
   :var llar.config/srcs

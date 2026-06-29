@@ -4,6 +4,7 @@
    [clojure.string :as string]
    [hiccup2.core :as h]
    [llar.config :as config]
+   [llar.rc :as rc]
    [llar.sched :as sched]
    [llar.src]
    [llar.update])
@@ -138,6 +139,25 @@
        [:th {:scope "row"} (code (value-label k))]
        [:td description]])]])
 
+(defn rc-path-table []
+  [:table {:class "table table-sm align-middle"}
+   [:thead
+    [:tr
+     [:th {:scope "col"} "Path"]
+     [:th {:scope "col"} "Description"]
+     [:th {:scope "col"} "Spec"]
+     [:th {:scope "col"} "System config path"]
+     [:th {:scope "col"} "Example"]]]
+   [:tbody
+    (for [{:keys [path doc spec appconfig-path example]} (rc/rc-entries)]
+      [:tr
+       [:th {:scope "row"} (code (pr-str path))]
+       [:td doc]
+       [:td (code (pr-str spec))]
+       [:td (when appconfig-path
+              (code (pr-str appconfig-path)))]
+       [:td (code example)]])]])
+
 (defn- construct-card [v]
   (let [{:keys [name form description keys specs defaults example]} (doc-entry v)]
     [:div {:class "card mb-3"}
@@ -237,11 +257,22 @@
        (code-block code)]))
 
    (section
-    "appconfig"
-    "Appconfig"
+    "runtime-config-settings"
+    "Runtime Config Settings"
     [:p
-     "Startup appconfig is EDN, loaded before runtime " (code ".llar")
-     " files. It configures paths, commands, API ports, PostgreSQL pools, UI defaults, mail, ranking, and other service-level settings."]
+     (code "rc") " controls dynamic runtime behavior settings. It reads runtime overrides first, system config values second, and shipped defaults from "
+     (code "resources/config.edn") " last."]
+    (rc-path-table))
+
+   (section
+    "system-config"
+    "System Config"
+    [:p
+     "System config is EDN, loaded at startup before runtime " (code ".llar")
+     " files. It configures paths, commands, API ports, PostgreSQL pools, mail transport, credentials location, and other service-level settings."]
+    [:p
+     "Runtime behavior settings such as reader favorites, default list views, and ranking tuning are available through "
+     (code "rc") ". Existing system config keys for those settings remain supported through their system config paths."]
     [:p
      "Use " (code "resources/config.edn") " as the complete default example and "
      (code "docker/docker-config.edn") " for Docker Compose deployments. Secrets belong in "

@@ -116,10 +116,10 @@ Each has its own semantics in the UI. Arbitrary additional tags are supported.
 
 ## Configuration
 
-### Appconfig
+### System config
 
 Loaded on startup. Contains paths to command line tools, blob store,
-state directory, credentials file.
+API ports, database pools, credentials file location, and other host-level settings.
 
 Examples:
 
@@ -132,6 +132,7 @@ Runtime configuration. Automatically loaded when files in the `:runtime-config-d
 Specify sources to fetch, schedules, highlight rules here.
 
 Files are (almost) Clojure code with extra constructs for convenience. They use the extension `.llar`.
+Runtime behavior settings can be configured with `rc` and higher-level constructs.
 See the [configuration documentation](https://docs.llar.dev/config.html)
 or check out [my config](https://github.com/irq0/llar-config).
 

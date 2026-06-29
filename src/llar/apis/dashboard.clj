@@ -23,6 +23,7 @@
    [llar.persistency :as persistency]
    [llar.apis.podcast :as podcast-api]
    [llar.podcast :as podcast]
+   [llar.rc :as rc]
    [llar.sched :as sched]
    [llar.update :as update])
   (:import
@@ -518,7 +519,7 @@
 
 (defn ranking-tab []
   (let [reader-db frontend-db
-        ranking-config (get-in appconfig [:ranking] {})
+        ranking-config (rc/rc [:reader :ranking])
         rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
         highlight-boost (get ranking-config :highlight-boost-hours 48.0)
         stats (try (persistency/get-source-stats reader-db {:rarity-cap rarity-cap})
@@ -653,8 +654,20 @@
                (cheshire/generate-string highlight-chart-data)))]]))
 
 (defn config-tab []
-  [:div [:h5 "appconfig"]
-   (map-to-tree (appconfig-redact-secrets))])
+  [:div
+   [:h5 "System config"]
+   (map-to-tree (appconfig-redact-secrets))
+   [:h5 "Runtime config (rc)"]
+   [:h6 "Effective"]
+   (map-to-tree (rc/rc-effective))
+   [:h6 "Overrides"]
+   (map-to-tree (rc/rc-overrides))
+   [:h6 "System config fallback"]
+   (map-to-tree (rc/rc-appconfig))
+   [:h6 "Defaults"]
+   (map-to-tree rc/rc-defaults)
+   [:h6 "Supported rc paths"]
+   (docs.config/rc-path-table)])
 
 (defn docs-tab []
   (docs.config/docs-fragment))

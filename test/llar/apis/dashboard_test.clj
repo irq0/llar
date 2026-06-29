@@ -4,6 +4,8 @@
    [clojure.test :refer [deftest is testing]]
    [hiccup2.core :as h]
    [java-time.api :as time]
+   [llar.appconfig :as appconfig]
+   [llar.rc :as rc]
    [llar.sched :as sched]
    [llar.apis.dashboard :as uut]))
 
@@ -58,6 +60,30 @@
     (is (string/includes? (:body response) "LLAR Configuration"))
     (is (string/includes? (:body response) "sched-fetch"))
     (is (string/includes? (:body response) ":now-and-hourly"))))
+
+(deftest config-tab-renders-system-config-and-rc
+  (with-redefs [appconfig/appconfig {:postgresql {:frontend {:password "secret"}
+                                                  :backend {:password "secret"}}
+                                     :ui {:favorites [[:appconfig :source-tag]]
+                                          :default-list-view {:appconfig :gallery}}
+                                     :ranking {:highlight-boost-hours 12
+                                               :rarity-boost-cap-hours 24}}]
+    (rc/reset-rc!)
+    (rc/rc [:reader :ranking :highlight-boost-hours] 96)
+    (let [response (uut/dashboard-tab "config")]
+      (is (= 200 (:status response)))
+      (is (string/includes? (:body response) "System config"))
+      (is (string/includes? (:body response) "Runtime config (rc)"))
+      (is (string/includes? (:body response) "Effective"))
+      (is (string/includes? (:body response) "Overrides"))
+      (is (string/includes? (:body response) "System config fallback"))
+      (is (string/includes? (:body response) "Defaults"))
+      (is (string/includes? (:body response) "Supported rc paths"))
+      (is (string/includes? (:body response) "[:reader :favorites]"))
+      (is (string/includes? (:body response) "[:ui :favorites]"))
+      (is (string/includes? (:body response) "96"))
+      (is (string/includes? (:body response) "--secret removed--")))
+    (rc/reset-rc!)))
 
 (deftest metrics-endpoint-has-prometheus-content-type
   (testing "/metrics returns a non-blank Prometheus text format content type"
