@@ -133,7 +133,7 @@ Specify sources to fetch, schedules, highlight rules here.
 
 Files are (almost) Clojure code with extra constructs for convenience. They use the extension `.llar`.
 Runtime behavior settings can be configured with `rc` and higher-level constructs.
-See the [configuration documentation](https://docs.llar.dev/config.html)
+See the [configuration documentation](https://irq0.github.io/llar/config.html)
 or check out [my config](https://github.com/irq0/llar-config).
 
 ### Credentials
