@@ -122,6 +122,31 @@
       (when (>= (count parts) 5)
         (str (nth parts 3) "/" (nth parts 4))))))
 
+(defn- issue-meta-line [repo user is-pr? draft merged? state resolved-at open-duration]
+  [:p (when repo [:code repo])
+   (when repo " ")
+   [:strong (:login user)]
+   " · " (if is-pr? "PR" "Issue")
+   " · " (cond draft "draft" merged? "merged" :else state)
+   (when resolved-at
+     (str " · " (subs resolved-at 0 10)))
+   (when open-duration
+     (str " (open " open-duration ")"))])
+
+(defn- assignees-line [assignees]
+  (when (seq assignees)
+    [:p "Assignees: "
+     (interpose ", " (map #(vector :strong (:login %)) assignees))]))
+
+(defn- code-list-line [xs f]
+  (when (seq xs)
+    [:p (interpose " " (map #(vector :code (f %)) xs))]))
+
+(defn- issue-stats-line [comments reactions diff-url]
+  [:p (str comments " comments")
+   (when reactions (str " · " (:total_count reactions) " reactions"))
+   (when diff-url (list " · " [:a {:href diff-url} "Diff"]))])
+
 (defn- issue-html-summary [hit]
   (let [{:keys [html_url user labels state pull_request
                 comments reactions body draft
@@ -136,25 +161,18 @@
     (str
      (html
       [:div {:class "summary"}
-       [:p (when repo [:code repo])
-        (when repo " ")
-        [:strong (:login user)]
-        " · " (if is-pr? "PR" "Issue")
-        " · " (cond draft "draft" merged? "merged" :else state)
-        (when resolved-at
-          (str " · " (subs resolved-at 0 10)))
-        (when open-duration
-          (str " (open " open-duration ")"))]
-       (when (seq assignees)
-         [:p "Assignees: "
-          (interpose ", " (map #(vector :strong (:login %)) assignees))])
-       (when (seq labels)
-         [:p (interpose " " (map #(vector :code (:name %)) labels))])
+       (issue-meta-line repo user is-pr? draft merged? state resolved-at open-duration)
+       (assignees-line assignees)
+       (code-list-line labels :name)
        (when-not (string/blank? body)
          [:pre body])
-       [:p (str comments " comments")
-        (when reactions (str " · " (:total_count reactions) " reactions"))
-        (when diff-url (list " · " [:a {:href diff-url} "Diff"]))]]))))
+       (issue-stats-line comments reactions diff-url)]))))
+
+(defn- repo-stats-line [stargazers-count forks-count language license-name]
+  [:p (str stargazers-count " stars · " forks-count " forks")
+   (when language (str " · " language))
+   (when (and license-name (not= license-name "NOASSERTION"))
+     (str " · " license-name))])
 
 (defn- repo-html-summary [hit]
   (let [{:keys [description stargazers_count
@@ -165,12 +183,8 @@
       [:div {:class "summary"}
        (when-not (string/blank? description)
          [:p description])
-       [:p (str stargazers_count " stars · " forks_count " forks")
-        (when language (str " · " language))
-        (when (and license-name (not= license-name "NOASSERTION"))
-          (str " · " license-name))]
-       (when (seq topics)
-         [:p (interpose " " (map #(vector :code %) topics))])
+       (repo-stats-line stargazers_count forks_count language license-name)
+       (code-list-line topics identity)
        (when-not (string/blank? homepage)
          [:p [:a {:href homepage} "Homepage"]])]))))
 
