@@ -22,6 +22,7 @@
    [llar.email :as email]
    [llar.item :as item]
    [llar.persistency :as persistency]
+   [llar.rc :as rc]
    [llar.sched :refer [defsched]]
    [llar.store :as store])
   (:import
@@ -77,7 +78,7 @@
         store/backend-db
         {:with-tag :digest
          :sort-order :oldest
-         :limit (or (appconfig/digest :limit) 200)})
+         :limit (rc/rc [:digest :limit])})
        (map :id)
        (map #(persistency/get-item-by-id store/backend-db %))))
 
@@ -273,7 +274,7 @@
   per-digest (Kindle requires the From to be an approved sender)."
   [issue-n ^File epub-file]
   (email/send-message!
-   (cond-> {:to (appconfig/digest :to)
+   (cond-> {:to (rc/rc [:digest :to])
             :subject (str "LLAR Digest #" issue-n)
             :body [{:type "text/plain"
                     :content (str "LLAR Digest #" issue-n " attached.")}
@@ -281,7 +282,7 @@
                     :content epub-file
                     :file-name (str "LLAR Digest #" issue-n ".epub")
                     :content-type "application/epub+zip"}]}
-     (appconfig/digest :from) (assoc :from (appconfig/digest :from)))))
+     (rc/rc [:digest :from]) (assoc :from (rc/rc [:digest :from])))))
 
 ;;;; Orchestration
 
@@ -290,25 +291,25 @@
   issue number sent, or nil if there was nothing to send / not configured."
   []
   (cond
-    (not (appconfig/digest)) (log/info "digest: not configured, skipping")
+    (not (rc/rc [:digest :enabled?])) (log/info "digest: not configured, skipping")
     (not (email/configured?)) (log/warn "digest: no :mail config, skipping")
     :else
     (let [items (select-items)]
       (if (empty? items)
         (log/info "digest: no :digest items queued, skipping")
         (let [n (next-issue-number)
-              ^File epub (render-epub! n items {:inline-images? (get (appconfig/digest) :inline-images? true)})]
+              ^File epub (render-epub! n items {:inline-images? (rc/rc [:digest :inline-images?])})]
           (send-digest! n epub)
           (doseq [{:keys [id]} items]
             (persistency/item-set-tags! store/backend-db id [(issue-tag n)])
             (persistency/item-remove-tags! store/backend-db id [:digest]))
           (.delete epub)
           (log/infof "digest #%d sent to %s: %d items"
-                     n (appconfig/digest :to) (count items))
+                     n (rc/rc [:digest :to]) (count items))
           n)))))
 
 ;;;; Scheduler
 
 (defsched digest-scheduler (or (appconfig/digest :schedule) :sundays)
-  (when (appconfig/digest)
+  (when (rc/rc [:digest :enabled?])
     (run-digest!)))

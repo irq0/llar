@@ -5,12 +5,12 @@
    [mount.core :refer [defstate]]
    [slingshot.slingshot :refer [throw+ try+]]
    [llar.metrics :as metrics]
-   [llar.appconfig :as appconfig]
    [llar.config :as config]
    [llar.converter :as converter]
    [iapetos.core :as prometheus]
    [llar.fetch :as fetch]
    [llar.postproc :as proc]
+   [llar.rc :as rc]
    [llar.sched :refer [defsched] :as sched]
    [llar.store :as store :refer [store-items!]]
    [llar.digest :as digest]
@@ -397,7 +397,7 @@
       (log/debug "updating working feed: " k)
       :temp-fail
       (log/debug "temporary failing feed %d/%d: %s"
-                 (:retry-count cur-state) (appconfig/update-max-retry) k)
+                 (:retry-count cur-state) (rc/rc [:update :max-retry]) k)
       :perm-fail
       (log/debug "skipping perm fail feed: " k)
 
@@ -415,7 +415,7 @@
     (let [update? (or force
                       (#{:ok :new} cur-status)
                       (and (= cur-status :temp-fail)
-                           (< (:retry-count cur-state) (appconfig/update-max-retry))))]
+                           (< (:retry-count cur-state) (rc/rc [:update :max-retry]))))]
       (if update?
         (do
           (swap! state update k assoc :status :updating)
@@ -560,8 +560,8 @@
         ;; Digest: issue-windowed autoread. Keep the most recent
         ;; keep-unread-issues issues :unread; clear :unread on older issues.
         digest-result
-        (when-let [digest-cfg (appconfig/digest)]
-          (let [keep-recent (or (:keep-unread-issues digest-cfg) 1)
+        (when (rc/rc [:digest :enabled?])
+          (let [keep-recent (rc/rc [:digest :keep-unread-issues])
                 stale (digest/issues-outside-window keep-recent)]
             (try+
              (log/infof "remove-unread-tags: digest issues outside latest %d to clear: %s"

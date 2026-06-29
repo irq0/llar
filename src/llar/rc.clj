@@ -25,7 +25,45 @@
    {:path [:podcast :retention]
     :appconfig-path [:api :podcast :retention]
     :spec :irq0-appconfig/podcast-retention
-    :doc "Podcast episode retention policy."}])
+    :doc "Podcast episode retention policy."}
+   {:path [:digest]
+    :appconfig-path [:api :digest]
+    :default {:enabled? false
+              :limit 200
+              :inline-images? true
+              :keep-unread-issues 1}
+    :appconfig->rc #(assoc % :enabled? true)
+    :spec :irq0-appconfig/runtime-digest
+    :doc "Digest delivery and rendering policy."}
+   {:path [:podcast :enabled?]
+    :default false
+    :spec :irq0-appconfig/podcast-enabled
+    :doc "Enable podcast media downloading and retention jobs."}
+   {:path [:podcast :download]
+    :appconfig-path [:api :podcast]
+    :appconfig->rc #(cond-> {}
+                      (:video-format %) (assoc :video-format (:video-format %))
+                      (:av-downloader-extra-args %) (assoc :extra-args (:av-downloader-extra-args %)))
+    :default {:video-format "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"
+              :extra-args ["--embed-metadata"
+                           "--embed-chapters"
+                           "--write-subs"
+                           "--write-auto-subs"
+                           "--sub-langs" "en,en-orig,en-en,-live_chat"]
+              :max-attempts 3
+              :retry-cooldown-minutes 30}
+    :spec :irq0-appconfig/podcast-download
+    :doc "Podcast media downloader policy."}
+   {:path [:podcast :scan]
+    :default {:limit 200}
+    :spec :irq0-appconfig/podcast-scan
+    :doc "Podcast scanner policy."}
+   {:path [:update]
+    :appconfig-path [:update-max-retry]
+    :appconfig->rc #(hash-map :max-retry %)
+    :default {:max-retry 5}
+    :spec :irq0-appconfig/update
+    :doc "Source update retry policy."}])
 
 (defn- shipped-system-config-defaults []
   (edn/read-string (slurp (io/resource "config.edn"))))
@@ -33,10 +71,22 @@
 (def ^:private shipped-appconfig-defaults
   (shipped-system-config-defaults))
 
+(defn- appconfig-value [entry config]
+  (let [value (get-in config (:appconfig-path entry) ::missing)]
+    (if (= ::missing value)
+      ::missing
+      (cond-> value
+        (:appconfig->rc entry) ((:appconfig->rc entry))))))
+
 (def rc-defaults
   (reduce
-   (fn [defaults {:keys [path appconfig-path]}]
-     (assoc-in defaults path (get-in shipped-appconfig-defaults appconfig-path)))
+   (fn [defaults {:keys [path] :as entry}]
+     (let [value (if (contains? entry :default)
+                   (:default entry)
+                   (appconfig-value entry shipped-appconfig-defaults))]
+       (if (= ::missing value)
+         defaults
+         (assoc-in defaults path value))))
    {}
    rc-registry))
 
@@ -47,11 +97,13 @@
 (s/def :llar.rc.registry/appconfig-path :llar.rc/path)
 (s/def :llar.rc.registry/spec keyword?)
 (s/def :llar.rc.registry/doc string?)
+(s/def :llar.rc.registry/appconfig->rc fn?)
 (s/def :llar.rc/registry-entry
   (s/keys :req-un [:llar.rc.registry/path
                    :llar.rc.registry/spec
                    :llar.rc.registry/doc]
-          :opt-un [:llar.rc.registry/appconfig-path]))
+          :opt-un [:llar.rc.registry/appconfig-path
+                   :llar.rc.registry/appconfig->rc]))
 
 (defn- deep-merge [& maps]
   (letfn [(merge-entry [a b]
@@ -124,9 +176,10 @@
   (reduce
    (fn [config-values {:keys [path appconfig-path] :as entry}]
      (if (and appconfig-path (appconfig-map))
-       (let [value (get-in (appconfig-map) appconfig-path ::missing)]
+       (let [value (appconfig-value entry (appconfig-map))
+             shipped-value (appconfig-value entry shipped-appconfig-defaults)]
          (if (or (= ::missing value)
-                 (= value (get-in shipped-appconfig-defaults appconfig-path)))
+                 (= value shipped-value))
            config-values
            (do
              (assert-valid-value! entry path value)
@@ -157,12 +210,29 @@
 (defn reset-rc! []
   (reset! rc-overrides* {}))
 
+(defn- kvs->map [form kvs]
+  (when (odd? (count kvs))
+    (throw (ex-info (str form " expects key/value pairs")
+                    {:type ::invalid-key-value-form
+                     :form form
+                     :args kvs})))
+  (apply hash-map kvs))
+
+(defn- assert-known-keys! [form allowed-keys opts]
+  (doseq [k (keys opts)]
+    (when-not (contains? allowed-keys k)
+      (throw (ex-info (str form " received an unknown option")
+                      {:type ::unknown-option
+                       :form form
+                       :option k
+                       :supported allowed-keys})))))
+
 (defn ^{:llar.config/kind :construct
         :llar.config/form "(rc PATH VALUE)"
         :llar.config/order 80
         :llar.config/keys ["PATH is a vector under a supported runtime config root"
                            "VALUE is validated with the path's runtime config spec"
-                           "Supported roots include [:reader :favorites], [:reader :default-list-view], [:reader :ranking], [:reader :export :url-handler], and [:podcast :retention]"]
+                           "Supported roots include [:reader ...], [:podcast ...], [:digest], and [:update]"]
         :llar.config/example "(rc [:reader :ranking :highlight-boost-hours] 48)\n(rc [:reader :default-list-view :storage] :headlines)"}
   rc
   "Read or set dynamic runtime behavior config.
@@ -179,6 +249,39 @@
      (assert-valid-value! entry path value)
      (swap! rc-overrides* assoc-in path value)
      value)))
+
+(defn ^{:llar.config/kind :construct
+        :llar.config/form "(digest KEY VALUE ...)"
+        :llar.config/order 86
+        :llar.config/keys ["Required key: :to"
+                           "Optional keys: :from, :limit, :inline-images?, :keep-unread-issues"
+                           "Defining digest enables digest delivery."]
+        :llar.config/example "(digest :to \"you_abc123@kindle.com\"\n        :from \"llar@example.org\"\n        :limit 200\n        :inline-images? true\n        :keep-unread-issues 1)"}
+  digest
+  "Configure and enable digest delivery."
+  [& kvs]
+  (let [opts (assoc (kvs->map "digest" kvs) :enabled? true)]
+    (assert-known-keys! "digest"
+                        #{:enabled? :to :from :limit :inline-images? :keep-unread-issues}
+                        opts)
+    (rc [:digest] (merge (rc [:digest]) opts))))
+
+(defn ^{:llar.config/kind :construct
+        :llar.config/form "(podcast-download KEY VALUE ...)"
+        :llar.config/order 87
+        :llar.config/keys ["Optional keys: :video-format, :extra-args, :max-attempts, :retry-cooldown-minutes"
+                           "Defining podcast-download enables podcast media downloading and retention jobs."]
+        :llar.config/example "(podcast-download :video-format \"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]\"\n                  :extra-args [\"--embed-metadata\" \"--embed-chapters\"]\n                  :max-attempts 3\n                  :retry-cooldown-minutes 30)"}
+  podcast-download
+  "Configure and enable podcast media downloads."
+  [& kvs]
+  (let [opts (kvs->map "podcast-download" kvs)]
+    (assert-known-keys! "podcast-download"
+                        #{:video-format :extra-args :max-attempts :retry-cooldown-minutes}
+                        opts)
+    (rc [:podcast :download] (merge (rc [:podcast :download]) opts))
+    (rc [:podcast :enabled?] true)
+    (rc [:podcast :download])))
 
 (defn ^{:llar.config/kind :construct
         :llar.config/form "(reader-favorite KEY GROUP)"

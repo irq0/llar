@@ -239,7 +239,7 @@
   (try+
    (let [items (persistency/get-items-recent store/backend-db
                                              {:with-tag :podcast
-                                              :limit 200})]
+                                              :limit (rc/rc [:podcast :scan :limit])})]
      (doseq [item items
              :let [item-id (:id item)
                    item-title (:title item)
@@ -268,9 +268,6 @@
    (catch Object e
      (log/error e "podcast scanner: failed to scan items"))))
 
-(def ^:private +max-download-attempts+ 3)
-(def ^:private +retry-cooldown-minutes+ 30)
-
 (defn- retry-failed-downloads!
   "Move :failed items past their cooldown back to :pending for retry."
   []
@@ -278,12 +275,13 @@
     (doseq [[item-id state] @download-state
             :when (= :failed (:status state))
             :let [attempt (or (:attempt state) 1)
-                  retry-after (:retry-after state)]
-            :when (and (< attempt +max-download-attempts+)
+                  retry-after (:retry-after state)
+                  max-download-attempts (rc/rc [:podcast :download :max-attempts])]
+            :when (and (< attempt max-download-attempts)
                        retry-after
                        (time/after? now retry-after))]
       (log/infof "podcast: retrying failed download for item %s (attempt %d/%d)"
-                 item-id (inc attempt) +max-download-attempts+)
+                 item-id (inc attempt) max-download-attempts)
       (swap! download-state assoc item-id
              (-> state
                  (assoc :status :pending)
@@ -313,12 +311,13 @@
         :mime-type (:mime-type result)})
      (catch Object e
        (let [attempt (or (:attempt state) 1)
-             retryable? (< attempt +max-download-attempts+)
+             max-download-attempts (rc/rc [:podcast :download :max-attempts])
+             retryable? (< attempt max-download-attempts)
              retry-after (when retryable?
                            (time/plus (time/zoned-date-time)
-                                      (time/minutes +retry-cooldown-minutes+)))]
+                                      (time/minutes (rc/rc [:podcast :download :retry-cooldown-minutes]))))]
          (log/warnf "podcast: download failed for item %s (attempt %d/%d, %s): %s"
-                    item-id attempt +max-download-attempts+
+                    item-id attempt max-download-attempts
                     (if retryable? (str "retry after " retry-after) "giving up")
                     e)
          (swap! download-state assoc item-id
@@ -493,11 +492,11 @@
        :processed processed})))
 
 (defsched podcast-scanner :now-and-every-5-minutes
-  (when (appconfig/podcast)
+  (when (rc/rc [:podcast :enabled?])
     (podcast-scanner-tick!)))
 
 (defsched podcast-retention-enforcer :hourly
-  (when (appconfig/podcast)
+  (when (rc/rc [:podcast :enabled?])
     (let [before (download-state-counts)]
       (enforce-retention!)
       {:before before

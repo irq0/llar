@@ -85,11 +85,41 @@
                               :irq0-appconfig/icon])))
 (s/def :irq0-appconfig/export
   (s/keys :opt-un [:irq0-appconfig/url-handler]))
+(s/def :irq0-appconfig/enabled? boolean?)
+(s/def :irq0-appconfig/to string?)
+(s/def :irq0-appconfig/from string?)
+(s/def :irq0-appconfig/limit pos-int?)
+(s/def :irq0-appconfig/inline-images? boolean?)
+(s/def :irq0-appconfig/keep-unread-issues nat-int?)
+(s/def :irq0-appconfig/runtime-digest
+  (s/and (s/keys :opt-un [:irq0-appconfig/enabled?
+                          :irq0-appconfig/to
+                          :irq0-appconfig/from
+                          :irq0-appconfig/limit
+                          :irq0-appconfig/inline-images?
+                          :irq0-appconfig/keep-unread-issues])
+         #(or (not (:enabled? %))
+              (string? (:to %)))))
 (s/def :irq0-appconfig/default-episode-limit pos-int?)
 (s/def :irq0-appconfig/sources (s/map-of keyword? pos-int?))
 (s/def :irq0-appconfig/podcast-retention
   (s/keys :req-un [:irq0-appconfig/default-episode-limit]
           :opt-un [:irq0-appconfig/sources]))
+(s/def :irq0-appconfig/video-format string?)
+(s/def :irq0-appconfig/extra-args (s/coll-of string? :kind vector?))
+(s/def :irq0-appconfig/max-attempts pos-int?)
+(s/def :irq0-appconfig/retry-cooldown-minutes pos-int?)
+(s/def :irq0-appconfig/podcast-download
+  (s/keys :opt-un [:irq0-appconfig/video-format
+                   :irq0-appconfig/extra-args
+                   :irq0-appconfig/max-attempts
+                   :irq0-appconfig/retry-cooldown-minutes]))
+(s/def :irq0-appconfig/podcast-enabled boolean?)
+(s/def :irq0-appconfig/podcast-scan
+  (s/keys :req-un [:irq0-appconfig/limit]))
+(s/def :irq0-appconfig/max-retry nat-int?)
+(s/def :irq0-appconfig/update
+  (s/keys :req-un [:irq0-appconfig/max-retry]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/blob-store-dir

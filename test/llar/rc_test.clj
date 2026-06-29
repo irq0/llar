@@ -27,7 +27,17 @@
     (is (= (get-in shipped [:export :url-handler])
            (uut/rc [:reader :export :url-handler])))
     (is (= (get-in shipped [:api :podcast :retention])
-           (uut/rc [:podcast :retention])))))
+           (uut/rc [:podcast :retention])))
+    (is (false? (uut/rc [:digest :enabled?])))
+    (is (= 200 (uut/rc [:digest :limit])))
+    (is (false? (uut/rc [:podcast :enabled?])))
+    (is (= (get-in shipped [:api :podcast :video-format])
+           (uut/rc [:podcast :download :video-format])))
+    (is (= (get-in shipped [:api :podcast :av-downloader-extra-args])
+           (uut/rc [:podcast :download :extra-args])))
+    (is (= 200 (uut/rc [:podcast :scan :limit])))
+    (is (= (get shipped :update-max-retry)
+           (uut/rc [:update :max-retry])))))
 
 (deftest rc-entries-describe-supported-paths
   (let [entries (uut/rc-entries)
@@ -43,14 +53,26 @@
                                           :default-list-view {:appconfig :gallery}}
                                      :ranking {:highlight-boost-hours 12
                                                :rarity-boost-cap-hours 24}
-                                     :api {:podcast {:retention {:default-episode-limit 30}}}
+                                     :update-max-retry 9
                                      :export {:url-handler {:name "Handler"
-                                                            :template "app://save?url={url}"}}}]
+                                                            :template "app://save?url={url}"}}
+                                     :api {:digest {:to "digest@example.org"
+                                                    :limit 10}
+                                           :podcast {:retention {:default-episode-limit 30}
+                                                     :video-format "worst"
+                                                     :av-downloader-extra-args ["--foo"]}}}]
     (uut/reset-rc!)
     (is (= [[:appconfig :source-tag]] (uut/rc [:reader :favorites])))
     (is (= :gallery (uut/rc [:reader :default-list-view :appconfig])))
     (is (= 12 (uut/rc [:reader :ranking :highlight-boost-hours])))
     (is (= 30 (uut/rc [:podcast :retention :default-episode-limit])))
+    (is (= {:enabled? true
+            :to "digest@example.org"
+            :limit 10}
+           (select-keys (uut/rc [:digest]) [:enabled? :to :limit])))
+    (is (= "worst" (uut/rc [:podcast :download :video-format])))
+    (is (= ["--foo"] (uut/rc [:podcast :download :extra-args])))
+    (is (= 9 (uut/rc [:update :max-retry])))
     (is (= {:name "Handler"
             :template "app://save?url={url}"}
            (uut/rc [:reader :export :url-handler])))))
@@ -98,7 +120,27 @@
   (is (= 10 (uut/rc [:podcast :retention :sources :my-video-feed])))
   (is (= 12 (eval '(llar.rc/podcast-retention another-feed 12))))
   (is (= 12 (uut/rc [:podcast :retention :sources :another-feed])))
-  (is (= 50 (uut/rc [:podcast :retention :default-episode-limit] 50))))
+  (is (= 50 (uut/rc [:podcast :retention :default-episode-limit] 50)))
+  (is (= {:enabled? true
+          :to "digest@example.org"
+          :limit 25
+          :inline-images? false
+          :keep-unread-issues 2}
+         (select-keys (uut/digest :to "digest@example.org"
+                                  :limit 25
+                                  :inline-images? false
+                                  :keep-unread-issues 2)
+                      [:enabled? :to :limit :inline-images? :keep-unread-issues])))
+  (is (true? (uut/rc [:digest :enabled?])))
+  (is (= {:video-format "worst"
+          :extra-args ["--embed-metadata"]
+          :max-attempts 5
+          :retry-cooldown-minutes 10}
+         (uut/podcast-download :video-format "worst"
+                               :extra-args ["--embed-metadata"]
+                               :max-attempts 5
+                               :retry-cooldown-minutes 10)))
+  (is (true? (uut/rc [:podcast :enabled?]))))
 
 (deftest reader-ranking-validates-pairs
   (is (thrown-with-msg?
@@ -115,6 +157,34 @@
        clojure.lang.ExceptionInfo
        #"Invalid runtime config value"
        (uut/reader-url-handler {:name "Handler"}))))
+
+(deftest digest-validates-shape
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"digest expects key/value pairs"
+       (uut/digest :to)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"unknown option"
+       (uut/digest :to "digest@example.org" :unknown true)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/digest :limit 10))))
+
+(deftest podcast-download-validates-shape
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"podcast-download expects key/value pairs"
+       (uut/podcast-download :video-format)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"unknown option"
+       (uut/podcast-download :unknown true)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/podcast-download :max-attempts 0))))
 
 (deftest rc-rejects-unknown-paths-and-invalid-values
   (uut/reset-rc!)

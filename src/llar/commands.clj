@@ -6,6 +6,7 @@
    [cheshire.core :as cheshire]
    [slingshot.slingshot :refer [try+ throw+]]
    [llar.appconfig :as appcfg :refer [appconfig]]
+   [llar.rc :as rc]
    [nio2.core :as nio2])
   (:import
    [java.util.concurrent Semaphore]))
@@ -137,9 +138,8 @@
 (defn- download-media-file!
   "Download media file via yt-dlp into dir. Returns the downloaded File."
   [url dir]
-  (let [format-spec (or (appcfg/podcast :video-format)
-                        "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]")
-        extra-args (or (appcfg/podcast :av-downloader-extra-args) [])
+  (let [format-spec (rc/rc [:podcast :download :video-format])
+        extra-args (rc/rc [:podcast :download :extra-args])
         timeout (get-in appconfig [:timeouts :av-downloader-transcode]
                         (get-in appconfig [:timeouts :av-downloader]))
         {:keys [exit out err]}

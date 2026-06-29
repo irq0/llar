@@ -68,6 +68,8 @@
     (is (contains? construct-names 'reader-ranking))
     (is (contains? construct-names 'reader-url-handler))
     (is (contains? construct-names 'podcast-retention))
+    (is (contains? construct-names 'digest))
+    (is (contains? construct-names 'podcast-download))
     (is (contains? construct-names 'sort-default))))
 
 (deftest feature-examples-come-from-var-metadata

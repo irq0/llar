@@ -7,7 +7,8 @@
    [llar.blobstore :as blobstore]
    [llar.digest :as uut]
    [llar.email :as email]
-   [llar.persistency :as persistency])
+   [llar.persistency :as persistency]
+   [llar.rc :as rc])
   (:import
    [java.io ByteArrayInputStream File]
    [java.util.zip ZipFile]))
@@ -190,9 +191,9 @@
           ;; \"llar-digest-2-<random>\" title before the fix
           tmp (File/createTempFile "llar-digest-2-" ".epub")]
       (try
-        (with-redefs [appconfig/digest (fn ([] {:to "dev@kindle.com"})
-                                         ([k] (get {:to "dev@kindle.com"} k)))
-                      email/send-message! (fn [msg] (reset! sent msg) :sent)]
+        (rc/reset-rc!)
+        (rc/digest :to "dev@kindle.com")
+        (with-redefs [email/send-message! (fn [msg] (reset! sent msg) :sent)]
           (uut/send-digest! 2 tmp))
         (let [att (->> (:body @sent) (filter #(= :attachment (:type %))) first)]
           (is (some? att) "an attachment part is sent")
@@ -200,7 +201,9 @@
               "postal honors :file-name; the Kindle title derives from it")
           (is (nil? (:name att)) "the ignored :name key is no longer used")
           (is (= tmp (:content att)) "the rendered epub file is attached"))
-        (finally (.delete tmp))))))
+        (finally
+          (rc/reset-rc!)
+          (.delete tmp))))))
 
 (deftest grouping-test
   (testing "items are grouped by source in first-seen order; chapters numbered globally"

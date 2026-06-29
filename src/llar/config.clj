@@ -328,6 +328,14 @@
   :var llar.rc/podcast-retention
   :handler-fn llar.config/handle-eval-config-form!)
 
+(defconfig-symbol digest
+  :var llar.rc/digest
+  :handler-fn llar.config/handle-eval-config-form!)
+
+(defconfig-symbol podcast-download
+  :var llar.rc/podcast-download
+  :handler-fn llar.config/handle-eval-config-form!)
+
 (defconfig-symbol sort-default
   :doc-var llar.config/sort-default
   :handler-fn llar.config/handle-sort-default-config-form!)
