@@ -6,6 +6,7 @@
    [llar.config :as config]
    [llar.rc :as rc]
    [llar.sched :as sched]
+   [llar.export.zotero]
    [llar.src]
    [llar.update])
   (:import
@@ -76,8 +77,18 @@
        (sort-by (juxt (comp #(or % 1000) :llar.config/order meta :resolved-var)
                       (comp str :symbol)))))
 
+(defn feature-examples []
+  (->> ['llar.export.zotero]
+       (mapcat ns-publics)
+       (keep (fn [[feature-name v]]
+               (when (= :feature-example (:llar.config/kind (meta v)))
+                 {:symbol feature-name
+                  :resolved-var v})))
+       (sort-by (juxt (comp #(or % 1000) :llar.config/order meta :resolved-var)
+                      (comp str :symbol)))))
+
 (defn examples []
-  (->> (concat (runtime-constructs) (source-constructors))
+  (->> (concat (runtime-constructs) (source-constructors) (feature-examples))
        (keep (fn [v]
                (when-let [example (:llar.config/example (doc-meta v))]
                  {:title (str (:symbol v))
@@ -249,6 +260,13 @@
                      (namespace-bindings))))
 
    (section
+    "feature-examples"
+    "Feature Examples"
+    [:p "Feature-specific configuration examples that are not top-level " (code ".llar") " constructs."]
+    (for [feature (feature-examples)]
+      (construct-card feature)))
+
+   (section
     "examples"
     "Examples"
     (for [{:keys [title code]} (examples)]
@@ -260,7 +278,7 @@
     "runtime-config-settings"
     "Runtime Config Settings"
     [:p
-     (code "rc") " controls dynamic runtime behavior settings. It reads runtime overrides first, system config values second, and shipped defaults from "
+     (code "rc") " controls dynamic runtime behavior settings. It reads runtime overrides first, system config values that differ from shipped defaults second, and shipped defaults from "
      (code "resources/config.edn") " last."]
     (rc-path-table))
 

@@ -70,6 +70,10 @@
     (is (contains? construct-names 'reader-url-handler))
     (is (contains? construct-names 'sort-default))))
 
+(deftest feature-examples-come-from-var-metadata
+  (let [feature-names (set (map :symbol (uut/feature-examples)))]
+    (is (contains? feature-names 'zotero-export-links))))
+
 (deftest config-engine-registry-drives-runtime-docs
   (let [entries (config/config-engine-environment)
         sort-default-entry (some #(when (= 'sort-default (:symbol %)) %) entries)

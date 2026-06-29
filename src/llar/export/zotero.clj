@@ -9,6 +9,16 @@
   (:import
    [org.apache.commons.text StringEscapeUtils]))
 
+(def ^{:llar.config/kind :feature-example
+       :llar.config/order 10
+       :llar.config/form "credentials.edn"
+       :llar.config/keys ["Enables the reader's Zotero annotation export action"
+                          "The Zotero API key must allow item creation"
+                          "The exported item is stored in a Zotero collection named llar"]
+       :llar.config/example "{:zotero {:api-key \"ZOTERO_API_KEY\"\n          :user-id \"ZOTERO_USER_ID\"}}"}
+  zotero-export-links
+  "Export reader items and annotations to Zotero.")
+
 (defn zotero-credentials []
   (appconfig/credentials :zotero))
 

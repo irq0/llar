@@ -53,7 +53,8 @@
  :ranking {:highlight-boost-hours 48
            :rarity-boost-cap-hours 168}
  ;; Annotation export. Uncomment and configure to enable.
- ;; Zotero: add :zotero {:api-key "..." :user-id "..."} to credentials.edn
+ ;; Zotero: add {:zotero {:api-key "ZOTERO_API_KEY"
+ ;;                       :user-id "ZOTERO_USER_ID"}} to credentials.edn
  ;; URL handler: opens a URL with {title}, {url}, {id}, {source}, {body} placeholders
  ;; :export {:url-handler {:name "Org-roam"
  ;;                        :icon "fas fa-brain"
