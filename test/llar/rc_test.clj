@@ -93,6 +93,7 @@
          (uut/reader-url-handler :name "Handler"
                                  :template "app://save?url={url}")))
   (is (nil? (uut/reader-url-handler nil)))
+  #_{:clj-kondo/ignore [:unresolved-symbol]}
   (is (= 10 (uut/podcast-retention my-video-feed 10)))
   (is (= 10 (uut/rc [:podcast :retention :sources :my-video-feed])))
   (is (= 12 (eval '(llar.rc/podcast-retention another-feed 12))))

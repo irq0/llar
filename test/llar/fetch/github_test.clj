@@ -1,7 +1,6 @@
 (ns llar.fetch.github-test
   (:require
    [llar.fetch.github :as uut]
-   [llar.postproc :as postproc]
    [llar.persistency :as persistency]
    [llar.fetch :as fetch]
    [llar.src :as src]

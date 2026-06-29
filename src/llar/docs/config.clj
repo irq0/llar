@@ -1,6 +1,7 @@
 (ns llar.docs.config
   (:require
    [clojure.java.io :as io]
+   [clojure.spec.alpha :as s]
    [clojure.string :as string]
    [hiccup2.core :as h]
    [llar.config :as config]
@@ -189,7 +190,7 @@
          [:h4 {:class "h6 mt-3"} "Schemas"]
          [:ul
           (for [s specs]
-            [:li (code (value-label s)) " " (value-label (clojure.spec.alpha/describe s))])]])
+            [:li (code (value-label s)) " " (value-label (s/describe s))])]])
       (when (seq defaults)
         [:div
          [:h4 {:class "h6 mt-3"} "Defaults"]
@@ -313,7 +314,9 @@
   (str "<!doctype html>\n" (h/html (docs-page))))
 
 (defn- copy-resource! [{:keys [resource target]} out-dir]
-  (let [src (io/resource resource)
+  (let [resource-file (io/file "resources" resource)
+        src (or (io/resource resource)
+                (when (.isFile resource-file) resource-file))
         target-path (.resolve ^Path out-dir target)]
     (when (nil? src)
       (throw (ex-info "Documentation asset not found" {:resource resource})))

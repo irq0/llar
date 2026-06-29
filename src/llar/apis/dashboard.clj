@@ -14,7 +14,7 @@
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
-   [llar.appconfig :refer [appconfig appconfig-redact-secrets]]
+   [llar.appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.converter]
    [llar.docs.config :as docs.config]

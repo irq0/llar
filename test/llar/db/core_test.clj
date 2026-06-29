@@ -5,7 +5,8 @@
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-source]]
    [llar.db.core]
-   [next.jdbc :as jdbc]))
+   [next.jdbc :as jdbc]
+   [next.jdbc.result-set :as rs]))
 
 (use-fixtures :once with-test-db-fixture)
 (use-fixtures :each with-clean-db-fixture)
@@ -90,7 +91,7 @@
                                   ["verb1" "verb2"]
                                   {}]
                                  {:return-keys true
-                                  :builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+                                  :builder-fn rs/as-unqualified-lower-maps}))]
       (is (= test-urls (:nlp_urls result))
           "Text array should round-trip as vector")
       (is (= ["Name1" "Name2"] (:nlp_names result)))
@@ -118,7 +119,7 @@
                                   []
                                   {}]
                                  {:return-keys true
-                                  :builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+                                  :builder-fn rs/as-unqualified-lower-maps}))]
       (is (= [] (:nlp_urls result))
           "Empty array should round-trip correctly"))))
 
@@ -145,7 +146,7 @@
                                   []
                                   {}]
                                  {:return-keys true
-                                  :builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+                                  :builder-fn rs/as-unqualified-lower-maps}))]
       (is (= tag-ids (vec (:tagi result)))
           "Integer array should round-trip correctly"))))
 
@@ -173,7 +174,7 @@
                                "Null Data Source"
                                :item-type/link]
                               {:return-keys true
-                               :builder-fn next.jdbc.result-set/as-unqualified-lower-maps})
+                               :builder-fn rs/as-unqualified-lower-maps})
           source (first rows)]
       (is (nil? (:data source))
           "NULL database value should be read as nil"))))

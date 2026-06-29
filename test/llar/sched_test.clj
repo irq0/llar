@@ -1,6 +1,7 @@
 (ns llar.sched-test
   (:require
-   [clojure.test :refer [deftest is testing]]
+   [clojure.test :refer [deftest is]]
+   [clojure.tools.logging :as log]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
    [llar.db.core :as db]
@@ -223,7 +224,7 @@
 (deftest remove-unread-autoread-rule-catches-predicate-errors
   (let [ex (ex-info "bad pred" {:reason :test})
         result (with-redefs [update/updateable-sources (constantly {:x {}})
-                             clojure.tools.logging/error (fn [& _])]
+                             log/error (fn [& _])]
                  (update/remove-unread-for-autoread-sched!
                   :bad-pred
                   {:period (time/days 1)

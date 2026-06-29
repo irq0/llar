@@ -1,12 +1,12 @@
 (ns llar.podcast-test
   (:require
-   [clojure.edn :as edn]
    [clojure.java.io :as io]
    [cheshire.core :as json]
    [clojure.test :refer [deftest is testing use-fixtures]]
    [java-time.api :as time]
    [llar.appconfig]
    [llar.apis.podcast :as podcast-api]
+   [llar.persistency]
    [llar.podcast :as uut]
    [llar.rc :as rc]))
 

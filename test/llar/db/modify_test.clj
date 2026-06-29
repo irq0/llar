@@ -2,12 +2,14 @@
   "Integration tests for item storage and tag operations."
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [clojure.string :as string]
    [java-time.api :as time]
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-item create-test-tag create-test-item-data]]
    [llar.db.modify]  ; Load protocol implementations
    [llar.persistency :as persistency]
-   [next.jdbc :as jdbc]))
+   [next.jdbc :as jdbc]
+   [next.jdbc.result-set :as rs]))
 
 (use-fixtures :once with-test-db-fixture)
 (use-fixtures :each with-clean-db-fixture)
@@ -17,7 +19,7 @@
     (let [item-result (create-test-item *test-db* :hash "unique-hash-1" :title "New Item")]
       (is (some? item-result) "Should return result for new item")
       (is (number? (:id item-result)) "Should have item ID")
-      (is (clojure.string/includes? (:hash item-result) "SHA-256:") "Hash should have SHA-256 prefix"))))
+      (is (string/includes? (:hash item-result) "SHA-256:") "Hash should have SHA-256 prefix"))))
 
 (deftest test-store-duplicate-item
   (testing "Storing duplicate item (same hash) should be skipped"
@@ -30,7 +32,7 @@
       ;; Verify only one item exists in database
       (let [items (jdbc/execute! *test-db*
                                  ["SELECT * FROM items WHERE hash = ?" full-hash]
-                                 {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})]
+                                 {:builder-fn rs/as-unqualified-lower-maps})]
         (is (= 1 (count items)) "Should have exactly one item with this hash")
         (is (= "First Item" (:title (first items))) "Should keep the first item's data")))))
 
@@ -45,7 +47,7 @@
       ;; Verify the item was updated
       (let [items (jdbc/execute! *test-db*
                                  ["SELECT * FROM items WHERE hash = ?" full-hash]
-                                 {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})]
+                                 {:builder-fn rs/as-unqualified-lower-maps})]
         (is (= 1 (count items)) "Should have exactly one item")
         (is (= "Updated Title" (:title (first items))) "Title should be updated")))))
 
@@ -60,7 +62,7 @@
       ;; Verify tags are associated
       (let [stored-item (first (jdbc/execute! *test-db*
                                               ["SELECT * FROM items WHERE hash = ?" full-hash]
-                                              {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
+                                              {:builder-fn rs/as-unqualified-lower-maps}))
             tag-ids (vec (:tagi stored-item))]
         (is (= 2 (count tag-ids)) "Should have 2 tag IDs")
         (is (every? number? tag-ids) "Tag IDs should be numbers")))))
@@ -79,7 +81,7 @@
       ;; Verify item_data entries
       (let [data-rows (jdbc/execute! *test-db*
                                      ["SELECT * FROM item_data WHERE item_id = ?" item-id]
-                                     {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})]
+                                     {:builder-fn rs/as-unqualified-lower-maps})]
         (is (= 2 (count data-rows)) "Should have 2 data rows (plain + html)")
         (is (every? #(= "content" (:type %)) data-rows)
             "All should be content type")
@@ -101,7 +103,7 @@
       (let [data-rows (jdbc/execute! *test-db*
                                      ["SELECT * FROM item_data WHERE item_id = ? AND type = ?"
                                       item-id :item-data-type/description]
-                                     {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})]
+                                     {:builder-fn rs/as-unqualified-lower-maps})]
         (is (= 1 (count data-rows)) "Should have 1 description row")
         (is (= "A brief description" (:text (first data-rows)))
             "Description text should match")))))
@@ -115,7 +117,7 @@
       ;; Verify source was created (with test- prefix)
       (let [sources (jdbc/execute! *test-db*
                                    ["SELECT * FROM sources WHERE name = ?" "test-new-source"]
-                                   {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})]
+                                   {:builder-fn rs/as-unqualified-lower-maps})]
         (is (= 1 (count sources)) "Source should be created automatically")
         (is (= "test-new-source" (:name (first sources))) "Source name should have test- prefix")))))
 
@@ -132,7 +134,7 @@
         ;; Verify tags in database
       (let [stored-item (first (jdbc/execute! *test-db*
                                               ["SELECT * FROM items WHERE id = ?" item-id]
-                                              {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+                                              {:builder-fn rs/as-unqualified-lower-maps}))]
         (is (= 3 (count (:tagi stored-item))) "Should have 3 tag IDs")))))
 
 (deftest test-item-remove-tags
@@ -140,56 +142,42 @@
     (create-test-tag *test-db* :pinned)
     (create-test-tag *test-db* :important)
 
-    ;; Create item with multiple tags
-    (let [item-id (:id (create-test-item *test-db* :hash "remove-tag-item" :tags #{:unread :pinned :important}))]
-
-      ;; Remove one tag
-      (let [remaining-tags (persistency/item-remove-tags! *test-db* item-id [:unread])]
-        (is (= 2 (count remaining-tags)) "Should have 2 tags remaining")
-        (is (not (some #(= :unread %) remaining-tags)) "unread tag should be removed")))))
+    (let [item-id (:id (create-test-item *test-db* :hash "remove-tag-item" :tags #{:unread :pinned :important}))
+          remaining-tags (persistency/item-remove-tags! *test-db* item-id [:unread])]
+      (is (= 2 (count remaining-tags)) "Should have 2 tags remaining")
+      (is (not (some #(= :unread %) remaining-tags)) "unread tag should be removed"))))
 
 (deftest test-remove-unread-for-source-older-than
   (testing "remove-unread-for-items-of-source-older-then! removes unread tags from old items"
-    ;; Create items with different timestamps
     (let [old-ts (time/minus (time/zoned-date-time) (time/days 10))
           new-ts (time/zoned-date-time)
           cutoff-ts (time/minus (time/zoned-date-time) (time/days 5))
-
-      ;; Old item with unread tag
           old-id (:id (create-test-item *test-db*
                                         :hash "old-unread-item"
                                         :src-name "old-source"
                                         :tags #{:unread}
                                         :ts old-ts))
-
-        ;; New item with unread tag (should keep it)
           new-id (:id (create-test-item *test-db*
                                         :hash "new-unread-item"
                                         :src-name "old-source"
                                         :tags #{:unread}
-                                        :ts new-ts))]
-
-      ;; Get source key to pass to remove function
-      (let [source-key (-> (jdbc/execute! *test-db*
-                                          ["SELECT key FROM sources WHERE name = ?" "test-old-source"]
-                                          {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})
-                           first
-                           :key
-                           keyword)]
-
-          ;; Remove unread from old items
-        (persistency/remove-unread-for-items-of-source-older-then!
-         *test-db* [source-key] cutoff-ts)
-
-          ;; Check old item lost unread tag
-        (let [old-stored (first (jdbc/execute! *test-db*
-                                               ["SELECT * FROM items WHERE id = ?" old-id]
-                                               {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
-              new-stored (first (jdbc/execute! *test-db*
-                                               ["SELECT * FROM items WHERE id = ?" new-id]
-                                               {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
-          (is (empty? (:tagi old-stored)) "Old item should have no tags")
-          (is (= 1 (count (:tagi new-stored))) "New item should still have unread tag"))))))
+                                        :ts new-ts))
+          source-key (-> (jdbc/execute! *test-db*
+                                        ["SELECT key FROM sources WHERE name = ?" "test-old-source"]
+                                        {:builder-fn rs/as-unqualified-lower-maps})
+                         first
+                         :key
+                         keyword)]
+      (persistency/remove-unread-for-items-of-source-older-then!
+       *test-db* [source-key] cutoff-ts)
+      (let [old-stored (first (jdbc/execute! *test-db*
+                                             ["SELECT * FROM items WHERE id = ?" old-id]
+                                             {:builder-fn rs/as-unqualified-lower-maps}))
+            new-stored (first (jdbc/execute! *test-db*
+                                             ["SELECT * FROM items WHERE id = ?" new-id]
+                                             {:builder-fn rs/as-unqualified-lower-maps}))]
+        (is (empty? (:tagi old-stored)) "Old item should have no tags")
+        (is (= 1 (count (:tagi new-stored))) "New item should still have unread tag")))))
 
 (deftest test-remove-unread-for-items-with-tag
   (testing "remove-unread-for-items-with-tag! clears :unread only for items carrying that tag"
@@ -200,10 +188,10 @@
       (persistency/remove-unread-for-items-with-tag! *test-db* :digest-issue-1)
       (let [a (first (jdbc/execute! *test-db*
                                     ["SELECT * FROM items WHERE id = ?" in-issue]
-                                    {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))
+                                    {:builder-fn rs/as-unqualified-lower-maps}))
             b (first (jdbc/execute! *test-db*
                                     ["SELECT * FROM items WHERE id = ?" other]
-                                    {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+                                    {:builder-fn rs/as-unqualified-lower-maps}))]
         (is (= 1 (count (:tagi a))) "issue-1 item keeps only its issue tag (unread cleared)")
         (is (= 2 (count (:tagi b))) "issue-2 item is untouched")))))
 
@@ -219,7 +207,7 @@
                                                   tagi @@ (select format('(%s)', id) from tags where tag = 'digest-issue-5')::query_int as has_issue,
                                                   tagi @@ '1' as saved, tagi @@ '0' as unread
                                            FROM items WHERE id = ?" item-id]
-                                         {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps}))]
+                                         {:builder-fn rs/as-unqualified-lower-maps}))]
         (is (false? (:has_digest stored)) ":digest removed after send")
         (is (true? (:has_issue stored)) ":digest-issue-5 added")
         (is (true? (:saved stored)) ":saved preserved")
@@ -241,5 +229,5 @@
         ;; Verify referential integrity: every item_data entry has a valid item_id
         (let [orphaned (jdbc/execute! *test-db*
                                       ["SELECT * FROM item_data WHERE item_id NOT IN (SELECT id FROM items)"]
-                                      {:builder-fn next.jdbc.result-set/as-unqualified-lower-maps})]
+                                      {:builder-fn rs/as-unqualified-lower-maps})]
           (is (empty? orphaned) "Should have no orphaned item_data entries"))))))

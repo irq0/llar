@@ -2,8 +2,6 @@
   "Test fixture utilities for managing PostgreSQL testcontainers and test data."
   (:require
    [clj-test-containers.core :as tc]
-   [clojure.java.io :as io]
-   [clojure.test :refer [use-fixtures]]
    [digest :as digest]
    [llar.db.sql :as sql]
    [clojure.tools.logging :as log]
@@ -152,7 +150,7 @@
 (defn create-test-item-data
   "Creates item_data entry for an item.
   Returns the created item_data row."
-  [db & {:keys [item-id mime-type type data text]
+  [db & {:keys [item-id mime-type type text]
          :or {mime-type "text/plain"
               type :item-data-type/content}}]
   (first
