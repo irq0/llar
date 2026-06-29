@@ -26,21 +26,13 @@
        ;;          :keep-unread-issues 1        ; recent issues kept :unread before auto-clearing older
        ;;          :inline-images? true}
        }
- :ui {:default-list-view {:storage :headlines
-                          :shopping :headlines
+ :ui {:default-list-view {:bookmark :gallery
                           :tweet :gallery}
       :favorites [[:all :default]
                   [:saved :item-tags]
                   [:highlight :item-tags]
                   [:in-progress :item-tags]
-                  [:blog :source-tag]
-                  [:hackernews :source-tag]
-                  [:tech :source-tag]
-                  [:deep-tech :source-tag]
-                  [:sci :source-tag]
-                  [:news :source-tag]
-                  [:bookmark :type]
-                  [:recreation :source-tag]]}
+                  [:bookmark :type]]}
  :throttle {:command-max-concurrent 20
             :av-downloader-max-concurrent 2
             :streaming-max-concurrent 1}
