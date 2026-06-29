@@ -15,7 +15,7 @@
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.core :as cheshire]
-   [llar.appconfig :refer [appconfig postgresql-config credentials digest]]
+   [llar.appconfig :refer [postgresql-config credentials digest]]
    [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.core :as db]
@@ -724,8 +724,8 @@
        [:a {:class "btn" :id "btn-annotation-mode" :title "Annotation Mode (a)"}
         "\u00a0" (icon "fas fa-pen-fancy")]
        (let [has-zotero (some? (credentials :zotero))
-             has-url-handler (some? (get-in appconfig [:export :url-handler]))
-             url-handler-cfg (get-in appconfig [:export :url-handler])]
+             url-handler-cfg (rc/rc [:reader :export :url-handler])
+             has-url-handler (some? url-handler-cfg)]
          (when (or has-zotero has-url-handler)
            [:div {:class "dropdown d-inline-block"}
             [:a {:class "btn dropdown-toggle btn-sm"

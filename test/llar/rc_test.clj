@@ -23,7 +23,9 @@
     (is (= (get-in shipped [:ui :default-list-view])
            (uut/rc [:reader :default-list-view])))
     (is (= (get-in shipped [:ranking :highlight-boost-hours])
-           (uut/rc [:reader :ranking :highlight-boost-hours])))))
+           (uut/rc [:reader :ranking :highlight-boost-hours])))
+    (is (= (get-in shipped [:export :url-handler])
+           (uut/rc [:reader :export :url-handler])))))
 
 (deftest rc-entries-describe-supported-paths
   (let [entries (uut/rc-entries)
@@ -38,11 +40,22 @@
   (with-redefs [appconfig/appconfig {:ui {:favorites [[:appconfig :source-tag]]
                                           :default-list-view {:appconfig :gallery}}
                                      :ranking {:highlight-boost-hours 12
-                                               :rarity-boost-cap-hours 24}}]
+                                               :rarity-boost-cap-hours 24}
+                                     :export {:url-handler {:name "Handler"
+                                                            :template "app://save?url={url}"}}}]
     (uut/reset-rc!)
     (is (= [[:appconfig :source-tag]] (uut/rc [:reader :favorites])))
     (is (= :gallery (uut/rc [:reader :default-list-view :appconfig])))
-    (is (= 12 (uut/rc [:reader :ranking :highlight-boost-hours])))))
+    (is (= 12 (uut/rc [:reader :ranking :highlight-boost-hours])))
+    (is (= {:name "Handler"
+            :template "app://save?url={url}"}
+           (uut/rc [:reader :export :url-handler])))))
+
+(deftest rc-appconfig-omits-shipped-defaults
+  (with-redefs [appconfig/appconfig (shipped-system-config-defaults)]
+    (uut/reset-rc!)
+    (is (= {} (uut/rc-appconfig)))
+    (is (= uut/rc-defaults (uut/rc-effective)))))
 
 (deftest rc-overrides-win-over-appconfig-path
   (with-redefs [appconfig/appconfig {:ui {:favorites [[:appconfig :source-tag]]}
@@ -70,13 +83,28 @@
   (is (= {:highlight-boost-hours 72
           :rarity-boost-cap-hours 12}
          (uut/reader-ranking :highlight-boost-hours 72
-                             :rarity-boost-cap-hours 12))))
+                             :rarity-boost-cap-hours 12)))
+  (is (= {:name "Handler"
+          :template "app://save?url={url}"}
+         (uut/reader-url-handler :name "Handler"
+                                 :template "app://save?url={url}")))
+  (is (nil? (uut/reader-url-handler nil))))
 
 (deftest reader-ranking-validates-pairs
   (is (thrown-with-msg?
        clojure.lang.ExceptionInfo
        #"reader-ranking expects key/value pairs"
        (uut/reader-ranking :highlight-boost-hours))))
+
+(deftest reader-url-handler-validates-shape
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"reader-url-handler expects a map, nil, or key/value pairs"
+       (uut/reader-url-handler :name)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/reader-url-handler {:name "Handler"}))))
 
 (deftest rc-rejects-unknown-paths-and-invalid-values
   (uut/reset-rc!)

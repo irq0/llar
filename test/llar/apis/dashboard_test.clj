@@ -76,7 +76,6 @@
       (is (string/includes? (:body response) "Runtime config (rc)"))
       (is (string/includes? (:body response) "Effective"))
       (is (string/includes? (:body response) "Overrides"))
-      (is (string/includes? (:body response) "System config fallback"))
       (is (string/includes? (:body response) "Defaults"))
       (is (string/includes? (:body response) "Supported rc paths"))
       (is (string/includes? (:body response) "[:reader :favorites]"))

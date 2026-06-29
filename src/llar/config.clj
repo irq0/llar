@@ -358,6 +358,10 @@
   :var llar.rc/reader-ranking
   :handler-fn llar.config/handle-eval-config-form!)
 
+(defconfig-symbol reader-url-handler
+  :var llar.rc/reader-url-handler
+  :handler-fn llar.config/handle-eval-config-form!)
+
 (defconfig-symbol srcs
   :var llar.config/srcs
   :private? true)

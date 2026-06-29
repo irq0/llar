@@ -1,7 +1,7 @@
 (ns llar.export.url-handler
   (:require
    [clojure.string :as string]
-   [llar.appconfig :refer [appconfig]])
+   [llar.rc :as rc])
   (:import
    (java.net URLEncoder)))
 
@@ -32,7 +32,7 @@
 ;;    :template "bear://x-callback-url/create?title={title}&text={body}&url={url}&tags=llar,{source}"}
 
 (defn url-handler-config []
-  (get-in appconfig [:export :url-handler]))
+  (rc/rc [:reader :export :url-handler]))
 
 (defn url-encode [s]
   (-> (URLEncoder/encode (str s) "UTF-8")

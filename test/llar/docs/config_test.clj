@@ -67,6 +67,7 @@
     (is (contains? construct-names 'reader-favorite))
     (is (contains? construct-names 'reader-default-list-view))
     (is (contains? construct-names 'reader-ranking))
+    (is (contains? construct-names 'reader-url-handler))
     (is (contains? construct-names 'sort-default))))
 
 (deftest config-engine-registry-drives-runtime-docs

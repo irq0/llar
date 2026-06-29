@@ -662,7 +662,7 @@
    (map-to-tree (rc/rc-effective))
    [:h6 "Overrides"]
    (map-to-tree (rc/rc-overrides))
-   [:h6 "System config fallback"]
+   [:h6 "System config"]
    (map-to-tree (rc/rc-appconfig))
    [:h6 "Defaults"]
    (map-to-tree rc/rc-defaults)

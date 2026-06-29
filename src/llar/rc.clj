@@ -17,18 +17,24 @@
    {:path [:reader :ranking]
     :appconfig-path [:ranking]
     :spec :irq0-appconfig/ranking
-    :doc "Ranking query tuning."}])
+    :doc "Ranking query tuning."}
+   {:path [:reader :export :url-handler]
+    :appconfig-path [:export :url-handler]
+    :spec :irq0-appconfig/url-handler
+    :doc "External URL handler used for reader annotation export."}])
 
 (defn- shipped-system-config-defaults []
   (edn/read-string (slurp (io/resource "config.edn"))))
 
+(def ^:private shipped-appconfig-defaults
+  (shipped-system-config-defaults))
+
 (def rc-defaults
-  (let [shipped-defaults (shipped-system-config-defaults)]
-    (reduce
-     (fn [defaults {:keys [path appconfig-path]}]
-       (assoc-in defaults path (get-in shipped-defaults appconfig-path)))
-     {}
-     rc-registry)))
+  (reduce
+   (fn [defaults {:keys [path appconfig-path]}]
+     (assoc-in defaults path (get-in shipped-appconfig-defaults appconfig-path)))
+   {}
+   rc-registry))
 
 (defonce rc-overrides* (atom {}))
 
@@ -115,7 +121,8 @@
    (fn [config-values {:keys [path appconfig-path] :as entry}]
      (if (and appconfig-path (appconfig-map))
        (let [value (get-in (appconfig-map) appconfig-path ::missing)]
-         (if (= ::missing value)
+         (if (or (= ::missing value)
+                 (= value (get-in shipped-appconfig-defaults appconfig-path)))
            config-values
            (do
              (assert-valid-value! entry path value)
@@ -151,7 +158,7 @@
         :llar.config/order 80
         :llar.config/keys ["PATH is a vector under a supported runtime config root"
                            "VALUE is validated with the path's runtime config spec"
-                           "Supported roots: [:reader :favorites], [:reader :default-list-view], [:reader :ranking]"]
+                           "Supported roots include [:reader :favorites], [:reader :default-list-view], [:reader :ranking], and [:reader :export :url-handler]"]
         :llar.config/example "(rc [:reader :ranking :highlight-boost-hours] 48)\n(rc [:reader :default-list-view :storage] :headlines)"}
   rc
   "Read or set dynamic runtime behavior config.
@@ -211,3 +218,30 @@
   (doseq [[k v] (partition 2 kvs)]
     (rc [:reader :ranking k] v))
   (rc [:reader :ranking]))
+
+(defn ^{:llar.config/kind :construct
+        :llar.config/form "(reader-url-handler CONFIG)"
+        :llar.config/order 84
+        :llar.config/keys ["CONFIG is nil, a map, or key/value pairs"
+                           "Required key: :template"
+                           "Optional keys: :name, :icon"
+                           "The template supports {title}, {url}, {id}, {source}, and {body}"]
+        :llar.config/example "(reader-url-handler :name \"Org-roam\"\n                    :icon \"fas fa-brain\"\n                    :template \"org-protocol://roam-ref?ref={url}&title={title}&body={body}\")"}
+  reader-url-handler
+  "Configure reader annotation export through an external URL handler."
+  [& args]
+  (let [config (cond
+                 (and (= 1 (count args)) (nil? (first args)))
+                 nil
+
+                 (and (= 1 (count args)) (map? (first args)))
+                 (first args)
+
+                 (odd? (count args))
+                 (throw (ex-info "reader-url-handler expects a map, nil, or key/value pairs"
+                                 {:type ::invalid-reader-url-handler
+                                  :form args}))
+
+                 :else
+                 (apply hash-map args))]
+    (rc [:reader :export :url-handler] config)))

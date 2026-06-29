@@ -76,6 +76,15 @@
 (s/def :irq0-appconfig/rarity-boost-cap-hours number?)
 (s/def :irq0-appconfig/ranking (s/keys :opt-un [:irq0-appconfig/highlight-boost-hours
                                                 :irq0-appconfig/rarity-boost-cap-hours]))
+(s/def :irq0-appconfig/name string?)
+(s/def :irq0-appconfig/icon string?)
+(s/def :irq0-appconfig/template string?)
+(s/def :irq0-appconfig/url-handler
+  (s/nilable (s/keys :req-un [:irq0-appconfig/template]
+                     :opt-un [:irq0-appconfig/name
+                              :irq0-appconfig/icon])))
+(s/def :irq0-appconfig/export
+  (s/keys :opt-un [:irq0-appconfig/url-handler]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/blob-store-dir
@@ -86,6 +95,7 @@
                    :irq0-appconfig/ui
                    :irq0-appconfig/postgresql]
           :opt-un [:irq0-appconfig/ranking
+                   :irq0-appconfig/export
                    :irq0-appconfig/mail]))
 
 (defn verify-config [config]
