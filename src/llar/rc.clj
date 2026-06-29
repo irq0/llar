@@ -168,3 +168,46 @@
      (assert-valid-value! entry path value)
      (swap! rc-overrides* assoc-in path value)
      value)))
+
+(defn ^{:llar.config/kind :construct
+        :llar.config/form "(reader-favorite KEY GROUP)"
+        :llar.config/order 81
+        :llar.config/keys ["KEY is a source tag, item tag, source key, or view key"
+                           "GROUP is one of :default, :item-tags, :source-tag, or :type"
+                           "Repeated definitions replace the favorite for KEY and append it at the end"]
+        :llar.config/example "(reader-favorite :blog :source-tag)\n(reader-favorite :saved :item-tags)"}
+  reader-favorite
+  "Add or replace one reader favorite navigation entry."
+  [key group]
+  (let [favorites (remove #(= key (first %)) (rc [:reader :favorites]))
+        updated (conj (vec favorites) [key group])]
+    (rc [:reader :favorites] updated)))
+
+(defn ^{:llar.config/kind :construct
+        :llar.config/form "(reader-default-list-view KEY STYLE)"
+        :llar.config/order 82
+        :llar.config/keys ["KEY is a source tag, item tag, source key, or view key"
+                           "STYLE is one of :headlines or :gallery"]
+        :llar.config/example "(reader-default-list-view :storage :headlines)\n(reader-default-list-view :tweet :gallery)"}
+  reader-default-list-view
+  "Set the default reader list style for one group item."
+  [key style]
+  (rc [:reader :default-list-view key] style))
+
+(defn ^{:llar.config/kind :construct
+        :llar.config/form "(reader-ranking KEY VALUE ...)"
+        :llar.config/order 83
+        :llar.config/keys ["KEY is :highlight-boost-hours or :rarity-boost-cap-hours"
+                           "VALUE is numeric"
+                           "Multiple key/value pairs can be set in one form"]
+        :llar.config/example "(reader-ranking :highlight-boost-hours 48\n                :rarity-boost-cap-hours 168)"}
+  reader-ranking
+  "Set reader ranking tuning values."
+  [& kvs]
+  (when (odd? (count kvs))
+    (throw (ex-info "reader-ranking expects key/value pairs"
+                    {:type ::invalid-reader-ranking
+                     :form kvs})))
+  (doseq [[k v] (partition 2 kvs)]
+    (rc [:reader :ranking k] v))
+  (rc [:reader :ranking]))

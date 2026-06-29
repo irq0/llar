@@ -64,6 +64,9 @@
     (is (contains? construct-names 'fetch))
     (is (contains? construct-names 'sched-fetch))
     (is (contains? construct-names 'rc))
+    (is (contains? construct-names 'reader-favorite))
+    (is (contains? construct-names 'reader-default-list-view))
+    (is (contains? construct-names 'reader-ranking))
     (is (contains? construct-names 'sort-default))))
 
 (deftest config-engine-registry-drives-runtime-docs

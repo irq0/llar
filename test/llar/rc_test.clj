@@ -57,6 +57,27 @@
             :rarity-boost-cap-hours 24}
            (uut/rc [:reader :ranking])))))
 
+(deftest reader-front-constructs-write-rc
+  (uut/reset-rc!)
+  (is (some #{[:blog :source-tag]} (uut/reader-favorite :blog :source-tag)))
+  (is (some #{[:blog :item-tags]} (uut/reader-favorite :blog :item-tags)))
+  (is (= 1 (count (filter #(= :blog (first %))
+                          (uut/rc [:reader :favorites])))))
+  (is (= :headlines
+         (uut/reader-default-list-view :blog :headlines)))
+  (is (= :headlines
+         (uut/rc [:reader :default-list-view :blog])))
+  (is (= {:highlight-boost-hours 72
+          :rarity-boost-cap-hours 12}
+         (uut/reader-ranking :highlight-boost-hours 72
+                             :rarity-boost-cap-hours 12))))
+
+(deftest reader-ranking-validates-pairs
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"reader-ranking expects key/value pairs"
+       (uut/reader-ranking :highlight-boost-hours))))
+
 (deftest rc-rejects-unknown-paths-and-invalid-values
   (uut/reset-rc!)
   (is (thrown-with-msg?

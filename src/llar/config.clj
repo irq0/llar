@@ -346,6 +346,18 @@
   :var llar.rc/rc
   :handler-fn llar.config/handle-eval-config-form!)
 
+(defconfig-symbol reader-favorite
+  :var llar.rc/reader-favorite
+  :handler-fn llar.config/handle-eval-config-form!)
+
+(defconfig-symbol reader-default-list-view
+  :var llar.rc/reader-default-list-view
+  :handler-fn llar.config/handle-eval-config-form!)
+
+(defconfig-symbol reader-ranking
+  :var llar.rc/reader-ranking
+  :handler-fn llar.config/handle-eval-config-form!)
+
 (defconfig-symbol srcs
   :var llar.config/srcs
   :private? true)
