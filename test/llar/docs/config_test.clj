@@ -27,6 +27,9 @@
     (is (string/includes? html "[:reader :favorites]"))
     (is (string/includes? html "[:ui :favorites]"))
     (is (string/includes? html "(rc [:reader :ranking] VALUE)"))
+    (is (string/includes? html ":irq0-appconfig/ranking"))
+    (is (string/includes? html ":highlight-boost-hours"))
+    (is (string/includes? html ":rarity-boost-cap-hours"))
     (is (not (string/includes? html "<script")))
     (doseq [schedule-key (keys (sched/canned-schedule-metadata))]
       (is (string/includes? html (str schedule-key))))))

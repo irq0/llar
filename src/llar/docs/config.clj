@@ -130,6 +130,12 @@
 (defn- code-block [s]
   [:pre {:class "bg-light border rounded p-3"} [:code s]])
 
+(defn- spec-description [spec]
+  (try
+    (value-label (s/describe spec))
+    (catch Exception _
+      nil)))
+
 (defn- section [id title & body]
   (into [:section {:id id :class "mb-5"}
          [:h2 {:class "border-bottom pb-2"} title]]
@@ -157,7 +163,10 @@
       [:tr
        [:th {:scope "row"} (code (pr-str path))]
        [:td doc]
-       [:td (code (pr-str spec))]
+       [:td
+        (code (pr-str spec))
+        (when-let [description (spec-description spec)]
+          [:div {:class "small text-muted mt-1"} (code description)])]
        [:td (when appconfig-path
               (code (pr-str appconfig-path)))]
        [:td (code example)]])]])
