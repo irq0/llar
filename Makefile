@@ -10,16 +10,18 @@ chartjs_version := 4.4.8
 jquery_datatables_version := 2.1.8
 datatables_buttons_version := 3.2.0
 llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
+DOCS_OUT ?= target/docs
 
 all: web-3rd-party uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables chartjs uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables chartjs uberjar docker-image
 
 resources/status/ibmplex/Web/LICENSE.txt:
 	mkdir -p resources/status/ibmplex
 	wget --quiet -nc -O - "https://github.com/IBM/plex/releases/download/v$(ibmplex_version)/Web.zip" \
 	| bsdtar -xzf- -C resources/status/ibmplex
 ibmplex: resources/status/ibmplex/Web/LICENSE.txt
+resources/status/ibmplex/Web/css/ibm-plex.min.css: resources/status/ibmplex/Web/LICENSE.txt
 
 resources/status/fontawesome/LICENSE.txt:
 	mkdir -p resources/status/fontawesome
@@ -32,6 +34,7 @@ resources/status/bootstrap/js/bootstrap.bundle.min.js:
 	wget --quiet -nc -O - "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip" \
 	| bsdtar -xzf- -C resources/status/bootstrap --strip-components 1 "bootstrap-$(bootstrap_version)-dist/"
 bootstrap: resources/status/bootstrap/js/bootstrap.bundle.min.js
+resources/status/bootstrap/css/bootstrap.min.css: resources/status/bootstrap/js/bootstrap.bundle.min.js
 
 resources/status/jquery/jquery.min.js:
 	mkdir -p resources/status/jquery
@@ -85,6 +88,14 @@ chartjs: resources/status/chartjs/chart.umd.min.js
 
 
 web-3rd-party: datatables popper waypoints hammer-js jquery bootstrap fontawesome ibmplex chartjs
+
+docs-requirements: resources/status/bootstrap/css/bootstrap.min.css resources/status/ibmplex/Web/css/ibm-plex.min.css
+
+docs-assets: docs-requirements resources/status/llar.css
+	mkdir -p "$(DOCS_OUT)/static/bootstrap/css" "$(DOCS_OUT)/static/ibmplex/Web/css" "$(DOCS_OUT)/static"
+	cp resources/status/bootstrap/css/bootstrap.min.css "$(DOCS_OUT)/static/bootstrap/css/bootstrap.min.css"
+	cp resources/status/ibmplex/Web/css/ibm-plex.min.css "$(DOCS_OUT)/static/ibmplex/Web/css/ibm-plex.min.css"
+	cp resources/status/llar.css "$(DOCS_OUT)/static/llar.css"
 
 clean-web-3rd-party:
 	rm -rf resources/status/datatables
