@@ -287,18 +287,17 @@
     (rc [:podcast :download])))
 
 (defn ^{:llar.config/kind :construct
-        :llar.config/form "(reader-favorite KEY GROUP)"
+        :llar.config/form "(reader-favorites FAVORITES)"
         :llar.config/order 81
-        :llar.config/keys ["KEY is a source tag, item tag, source key, or view key"
+        :llar.config/keys ["FAVORITES is the complete ordered list of [KEY GROUP] pairs"
+                           "KEY is a source tag, item tag, source key, or view key"
                            "GROUP is one of :default, :item-tags, :source-tag, or :type"
-                           "Repeated definitions replace the favorite for KEY and append it at the end"]
-        :llar.config/example "(reader-favorite :blog :source-tag)\n(reader-favorite :saved :item-tags)"}
-  reader-favorite
-  "Add or replace one reader favorite navigation entry."
-  [key group]
-  (let [favorites (remove #(= key (first %)) (rc [:reader :favorites]))
-        updated (conj (vec favorites) [key group])]
-    (rc [:reader :favorites] updated)))
+                           "Omit entries from FAVORITES to remove them from the reader navigation"]
+        :llar.config/example "(reader-favorites\n [[:all :default]\n  [:saved :item-tags]\n  [:highlight :item-tags]\n  [:bookmark :type]])"}
+  reader-favorites
+  "Set the complete ordered reader favorite navigation list."
+  [favorites]
+  (rc [:reader :favorites] (vec favorites)))
 
 (defn ^{:llar.config/kind :construct
         :llar.config/form "(reader-default-list-view KEY STYLE)"

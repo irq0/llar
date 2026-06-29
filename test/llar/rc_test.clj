@@ -104,10 +104,18 @@
 
 (deftest reader-front-constructs-write-rc
   (uut/reset-rc!)
-  (is (some #{[:blog :source-tag]} (uut/reader-favorite :blog :source-tag)))
-  (is (some #{[:blog :item-tags]} (uut/reader-favorite :blog :item-tags)))
-  (is (= 1 (count (filter #(= :blog (first %))
-                          (uut/rc [:reader :favorites])))))
+  (is (= [[:all :default]
+          [:saved :item-tags]
+          [:blog :source-tag]]
+         (uut/reader-favorites [[:all :default]
+                                [:saved :item-tags]
+                                [:blog :source-tag]])))
+  (is (= [[:all :default]
+          [:blog :item-tags]]
+         (uut/reader-favorites [[:all :default]
+                                [:blog :item-tags]])))
+  (is (not (some #(= :saved (first %))
+                 (uut/rc [:reader :favorites]))))
   (is (= :headlines
          (uut/reader-default-list-view :blog :headlines)))
   (is (= :headlines
@@ -153,6 +161,12 @@
        clojure.lang.ExceptionInfo
        #"reader-ranking expects key/value pairs"
        (uut/reader-ranking :highlight-boost-hours))))
+
+(deftest reader-favorites-validates-shape
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/reader-favorites [[:blog :not-a-view-group]]))))
 
 (deftest reader-url-handler-validates-shape
   (is (thrown-with-msg?

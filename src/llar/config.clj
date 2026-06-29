@@ -344,8 +344,8 @@
   :var llar.rc/rc
   :handler-fn llar.config/handle-eval-config-form!)
 
-(defconfig-symbol reader-favorite
-  :var llar.rc/reader-favorite
+(defconfig-symbol reader-favorites
+  :var llar.rc/reader-favorites
   :handler-fn llar.config/handle-eval-config-form!)
 
 (defconfig-symbol reader-default-list-view
