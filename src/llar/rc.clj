@@ -21,7 +21,11 @@
    {:path [:reader :export :url-handler]
     :appconfig-path [:export :url-handler]
     :spec :irq0-appconfig/url-handler
-    :doc "External URL handler used for reader annotation export."}])
+    :doc "External URL handler used for reader annotation export."}
+   {:path [:podcast :retention]
+    :appconfig-path [:api :podcast :retention]
+    :spec :irq0-appconfig/podcast-retention
+    :doc "Podcast episode retention policy."}])
 
 (defn- shipped-system-config-defaults []
   (edn/read-string (slurp (io/resource "config.edn"))))
@@ -158,13 +162,13 @@
         :llar.config/order 80
         :llar.config/keys ["PATH is a vector under a supported runtime config root"
                            "VALUE is validated with the path's runtime config spec"
-                           "Supported roots include [:reader :favorites], [:reader :default-list-view], [:reader :ranking], and [:reader :export :url-handler]"]
+                           "Supported roots include [:reader :favorites], [:reader :default-list-view], [:reader :ranking], [:reader :export :url-handler], and [:podcast :retention]"]
         :llar.config/example "(rc [:reader :ranking :highlight-boost-hours] 48)\n(rc [:reader :default-list-view :storage] :headlines)"}
   rc
   "Read or set dynamic runtime behavior config.
 
-  Reads resolve runtime overrides first, system config values second, and
-  code defaults last."
+  Reads resolve runtime overrides first, system config values that differ from
+  shipped defaults second, and shipped defaults last."
   ([path]
    (let [path (vec path)]
      (assert-known-path! path)
@@ -245,3 +249,14 @@
                  :else
                  (apply hash-map args))]
     (rc [:reader :export :url-handler] config)))
+
+(defmacro ^{:llar.config/kind :construct
+            :llar.config/form "(podcast-retention SOURCE-KEY LIMIT)"
+            :llar.config/order 85
+            :llar.config/keys ["SOURCE-KEY is the configured source key"
+                               "LIMIT is the episode count to retain"]
+            :llar.config/example "(podcast-retention my-video-feed 10)"}
+  podcast-retention
+  "Override podcast retention for a source."
+  [source-key limit]
+  `(rc [:podcast :retention :sources ~(keyword source-key)] ~limit))

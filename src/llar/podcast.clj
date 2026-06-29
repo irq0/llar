@@ -11,6 +11,7 @@
    [llar.converter :as conv]
    [llar.persistency :as persistency]
    [llar.postproc :as postproc]
+   [llar.rc :as rc]
    [llar.sched :refer [defsched]]
    [llar.store :as store]
    [org.bovinegenius [exploding-fish :as uri]]
@@ -52,17 +53,13 @@
 ;;           :error nil
 ;;           :last-attempt nil}}
 
-;;;; Retention configuration
-
-(defonce source-retention-overrides (atom {}))
-;; {source-key episode-limit, e.g. {:my-channel 50}}
-
 (defn episode-limit-for-source
-  "Return the episode limit for a source. Checks per-source overrides, then global config, fallback 25."
+  "Return the episode limit for a source. Checks per-source runtime config,
+  then the runtime default, then a defensive fallback."
   [source-key]
   (let [k (keyword source-key)]
-    (or (get @source-retention-overrides k)
-        (get-in (appconfig/podcast) [:retention :default-episode-limit])
+    (or (rc/rc [:podcast :retention :sources k])
+        (rc/rc [:podcast :retention :default-episode-limit])
         25)))
 
 ;;;; Podcast index file

@@ -12,7 +12,6 @@
    [llar.fetchutils :refer [make-reddit-proc]]
    [llar.human :as human]
    [llar.src :as src]
-   [llar.podcast :as podcast]
    [llar.rc]
    [llar.fetch.custom]
    [llar.fetch.feed]
@@ -210,15 +209,6 @@
   highlight nil)
 
 (def ^{:llar.config/kind :special-form
-       :llar.config/form "(podcast-retention SOURCE-KEY LIMIT)"
-       :llar.config/order 60
-       :doc "Override podcast retention for a source."
-       :llar.config/keys ["SOURCE-KEY is the configured source key"
-                          "LIMIT is the episode count to retain"]
-       :llar.config/example "(podcast-retention my-video-feed 10)"}
-  podcast-retention nil)
-
-(def ^{:llar.config/kind :special-form
        :llar.config/form "(sort-default TAG-KEY SORT-ORDER)"
        :llar.config/order 70
        :doc "Set the default sort order for source or item tag views."
@@ -335,8 +325,8 @@
   :handler-fn llar.config/handle-highlight-config-form!)
 
 (defconfig-symbol podcast-retention
-  :doc-var llar.config/podcast-retention
-  :handler-fn llar.config/handle-podcast-retention-config-form!)
+  :var llar.rc/podcast-retention
+  :handler-fn llar.config/handle-eval-config-form!)
 
 (defconfig-symbol sort-default
   :doc-var llar.config/sort-default
@@ -571,15 +561,6 @@
     (eval form)
     (catch Exception e
       (log/error e "failed to load config definition" (first form)))))
-
-(defn handle-podcast-retention-config-form! [form]
-  (try
-    (let [source-key (keyword (second form))
-          limit (nth form 2)]
-      (log/debugf "loading podcast retention override: %s -> %d" source-key limit)
-      (swap! podcast/source-retention-overrides assoc source-key limit))
-    (catch Exception e
-      (log/error e "failed to load podcast-retention def" (second form)))))
 
 (defn handle-sort-default-config-form! [form]
   (try

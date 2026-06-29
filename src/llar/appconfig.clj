@@ -85,6 +85,11 @@
                               :irq0-appconfig/icon])))
 (s/def :irq0-appconfig/export
   (s/keys :opt-un [:irq0-appconfig/url-handler]))
+(s/def :irq0-appconfig/default-episode-limit pos-int?)
+(s/def :irq0-appconfig/sources (s/map-of keyword? pos-int?))
+(s/def :irq0-appconfig/podcast-retention
+  (s/keys :req-un [:irq0-appconfig/default-episode-limit]
+          :opt-un [:irq0-appconfig/sources]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/blob-store-dir

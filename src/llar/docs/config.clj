@@ -289,7 +289,7 @@
      "System config is EDN, loaded at startup before runtime " (code ".llar")
      " files. It configures paths, commands, API ports, PostgreSQL pools, mail transport, credentials location, and other service-level settings."]
     [:p
-     "Runtime behavior settings such as reader favorites, default list views, and ranking tuning are available through "
+     "Runtime behavior settings such as reader favorites, default list views, ranking tuning, and podcast retention are available through "
      (code "rc") ". Existing system config keys for those settings remain supported through their system config paths."]
     [:p
      "Use " (code "resources/config.edn") " as the complete default example and "

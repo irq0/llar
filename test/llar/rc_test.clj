@@ -25,7 +25,9 @@
     (is (= (get-in shipped [:ranking :highlight-boost-hours])
            (uut/rc [:reader :ranking :highlight-boost-hours])))
     (is (= (get-in shipped [:export :url-handler])
-           (uut/rc [:reader :export :url-handler])))))
+           (uut/rc [:reader :export :url-handler])))
+    (is (= (get-in shipped [:api :podcast :retention])
+           (uut/rc [:podcast :retention])))))
 
 (deftest rc-entries-describe-supported-paths
   (let [entries (uut/rc-entries)
@@ -41,12 +43,14 @@
                                           :default-list-view {:appconfig :gallery}}
                                      :ranking {:highlight-boost-hours 12
                                                :rarity-boost-cap-hours 24}
+                                     :api {:podcast {:retention {:default-episode-limit 30}}}
                                      :export {:url-handler {:name "Handler"
                                                             :template "app://save?url={url}"}}}]
     (uut/reset-rc!)
     (is (= [[:appconfig :source-tag]] (uut/rc [:reader :favorites])))
     (is (= :gallery (uut/rc [:reader :default-list-view :appconfig])))
     (is (= 12 (uut/rc [:reader :ranking :highlight-boost-hours])))
+    (is (= 30 (uut/rc [:podcast :retention :default-episode-limit])))
     (is (= {:name "Handler"
             :template "app://save?url={url}"}
            (uut/rc [:reader :export :url-handler])))))
@@ -88,7 +92,12 @@
           :template "app://save?url={url}"}
          (uut/reader-url-handler :name "Handler"
                                  :template "app://save?url={url}")))
-  (is (nil? (uut/reader-url-handler nil))))
+  (is (nil? (uut/reader-url-handler nil)))
+  (is (= 10 (uut/podcast-retention my-video-feed 10)))
+  (is (= 10 (uut/rc [:podcast :retention :sources :my-video-feed])))
+  (is (= 12 (eval '(llar.rc/podcast-retention another-feed 12))))
+  (is (= 12 (uut/rc [:podcast :retention :sources :another-feed])))
+  (is (= 50 (uut/rc [:podcast :retention :default-episode-limit] 50))))
 
 (deftest reader-ranking-validates-pairs
   (is (thrown-with-msg?
@@ -119,4 +128,12 @@
   (is (thrown-with-msg?
        clojure.lang.ExceptionInfo
        #"Invalid runtime config value"
-       (uut/rc [:reader :favorites] [[:blog :not-a-view-group]]))))
+       (uut/rc [:reader :favorites] [[:blog :not-a-view-group]])))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/rc [:podcast :retention :sources :my-feed] 0)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/rc [:podcast :retention :default-episode-limit] -1))))

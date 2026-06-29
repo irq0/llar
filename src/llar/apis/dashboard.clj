@@ -428,7 +428,7 @@
           (human/filesize (:total-size stats)) " total"]])]
 
      ;; Per-source retention summary
-     (let [overrides @podcast/source-retention-overrides
+     (let [overrides (or (rc/rc [:podcast :retention :sources]) {})
            by-source (or (:by-source stats) {})
            ;; Normalize by-source keys to keywords for matching with overrides
            by-source-kw (into {} (map (fn [[k v]] [(keyword k) v]) by-source))

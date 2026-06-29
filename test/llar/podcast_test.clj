@@ -3,11 +3,18 @@
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [cheshire.core :as json]
-   [clojure.test :refer [deftest is testing]]
+   [clojure.test :refer [deftest is testing use-fixtures]]
    [java-time.api :as time]
    [llar.appconfig]
    [llar.apis.podcast :as podcast-api]
-   [llar.podcast :as uut]))
+   [llar.podcast :as uut]
+   [llar.rc :as rc]))
+
+(use-fixtures :each
+  (fn [f]
+    (rc/reset-rc!)
+    (f)
+    (rc/reset-rc!)))
 
 (deftest test-format-duration
   (testing "formats seconds as HH:MM:SS"
@@ -117,21 +124,19 @@
 
 (deftest test-episode-limit-for-source
   (testing "returns per-source override when set"
-    (reset! uut/source-retention-overrides {:my-source 10})
-    (is (= 10 (uut/episode-limit-for-source :my-source)))
-    (reset! uut/source-retention-overrides {}))
-  (testing "falls back to global config"
-    (reset! uut/source-retention-overrides {})
-    (with-redefs [llar.appconfig/podcast (fn
-                                           ([] {:retention {:default-episode-limit 30}})
-                                           ([k] (get {:retention {:default-episode-limit 30}} k)))]
+    (rc/rc [:podcast :retention :sources :my-source] 10)
+    (is (= 10 (uut/episode-limit-for-source :my-source))))
+  (testing "falls back to runtime default"
+    (rc/reset-rc!)
+    (rc/rc [:podcast :retention :default-episode-limit] 30)
+    (is (= 30 (uut/episode-limit-for-source :other-source))))
+  (testing "falls back to system config"
+    (with-redefs [llar.appconfig/appconfig {:api {:podcast {:retention {:default-episode-limit 30}}}}]
+      (rc/reset-rc!)
       (is (= 30 (uut/episode-limit-for-source :other-source)))))
-  (testing "falls back to 25 when no config"
-    (reset! uut/source-retention-overrides {})
-    (with-redefs [llar.appconfig/podcast (fn
-                                           ([] nil)
-                                           ([_] nil))]
-      (is (= 25 (uut/episode-limit-for-source :any-source))))))
+  (testing "falls back to shipped default"
+    (rc/reset-rc!)
+    (is (= 25 (uut/episode-limit-for-source :any-source)))))
 
 ;;;; Podcast index tests
 
