@@ -660,12 +660,10 @@
    [:h5 "Runtime config (rc)"]
    [:h6 "Effective"]
    (map-to-tree (rc/rc-effective))
-   [:h6 "Overrides"]
+   [:h6 "Runtime overrides (.llar)"]
    (map-to-tree (rc/rc-overrides))
-   [:h6 "System config"]
-   (map-to-tree (rc/rc-appconfig))
-   [:h6 "Defaults"]
-   (map-to-tree rc/rc-defaults)
+   [:h6 "Baseline (defaults + appconfig)"]
+   (map-to-tree (rc/rc-baseline))
    [:h6 "Supported rc paths"]
    (docs.config/rc-path-table)])
 

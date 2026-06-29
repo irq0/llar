@@ -81,6 +81,7 @@
   (with-redefs [appconfig/appconfig (shipped-system-config-defaults)]
     (uut/reset-rc!)
     (is (= {} (uut/rc-appconfig)))
+    (is (= uut/rc-defaults (uut/rc-baseline)))
     (is (= uut/rc-defaults (uut/rc-effective)))))
 
 (deftest rc-overrides-win-over-appconfig-path
@@ -88,10 +89,15 @@
                                      :ranking {:highlight-boost-hours 12
                                                :rarity-boost-cap-hours 24}}]
     (uut/reset-rc!)
+    (is (= [[:appconfig :source-tag]]
+           (get-in (uut/rc-baseline) [:reader :favorites])))
     (is (= [[:configured :item-tags]]
            (uut/rc [:reader :favorites] [[:configured :item-tags]])))
     (is (= [[:configured :item-tags]] (uut/rc [:reader :favorites])))
     (is (= 96 (uut/rc [:reader :ranking :highlight-boost-hours] 96)))
+    (is (= {:highlight-boost-hours 12
+            :rarity-boost-cap-hours 24}
+           (get-in (uut/rc-baseline) [:reader :ranking])))
     (is (= {:highlight-boost-hours 96
             :rarity-boost-cap-hours 24}
            (uut/rc [:reader :ranking])))))

@@ -191,8 +191,11 @@
 (defn rc-overrides []
   @rc-overrides*)
 
+(defn rc-baseline []
+  (deep-merge rc-defaults (rc-appconfig)))
+
 (defn rc-effective []
-  (deep-merge rc-defaults (rc-appconfig) (rc-overrides)))
+  (deep-merge (rc-baseline) (rc-overrides)))
 
 (defn rc-entries []
   (for [{:keys [path appconfig-path spec doc]} rc-registry]
