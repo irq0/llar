@@ -283,6 +283,9 @@ jobs:
 
     - uses: actions/configure-pages@v5
 
+    - name: Install docs asset tools
+      run: sudo apt update && sudo apt-get install -y make libarchive-tools wget
+
     - name: Log in to the Container registry
       uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
       with:
@@ -301,6 +304,9 @@ jobs:
           -v "$RUNNER_TEMP/llar-docs:/out" \
           '${{ needs.docker.outputs.image-ref }}' \
           --write-docs /out
+
+    - name: Copy docs assets
+      run: make docs-assets DOCS_OUT="$RUNNER_TEMP/llar-docs"
 
     - name: Configure Pages custom domain
       run: echo 'docs.llar.dev' > "$RUNNER_TEMP/llar-docs/CNAME"
