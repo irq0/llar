@@ -31,16 +31,15 @@
     (doseq [schedule-key (keys (sched/canned-schedule-metadata))]
       (is (string/includes? html (str schedule-key))))))
 
-(deftest docs-writer-creates-html-and-css-assets
+(deftest docs-writer-creates-html
   (let [out-dir (doto (io/file (System/getProperty "java.io.tmpdir")
                                (str "llar-docs-test-" (System/nanoTime)))
                   (.mkdirs))
         paths (uut/write-static! out-dir)
         path-names (set (map #(.toString %) paths))]
     (is (.exists (io/file out-dir "config.html")))
-    (is (.exists (io/file out-dir "static/bootstrap/css/bootstrap.min.css")))
-    (is (.exists (io/file out-dir "static/ibmplex/Web/css/ibm-plex.min.css")))
-    (is (.exists (io/file out-dir "static/llar.css")))
+    (is (= #{(.toString (.toPath (io/file out-dir "config.html")))}
+           path-names))
     (is (contains? path-names (.toString (.toPath (io/file out-dir "config.html")))))))
 
 (deftest documented-schedules-match-runtime-metadata

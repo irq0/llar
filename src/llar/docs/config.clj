@@ -11,15 +11,7 @@
    [llar.src]
    [llar.update])
   (:import
-   [java.nio.file Files Path StandardCopyOption]))
-
-(def static-assets
-  [{:resource "status/bootstrap/css/bootstrap.min.css"
-    :target "static/bootstrap/css/bootstrap.min.css"}
-   {:resource "status/ibmplex/Web/css/ibm-plex.min.css"
-    :target "static/ibmplex/Web/css/ibm-plex.min.css"}
-   {:resource "status/llar.css"
-    :target "static/llar.css"}])
+   [java.nio.file Files]))
 
 (defn- resolve-var [entry]
   (cond
@@ -313,27 +305,12 @@
 (defn render-static-html []
   (str "<!doctype html>\n" (h/html (docs-page))))
 
-(defn- copy-resource! [{:keys [resource target]} out-dir]
-  (let [resource-file (io/file "resources" resource)
-        src (or (io/resource resource)
-                (when (.isFile resource-file) resource-file))
-        target-path (.resolve ^Path out-dir target)]
-    (when (nil? src)
-      (throw (ex-info "Documentation asset not found" {:resource resource})))
-    (Files/createDirectories (.getParent target-path) (make-array java.nio.file.attribute.FileAttribute 0))
-    (with-open [in (io/input-stream src)]
-      (Files/copy in target-path
-                  (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING])))
-    target-path))
-
 (defn write-static! [out-dir]
   (let [out-path (.toPath (io/file out-dir))
         config-path (.resolve out-path "config.html")]
     (Files/createDirectories out-path (make-array java.nio.file.attribute.FileAttribute 0))
     (spit (.toFile config-path) (render-static-html))
-    (into [config-path]
-          (map #(copy-resource! % out-path))
-          static-assets)))
+    [config-path]))
 
 (defn -main [& [out-dir]]
   (when (string/blank? out-dir)
