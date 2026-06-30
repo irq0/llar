@@ -479,7 +479,7 @@
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
              :href (make-site-href ["/reader/tools/saved-overview"] x)}
-         (icon "fas fa-project-diagram") "\u00a0" "Saved Overview"]]]
+         (icon "fas fa-project-diagram") "\u00a0" "Reading Queue"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class "nav-link"
@@ -1569,19 +1569,123 @@
 
 (defmulti tools-view-handler :view)
 
+(defn- item-has-tag? [item tag]
+  (contains? (set (:tags item)) (name tag)))
+
+(defn- bookmark-item? [item]
+  (= (:type item) :item-type/bookmark))
+
+(defn- queue-item-reasons [item]
+  (cond-> []
+    (item-has-tag? item :saved)
+    (conj :saved)
+
+    (item-has-tag? item :in-progress)
+    (conj :in-progress)
+
+    (and (bookmark-item? item)
+         (item-has-tag? item :unread))
+    (conj :unread-bookmark)))
+
+(defn- queue-item? [item]
+  (seq (queue-item-reasons item)))
+
+(defn- queue-item-matches-filter? [queue-filter item]
+  (case queue-filter
+    :saved (item-has-tag? item :saved)
+    :in-progress (item-has-tag? item :in-progress)
+    :unread-bookmarks (and (bookmark-item? item)
+                           (item-has-tag? item :unread))
+    :unread (item-has-tag? item :unread)
+    (boolean (queue-item? item))))
+
+(defn- queue-stats [items]
+  (let [items (filter queue-item? items)]
+    {:total (count items)
+     :saved (count (filter #(item-has-tag? % :saved) items))
+     :in-progress (count (filter #(item-has-tag? % :in-progress) items))
+     :unread-bookmarks (count (filter #(and (bookmark-item? %)
+                                            (item-has-tag? % :unread))
+                                      items))
+     :unread (count (filter #(item-has-tag? % :unread) items))}))
+
+(defn- queue-reason-label [reason]
+  (case reason
+    :saved ["Saved" "text-bg-warning"]
+    :in-progress ["In Progress" "text-bg-info"]
+    :unread-bookmark ["Unread Bookmark" "text-bg-primary"]
+    [(name reason) "text-bg-secondary"]))
+
+(defn- queue-filter-label [queue-filter]
+  (case queue-filter
+    :saved "Saved"
+    :in-progress "In Progress"
+    :unread-bookmarks "Unread Bookmarks"
+    :unread "Unread"
+    "All"))
+
+(defn- queue-item-href [x item]
+  (let [{:keys [id source-key]} item
+        source-key (or source-key "all")
+        group (cond
+                (bookmark-item? item) [:type :bookmark]
+                (item-has-tag? item :saved) [:item-tags :saved]
+                (item-has-tag? item :in-progress) [:item-tags :in-progress]
+                :else [:default :none])]
+    (make-site-href [(format "/reader/group/%s/%s/source/%s/item/by-id"
+                             (name (first group))
+                             (name (second group))
+                             source-key)
+                     id]
+                    x)))
+
+(defn- queue-filter-nav [x active-filter stats]
+  (let [filters [[nil "All" (:total stats)]
+                 [:saved "Saved" (:saved stats)]
+                 [:in-progress "In Progress" (:in-progress stats)]
+                 [:unread-bookmarks "Unread Bookmarks" (:unread-bookmarks stats)]
+                 [:unread "Unread" (:unread stats)]]]
+    [:div {:class "btn-group btn-group-sm mb-3" :role "group"}
+     (for [[key label n] filters]
+       [:a {:class (str "btn btn-outline-secondary"
+                        (when (= key active-filter) " active"))
+            :href (make-site-href ["/reader/tools/saved-overview"]
+                                  {:queue-filter key}
+                                  x)}
+        label
+        [:span {:class "badge text-bg-light ms-1"} n]])]))
+
 (defmethod tools-view-handler
   :saved-overview
   [x]
-  (let [{:keys [clusters last-update]} @current-clustered-saved-items]
+  (let [{:keys [clusters last-update]} @current-clustered-saved-items
+        all-items (vec (mapcat second clusters))
+        queue-filter (some-> (get-in x [:request-params :queue-filter]) keyword)
+        stats (queue-stats all-items)]
     [:div
-     [:h2 "Saved and bookmarked item overview"]
+     [:h2 "Reading Queue"]
      [:p {:class "text-secondary"} (format "Items: %s Last updated: %s Clusters: %s"
-                                           (apply + (map count (vals clusters)))
+                                           (:total stats)
                                            (if (some? last-update)
                                              (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
                                              "not yet")
                                            (count clusters))]
-     (for [[{:keys [_id words]} items] clusters]
+     [:p {:class "text-secondary"}
+      (format "Saved: %s · In progress: %s · Unread bookmarks: %s · Unread: %s"
+              (:saved stats)
+              (:in-progress stats)
+              (:unread-bookmarks stats)
+              (:unread stats))]
+     (queue-filter-nav x queue-filter stats)
+     (when (zero? (:total stats))
+       [:p {:class "text-secondary"} "No saved, in-progress, or unread bookmarked items in the queue."])
+     (when (and (pos? (:total stats))
+                (not-any? #(queue-item-matches-filter? queue-filter %) all-items))
+       [:p {:class "text-secondary"}
+        (format "No %s items in the queue." (string/lower-case (queue-filter-label queue-filter)))])
+     (for [[{:keys [_id words]} items] clusters
+           :let [filtered-items (filter #(queue-item-matches-filter? queue-filter %) items)]
+           :when (seq filtered-items)]
        [:div
         [:h2
          [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
@@ -1589,16 +1693,23 @@
            (for [word words] [:li {:class "breadcrumb-item"} word])]]]
 
         (for [{:keys [id title source-key author ts tags nwords _names entry url]
-               :as item} (sort-by :ts items)]
+               :as item} (sort-by :ts filtered-items)]
 
           [:div {:id (str "item-" id)
                  :class "feed-item"}
            [:h4 {:class "h4"}
-            [:a {:href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+            [:a {:href (queue-item-href x item)}
              (if (string/blank? title)
                "(no title)"
                title)]]
            [:ul {:class "list-inline"}
+            (for [reason (queue-item-reasons item)
+                  :let [[label badge-class] (queue-reason-label reason)]]
+              [:li {:class "list-inline-item"}
+               [:span {:class (str "badge " badge-class)} label]])
+            (when (item-has-tag? item :unread)
+              [:li {:class "list-inline-item"}
+               [:span {:class "badge text-bg-light"} "Unread"]])
             [:li {:class "list-inline-item"}
              (icon "far fa-calendar")
              "\u00a0"

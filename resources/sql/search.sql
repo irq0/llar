@@ -20,6 +20,7 @@ from
   ( select id, jsonb_array_elements(nlp_top->'words') as term_tf
     from items
     where tagi @@ '1'
+      or tagi @@ '2'
       or (items.type = 'bookmark' and tagi @@ '0')
   ) as i
 inner join
@@ -39,6 +40,7 @@ from
 	  jsonb_array_elements(nlp_top->'words') as term_tf
 	from items
         where tagi @@ '1'
+          or tagi @@ '2'
           or (items.type = 'bookmark' and tagi @@ '0')
       ) as i
     inner join
