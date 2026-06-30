@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dashboard: Documentation tab with generated `.llar` config and
+  system configuration reference.
+- Reader: Reading Queue tool replaces the old Saved Overview label and
+  shows saved items, in-progress items, and unread bookmarks with
+  queue-reason badges, queue stats, and queue filters.
+- Reader search: user-facing search modes for web-style queries, all
+  words, phrase search, and legacy PostgreSQL `tsquery`.
+- Reader search: result snippets with highlighted matches, source
+  facets, source reset link, timestamps, and inline errors for invalid
+  advanced queries.
+- Search index migration: `search_index` now stores per-item search
+  language, snippet text, and indexed body/description text alongside
+  the existing title, author, URL, and NLP-derived terms.
+
+### Changed
+
+- Schedule subsystem: Dashboard can trigger, show last, next runs and
+  results.
+- Config Engine: Make declarative and integrate documentation.
+- Config Engine: Support more runtime-changeable settings.
+- Autoread status: include the printable predicate form in scheduler
+  results while keeping the executable predicate function out of the
+  status map.
+- Reader search: default search now uses PostgreSQL
+  `websearch_to_tsquery`; raw PostgreSQL query syntax remains available
+  through the advanced mode.
+- Reader search: ranking now uses cover-density ranking and search
+  rows use their indexed language configuration for matching and
+  snippets.
+
 ## [3.1.0] - 2026-06-21
 
 ### Changed
@@ -166,7 +198,7 @@ You can now add a GitHub repository as a source and follow its activity.
 
 ### initial tagged release
 
-[Unreleased]: https://github.com/irq0/llar/compare/3.0.0...HEAD
+[Unreleased]: https://github.com/irq0/llar/compare/3.1.0...HEAD
 [3.1.0]: https://github.com/irq0/llar/compare/3.0.0...3.1.0
 [3.0.0]: https://github.com/irq0/llar/compare/2.0.0...3.0.0
 [2.0.0]: https://github.com/irq0/llar/compare/1.1.0...2.0.0
