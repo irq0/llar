@@ -1,5 +1,6 @@
 (ns llar.db.search
   (:require
+   [clojure.string :as string]
    [clojure.tools.logging :as log]
    [digest]
    [java-time.api :as time]
@@ -19,21 +20,36 @@
 (defn- refresh-source-stats [db]
   (jdbc/execute! db ["REFRESH MATERIALIZED VIEW CONCURRENTLY source_stats"]))
 
+(def ^:private valid-search-syntaxes
+  #{:web :plain :phrase :advanced})
+
+(defn normalize-search-syntax [syntax]
+  (cond
+    (valid-search-syntaxes syntax) syntax
+    (string? syntax) (normalize-search-syntax (keyword syntax))
+    :else :web))
+
 (extend-protocol DataStoreSearch
   PostgresqlDataStore
 
   (search
-    ([this query {:keys [with-source-key time-ago-period]}]
-     (sql/search-item
-      this
-      {:query query
-       :source-key with-source-key
-       :time-ago (when-not (nil? time-ago-period)
-                   (time/minus (time/zoned-date-time) time-ago-period))}))
+    ([this query {:keys [syntax with-source-key time-ago-period]}]
+     (if (string/blank? query)
+       []
+       (sql/search-item
+        this
+        {:query query
+         :syntax (name (normalize-search-syntax syntax))
+         :source-key with-source-key
+         :time-ago (when-not (nil? time-ago-period)
+                     (time/minus (time/zoned-date-time) time-ago-period))})))
     ([this query]
-     (sql/search-item
-      this
-      {:query query})))
+     (if (string/blank? query)
+       []
+       (sql/search-item
+        this
+        {:query query
+         :syntax (name (normalize-search-syntax nil))}))))
 
   (update-index! [this]
     (refresh-search-index this)

@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.test :refer [deftest is]]
    [llar.apis.reader :as uut]
+   [llar.db.search :as db-search]
    [llar.rc :as rc]))
 
 (deftest list-style-uses-rc-defaults
@@ -74,3 +75,35 @@
     (is (re-find #"tagi @@ '1'" sql))
     (is (re-find #"tagi @@ '2'" sql))
     (is (re-find #"items\.type = 'bookmark' and tagi @@ '0'" sql))))
+
+(deftest search-syntax-normalization
+  (is (= :web (db-search/normalize-search-syntax nil)))
+  (is (= :web (db-search/normalize-search-syntax :unknown)))
+  (is (= :web (db-search/normalize-search-syntax "web")))
+  (is (= :plain (db-search/normalize-search-syntax "plain")))
+  (is (= :phrase (db-search/normalize-search-syntax :phrase)))
+  (is (= :advanced (db-search/normalize-search-syntax "advanced"))))
+
+(deftest search-sql-supports-user-facing-and-advanced-modes
+  (let [sql (slurp (io/resource "sql/search.sql"))]
+    (is (re-find #"websearch_to_tsquery" sql))
+    (is (re-find #"plainto_tsquery" sql))
+    (is (re-find #"phraseto_tsquery" sql))
+    (is (re-find #"to_tsquery" sql))
+    (is (re-find #"ts_rank_cd" sql))
+    (is (re-find #"ts_headline" sql))))
+
+(deftest search-index-migration-adds-snippets-language-and-indexes
+  (let [migration (slurp (io/resource "migrations/20260630000001-search-index-v2.up.sql"))]
+    (is (re-find #"search_config" migration))
+    (is (re-find #"headline_text" migration))
+    (is (re-find #"USING GIN \(document\)" migration))
+    (is (re-find #"item_data" migration))
+    (is (re-find #"left\(COALESCE\(item_text\.search_text, ''\), 200000\)" migration))
+    (is (re-find #"left\(concat_ws" migration))))
+
+(deftest search-headline-renders-markers-as-mark-elements
+  (is (= [:span "foo " [:mark "bar"] " baz"]
+         (#'uut/render-search-headline "foo [[[bar]]] baz")))
+  (is (= [:span [:mark "foo"] " and " [:mark "bar"]]
+         (#'uut/render-search-headline "[[[foo]]] and [[[bar]]]"))))

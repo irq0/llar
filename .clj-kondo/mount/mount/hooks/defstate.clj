@@ -30,10 +30,10 @@
          :row     (:row (meta n))
          :col     (:col (meta n))})
       :else
-      {:node (api/list-node
-              (cond-> [(api/token-node 'def) n]
-                docs (conj docs)
-                true (conj (api/list-node
-                            (list*
-                             (api/token-node 'do)
+        {:node (api/list-node
+                (cond-> [(api/token-node 'def) n]
+                  docs (conj docs)
+                  true (conj (api/list-node
+                              (list*
+                               (api/token-node 'do)
                              args)))))})))

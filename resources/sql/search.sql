@@ -1,15 +1,56 @@
 -- :name search-item :? :*
+with query as (
+  select
+    case :syntax
+      when 'advanced' then to_tsquery('english', :query)
+      when 'plain' then plainto_tsquery('english', :query)
+      when 'phrase' then phraseto_tsquery('english', :query)
+      else websearch_to_tsquery('english', :query)
+    end as english,
+    case :syntax
+      when 'advanced' then to_tsquery('german', :query)
+      when 'plain' then plainto_tsquery('german', :query)
+      when 'phrase' then phraseto_tsquery('german', :query)
+      else websearch_to_tsquery('german', :query)
+    end as german
+), matches as (
 select
   id,
   title,
   key,
   ts,
-  ts_rank(document, to_tsquery('english', :query)) as rank
-from search_index
-where document @@ to_tsquery('english', :query)
+  :syntax as syntax,
+  case search_config
+    when 'german' then query.german
+    else query.english
+  end as q,
+  search_config,
+  document,
+  headline_text
+from search_index, query
+where document @@ case search_config
+  when 'german' then query.german
+  else query.english
+end
 --~ (when (:time-ago params) "and ts > :time-ago")
 --~ (when (:source-key params) "and key = :source-key")
-order by rank desc
+)
+select
+  id,
+  title,
+  key,
+  ts,
+  syntax,
+  ts_rank_cd(document, q, 32) as rank,
+  ts_headline(
+    search_config::regconfig,
+    headline_text,
+    q,
+    'StartSel="[[[", StopSel="]]]", MaxFragments=2, MinWords=8, MaxWords=24, FragmentDelimiter=" ... "'
+  ) as headline
+from matches
+order by rank desc, ts desc
+limit 100
 
 
 -- :name saved-items-tf-idf :? :raw

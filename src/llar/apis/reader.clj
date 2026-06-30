@@ -32,6 +32,7 @@
    [llar.store :refer [store-items!]]
    [llar.update :as update]
    [llar.db.annotations]
+   [llar.db.search :as db-search]
    [llar.export.zotero :as zotero]
    [llar.export.url-handler :as url-handler])
   (:import
@@ -209,7 +210,8 @@
   ([path params x]
    (let [params (into {}
                       (remove (fn [[k v]] (or (nil? k) (nil? v)))
-                              (merge (select-keys x [:filter :list-style :sort-order :query :days-ago :with-source-key]) params)))
+                              (merge (select-keys x [:filter :list-style :sort-order :query :syntax :days-ago :with-source-key])
+                                     params)))
          query-string (when (some? params) (form-encode params))]
      (if (string/blank? query-string)
        (string/join "/" path)
@@ -1759,33 +1761,62 @@
                    :when (show-button-in-this-view? x btn)]
                (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]])])]))
 
+(defn- render-search-headline [headline]
+  (letfn [(render-parts [s]
+            (if-let [start (string/index-of s "[[[")]
+              (let [before (subs s 0 start)
+                    after-start (+ start 3)
+                    stop (string/index-of s "]]]" after-start)]
+                (if stop
+                  (concat
+                   (when-not (string/blank? before) [before])
+                   [[:mark (subs s after-start stop)]]
+                   (render-parts (subs s (+ stop 3))))
+                  [s]))
+              (when-not (string/blank? s) [s])))]
+    (into [:span] (render-parts headline))))
+
 (defmethod tools-view-handler
   :search
   [x]
   (let [query (get-in x [:request-params :query])
         with-source-key (get-in x [:request-params :with-source-key])
         days-ago (get-in x [:request-params :days-ago])
-        results (if (or with-source-key days-ago)
-                  (persistency/search frontend-db query {:with-source-key with-source-key
-                                                         :time-ago-period (when-not (string/blank? days-ago)
-                                                                            (time/days (some-> days-ago
-                                                                                               Integer/parseInt)))})
-                  (persistency/search frontend-db query))]
+        syntax (db-search/normalize-search-syntax (get-in x [:request-params :syntax]))
+        search-result (try
+                        {:results (persistency/search frontend-db query {:syntax syntax
+                                                                         :with-source-key (when-not (string/blank? with-source-key)
+                                                                                            with-source-key)
+                                                                         :time-ago-period (when-not (string/blank? days-ago)
+                                                                                            (time/days (some-> days-ago
+                                                                                                               Integer/parseInt)))})}
+                        (catch Exception e
+                          {:results []
+                           :error (ex-message e)}))
+        results (:results search-result)
+        error (:error search-result)]
 
     [:div {:class "px-3"}
      [:h3 "Search"]
      [:form {:action "/reader/tools/search" :method "get"}
       [:div {:class "row mb-3"}
        [:label {:for "query" :class "col-sm-4 col-form-label"}
-        "Postgresql " [:a {:href "https://www.postgresql.org/docs/current/datatype-textsearch.html#DATATYPE-TSQUERY"} "ts_query"]]
+        "Query"]
        [:div {:class "col-sm-8"}
         [:input {:type "text" :class "form-control"
-                 :name "query" :id "query" :placeholder "fat & (rat | cat)"
+                 :name "query" :id "query" :placeholder "fat rats, \"fat rat\", rats OR cats, -crab"
                  :value (or query "")}]]]
       [:div {:class "row mb-3"}
-       [:label {:for "notes" :class "col-sm-4 col-form-label"} ""]
+       [:label {:for "syntax" :class "col-sm-4 col-form-label"} "Mode"]
        [:div {:class "col-sm-8"}
-        [:p {:class "form-fontrol"} "Quoted (') lexemes. Operators: &, |, !, &lt;-&gt; (followed by), &lt;N&gt; (followed by with distance)"]]]
+        [:select {:class "form-select" :name "syntax" :id "syntax"}
+         (for [[value label] [[:web "Web"]
+                              [:plain "All Words"]
+                              [:phrase "Phrase"]
+                              [:advanced "PostgreSQL tsquery"]]]
+           [:option (cond-> {:value (name value)}
+                      (= value syntax) (assoc :selected "selected"))
+            label])]]]
       [:fieldset {:class "row mb-3"}
        [:legend {:class "col-sm-4 col-form-label"} "Fetched in the last"]
        [:div {:class "col-sm-8"}
@@ -1807,6 +1838,10 @@
        [:label {:class "col-sm-4 col-form-label"} "Actions"]
        [:button {:type "submit" :class "btn btn-primary col-sm-2"} "Search"]]]
 
+     (when error
+       [:div {:class "alert alert-warning" :role "alert"}
+        (format "Search failed: %s" error)])
+
      [:h3 "Results"]
      [:p "Found: " [:td (count results)]]
 
@@ -1823,22 +1858,36 @@
            [:a {:href (make-site-href ["/reader/tools/search"]
                                       (merge x {:with-source-key word
                                                 :query query
+                                                :syntax syntax
                                                 :days-ago days-ago}))
                 :class (str "text-black " size)} (str word " (" freq ")")]]))]
+     (when-not (string/blank? with-source-key)
+       [:p [:a {:href (make-site-href ["/reader/tools/search"]
+                                      (merge x {:with-source-key nil
+                                                :query query
+                                                :syntax syntax
+                                                :days-ago days-ago}))}
+            "All sources"]])
 
      [:table {:class "table table-borderless"}
       [:thead
        [:tr
-        [:td "Rank"]
         [:td "Title"]
-        [:td "Source"]]]
+        [:td "Source"]
+        [:td "Fetched"]]]
       [:tbody
-       (for [{:keys [title key rank id]} results]
-         [:tr [:td (format "%.2f" rank)]
-          [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
-                title]]
+       (for [{:keys [title key rank id ts headline]} results]
+         [:tr
+          [:td
+           [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+            title]
+           (when-not (string/blank? headline)
+             [:div {:class "text-secondary small search-headline"}
+              (render-search-headline headline)])
+           [:div {:class "text-secondary small"} (format "Rank %.2f" rank)]]
           [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
-                key]]])]]]))
+                key]]
+          [:td [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]])]]]))
 
 (defn reader-tools-index
   "Reader Entrypoint"
@@ -2033,6 +2082,7 @@
      (GET "/tools/:view" [view :<< as-keyword]
        (reader-tools-index {:uri (:uri req)
                             :filter (as-keyword (get-in req [:params :filter]))
+                            :syntax (as-keyword (get-in req [:params :syntax]))
                             :request-params (:params req)
                             :group-name :default
                             :group-item :all
