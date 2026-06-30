@@ -195,7 +195,8 @@
   [sched-key period pred]
   `(swap! autoread assoc (keyword '~sched-key)
           {:period ~period
-           :pred (wrap-predicate ~pred)}))
+           :pred (wrap-predicate ~pred)
+           :predicate (quote ~pred)}))
 
 (fetch bookmark nil :tags #{:bookmark})
 

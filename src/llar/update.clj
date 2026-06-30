@@ -507,8 +507,11 @@
       (catch Throwable t
         (autoread-config-error sched-name :invalid-period (throwable-error t) sched)))))
 
-(defn remove-unread-for-autoread-sched! [sched-name {:keys [period pred]}]
-  (let [sched {:period period :pred pred}]
+(defn remove-unread-for-autoread-sched! [sched-name {:keys [period pred predicate]}]
+  (let [sched (cond-> {:period period :pred pred}
+                (some? predicate) (assoc :predicate predicate))
+        predicate-result (when (some? predicate)
+                           {:predicate predicate})]
     (or (validate-autoread-sched sched-name sched)
         (let [matched-keys (atom [])]
           (try+
@@ -523,30 +526,34 @@
                              store/backend-db
                              keys
                              (time/minus (time/zoned-date-time) period))]
-                 {:name sched-name
-                  :pred pred
-                  :status :ok
-                  :period period
-                  :source-count (count keys)
-                  :sources keys
-                  :updated-items (count result)})
-               {:name sched-name
-                :pred pred
-                :status :skipped
-                :reason :no-matching-sources
-                :period period
-                :source-count 0
-                :sources []}))
+                 (merge
+                  {:name sched-name
+                   :status :ok
+                   :period period
+                   :source-count (count keys)
+                   :sources keys
+                   :updated-items (count result)}
+                  predicate-result))
+               (merge
+                {:name sched-name
+                 :status :skipped
+                 :reason :no-matching-sources
+                 :period period
+                 :source-count 0
+                 :sources []}
+                predicate-result)))
            (catch Object _
              (let [throwable (:throwable &throw-context)
                    keys @matched-keys]
                (log/error throwable "remove-unread-tags: autoread rule failed" sched-name)
-               {:name sched-name
-                :status :error
-                :period period
-                :source-count (count keys)
-                :sources keys
-                :error (throwable-error throwable)})))))))
+               (merge
+                {:name sched-name
+                 :status :error
+                 :period period
+                 :source-count (count keys)
+                 :sources keys
+                 :error (throwable-error throwable)}
+                predicate-result))))))))
 
 (defn remove-unread-tags-status [autoread-results digest-result]
   (if (or (some #(= :error (:status %)) autoread-results)

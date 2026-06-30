@@ -208,6 +208,18 @@
                result))
         (is (false? @remove-called?))))))
 
+(deftest remove-unread-autoread-rule-includes-printable-predicate
+  (with-redefs [update/updateable-sources (constantly {})
+                store/backend-db :db]
+    (let [predicate '(some #{:reddit} $TAGS)
+          result (update/remove-unread-for-autoread-sched!
+                  :reddit-4
+                  {:period (time/days 28)
+                   :pred (constantly false)
+                   :predicate predicate})]
+      (is (= predicate (:predicate result)))
+      (is (not (contains? result :pred))))))
+
 (deftest remove-unread-autoread-rule-validates-config
   (let [missing-period (update/remove-unread-for-autoread-sched!
                         :bad-period
