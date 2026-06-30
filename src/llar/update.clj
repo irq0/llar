@@ -524,12 +524,14 @@
                              keys
                              (time/minus (time/zoned-date-time) period))]
                  {:name sched-name
+                  :pred pred
                   :status :ok
                   :period period
                   :source-count (count keys)
                   :sources keys
                   :updated-items (count result)})
                {:name sched-name
+                :pred pred
                 :status :skipped
                 :reason :no-matching-sources
                 :period period
