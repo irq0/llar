@@ -1601,6 +1601,37 @@
     :unread (item-has-tag? item :unread)
     (boolean (queue-item? item))))
 
+(def ^:private +queue-time-filter-keys+
+  #{:under-5 :5-15 :15-30 :30-60 :60-plus})
+
+(defn- normalize-queue-time-filter [queue-time-filter]
+  (when (+queue-time-filter-keys+ queue-time-filter)
+    queue-time-filter))
+
+(defn- queue-item-reading-minutes [item]
+  (when (and (integer? (:nwords item))
+             (not (neg? (:nwords item))))
+    (:estimate (item/reading-time-estimate item))))
+
+(defn- queue-time-filter-for-minutes [minutes]
+  (cond
+    (nil? minutes) nil
+    (< minutes 5) :under-5
+    (< minutes 15) :5-15
+    (< minutes 30) :15-30
+    (< minutes 60) :30-60
+    :else :60-plus))
+
+(defn- queue-item-matches-time-filter? [queue-time-filter item]
+  (if-let [queue-time-filter (normalize-queue-time-filter queue-time-filter)]
+    (= queue-time-filter
+       (queue-time-filter-for-minutes (queue-item-reading-minutes item)))
+    true))
+
+(defn- queue-item-matches-filters? [queue-filter queue-time-filter item]
+  (and (queue-item-matches-filter? queue-filter item)
+       (queue-item-matches-time-filter? queue-time-filter item)))
+
 (defn- queue-stats [items]
   (let [items (filter queue-item? items)]
     {:total (count items)
@@ -1610,6 +1641,18 @@
                                             (item-has-tag? % :unread))
                                       items))
      :unread (count (filter #(item-has-tag? % :unread) items))}))
+
+(defn- queue-time-stats [items]
+  (let [items (filter queue-item? items)
+        buckets (frequencies (keep (comp queue-time-filter-for-minutes
+                                         queue-item-reading-minutes)
+                                   items))]
+    {:total (count items)
+     :under-5 (get buckets :under-5 0)
+     :5-15 (get buckets :5-15 0)
+     :15-30 (get buckets :15-30 0)
+     :30-60 (get buckets :30-60 0)
+     :60-plus (get buckets :60-plus 0)}))
 
 (defn- queue-reason-label [reason]
   (case reason
@@ -1625,6 +1668,15 @@
     :unread-bookmarks "Unread Bookmarks"
     :unread "Unread"
     "All"))
+
+(defn- queue-time-filter-label [queue-time-filter]
+  (case (normalize-queue-time-filter queue-time-filter)
+    :under-5 "Under 5 minutes"
+    :5-15 "5-15 minutes"
+    :15-30 "15-30 minutes"
+    :30-60 "30-60 minutes"
+    :60-plus "60+ minutes"
+    "All Times"))
 
 (defn- queue-item-href [x item]
   (let [{:keys [id source-key]} item
@@ -1647,12 +1699,34 @@
                  [:in-progress "In Progress" (:in-progress stats)]
                  [:unread-bookmarks "Unread Bookmarks" (:unread-bookmarks stats)]
                  [:unread "Unread" (:unread stats)]]]
-    [:div {:class "btn-group btn-group-sm mb-3" :role "group"}
+    [:div {:class "btn-group btn-group-sm mb-2 me-2" :role "group"}
      (for [[key label n] filters]
        [:a {:class (str "btn btn-outline-secondary"
                         (when (= key active-filter) " active"))
             :href (make-site-href ["/reader/tools/saved-overview"]
-                                  {:queue-filter key}
+                                  {:queue-filter key
+                                   :queue-time-filter (normalize-queue-time-filter
+                                                       (some-> (get-in x [:request-params :queue-time-filter])
+                                                               keyword))}
+                                  x)}
+        label
+        [:span {:class "badge text-bg-light ms-1"} n]])]))
+
+(defn- queue-time-filter-nav [x active-time-filter stats]
+  (let [filters [[nil "All Times" (:total stats)]
+                 [:under-5 "< 5 min" (:under-5 stats)]
+                 [:5-15 "5-15 min" (:5-15 stats)]
+                 [:15-30 "15-30 min" (:15-30 stats)]
+                 [:30-60 "30-60 min" (:30-60 stats)]
+                 [:60-plus "60+ min" (:60-plus stats)]]]
+    [:div {:class "btn-group btn-group-sm mb-3" :role "group"}
+     (for [[key label n] filters]
+       [:a {:class (str "btn btn-outline-secondary"
+                        (when (= key active-time-filter) " active"))
+            :href (make-site-href ["/reader/tools/saved-overview"]
+                                  {:queue-filter (some-> (get-in x [:request-params :queue-filter])
+                                                         keyword)
+                                   :queue-time-filter key}
                                   x)}
         label
         [:span {:class "badge text-bg-light ms-1"} n]])]))
@@ -1663,7 +1737,11 @@
   (let [{:keys [clusters last-update]} @current-clustered-saved-items
         all-items (vec (mapcat second clusters))
         queue-filter (some-> (get-in x [:request-params :queue-filter]) keyword)
-        stats (queue-stats all-items)]
+        queue-time-filter (normalize-queue-time-filter
+                           (some-> (get-in x [:request-params :queue-time-filter]) keyword))
+        stats (queue-stats all-items)
+        time-stats (queue-time-stats (filter #(queue-item-matches-filter? queue-filter %)
+                                             all-items))]
     [:div
      [:h2 "Reading Queue"]
      [:p {:class "text-secondary"} (format "Items: %s Last updated: %s Clusters: %s"
@@ -1679,14 +1757,21 @@
               (:unread-bookmarks stats)
               (:unread stats))]
      (queue-filter-nav x queue-filter stats)
+     (queue-time-filter-nav x queue-time-filter time-stats)
      (when (zero? (:total stats))
        [:p {:class "text-secondary"} "No saved, in-progress, or unread bookmarked items in the queue."])
      (when (and (pos? (:total stats))
-                (not-any? #(queue-item-matches-filter? queue-filter %) all-items))
+                (not-any? #(queue-item-matches-filters? queue-filter queue-time-filter %) all-items))
        [:p {:class "text-secondary"}
-        (format "No %s items in the queue." (string/lower-case (queue-filter-label queue-filter)))])
+        (format "No %s items for %s in the queue."
+                (string/lower-case (queue-filter-label queue-filter))
+                (string/lower-case (queue-time-filter-label queue-time-filter)))])
      (for [[{:keys [_id words]} items] clusters
-           :let [filtered-items (filter #(queue-item-matches-filter? queue-filter %) items)]
+           :let [filtered-items (filter #(queue-item-matches-filters?
+                                          queue-filter
+                                          queue-time-filter
+                                          %)
+                                        items)]
            :when (seq filtered-items)]
        [:div
         [:h2

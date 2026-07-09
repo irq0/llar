@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reader search: ranking now uses cover-density ranking and search
   rows use their indexed language configuration for matching and
   snippets.
+- Reader: Add reading time groups to Reading Queue
 
 ## [3.1.0] - 2026-06-21
 
