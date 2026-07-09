@@ -14,7 +14,7 @@ DOCS_OUT ?= target/docs
 
 all: web-3rd-party uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables chartjs uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js popper datatables chartjs uberjar docker-image
 
 resources/status/ibmplex/Web/LICENSE.txt:
 	mkdir -p resources/status/ibmplex
@@ -49,12 +49,6 @@ resources/status/hammer/jquery.hammer.js:
 	wget --quiet -nc -O resources/status/hammer/jquery.hammer.js "https://raw.githubusercontent.com/hammerjs/jquery.hammer.js/master/jquery.hammer.js"
 hammer-js: resources/status/hammer/hammer.min.js resources/status/hammer/jquery.hammer.js
 
-resources/status/waypoints/jquery.waypoints.min.js:
-	mkdir -p resources/status/waypoints
-	wget --quiet -nc -O - "https://github.com/imakewebthings/waypoints/zipball/latest" \
-	| bsdtar -xzf- -C resources/status/waypoints --strip-components 2 "imakewebthings-waypoints-*/lib"
-waypoints: resources/status/waypoints/jquery.waypoints.min.js
-
 resources/status/popper/popper.min.js:
 	mkdir -p resources/status/popper
 	wget --quiet -nc -O resources/status/popper/popper.min.js "https://unpkg.com/@popperjs/core@2"
@@ -87,7 +81,7 @@ resources/status/chartjs/chart.umd.min.js:
 chartjs: resources/status/chartjs/chart.umd.min.js
 
 
-web-3rd-party: datatables popper waypoints hammer-js jquery bootstrap fontawesome ibmplex chartjs
+web-3rd-party: datatables popper hammer-js jquery bootstrap fontawesome ibmplex chartjs
 
 docs-requirements: resources/status/bootstrap/css/bootstrap.min.css resources/status/ibmplex/Web/css/ibm-plex.min.css
 
@@ -100,7 +94,6 @@ docs-assets: docs-requirements resources/status/llar.css
 clean-web-3rd-party:
 	rm -rf resources/status/datatables
 	rm -rf resources/status/popper
-	rm -rf resources/status/waypoints
 	rm -rf resources/status/hammer
 	rm -rf resources/status/jquery
 	rm -rf resources/status/bootstrap

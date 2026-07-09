@@ -380,24 +380,52 @@ $(document).ready(function () {
   });
 
   // main list: mark on view, toggle read
-  $(".option-mark-read-on-view").waypoint({
-    offset: "bottom-in-view",
-    handler: function () {
-      var x = $("#" + this.element.id + " .direct-tag-buttons .btn-tag-unread");
-      $.post(
-        "/reader/item/by-id/" + x.data("id"),
-        {
-          action: "del",
-          tag: x.data("tag"),
-        },
-        () => {
-          var icon = x.find("i");
-          x.data("is-set", false);
-          icon.attr("class", x.data("icon-unset"));
-        },
-      );
-    },
-  });
+  function markReadOnView(element) {
+    var x = $("#" + element.id + " .direct-tag-buttons .btn-tag-unread");
+    if (!x.length || x.data("is-set") === false) {
+      return;
+    }
+
+    $.post(
+      "/reader/item/by-id/" + x.data("id"),
+      {
+        action: "del",
+        tag: x.data("tag"),
+      },
+      () => {
+        var icon = x.find("i");
+        x.data("is-set", false);
+        icon.attr("class", x.data("icon-unset"));
+      },
+    );
+  }
+
+  if ("IntersectionObserver" in window) {
+    var markReadObserver = new IntersectionObserver(
+      function (entries, observer) {
+        entries.forEach(function (entry) {
+          if (entry.boundingClientRect.bottom <= window.innerHeight) {
+            observer.unobserve(entry.target);
+            markReadOnView(entry.target);
+          }
+        });
+      },
+      { root: null, threshold: 0 },
+    );
+
+    $(".option-mark-read-on-view").each(function () {
+      markReadObserver.observe(this);
+    });
+  } else {
+    $(window).on("scroll resize", function () {
+      $(".option-mark-read-on-view").each(function () {
+        if (this.getBoundingClientRect().bottom <= window.innerHeight) {
+          $(this).removeClass("option-mark-read-on-view");
+          markReadOnView(this);
+        }
+      });
+    });
+  }
   $(".btn-update-sources-in-view").on("click", function () {
     var target = $(this).data("target");
     $(this).find("i").addClass("icon-is-set");

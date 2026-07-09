@@ -239,7 +239,6 @@
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/hammer/hammer.min.js"}]
    [:script {:src "/static/hammer/jquery.hammer.js"}]
-   [:script {:src "/static/waypoints/jquery.waypoints.min.js"}]
    [:script {:src "/static/popper/popper.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.min.js"}]
    [:script {:src "/static/llar.js"}]])
