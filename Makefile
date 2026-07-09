@@ -2,7 +2,19 @@ LLAR_VERSION := $(shell lein pprint --no-pretty -- :version)
 CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
 SHELL=/bin/bash -o pipefail
 
-ibmplex_version := 6.4.0
+ibmplex_sans_version := 1.1.0
+ibmplex_sans_condensed_version := 2.0.0
+ibmplex_mono_version := 2.5.0
+ibmplex_serif_version := 2.0.0
+ibmplex_web_dir := resources/status/ibmplex/Web
+ibmplex_css := $(ibmplex_web_dir)/css/ibm-plex.min.css
+ibmplex_stamp := $(ibmplex_web_dir)/.packages-$(ibmplex_sans_version)-$(ibmplex_sans_condensed_version)-$(ibmplex_mono_version)-$(ibmplex_serif_version).stamp
+ibmplex_families := IBM-Plex-Sans IBM-Plex-Sans-Condensed IBM-Plex-Mono IBM-Plex-Serif
+ibmplex_packages := \
+	"IBM-Plex-Sans @ibm/plex-sans plex-sans $(ibmplex_sans_version) ibm-plex-sans" \
+	"IBM-Plex-Sans-Condensed @ibm/plex-sans-condensed plex-sans-condensed $(ibmplex_sans_condensed_version) ibm-plex-sans-condensed" \
+	"IBM-Plex-Mono @ibm/plex-mono plex-mono $(ibmplex_mono_version) ibm-plex-mono" \
+	"IBM-Plex-Serif @ibm/plex-serif plex-serif $(ibmplex_serif_version) ibm-plex-serif"
 fontawesome_version := 7.3.0
 bootstrap_version := 5.3.8
 jquery_version := 4.0.0
@@ -16,12 +28,32 @@ all: web-3rd-party uberjar
 
 .PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js popper datatables chartjs uberjar docker-image
 
-resources/status/ibmplex/Web/LICENSE.txt:
-	mkdir -p resources/status/ibmplex
-	wget --quiet -nc -O - "https://github.com/IBM/plex/releases/download/v$(ibmplex_version)/Web.zip" \
-	| bsdtar -xzf- -C resources/status/ibmplex
-ibmplex: resources/status/ibmplex/Web/LICENSE.txt
-resources/status/ibmplex/Web/css/ibm-plex.min.css: resources/status/ibmplex/Web/LICENSE.txt
+$(ibmplex_stamp):
+	@set -e; \
+	for package in $(ibmplex_packages); do \
+		set -- $$package; \
+		dir="$$1"; \
+		scope="$$2"; \
+		archive="$$3"; \
+		version="$$4"; \
+		rm -rf "$(ibmplex_web_dir)/$$dir"; \
+		mkdir -p "$(ibmplex_web_dir)/$$dir"; \
+		wget --quiet -O - "https://registry.npmjs.org/$$scope/-/$$archive-$$version.tgz" \
+		| bsdtar -xzf- -C "$(ibmplex_web_dir)/$$dir" --strip-components 1; \
+	done; \
+	touch "$@"
+
+$(ibmplex_css): $(ibmplex_stamp)
+	@set -e; \
+	mkdir -p "$(ibmplex_web_dir)/css"; \
+	: > "$@"; \
+	for package in $(ibmplex_packages); do \
+		set -- $$package; \
+		dir="$$1"; \
+		css="$$5"; \
+		sed "s#url(\"../fonts/#url(\"../$$dir/fonts/#g" "$(ibmplex_web_dir)/$$dir/css/$$css-all.min.css" >> "$@"; \
+	done
+ibmplex: $(ibmplex_css)
 
 resources/status/fontawesome/LICENSE.txt:
 	mkdir -p resources/status/fontawesome
@@ -89,6 +121,9 @@ docs-assets: docs-requirements resources/status/llar.css
 	mkdir -p "$(DOCS_OUT)/static/bootstrap/css" "$(DOCS_OUT)/static/ibmplex/Web/css" "$(DOCS_OUT)/static"
 	cp resources/status/bootstrap/css/bootstrap.min.css "$(DOCS_OUT)/static/bootstrap/css/bootstrap.min.css"
 	cp resources/status/ibmplex/Web/css/ibm-plex.min.css "$(DOCS_OUT)/static/ibmplex/Web/css/ibm-plex.min.css"
+	@for family in $(ibmplex_families); do \
+		cp -R "$(ibmplex_web_dir)/$$family" "$(DOCS_OUT)/static/ibmplex/Web/"; \
+	done
 	cp resources/status/llar.css "$(DOCS_OUT)/static/llar.css"
 
 clean-web-3rd-party:
@@ -116,12 +151,19 @@ check-frontend-deps:
 		| sort -V \
 		| tail -1; \
 	}; \
+	get_latest_npm() { \
+		curl -sf "https://registry.npmjs.org/$$(printf '%s' "$$1" | sed 's#/#%2f#')/latest" \
+		| jq -r '.version'; \
+	}; \
 	results="$$(jq -n '[]')"; \
 	for dep in \
 		"bootstrap $(bootstrap_version) twbs/bootstrap release" \
 		"jquery $(jquery_version) jquery/jquery release" \
 		"fontawesome $(fontawesome_version) FortAwesome/Font-Awesome release" \
-		"ibmplex $(ibmplex_version) IBM/plex tag" \
+		"ibmplex_sans $(ibmplex_sans_version) @ibm/plex-sans npm" \
+		"ibmplex_sans_condensed $(ibmplex_sans_condensed_version) @ibm/plex-sans-condensed npm" \
+		"ibmplex_mono $(ibmplex_mono_version) @ibm/plex-mono npm" \
+		"ibmplex_serif $(ibmplex_serif_version) @ibm/plex-serif npm" \
 		"jquery_datatables $(jquery_datatables_version) DataTables/DataTablesSrc release"; \
 	do \
 		set -- $$dep; \
@@ -131,6 +173,8 @@ check-frontend-deps:
 		method="$$4"; \
 		if [ "$$method" = "tag" ]; then \
 			latest="$$(get_latest_semver_tag "$$repo" || echo unknown)"; \
+		elif [ "$$method" = "npm" ]; then \
+			latest="$$(get_latest_npm "$$repo" || echo unknown)"; \
 		else \
 			latest="$$(get_latest_release "$$repo" || echo unknown)"; \
 		fi; \
