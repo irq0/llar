@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows use their indexed language configuration for matching and
   snippets.
 - Reader: Add reading time groups to Reading Queue
+- Dependencies: Upgrade Clojure, selected Clojure libraries, Node.js
+  metadata extraction dependencies, Bootstrap, Font Awesome, IBM Plex,
+  and jQuery.
+- Reader: Replace the Waypoints-based mark-read-on-view trigger with a
+  native IntersectionObserver implementation, keeping the same
+  bottom-in-view behavior while removing the Waypoints frontend
+  dependency.
 
 ## [3.1.0] - 2026-06-21
 
