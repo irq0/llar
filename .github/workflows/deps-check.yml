@@ -1,0 +1,207 @@
+name: Dependency Update Check
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Weekly, Monday 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  clojure-deps:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+        filter: tree:0
+    - uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '25'
+        cache: 'maven'
+        cache-dependency-path: 'project.clj'
+    - name: Install Leiningen
+      run: |
+        mkdir -p ~/.local/bin
+        curl -sL https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein -o ~/.local/bin/lein
+        chmod +x ~/.local/bin/lein
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+    - uses: actions/cache@v4
+      with:
+        path: ~/.lein
+        key: lein-${{ hashFiles('project.clj') }}
+        restore-keys: lein-
+    - name: Check outdated Clojure dependencies
+      run: |
+        lein update-in :plugins conj '[lein-ancient "0.7.0"]' -- ancient 2>&1 | tee ancient-output.txt || true
+    - uses: actions/upload-artifact@v4
+      with:
+        name: clojure-deps
+        path: ancient-output.txt
+
+  node-deps:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - run: npm install
+    - name: Check outdated Node.js dependencies
+      run: npm outdated --json > npm-outdated.json || true
+    - uses: actions/upload-artifact@v4
+      with:
+        name: node-deps
+        path: npm-outdated.json
+
+  frontend-deps:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check vendored frontend library versions
+      run: bash scripts/check-frontend-deps.sh > frontend-outdated.json
+    - uses: actions/upload-artifact@v4
+      with:
+        name: frontend-deps
+        path: frontend-outdated.json
+
+  report:
+    needs: [clojure-deps, node-deps, frontend-deps]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+    - name: Build report
+      id: report
+      run: |
+        # --- Clojure ---
+        clj_section="## Clojure Dependencies (lein ancient)\n\n"
+        if [ -s clojure-deps/ancient-output.txt ] && grep -q '\[' clojure-deps/ancient-output.txt; then
+          clj_section+="| Library | Current | Latest |\n|---------|---------|--------|\n"
+          # lein ancient output: [group/artifact "current"] is available but we do not use
+          # Format: [lib "ver"] -> [lib "ver"]
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^\[(.+)\ \"(.+)\"\]\ is\ available\ but\ we\ use\ \"(.+)\" ]]; then
+              clj_section+="| ${BASH_REMATCH[1]} | ${BASH_REMATCH[3]} | ${BASH_REMATCH[2]} |\n"
+            elif [[ "$line" =~ ^\[(.+)\ \"(.+)\"\] ]]; then
+              clj_section+="| ${BASH_REMATCH[1]} | - | ${BASH_REMATCH[2]} |\n"
+            fi
+          done < clojure-deps/ancient-output.txt
+        else
+          clj_section+="All Clojure dependencies are up to date.\n"
+        fi
+
+        # --- Node.js ---
+        node_section="\n## Node.js Dependencies (npm outdated)\n\n"
+        if [ -s node-deps/npm-outdated.json ] && [ "$(jq 'length' node-deps/npm-outdated.json)" -gt 0 ]; then
+          node_section+="| Package | Current | Wanted | Latest |\n|---------|---------|--------|--------|\n"
+          for pkg in $(jq -r 'keys[]' node-deps/npm-outdated.json); do
+            current=$(jq -r ".\"$pkg\".current // \"-\"" node-deps/npm-outdated.json)
+            wanted=$(jq -r ".\"$pkg\".wanted // \"-\"" node-deps/npm-outdated.json)
+            latest=$(jq -r ".\"$pkg\".latest // \"-\"" node-deps/npm-outdated.json)
+            node_section+="| $pkg | $current | $wanted | $latest |\n"
+          done
+        else
+          node_section+="All Node.js dependencies are up to date.\n"
+        fi
+
+        # --- Frontend ---
+        fe_section="\n## Frontend Libraries (vendored)\n\n"
+        if [ -s frontend-deps/frontend-outdated.json ]; then
+          has_updates=false
+          fe_section+="| Library | Current | Latest | Repo |\n|---------|---------|--------|------|\n"
+          for row in $(jq -r '.[] | @base64' frontend-deps/frontend-outdated.json); do
+            name=$(echo "$row" | base64 -d | jq -r '.name')
+            current=$(echo "$row" | base64 -d | jq -r '.current')
+            latest=$(echo "$row" | base64 -d | jq -r '.latest')
+            repo=$(echo "$row" | base64 -d | jq -r '.repo')
+            marker=""
+            if [ "$current" != "$latest" ] && [ "$latest" != "unknown" ]; then
+              has_updates=true
+            fi
+            fe_section+="| $name | $current | $latest | $repo |\n"
+          done
+        else
+          fe_section+="Could not check frontend dependencies.\n"
+        fi
+
+        # --- Combine ---
+        body="${clj_section}${node_section}${fe_section}"
+        body+="\n---\n*Last checked: $(date -u '+%Y-%m-%d %H:%M UTC')*\n"
+
+        # Check if anything is outdated
+        has_clj_updates=false
+        if grep -q 'is available' clojure-deps/ancient-output.txt 2>/dev/null; then
+          has_clj_updates=true
+        fi
+        has_node_updates=false
+        if [ -s node-deps/npm-outdated.json ] && [ "$(jq 'length' node-deps/npm-outdated.json)" -gt 0 ]; then
+          has_node_updates=true
+        fi
+
+        if [ "$has_clj_updates" = true ] || [ "$has_node_updates" = true ] || [ "${has_updates:-false}" = true ]; then
+          echo "has_updates=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "has_updates=false" >> "$GITHUB_OUTPUT"
+        fi
+
+        # Write body to file for the issue action
+        echo -e "$body" > issue-body.md
+
+    - name: Create or update issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const body = fs.readFileSync('issue-body.md', 'utf8');
+          const title = 'Dependency Updates Available';
+          const labels = ['dependencies', 'automated'];
+          const hasUpdates = '${{ steps.report.outputs.has_updates }}' === 'true';
+
+          // Find existing issue
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'all',
+            labels: labels.join(','),
+            creator: 'github-actions[bot]',
+          });
+          const existing = issues.data.find(i => i.title === title);
+
+          if (hasUpdates) {
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: body,
+                state: 'open',
+              });
+              console.log(`Updated issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: labels,
+              });
+              console.log(`Created issue #${created.data.number}`);
+            }
+          } else {
+            if (existing && existing.state === 'open') {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: body + '\n\n✅ All dependencies are up to date.',
+                state: 'closed',
+              });
+              console.log(`Closed issue #${existing.number} - all up to date`);
+            } else {
+              console.log('No updates found, no issue to create or update');
+            }
+          }
