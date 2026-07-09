@@ -63,7 +63,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Check vendored frontend library versions
-      run: bash scripts/check-frontend-deps.sh > frontend-outdated.json
+      run: make check-frontend-deps > frontend-outdated.json
     - uses: actions/upload-artifact@v4
       with:
         name: frontend-deps

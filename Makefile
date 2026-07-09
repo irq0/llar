@@ -14,7 +14,7 @@ DOCS_OUT ?= target/docs
 
 all: web-3rd-party uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables chartjs uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js waypoints popper datatables chartjs uberjar docker-image
 
 resources/status/ibmplex/Web/LICENSE.txt:
 	mkdir -p resources/status/ibmplex
@@ -107,6 +107,48 @@ clean-web-3rd-party:
 	rm -rf resources/status/fontawesome
 	rm -rf resources/status/ibmplex
 	rm -rf resources/status/chartjs
+
+check-frontend-deps:
+	@set -euo pipefail; \
+	get_latest_release() { \
+		curl -sf "https://api.github.com/repos/$$1/releases/latest" \
+		| jq -r '.tag_name' \
+		| sed 's/^v//'; \
+	}; \
+	get_latest_semver_tag() { \
+		curl -sf "https://api.github.com/repos/$$1/tags?per_page=20" \
+		| jq -r '.[].name' \
+		| grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$$' \
+		| sed 's/^v//' \
+		| sort -V \
+		| tail -1; \
+	}; \
+	results="$$(jq -n '[]')"; \
+	for dep in \
+		"bootstrap $(bootstrap_version) twbs/bootstrap release" \
+		"jquery $(jquery_version) jquery/jquery release" \
+		"fontawesome $(fontawesome_version) FortAwesome/Font-Awesome release" \
+		"ibmplex $(ibmplex_version) IBM/plex tag" \
+		"jquery_datatables $(jquery_datatables_version) DataTables/DataTablesSrc release"; \
+	do \
+		set -- $$dep; \
+		name="$$1"; \
+		current="$$2"; \
+		repo="$$3"; \
+		method="$$4"; \
+		if [ "$$method" = "tag" ]; then \
+			latest="$$(get_latest_semver_tag "$$repo" || echo unknown)"; \
+		else \
+			latest="$$(get_latest_release "$$repo" || echo unknown)"; \
+		fi; \
+		results="$$(echo "$$results" | jq \
+			--arg name "$$name" \
+			--arg current "$$current" \
+			--arg latest "$$latest" \
+			--arg repo "$$repo" \
+			'. + [{"name": $$name, "current": $$current, "latest": $$latest, "repo": $$repo}]')"; \
+	done; \
+	echo "$$results" | jq .
 
 $(llar_uberjar): $(CLOJURE_FILES)
 	@echo "Building uberjar with version $(LLAR_VERSION)"
