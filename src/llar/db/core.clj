@@ -41,7 +41,7 @@
 (extend-protocol prepare/SettableParameter
   java.time.ZonedDateTime
   (set-parameter [zdt ^java.sql.PreparedStatement stmt ^long i]
-    (.setTimestamp stmt i (java.sql.Timestamp/from (time/instant zdt)))))
+    (.setObject stmt i (.toLocalDateTime (time/with-zone-same-instant zdt "UTC")))))
 
 (extend-protocol prepare/SettableParameter
   clojure.lang.IPersistentMap

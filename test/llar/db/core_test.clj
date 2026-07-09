@@ -2,6 +2,7 @@
   "Tests for type conversions between Clojure and PostgreSQL types."
   (:require
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [java-time.api :as time]
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-source]]
    [llar.db.core]
@@ -156,7 +157,36 @@
       (is (instance? java.time.ZonedDateTime (:created_ts source))
           "Timestamp should be read as ZonedDateTime")
       (is (instance? java.time.ZonedDateTime (:updated_ts source))
-          "Timestamp should be read as ZonedDateTime"))))
+          "Timestamp should be read as ZonedDateTime")))
+
+  (testing "ZonedDateTime stores UTC timestamp fields"
+    (let [source (create-test-source *test-db* :key "timestamp-bind-source")
+          ts (time/zoned-date-time 2024 3 31 9 30 15 123456000 "Asia/Tokyo")
+          row (first
+               (jdbc/execute! *test-db*
+                              ["INSERT INTO items (hash, title, type, source_id, ts, author, tagi, entry, nlp_nwords, nlp_urls, nlp_names, nlp_nouns, nlp_verbs, nlp_top)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                RETURNING ts, to_char(ts, 'YYYY-MM-DD HH24:MI:SS.US') AS ts_text"
+                               "timestamp-bind-hash"
+                               "Timestamp Bind Test"
+                               :item-type/link
+                               (:id source)
+                               ts
+                               "Test Author"
+                               [1]
+                               {:url "https://example.com"}
+                               0
+                               []
+                               []
+                               []
+                               []
+                               {}]
+                              {:return-keys true
+                               :builder-fn rs/as-unqualified-lower-maps}))]
+      (is (= "2024-03-31 00:30:15.123456" (:ts_text row))
+          "timestamp without time zone should store UTC wall-clock fields")
+      (is (= (time/instant ts) (time/instant (:ts row)))
+          "ReadableColumn conversion should preserve the original instant"))))
 
 (deftest test-null-handling
   (testing "Null values in JSONB"
