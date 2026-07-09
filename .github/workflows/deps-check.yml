@@ -37,10 +37,24 @@ jobs:
     - name: Check outdated Clojure dependencies
       run: |
         lein update-in :plugins conj '[lein-ancient "0.7.0"]' -- ancient 2>&1 | tee ancient-output.txt || true
+        sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' ancient-output.txt \
+        | jq -Rn '
+            [
+              inputs
+              | capture("^\\[(?<library>[^ ]+) \"(?<latest>[^\"]+)\"\\] is available but we use \"(?<current>[^\"]+)\"")?
+              | select(. != null)
+            ]
+          ' > ancient-outdated.json
+        if grep -q 'is available but we use' ancient-output.txt && [ "$(jq 'length' ancient-outdated.json)" -eq 0 ]; then
+          echo "::error::lein ancient reported updates, but the parser did not capture any dependencies"
+          exit 1
+        fi
     - uses: actions/upload-artifact@v4
       with:
         name: clojure-deps
-        path: ancient-output.txt
+        path: |
+          ancient-output.txt
+          ancient-outdated.json
 
   node-deps:
     runs-on: ubuntu-latest
@@ -79,17 +93,14 @@ jobs:
       run: |
         # --- Clojure ---
         clj_section="## Clojure Dependencies (lein ancient)\n\n"
-        if [ -s clojure-deps/ancient-output.txt ] && grep -q '\[' clojure-deps/ancient-output.txt; then
+        if [ -s clojure-deps/ancient-outdated.json ] && [ "$(jq 'length' clojure-deps/ancient-outdated.json)" -gt 0 ]; then
           clj_section+="| Library | Current | Latest |\n|---------|---------|--------|\n"
-          # lein ancient output: [group/artifact "current"] is available but we do not use
-          # Format: [lib "ver"] -> [lib "ver"]
-          while IFS= read -r line; do
-            if [[ "$line" =~ ^\[(.+)\ \"(.+)\"\]\ is\ available\ but\ we\ use\ \"(.+)\" ]]; then
-              clj_section+="| ${BASH_REMATCH[1]} | ${BASH_REMATCH[3]} | ${BASH_REMATCH[2]} |\n"
-            elif [[ "$line" =~ ^\[(.+)\ \"(.+)\"\] ]]; then
-              clj_section+="| ${BASH_REMATCH[1]} | - | ${BASH_REMATCH[2]} |\n"
-            fi
-          done < clojure-deps/ancient-output.txt
+          for row in $(jq -r '.[] | @base64' clojure-deps/ancient-outdated.json); do
+            library=$(echo "$row" | base64 -d | jq -r '.library')
+            current=$(echo "$row" | base64 -d | jq -r '.current')
+            latest=$(echo "$row" | base64 -d | jq -r '.latest')
+            clj_section+="| $library | $current | $latest |\n"
+          done
         else
           clj_section+="All Clojure dependencies are up to date.\n"
         fi
@@ -134,7 +145,7 @@ jobs:
 
         # Check if anything is outdated
         has_clj_updates=false
-        if grep -q 'is available' clojure-deps/ancient-output.txt 2>/dev/null; then
+        if [ -s clojure-deps/ancient-outdated.json ] && [ "$(jq 'length' clojure-deps/ancient-outdated.json)" -gt 0 ]; then
           has_clj_updates=true
         fi
         has_node_updates=false
