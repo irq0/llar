@@ -307,16 +307,26 @@ if (main) {
 
 $(document).ready(function () {
   $(".btn-mark-view-read").on("click", function () {
-    var ids = jQuery.unique(
-      $("main")
-        .find("[data-id]")
-        .map(function () {
-          return $(this).data("id");
-        }),
+    var ids = Array.from(
+      new Set(
+        $("main")
+          .find("[data-id]")
+          .map(function () {
+            return $(this).data("id");
+          })
+          .get(),
+      ),
     );
     console.log(ids);
     for (var id of ids) {
-      var icon_elem = $("[data-id=" + id + "].ajax-toggle+.btn-tag-unread");
+      var icon_elem = $(
+        "[data-id=" +
+          id +
+          "].btn-tag-unread, " +
+          "#item-" +
+          id +
+          " .direct-tag-buttons .btn-tag-unread",
+      ).first();
       tag_item_by_id(id, "unread", icon_elem, "del");
     }
   });
