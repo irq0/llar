@@ -233,6 +233,28 @@
        :mime-type mime-type
        :completed-at completed-at})))
 
+(defn- permanent-download-failure-reason [err]
+  (let [text (str/lower-case (str (:err err) "\n" (:out err) "\n" (:message err)))]
+    (cond
+      (str/includes? text "private video") :private-video
+      (str/includes? text "video unavailable") :video-unavailable
+      (str/includes? text "this video is unavailable") :video-unavailable
+      (str/includes? text "has been removed") :removed-video
+      (str/includes? text "account has been terminated") :account-terminated
+      (str/includes? text "sign in to confirm your age") :age-restricted
+      (str/includes? text "members-only content") :members-only
+      (str/includes? text "join this channel to get access") :members-only
+      :else nil)))
+
+(defn- download-error-summary [err]
+  (or (some-> (:err err)
+              str/split-lines
+              first
+              str/trim
+              not-empty)
+      (some-> (:message err) str not-empty)
+      (str err)))
+
 (defn- scan-podcast-items!
   "Scan for podcast-tagged items, detect media URLs, update download state"
   []
@@ -312,28 +334,35 @@
      (catch Object e
        (let [attempt (or (:attempt state) 1)
              max-download-attempts (rc/rc [:podcast :download :max-attempts])
-             retryable? (< attempt max-download-attempts)
+             permanent-reason (permanent-download-failure-reason e)
+             retryable? (and (nil? permanent-reason)
+                             (< attempt max-download-attempts))
              retry-after (when retryable?
                            (time/plus (time/zoned-date-time)
-                                      (time/minutes (rc/rc [:podcast :download :retry-cooldown-minutes]))))]
-         (log/warnf "podcast: download failed for item %s (attempt %d/%d, %s): %s"
+                                      (time/minutes (rc/rc [:podcast :download :retry-cooldown-minutes]))))
+             summary (download-error-summary e)
+             status (if retryable? :failed :perm-failed)]
+         (log/warnf "podcast: download failed for item %s (attempt %d/%d, %s%s): %s"
                     item-id attempt max-download-attempts
                     (if retryable? (str "retry after " retry-after) "giving up")
-                    e)
+                    (if permanent-reason (str ", " (name permanent-reason)) "")
+                    summary)
          (swap! download-state assoc item-id
-                {:status (if retryable? :failed :perm-failed)
+                {:status status
                  :media-url (:media-url state)
                  :item-title (:item-title state)
                  :source-key (:source-key state)
                  :attempt attempt
                  :retry-after retry-after
-                 :error (str e)
+                 :error summary
+                 :failure-reason permanent-reason
                  :last-attempt (time/zoned-date-time)})
          {:item-id item-id
-          :result (if retryable? :failed :perm-failed)
+          :result status
           :attempt attempt
           :retry-after retry-after
-          :error (str e)})))))
+          :failure-reason permanent-reason
+          :error summary})))))
 
 ;;;; State rebuild from podcast index
 

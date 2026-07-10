@@ -66,6 +66,23 @@
     (is (nil? (uut/media-type "https://example.com/article")))
     (is (nil? (uut/media-type nil)))))
 
+(deftest download-failure-classification
+  (testing "private YouTube videos are permanent failures"
+    (is (= :private-video
+           (#'uut/permanent-download-failure-reason
+            {:type :llar.commands/av-download-error
+             :err "ERROR: [youtube] yBIc8ZQ84to: Private video. Sign in if you've been granted access to this video."}))))
+
+  (testing "transient-looking failures remain retryable"
+    (is (nil? (#'uut/permanent-download-failure-reason
+               {:type :llar.commands/av-download-error
+                :err "ERROR: unable to download webpage: HTTP Error 503"}))))
+
+  (testing "summary is the first stderr line"
+    (is (= "ERROR: [youtube] yBIc8ZQ84to: Private video."
+           (#'uut/download-error-summary
+            {:err "ERROR: [youtube] yBIc8ZQ84to: Private video.\nUse --cookies"})))))
+
 (deftest test-wrap-token-auth
   (let [handler (fn [_] {:status 200 :body "ok"})
         wrapped (podcast-api/wrap-token-auth handler)]
