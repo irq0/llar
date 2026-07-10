@@ -380,6 +380,10 @@ $(document).ready(function () {
   });
 
   // main list: mark on view, toggle read
+  var markReadOnViewDwellMs = 1000;
+  var markReadOnViewTimers = new Map();
+  var markReadObserver = null;
+
   function markReadOnView(element) {
     $(element).removeClass("option-mark-read-on-view");
 
@@ -402,14 +406,75 @@ $(document).ready(function () {
     );
   }
 
+  function cancelMarkReadOnView(target) {
+    var timer = markReadOnViewTimers.get(target);
+    if (timer) {
+      clearTimeout(timer);
+      markReadOnViewTimers.delete(target);
+    }
+  }
+
+  function cancelAllMarkReadOnView() {
+    markReadOnViewTimers.forEach(function (timer) {
+      clearTimeout(timer);
+    });
+    markReadOnViewTimers.clear();
+  }
+
+  function scheduleMarkReadOnView(target, element, onComplete) {
+    if (!element || !$(element).hasClass("option-mark-read-on-view")) {
+      return;
+    }
+    if (markReadOnViewTimers.has(target)) {
+      return;
+    }
+
+    var timer = setTimeout(function () {
+      markReadOnViewTimers.delete(target);
+      onComplete();
+      markReadOnView(element);
+    }, markReadOnViewDwellMs);
+    markReadOnViewTimers.set(target, timer);
+  }
+
+  function elementIsInViewport(element) {
+    var rect = element.getBoundingClientRect();
+    return rect.bottom >= 0 && rect.top <= window.innerHeight;
+  }
+
+  function removeObservedBottomSentinel(sentinel) {
+    if (markReadObserver) {
+      markReadObserver.unobserve(sentinel);
+    }
+    sentinel.remove();
+  }
+
+  function scheduleBottomSentinelMarkRead(sentinel) {
+    scheduleMarkReadOnView(sentinel, sentinel.parentElement, function () {
+      removeObservedBottomSentinel(sentinel);
+    });
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      cancelAllMarkReadOnView();
+    } else if (markReadObserver) {
+      $(".mark-read-on-view-bottom").each(function () {
+        if (elementIsInViewport(this)) {
+          scheduleBottomSentinelMarkRead(this);
+        }
+      });
+    }
+  });
+
   if ("IntersectionObserver" in window) {
-    var markReadObserver = new IntersectionObserver(
+    markReadObserver = new IntersectionObserver(
       function (entries, observer) {
         entries.forEach(function (entry) {
           if (entry.isIntersecting) {
-            observer.unobserve(entry.target);
-            markReadOnView(entry.target.parentElement);
-            entry.target.remove();
+            scheduleBottomSentinelMarkRead(entry.target);
+          } else {
+            cancelMarkReadOnView(entry.target);
           }
         });
       },
@@ -429,7 +494,9 @@ $(document).ready(function () {
     function markVisibleItemsRead() {
       $(".option-mark-read-on-view").each(function () {
         if (this.getBoundingClientRect().bottom <= window.innerHeight) {
-          markReadOnView(this);
+          scheduleMarkReadOnView(this, this, function () {});
+        } else {
+          cancelMarkReadOnView(this);
         }
       });
     }
