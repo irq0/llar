@@ -4,6 +4,7 @@
    [llar.blobstore :as blobstore]
    [llar.converter :as converter]
    [llar.commands :refer [html2text] :as commands]
+   [llar.privacy :as privacy]
    [llar.regex :as regex-collection]
    [slingshot.slingshot :refer [throw+ try+]]
    [clj-http.client :as http]
@@ -242,12 +243,16 @@
 
                 (cond-> attrs
                   (not (or (nil? src) (string/blank? src)))
-                  (assoc :src (str (absolutify-url src base-url)))
+                  (assoc :src (privacy/strip-tracking-params
+                               (str (absolutify-url src base-url))))
 
                   (not (or (nil? srcset) (string/blank? srcset)))
                   (assoc :srcset
                          (some->> parsed-srcset
-                                  (map (fn [[url descr]] [(str (absolutify-url url base-url)) descr]))
+                                  (map (fn [[url descr]]
+                                         [(privacy/strip-tracking-params
+                                           (str (absolutify-url url base-url)))
+                                          descr]))
                                   unparse-img-srcset)))))))
 
 (defn absolutify-links-in-hick [root base-url]
@@ -258,7 +263,8 @@
                        (and (= tag :a) (string? (:href attrs)) (not (string/blank? (:href attrs))))
                        (zip/edit loc update-in
                                  [:attrs :href]
-                                 #(str (absolutify-url % base-url)))
+                                 #(privacy/strip-tracking-params
+                                   (str (absolutify-url % base-url))))
 
                        (and (= tag :img) (or (string? (:src attrs))
                                              (string? (:srcset attrs))))
@@ -282,7 +288,7 @@
             (recur (zip/next loc))))))))
 
 (defn try-blobify-url! [url]
-  (let [url (parse-url url)]
+  (let [url (parse-url (privacy/strip-tracking-params url))]
     (if (or (nil? url)
             (= (uri/scheme url) "data")
             (= (uri/path url) "/")
@@ -348,6 +354,28 @@
 
 (defn raw-readability [raw-html url]
   (commands/readability raw-html url))
+
+(defn- utf8-size [s]
+  (count (.getBytes (str s) "UTF-8")))
+
+(defn- response-content-length [response]
+  (some-> (or (get-in response [:headers "Content-Length"])
+              (get-in response [:headers "content-length"])
+              (get-in response [:headers :content-length]))
+          parse-long))
+
+(defn- enforce-body-size! [url response body]
+  (let [limit (llar.appconfig/http-max-body-bytes)
+        size (or (response-content-length response)
+                 (some-> body utf8-size))]
+    (when (and size (> size limit))
+      (throw+ {:type ::request-error
+               :reason-class :body-too-large
+               :url url
+               :limit limit
+               :size size
+               :message (format "HTTP body too large: %s bytes exceeds %s bytes"
+                                size limit)}))))
 
 (defn sanitize
   [root
@@ -431,7 +459,9 @@
                                                (str (get attrs (get url-attribs tag)))
                                                :note "cleared by llar html sanitizer"}))))
                 :else
-                loc)))
+                (if (= tag :a)
+                  (zip/edit loc update :attrs privacy/secure-link-attrs)
+                  loc))))
             (recur (zip/next loc))))))))
 
 (defn http-resp-throw [ex context]
@@ -547,6 +577,7 @@
 
         html (when (and (#{200 206} (:status response))
                         (some? (:body response)))
+               (enforce-body-size! url response (:body response))
                (if sanitize? (raw-sanitize (:body response))
                    (:body response)))
         parsed-html (when (some? html) (cond-> (-> html

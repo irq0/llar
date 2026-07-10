@@ -120,6 +120,11 @@
 (s/def :irq0-appconfig/max-retry nat-int?)
 (s/def :irq0-appconfig/update
   (s/keys :req-un [:irq0-appconfig/max-retry]))
+(s/def :irq0-appconfig/max-body-bytes pos-int?)
+(s/def :irq0-appconfig/max-blob-body-bytes pos-int?)
+(s/def :irq0-appconfig/http
+  (s/keys :opt-un [:irq0-appconfig/max-body-bytes
+                   :irq0-appconfig/max-blob-body-bytes]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/blob-store-dir
@@ -131,6 +136,7 @@
                    :irq0-appconfig/postgresql]
           :opt-un [:irq0-appconfig/ranking
                    :irq0-appconfig/export
+                   :irq0-appconfig/http
                    :irq0-appconfig/mail]))
 
 (defn verify-config [config]
@@ -212,6 +218,16 @@
 (defn reader
   ([] (get-in appconfig [:api :reader]))
   ([key] (get-in appconfig [:api :reader key])))
+
+(defn http
+  ([] (get appconfig :http))
+  ([key] (get-in appconfig [:http key])))
+
+(defn http-max-body-bytes []
+  (or (http :max-body-bytes) 15728640))
+
+(defn http-max-blob-body-bytes []
+  (or (http :max-blob-body-bytes) 52428800))
 
 (defn credentials [name]
   (try

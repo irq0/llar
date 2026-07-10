@@ -7,6 +7,8 @@
    [clojure.test.check.generators :as gen]
    [clojure.test.check.properties :as prop]
    [hickory.select :as s]
+   [clj-http.client]
+   [llar.appconfig :as appconfig]
    [llar.http :as uut]))
 
 (def hick
@@ -146,6 +148,45 @@
       (is (not-any? #(string/includes? % "blocklisted") urls)
           "contains no blocklisted link or image"))))
 
+(deftest sanitize-external-link-privacy-attrs
+  (let [sanitized (uut/sanitize hick)
+        link (first (s/select (s/descendant
+                               (s/and
+                                (s/tag :a)
+                                (s/attr :href #(= "https://example.com/" %))))
+                              sanitized))
+        attrs (:attrs link)]
+    (is (= "no-referrer" (:referrerpolicy attrs)))
+    (is (string/includes? (:rel attrs) "noopener"))
+    (is (string/includes? (:rel attrs) "noreferrer"))))
+
+(deftest absolutify-links-strips-trackers
+  (let [doc {:type :document
+             :content [{:type :element
+                        :tag :html
+                        :attrs nil
+                        :content [{:type :element
+                                   :tag :body
+                                   :attrs nil
+                                   :content [{:type :element
+                                              :tag :a
+                                              :attrs {:href "/article?utm_source=x&id=1&fbclid=y"}
+                                              :content ["link"]}
+                                             {:type :element
+                                              :tag :img
+                                              :attrs {:src "/img.png?utm_medium=x&v=1"
+                                                      :srcset "/small.png?utm_campaign=x&w=1 1x, /big.png?fbclid=y&w=2 2x"}
+                                              :content []}]}]}]}
+        rewritten (uut/absolutify-links-in-hick doc
+                                                (uut/get-base-url
+                                                 (#'uut/parse-url "https://example.com/base/page.html")))
+        href (-> (s/select (s/descendant (s/tag :a)) rewritten) first :attrs :href)
+        img (-> (s/select (s/descendant (s/tag :img)) rewritten) first :attrs)]
+    (is (= "https://example.com/article?id=1" href))
+    (is (= "https://example.com/img.png?v=1" (:src img)))
+    (is (= "https://example.com/small.png?w=1 1x, https://example.com/big.png?w=2 2x"
+           (:srcset img)))))
+
 (deftest sanitize-css
   (let [sanitized (uut/sanitize hick :remove-css? true)
         style-attrs (remove nil?
@@ -192,3 +233,16 @@
                 (let [once (uut/sanitize simple-hick-doc)
                       twice (uut/sanitize once)]
                   (= once twice))))
+
+(deftest fetch-rejects-oversized-body
+  (with-redefs [appconfig/appconfig {:http {:max-body-bytes 4}}
+                clj-http.client/get (fn [& _]
+                                      {:status 200
+                                       :headers {"Content-Length" "5"}
+                                       :body "12345"})]
+    (try
+      (uut/fetch "https://example.com" :sanitize? false :blobify? false)
+      (is false "expected oversized response to throw")
+      (catch clojure.lang.ExceptionInfo ex
+        (is (= :llar.http/request-error (:type (ex-data ex))))
+        (is (= :body-too-large (:reason-class (ex-data ex))))))))

@@ -40,6 +40,8 @@
             :av-downloader 600
             :av-downloader-transcode 1800
             :html2text 30}
+ :http {:max-body-bytes 15728640
+        :max-blob-body-bytes 52428800}
  :commands {:pandoc "pandoc"
             :w3m "w3m"
             :lynx "lynx"

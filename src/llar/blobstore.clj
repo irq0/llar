@@ -145,6 +145,22 @@
   (when (number? status)
     (<= 500 status 599)))
 
+(defn- response-content-length [response]
+  (some-> (or (get-in response [:headers "Content-Length"])
+              (get-in response [:headers "content-length"])
+              (get-in response [:headers :content-length]))
+          parse-long))
+
+(defn- enforce-blob-body-size! [url size]
+  (let [limit (appconfig/http-max-blob-body-bytes)]
+    (when (and size (> size limit))
+      (log/warnf "BLOBSTORE ADD url %s too large: %sB > %sB" url size limit)
+      (throw+ {:type ::body-too-large
+               :reason-class :body-too-large
+               :url url
+               :limit limit
+               :size size}))))
+
 (defn- download-and-add!
   "Download, hash, add to primary index - create secondary index entry"
   [url]
@@ -154,7 +170,9 @@
                               :socket-timeout 10000
                               :connection-timeout 5000})
 
+         _ (enforce-blob-body-size! url (response-content-length response))
          body (.readAllBytes (:body response))
+         _ (enforce-blob-body-size! url (count body))
          content-hash (digest/sha-256 body)
 
          response-mime (get-in response [:headers "Content-Type"])
@@ -204,6 +222,8 @@
           {:keys [_ _ status]}
      (log/debug "BLOBSTORE Server Error (-> temp-fail):" status url)
      (throw+ {:type ::fetch-fail}))
+   (catch [:type ::body-too-large] err
+     (throw+ (assoc err :type ::fetch-fail)))
    (catch java.net.MalformedURLException _
      (log/warn "URL Kaputt?" url))
    (catch java.net.ConnectException e

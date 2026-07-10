@@ -7,6 +7,7 @@
    [llar.commands :refer [download-subtitles]]
    [llar.converter :as conv]
    [llar.metrics :as metrics]
+   [llar.privacy :as privacy]
    [slingshot.slingshot :refer [throw+ try+]]))
 
 ;;;; Postprocessing and Filtering
@@ -59,9 +60,26 @@
   [url]
   (some? (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" (str url))))
 
+(defn- strip-url-field [item path]
+  (if (string? (get-in item path))
+    (update-in item path privacy/strip-tracking-params)
+    item))
+
+(defn- strip-item-tracking-params [item]
+  (reduce strip-url-field
+          item
+          [[:entry :url]
+           [:entry :comments-url]
+           [:entry :lead-image-url]
+           [:entry :media-url]
+           [:entry :thumbnail]
+           [:summary :url]
+           [:meta :url]]))
+
 (defn all-items-process-first [item _ state]
   (log/trace "all items processor (first)" (str item))
-  (let [url (get-in item [:entry :url])
+  (let [item (strip-item-tracking-params item)
+        url (get-in item [:entry :url])
         item (-> item
                  (update-in [:meta :tags] conj :unread)
                  (assoc-in [:meta :source-key] (:key state)))]
