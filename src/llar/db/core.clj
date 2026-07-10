@@ -10,7 +10,8 @@
    [next.jdbc :as jdbc]
    [next.jdbc.prepare :as prepare]
    [next.jdbc.protocols :as p]
-   [next.jdbc.result-set :as rs])
+   [next.jdbc.result-set :as rs]
+   [org.bovinegenius.exploding-fish])
   (:import
    (org.bovinegenius.exploding_fish UniformResourceIdentifier Uri)))
 

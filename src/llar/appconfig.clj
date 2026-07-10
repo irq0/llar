@@ -26,6 +26,14 @@
 (s/def :irq0-appconfig/jetty-config (s/keys :req-un [:irq0-appconfig/port]))
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
 (s/def :irq0-appconfig/reader :irq0-appconfig/jetty-config)
+(s/def :irq0-appconfig/fever
+  (s/and :irq0-appconfig/jetty-config
+         #(string? (:username %))
+         #(keyword? (:credentials %))
+         #(or (nil? (:source-tag %)) (keyword? (:source-tag %)))
+         #(or (nil? (:initial-days %)) (pos-int? (:initial-days %)))
+         #(or (nil? (:recent-read-days %)) (pos-int? (:recent-read-days %)))
+         #(or (nil? (:max-content-bytes %)) (pos-int? (:max-content-bytes %)))))
 ;; Digest delivery (e-reader magazines). Optional. Lives under :api :digest.
 ;; Uses the general top-level :mail config for sending.
 (s/def :irq0-appconfig/digest
@@ -33,6 +41,7 @@
          #(string? (:to %))))
 (s/def :irq0-appconfig/api (s/keys :opt-un [:irq0-appconfig/reader
                                             :irq0-appconfig/dashboard
+                                            :irq0-appconfig/fever
                                             :irq0-appconfig/digest]))
 
 ;; General outgoing mail config. Optional, top-level. :from is the default From
@@ -218,6 +227,10 @@
 (defn reader
   ([] (get-in appconfig [:api :reader]))
   ([key] (get-in appconfig [:api :reader key])))
+
+(defn fever
+  ([] (get-in appconfig [:api :fever]))
+  ([key] (get-in appconfig [:api :fever key])))
 
 (defn http
   ([] (get appconfig :http))

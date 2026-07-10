@@ -4,6 +4,7 @@
    [clojure.tools.logging :as log]
    [llar.metrics :as metrics]
    [llar.apis.dashboard :as dashboard]
+   [llar.apis.fever :as fever]
    [llar.apis.podcast :as podcast]
    [llar.apis.reader :as reader]
    [llar.appconfig :as appconfig :refer [appconfig]]
@@ -153,15 +154,17 @@
 
 (defstate dashboard
   :start (if-let [port (get-in appconfig [:api :dashboard :port])]
-           (do (try-start-jetty (dashboard-app) port)
-               (log/infof "dashboard started on http://localhost:%s prometheus endpoint http://localhost:%s/metrics" port port))
+           (let [server (try-start-jetty (dashboard-app) port)]
+             (log/infof "dashboard started on http://localhost:%s prometheus endpoint http://localhost:%s/metrics" port port)
+             server)
            (log/info "dashboard disabled in appconfig"))
   :stop (try-stop-app dashboard))
 
 (defstate ^{:depends-on [metrics/prom-registry reader/frontend-db]} reader
   :start (if-let [port (get-in appconfig [:api :reader :port])]
-           (do (try-start-jetty (reader-app metrics/prom-registry) (get-in appconfig [:api :reader :port]))
-               (log/infof "reader started: http://localhost:%s/reader" port))
+           (let [server (try-start-jetty (reader-app metrics/prom-registry) port)]
+             (log/infof "reader started: http://localhost:%s/reader" port)
+             server)
            (log/info "reader disabled in appconfig"))
   :stop (try-stop-app reader))
 
@@ -174,8 +177,26 @@
    wrap-exception
    (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})))
 
+(defn fever-app []
+  (->
+   (fever/handler reader/frontend-db (appconfig/fever))
+   ring.middleware.json/wrap-json-response
+   ring.middleware.params/wrap-params
+   ring.middleware.gzip/wrap-gzip
+   wrap-exception
+   wrap-security-headers
+   (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})))
+
 (defstate podcast
   :start (when-let [port (appconfig/podcast :port)]
            (log/infof "Starting podcast server on port %d" port)
            (try-start-jetty (podcast-app) port))
   :stop (try-stop-app podcast))
+
+(defstate ^{:depends-on [metrics/prom-registry reader/frontend-db]} fever
+  :start (if-let [port (appconfig/fever :port)]
+           (let [server (try-start-jetty (fever-app) port)]
+             (log/infof "Fever API started on port %d" port)
+             server)
+           (log/info "Fever API disabled in appconfig"))
+  :stop (try-stop-app fever))

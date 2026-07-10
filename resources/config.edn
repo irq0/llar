@@ -5,6 +5,16 @@
        ;; :base-url lets features (e.g. epaper digests) build absolute links back
        ;; into the reader. Set it to how the reader is reached from outside.
        :reader {:port 8023 :enabled true :base-url "http://localhost:8023"}
+       ;; Fever-compatible mobile inbox for Fiery Feeds and ReadKit. The
+       ;; credential entry is a dedicated API password, e.g.
+       ;; {:mobile-sync {:password "..."}} in credentials.edn.
+       ;; :fever {:port 8025
+       ;;         :username "llar"
+       ;;         :credentials :mobile-sync
+       ;;         :source-tag :mobile
+       ;;         :initial-days 30
+       ;;         :recent-read-days 10
+       ;;         :max-content-bytes 1048576}
        :podcast {:port 8024
                  :base-url "http://localhost:8024"
                  :video-format "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"

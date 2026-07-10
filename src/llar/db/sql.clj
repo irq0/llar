@@ -59,7 +59,13 @@
  delete-annotation
  count-annotations-for-item
  get-source-stats
- get-ranked-vs-time-preview)
+ get-ranked-vs-time-preview
+ fever-sources
+ fever-items
+ fever-item-state-ids
+ fever-item-selected
+ fever-mark-read
+ fever-total-items)
 
 (hugsql/def-db-fns (io/resource "sql/items.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/sources.sql") {:quoting :ansi})
@@ -69,4 +75,5 @@
 (hugsql/def-db-fns (io/resource "sql/item.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/annotations.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/ranking.sql") {:quoting :ansi})
+(hugsql/def-db-fns (io/resource "sql/fever.sql") {:quoting :ansi})
 (hugsql/def-sqlvec-fns (io/resource "sql/ranking.sql") {:quoting :ansi})

@@ -50,7 +50,8 @@
 
    #'webapp/dashboard
    #'webapp/reader
-   #'webapp/podcast])
+   #'webapp/podcast
+   #'webapp/fever])
 
 (def wet-states
   [#'config/change-watcher
