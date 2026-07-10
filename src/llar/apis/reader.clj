@@ -21,7 +21,6 @@
    [llar.db.core :as db]
    [llar.fetch :as fetch]
    [llar.fetch.bookmark :as bookmark]
-   [llar.http :refer [try-blobify-url!]]
    [llar.human :as human]
    [llar.item :as item]
    [llar.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
@@ -629,12 +628,7 @@
     (html
      (when-let [vid youtube-url]
        (when (some? vid)
-         (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
-               hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
-               max-thumb (try-blobify-url! maxres-url)
-               thumb (if (= max-thumb maxres-url)
-                       (try-blobify-url! hq-url)
-                       max-thumb)]
+         (when-let [thumb (:thumbnail entry)]
            [:div {:class "ratio ratio-16x9"}
             [:div {:id (str "youtube-container-" (last vid))}
              [:img {:class "lazy-youtube img-fluid"
@@ -1171,15 +1165,8 @@
        [:div {:class "col"}
         (let [image (or
                      (first (get-in entry [:entities :photos]))
-                     (:lead-image-url entry)
-                     (when-let [vid (and (string? url) (re-find #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url))]
-                       (let [maxres-url (str "https://img.youtube.com/vi/" (last vid) "/maxresdefault.jpg")
-                             hq-url (str "https://img.youtube.com/vi/" (last vid) "/hqdefault.jpg")
-                             max-thumb (try-blobify-url! maxres-url)
-                             thumb (if (= max-thumb maxres-url)
-                                     (try-blobify-url! hq-url)
-                                     max-thumb)]
-                         thumb)))]
+                     (:thumbnail entry)
+                     (:lead-image-url entry))]
           [:div {:class "card"}
            [:div {:class "card-header"} source-key]
            [:a {:type "button"

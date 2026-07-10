@@ -1,5 +1,6 @@
 (ns llar.postproc-test
   (:require
+   [clojure.string :as string]
    [clojure.test :refer [deftest is testing use-fixtures]]
    [iapetos.core :as prometheus]
    [java-time.api :as time]
@@ -7,6 +8,7 @@
    [llar.apis.reader :as reader]
    [llar.fetch :as fetch]
    [llar.fetch.hackernews]
+   [llar.http :as http]
    [llar.item]
    [llar.metrics :as metrics]
    [llar.postproc :as uut]
@@ -93,6 +95,67 @@
   (testing "regular URL is not a video"
     (is (not (uut/video-url? "https://example.com/article")))
     (is (not (uut/video-url? nil)))))
+
+(deftest eager-preview-media-blobification-test
+  (let [example-src (src/feed "https://example.com/feed.xml")
+        base-item {:meta {:source example-src
+                          :source-name (str example-src)
+                          :source-key :unknown
+                          :fetch-ts (time/zoned-date-time)
+                          :tags #{}
+                          :version 2}
+                   :summary {:ts (time/zoned-date-time) :title "Test"}
+                   :hash (fetch/make-item-hash "test")
+                   :entry {:url "https://example.com/article"
+                           :contents {}}}
+        state {:key :test}]
+    (testing "blobifies stored reader preview fields"
+      (with-redefs [http/try-blobify-url! (fn [url] (str "/blob/" (last (re-find #"/([^/]+)$" url))))]
+        (let [item (assoc base-item :entry {:url "https://example.com/article"
+                                            :thumbnail "https://cdn.example.com/thumb.jpg"
+                                            :lead-image-url "https://cdn.example.com/lead.jpg"
+                                            :entities {:photos ["https://cdn.example.com/a.jpg"
+                                                                "https://cdn.example.com/b.jpg"]}
+                                            :contents {}})
+              result (uut/all-items-process-first item example-src state)]
+          (is (= "/blob/thumb.jpg" (get-in result [:entry :thumbnail])))
+          (is (= "/blob/lead.jpg" (get-in result [:entry :lead-image-url])))
+          (is (= ["/blob/a.jpg" "/blob/b.jpg"]
+                 (get-in result [:entry :entities :photos]))))))
+
+    (testing "leaves sentinel preview values unchanged"
+      (with-redefs [http/try-blobify-url! (fn [url] (str "/blob/" url))]
+        (let [item (assoc base-item :entry {:url "https://example.com/article"
+                                            :thumbnail "self"
+                                            :lead-image-url "default"
+                                            :contents {}})
+              result (uut/all-items-process-first item example-src state)]
+          (is (= "self" (get-in result [:entry :thumbnail])))
+          (is (= "default" (get-in result [:entry :lead-image-url]))))))
+
+    (testing "keeps original preview URL on blobification failure"
+      (with-redefs [http/try-blobify-url! (fn [_] (throw (ex-info "download failed" {})))]
+        (let [item (assoc base-item :entry {:url "https://example.com/article"
+                                            :thumbnail "https://cdn.example.com/thumb.jpg"
+                                            :contents {}})
+              result (uut/all-items-process-first item example-src state)]
+          (is (= "https://cdn.example.com/thumb.jpg"
+                 (get-in result [:entry :thumbnail]))))))
+
+    (testing "adds a YouTube thumbnail and falls back from maxres to hq"
+      (let [seen (atom [])]
+        (with-redefs [http/try-blobify-url! (fn [url]
+                                              (swap! seen conj url)
+                                              (if (string/includes? url "maxresdefault")
+                                                url
+                                                "/blob/hqdefault.jpg"))]
+          (let [item (assoc base-item :entry {:url "https://www.youtube.com/watch?v=abc123"
+                                              :contents {"text/plain" "already fetched"}})
+                result (uut/all-items-process-first item example-src state)]
+            (is (= "/blob/hqdefault.jpg" (get-in result [:entry :thumbnail])))
+            (is (= ["https://img.youtube.com/vi/abc123/maxresdefault.jpg"
+                    "https://img.youtube.com/vi/abc123/hqdefault.jpg"]
+                   @seen))))))))
 
 (deftest degraded-item-exception-metrics-test
   (let [source (src/feed "https://queue.acm.org/rss/feeds/queuecontent.xml")

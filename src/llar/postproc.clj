@@ -6,6 +6,7 @@
    [iapetos.core :as prometheus]
    [llar.commands :refer [download-subtitles]]
    [llar.converter :as conv]
+   [llar.http :as http]
    [llar.metrics :as metrics]
    [llar.privacy :as privacy]
    [slingshot.slingshot :refer [throw+ try+]]))
@@ -60,6 +61,11 @@
   [url]
   (some? (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" (str url))))
 
+(defn youtube-video-id [url]
+  (when-let [match (and (string? (str url))
+                        (re-find #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" (str url)))]
+    (last match)))
+
 (defn- strip-url-field [item path]
   (if (string? (get-in item path))
     (update-in item path privacy/strip-tracking-params)
@@ -76,9 +82,60 @@
            [:summary :url]
            [:meta :url]]))
 
+(defn- preview-url? [url]
+  (and (string? url)
+       (not (string/blank? url))
+       (not (#{"self" "default"} url))))
+
+(defn- blobify-preview-url [url]
+  (if (preview-url? url)
+    (try+
+     (http/try-blobify-url! url)
+     (catch Object _
+       url))
+    url))
+
+(defn- blobify-preview-field [item path]
+  (if (preview-url? (get-in item path))
+    (update-in item path blobify-preview-url)
+    item))
+
+(defn- blobify-preview-photos [item]
+  (if (seq (get-in item [:entry :entities :photos]))
+    (update-in item [:entry :entities :photos]
+               (fn [photos]
+                 (vec (map blobify-preview-url photos))))
+    item))
+
+(defn- youtube-thumbnail-url [video-id]
+  (let [maxres-url (str "https://img.youtube.com/vi/" video-id "/maxresdefault.jpg")
+        hq-url (str "https://img.youtube.com/vi/" video-id "/hqdefault.jpg")
+        max-thumb (blobify-preview-url maxres-url)]
+    (if (= max-thumb maxres-url)
+      (blobify-preview-url hq-url)
+      max-thumb)))
+
+(defn- add-youtube-thumbnail [item]
+  (if (preview-url? (or (get-in item [:entry :thumbnail])
+                        (get-in item [:entry :lead-image-url])
+                        (first (get-in item [:entry :entities :photos]))))
+    item
+    (if-let [video-id (youtube-video-id (get-in item [:entry :url]))]
+      (assoc-in item [:entry :thumbnail] (youtube-thumbnail-url video-id))
+      item)))
+
+(defn- blobify-preview-media [item]
+  (-> item
+      (blobify-preview-field [:entry :thumbnail])
+      (blobify-preview-field [:entry :lead-image-url])
+      (blobify-preview-photos)
+      (add-youtube-thumbnail)))
+
 (defn all-items-process-first [item _ state]
   (log/trace "all items processor (first)" (str item))
-  (let [item (strip-item-tracking-params item)
+  (let [item (-> item
+                 (strip-item-tracking-params)
+                 (blobify-preview-media))
         url (get-in item [:entry :url])
         item (-> item
                  (update-in [:meta :tags] conj :unread)
