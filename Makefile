@@ -19,8 +19,8 @@ fontawesome_version := 7.3.0
 bootstrap_version := 5.3.8
 jquery_version := 4.0.0
 chartjs_version := 4.4.8
-jquery_datatables_version := 2.1.8
-datatables_buttons_version := 3.2.0
+jquery_datatables_version := 3.0.0-beta.2
+datatables_buttons_version := 4.0.0-beta.1
 llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
 DOCS_OUT ?= target/docs
 
