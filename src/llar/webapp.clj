@@ -87,6 +87,32 @@
            +prom-route-patterns+)
      uri)))
 
+(def ^:private reader-content-security-policy
+  (string/join
+   "; "
+   ["default-src 'self'"
+    "script-src 'self'"
+    "style-src 'self' 'unsafe-inline'"
+    "img-src 'self' data: https:"
+    "font-src 'self'"
+    "connect-src 'self'"
+    "frame-src https://www.youtube-nocookie.com https://www.youtube.com"
+    "media-src 'self' https: blob:"
+    "object-src 'none'"
+    "base-uri 'none'"
+    "form-action 'self'"
+    "frame-ancestors 'none'"]))
+
+(defn wrap-security-headers [handler & {:keys [content-security-policy]}]
+  (fn [request]
+    (let [response (handler request)]
+      (cond-> response
+        (map? response)
+        (assoc-in [:headers "Referrer-Policy"] "no-referrer")
+
+        (and (map? response) content-security-policy)
+        (assoc-in [:headers "Content-Security-Policy"] content-security-policy)))))
+
 (defn dashboard-app []
   (->
    dashboard/app
@@ -98,6 +124,7 @@
    ring.middleware.gzip/wrap-gzip
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception
+   wrap-security-headers
    (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})
    ring.middleware.lint/wrap-lint))
 
@@ -111,6 +138,7 @@
    ring.middleware.gzip/wrap-gzip
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception
+   (wrap-security-headers :content-security-policy reader-content-security-policy)
    (wrap-instrumentation prom-registry {:path-fn prom-path-fn})))
 
 (defn try-start-jetty [app port]
