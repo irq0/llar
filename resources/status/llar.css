@@ -416,6 +416,7 @@ div.item-content-body p > code {
 .navbar-brand {
   font-size: 1rem;
   padding-top: 0.65rem;
+  padding-left: 0.75rem;
   padding-bottom: 0.65rem;
 }
 
