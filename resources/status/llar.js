@@ -381,6 +381,8 @@ $(document).ready(function () {
 
   // main list: mark on view, toggle read
   function markReadOnView(element) {
+    $(element).removeClass("option-mark-read-on-view");
+
     var x = $("#" + element.id + " .direct-tag-buttons .btn-tag-unread");
     if (!x.length || x.data("is-set") === false) {
       return;
@@ -404,9 +406,10 @@ $(document).ready(function () {
     var markReadObserver = new IntersectionObserver(
       function (entries, observer) {
         entries.forEach(function (entry) {
-          if (entry.boundingClientRect.bottom <= window.innerHeight) {
+          if (entry.isIntersecting) {
             observer.unobserve(entry.target);
-            markReadOnView(entry.target);
+            markReadOnView(entry.target.parentElement);
+            entry.target.remove();
           }
         });
       },
@@ -414,17 +417,25 @@ $(document).ready(function () {
     );
 
     $(".option-mark-read-on-view").each(function () {
-      markReadObserver.observe(this);
+      var bottomSentinel = document.createElement("span");
+      bottomSentinel.className = "mark-read-on-view-bottom";
+      bottomSentinel.setAttribute("aria-hidden", "true");
+      bottomSentinel.style.cssText =
+        "display:block;width:1px;height:1px;overflow:hidden;";
+      this.appendChild(bottomSentinel);
+      markReadObserver.observe(bottomSentinel);
     });
   } else {
-    $(window).on("scroll resize", function () {
+    function markVisibleItemsRead() {
       $(".option-mark-read-on-view").each(function () {
         if (this.getBoundingClientRect().bottom <= window.innerHeight) {
-          $(this).removeClass("option-mark-read-on-view");
           markReadOnView(this);
         }
       });
-    });
+    }
+
+    markVisibleItemsRead();
+    $(window).on("scroll resize", markVisibleItemsRead);
   }
   $(".btn-update-sources-in-view").on("click", function () {
     var target = $(this).data("target");
