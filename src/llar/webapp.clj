@@ -20,10 +20,9 @@
   [:head
    [:meta {:charset "utf-8"}]
    [:title "500 Internal Server Error"]
-   [:link {:rel "stylesheet" :href "/static/css/bootstrap.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/fira/fira.css"}]
-   [:link {:rel "stylesheet" :href "/static/fonts/charter/webfonts/stylesheet.css"}]
-   [:link {:rel "stylesheet" :href "/static/css/my.css"}]])
+   [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
+   [:link {:rel "stylesheet" :href "/static/llar.css"}]])
 
 (defn- exception-details [request ex]
   [[:h4 "Request"]

@@ -63,20 +63,10 @@ function initialize_datatables(container) {
           return rows;
         },
       },
-      dom: "Bfrtip",
       rowCallback: function (row, data) {
         set_row_color_by_status(row, data[1]);
       },
       columnDefs: [{ width: "40ch", targets: 2 }],
-      buttons: [
-        {
-          text: '<i title="Refresh table" class="fas fa-refresh">&thinsp;</i>',
-          action: function (e, dt) {
-            console.log("Reloading");
-            dt.ajax.reload();
-          },
-        },
-      ],
     });
   }
 

@@ -18,15 +18,14 @@ ibmplex_packages := \
 fontawesome_version := 7.3.0
 bootstrap_version := 5.3.8
 jquery_version := 4.0.0
-chartjs_version := 4.4.8
-jquery_datatables_version := 3.0.0-beta.2
-datatables_buttons_version := 4.0.0-beta.1
+chartjs_version := 4.5.1
+datatables_version := 3.0.0-beta.2
 llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
 DOCS_OUT ?= target/docs
 
 all: web-3rd-party uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery hammer-js popper datatables chartjs uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery datatables chartjs uberjar docker-image
 
 $(ibmplex_stamp):
 	@set -e; \
@@ -73,39 +72,17 @@ resources/status/jquery/jquery.min.js:
 	wget --quiet -nc -O resources/status/jquery/jquery.min.js "https://code.jquery.com/jquery-$(jquery_version).min.js"
 jquery: resources/status/jquery/jquery.min.js
 
-resources/status/hammer/hammer.min.js:
-	mkdir -p resources/status/hammer
-	wget --quiet -nc -O resources/status/hammer/hammer.min.js "https://hammerjs.github.io/dist/hammer.min.js"
-resources/status/hammer/jquery.hammer.js:
-	mkdir -p resources/status/hammer
-	wget --quiet -nc -O resources/status/hammer/jquery.hammer.js "https://raw.githubusercontent.com/hammerjs/jquery.hammer.js/master/jquery.hammer.js"
-hammer-js: resources/status/hammer/hammer.min.js resources/status/hammer/jquery.hammer.js
-
-resources/status/popper/popper.min.js:
-	mkdir -p resources/status/popper
-	wget --quiet -nc -O resources/status/popper/popper.min.js "https://unpkg.com/@popperjs/core@2"
-popper: resources/status/popper/popper.min.js
-
 resources/status/datatables/dataTables.bootstrap5.min.css:
 	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.css "https://cdn.datatables.net/$(jquery_datatables_version)/css/dataTables.bootstrap5.min.css"
+	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.css "https://cdn.datatables.net/$(datatables_version)/css/dataTables.bootstrap5.min.css"
 resources/status/datatables/dataTables.min.js:
 	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.min.js"
+	wget --quiet -nc -O resources/status/datatables/dataTables.min.js "https://cdn.datatables.net/$(datatables_version)/js/dataTables.min.js"
 resources/status/datatables/dataTables.bootstrap5.min.js:
 	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.js "https://cdn.datatables.net/$(jquery_datatables_version)/js/dataTables.bootstrap5.min.js"
-resources/status/datatables/buttons.bootstrap5.min.css:
-	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/buttons.bootstrap5.min.css "https://cdn.datatables.net/buttons/$(datatables_buttons_version)/css/buttons.bootstrap5.min.css"
-resources/status/datatables/dataTables.buttons.min.js:
-	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.buttons.min.js "https://cdn.datatables.net/buttons/$(datatables_buttons_version)/js/dataTables.buttons.min.js"
-resources/status/datatables/buttons.bootstrap5.min.js:
-	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/buttons.bootstrap5.min.js "https://cdn.datatables.net/buttons/$(datatables_buttons_version)/js/buttons.bootstrap5.min.js"
+	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.js "https://cdn.datatables.net/$(datatables_version)/js/dataTables.bootstrap5.min.js"
 
-datatables: resources/status/datatables/dataTables.bootstrap5.min.css resources/status/datatables/dataTables.min.js resources/status/datatables/dataTables.bootstrap5.min.js resources/status/datatables/buttons.bootstrap5.min.css resources/status/datatables/dataTables.buttons.min.js resources/status/datatables/buttons.bootstrap5.min.js
+datatables: resources/status/datatables/dataTables.bootstrap5.min.css resources/status/datatables/dataTables.min.js resources/status/datatables/dataTables.bootstrap5.min.js
 
 resources/status/chartjs/chart.umd.min.js:
 	mkdir -p resources/status/chartjs
@@ -113,7 +90,7 @@ resources/status/chartjs/chart.umd.min.js:
 chartjs: resources/status/chartjs/chart.umd.min.js
 
 
-web-3rd-party: datatables popper hammer-js jquery bootstrap fontawesome ibmplex chartjs
+web-3rd-party: datatables jquery bootstrap fontawesome ibmplex chartjs
 
 docs-requirements: resources/status/bootstrap/css/bootstrap.min.css resources/status/ibmplex/Web/css/ibm-plex.min.css
 
@@ -128,8 +105,6 @@ docs-assets: docs-requirements resources/status/llar.css
 
 clean-web-3rd-party:
 	rm -rf resources/status/datatables
-	rm -rf resources/status/popper
-	rm -rf resources/status/hammer
 	rm -rf resources/status/jquery
 	rm -rf resources/status/bootstrap
 	rm -rf resources/status/fontawesome
@@ -164,7 +139,8 @@ check-frontend-deps:
 		"ibmplex_sans_condensed $(ibmplex_sans_condensed_version) @ibm/plex-sans-condensed npm" \
 		"ibmplex_mono $(ibmplex_mono_version) @ibm/plex-mono npm" \
 		"ibmplex_serif $(ibmplex_serif_version) @ibm/plex-serif npm" \
-		"jquery_datatables $(jquery_datatables_version) DataTables/DataTablesSrc release"; \
+		"chartjs $(chartjs_version) chart.js npm" \
+		"datatables $(datatables_version) DataTables/DataTablesSrc release"; \
 	do \
 		set -- $$dep; \
 		name="$$1"; \

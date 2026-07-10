@@ -46,7 +46,6 @@
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
    [:link {:rel "stylesheet" :href "/static/datatables/dataTables.bootstrap5.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/datatables/buttons.bootstrap5.min.css"}]
    [:link {:rel "stylesheet" :href "/static/llar.css"}]])
 
 (defn html-footer []
@@ -54,8 +53,6 @@
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/datatables/dataTables.min.js"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js"}]
-   [:script {:src "/static/datatables/dataTables.buttons.min.js"}]
-   [:script {:src "/static/datatables/buttons.bootstrap5.min.js"}]
    [:script {:src "/static/chartjs/chart.umd.min.js"}]
    [:script {:src "/static/llar-status.js?v=dashboard-lazy-tabs-1"}]])
 

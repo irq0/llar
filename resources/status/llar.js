@@ -234,22 +234,36 @@ $("body").keypress(function (event) {
   }
 });
 
-// gestures
+// Swipe left to advance through long content. Pointer Events cover touch and pen
+// input without requiring a gesture library.
+var main = document.querySelector("main");
+if (main) {
+  var swipeStart = null;
 
-function is_touch_device() {
-  try {
-    document.createEvent("TouchEvent");
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
+  main.addEventListener("pointerdown", function (event) {
+    if (event.isPrimary && event.pointerType !== "mouse") {
+      swipeStart = { x: event.clientX, y: event.clientY };
+    }
+  });
 
-if (is_touch_device()) {
-  /* eslint no-undef: "off" */
-  var main_swipe = new Hammer($("main")[0]);
-  main_swipe.on("swipeleft", function (ev) {
-    console.log(ev);
+  main.addEventListener("pointercancel", function () {
+    swipeStart = null;
+  });
+
+  main.addEventListener("pointerup", function (event) {
+    if (!swipeStart || !event.isPrimary || event.pointerType === "mouse") {
+      swipeStart = null;
+      return;
+    }
+
+    var deltaX = event.clientX - swipeStart.x;
+    var deltaY = event.clientY - swipeStart.y;
+    swipeStart = null;
+
+    if (deltaX > -50 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
     var main_top = $("main").offset().top;
     var main_bottom = window.innerHeight;
 
@@ -284,7 +298,6 @@ if (is_touch_device()) {
     if (candidate.length > 0) {
       scroll_to = candidate.first();
     }
-    event.preventDefault();
     scroll_to.addClass("viewport-pivot");
     $("body,html").animate({
       scrollTop: scroll_to.offset().top - main_top - 5,
