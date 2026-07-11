@@ -95,3 +95,28 @@
                               "as" "saved"
                               "id" "not-an-id"}})]
       (is (= 400 (:status response))))))
+
+(deftest logging-summaries-redact-and-bound-data
+  (let [request-summary (#'uut/request-summary
+                         {:request-method :post
+                          :uri "/"
+                          :remote-addr "192.0.2.1"
+                          :headers {"user-agent" "Fever Client"
+                                    "content-type" "application/x-www-form-urlencoded"}
+                          :params {"api_key" api-key
+                                   "items" ""
+                                   "with_ids" (apply str (repeat 200 "1"))}})
+        response-summary (#'uut/response-summary
+                          {:status 200
+                           :body {:auth 1
+                                  :items [{:html (apply str (repeat 1000 "x"))}]
+                                  :unread_item_ids "1,2,3"}}
+                          12)]
+    (is (= api-key (get-in request-summary [:params "api_key"])))
+    (is (re-find #"^1+\.\.\. \[200 chars\]$"
+                 (get-in request-summary [:params "with_ids"])))
+    (is (= {:type :collection :count 1}
+           (get-in response-summary [:body :items])))
+    (is (= {:type :string :chars 5 :bytes 5}
+           (get-in response-summary [:body :unread_item_ids])))
+    (is (not (re-find #"xxx" (pr-str response-summary))))))

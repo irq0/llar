@@ -19,6 +19,7 @@
 (def api-version 3)
 (def page-size 50)
 (def flat-group-id 1)
+(def ^:private max-logged-param-chars 160)
 
 (defn- datastore [db]
   (or (:datasource db) db))
@@ -33,12 +34,6 @@
 (defn expected-api-key [username password]
   (digest/md5 (str username ":" password)))
 
-(defn- secure= [a b]
-  (and (string? a)
-       (string? b)
-       (MessageDigest/isEqual (.getBytes a StandardCharsets/UTF_8)
-                              (.getBytes b StandardCharsets/UTF_8))))
-
 (defn- credential-password [{:keys [credentials]}]
   (let [credential (appconfig/credentials credentials)]
     (if (map? credential) (:password credential) credential)))
@@ -46,7 +41,8 @@
 (defn authenticated? [fever-config api-key]
   (let [password (credential-password fever-config)]
     (and (string? password)
-         (secure= api-key (expected-api-key (:username fever-config) password)))))
+         (string? api-key)
+         (.equalsIgnoreCase api-key (expected-api-key (:username fever-config) password)))))
 
 (defn- selected-source-keys [fever-config]
   (let [source-tag (:source-tag fever-config)]
@@ -211,6 +207,107 @@
                                         seconds)
                                0)})
 
+(defn- bounded-param [value]
+  (let [value (str value)]
+    (if (<= (count value) max-logged-param-chars)
+      value
+      (str (subs value 0 max-logged-param-chars)
+           "... [" (count value) " chars]"))))
+
+(defn- request-summary [request]
+  {:method (:request-method request)
+   :uri (:uri request)
+   :remote-addr (:remote-addr request)
+   :user-agent (some-> (get-in request [:headers "user-agent"]) bounded-param)
+   :content-type (get-in request [:headers "content-type"])
+   :content-length (get-in request [:headers "content-length"])
+   :params (into (sorted-map)
+                 (map (fn [[key value]]
+                        [key (bounded-param value)]))
+                 (:params request))})
+
+(defn- response-value-summary [value]
+  (cond
+    (string? value) {:type :string
+                     :chars (count value)
+                     :bytes (alength (.getBytes value StandardCharsets/UTF_8))}
+    (coll? value) {:type :collection :count (count value)}
+    :else value))
+
+(defn- response-summary [response elapsed-ms]
+  {:status (:status response)
+   :elapsed-ms elapsed-ms
+   :body (when (map? (:body response))
+           (into (sorted-map)
+                 (map (fn [[key value]] [key (response-value-summary value)]))
+                 (:body response)))})
+
+(defmulti response-part
+  "Build one independently requested part of a Fever response."
+  (fn [operation _context] operation))
+
+(defmethod response-part :groups [_ {:keys [sources]}]
+  (log/debugf "[fever] groups: returned=%d" (if (seq sources) 1 0))
+  {:groups (if (seq sources) [{:id flat-group-id :title "LLAR"}] [])
+   :feeds_groups (if (seq sources) (feeds-groups sources) [])})
+
+(defmethod response-part :feeds [_ {:keys [sources]}]
+  (log/debugf "[fever] feeds: returned=%d" (count sources))
+  {:feeds (mapv feed-response sources)
+   :feeds_groups (if (seq sources) (feeds-groups sources) [])})
+
+(defmethod response-part :favicons [_ _]
+  (log/debug "[fever] favicons: unsupported, returned=0")
+  {:favicons []})
+
+(defmethod response-part :items
+  [_ {:keys [db fever-config source-ids now params]}]
+  (if (empty? source-ids)
+    {:items [] :total_items 0}
+    (let [items (mapv #(item-response % fever-config)
+                      (sql/fever-items (datastore db)
+                                       (item-query source-ids fever-config now params)))
+          total (:total (sql/fever-total-items
+                         (datastore db)
+                         (merge {:source-ids source-ids}
+                                (working-set-bounds fever-config now))))]
+      (log/debugf "[fever] items: returned=%d total=%d" (count items) total)
+      {:items items :total_items total})))
+
+(defn- state-response-part [{:keys [db fever-config source-ids now]} state key]
+  (let [rows (if (seq source-ids)
+               (sql/fever-item-state-ids
+                (datastore db)
+                (state-query source-ids fever-config now state))
+               [])]
+    (log/debugf "[fever] %s: returned=%d" (name key) (count rows))
+    {key (comma-ids rows)}))
+
+(defmethod response-part :unread-item-ids [_ context]
+  (state-response-part context "0" :unread_item_ids))
+
+(defmethod response-part :saved-item-ids [_ context]
+  (state-response-part context "1" :saved_item_ids))
+
+(defn- requested-operations [params include-action-state?]
+  (cond-> []
+    (contains? params "groups") (conj :groups)
+    (contains? params "feeds") (conj :feeds)
+    (contains? params "favicons") (conj :favicons)
+    (contains? params "items") (conj :items)
+    (or (contains? params "unread_item_ids")
+        (and include-action-state? (= "read" (get params "as"))))
+    (conj :unread-item-ids)
+    (or (contains? params "saved_item_ids")
+        (and include-action-state? (#{"saved" "unsaved"} (get params "as"))))
+    (conj :saved-item-ids)))
+
+(defn- apply-request-action! [db source-ids params]
+  (when (and (seq source-ids) (contains? params "mark"))
+    (if (= "item" (get params "mark"))
+      (apply-item-action! db source-ids params)
+      (apply-bulk-action! db source-ids params))))
+
 (defn fever-response [db fever-config request]
   (let [fever-config (config-with-defaults fever-config)
         params (:params request)]
@@ -218,69 +315,45 @@
       {:status 200 :body {:api_version api-version :auth 0}}
       (let [sources (selected-sources db fever-config)
             source-ids (mapv :id sources)
-            now (time/zoned-date-time)
-            base (base-response sources)]
-        (if (empty? source-ids)
-          {:status 200
-           :body (cond-> base
-                   (contains? params "groups") (assoc :groups [] :feeds_groups [])
-                   (contains? params "feeds") (assoc :feeds [] :feeds_groups [])
-                   (contains? params "items") (assoc :items [] :total_items 0)
-                   (contains? params "unread_item_ids") (assoc :unread_item_ids "")
-                   (contains? params "saved_item_ids") (assoc :saved_item_ids ""))}
-          (do
-            (when-let [mark (get params "mark")]
-              (if (= mark "item")
-                (apply-item-action! db source-ids params)
-                (apply-bulk-action! db source-ids params)))
-            {:status 200
-             :body (cond-> base
-                     (contains? params "groups")
-                     (assoc :groups [{:id flat-group-id :title "LLAR"}]
-                            :feeds_groups (feeds-groups sources))
-
-                     (contains? params "feeds")
-                     (assoc :feeds (mapv feed-response sources)
-                            :feeds_groups (feeds-groups sources))
-
-                     (contains? params "favicons")
-                     (assoc :favicons [])
-
-                     (contains? params "items")
-                     (assoc :items (mapv #(item-response % fever-config)
-                                         (sql/fever-items (datastore db)
-                                                          (item-query source-ids fever-config now params)))
-                            :total_items (:total (sql/fever-total-items
-                                                  (datastore db)
-                                                  (merge {:source-ids source-ids}
-                                                         (working-set-bounds fever-config now)))))
-
-                     (or (contains? params "unread_item_ids")
-                         (= "read" (get params "as")))
-                     (assoc :unread_item_ids
-                            (comma-ids (sql/fever-item-state-ids
-                                        (datastore db)
-                                        (state-query source-ids fever-config now "0"))))
-
-                     (or (contains? params "saved_item_ids")
-                         (#{"saved" "unsaved"} (get params "as")))
-                     (assoc :saved_item_ids
-                            (comma-ids (sql/fever-item-state-ids
-                                        (datastore db)
-                                        (state-query source-ids fever-config now "1")))))}))))))
+            context {:db db
+                     :fever-config fever-config
+                     :params params
+                     :sources sources
+                     :source-ids source-ids
+                     :now (time/zoned-date-time)}]
+        (apply-request-action! db source-ids params)
+        {:status 200
+         :body (reduce (fn [response operation]
+                         (merge response (response-part operation context)))
+                       (base-response sources)
+                       (requested-operations params (seq source-ids)))}))))
 
 (defn handler [db fever-config]
   (routes
    (ANY "/" request
-     (try
-       (fever-response db fever-config request)
-       (catch clojure.lang.ExceptionInfo e
-         (if (= ::bad-request (:type (ex-data e)))
-           (let [params (:params request)]
-             (log/warnf "Rejected Fever request: %s (mark=%s as=%s)"
-                        (ex-message e)
-                        (get params "mark")
-                        (get params "as"))
-             {:status 400
-              :body {:api_version api-version :auth 1 :error (ex-message e)}})
-           (throw e)))))))
+     (let [request-id (str (random-uuid))
+           started-at (System/nanoTime)]
+       (log/infof "[fever] request %s: %s" request-id (request-summary request))
+       (try
+         (let [response (fever-response db fever-config request)
+               elapsed-ms (quot (- (System/nanoTime) started-at) 1000000)]
+           (log/infof "[fever] response %s: %s"
+                      request-id (response-summary response elapsed-ms))
+           response)
+         (catch clojure.lang.ExceptionInfo e
+           (if (= ::bad-request (:type (ex-data e)))
+             (let [params (:params request)
+                   response {:status 400
+                             :body {:api_version api-version
+                                    :auth 1
+                                    :error (ex-message e)}}
+                   elapsed-ms (quot (- (System/nanoTime) started-at) 1000000)]
+               (log/warnf "[fever] Rejected request %s: %s (mark=%s as=%s)"
+                          request-id
+                          (ex-message e)
+                          (get params "mark")
+                          (get params "as"))
+               (log/infof "[fever] response %s: %s"
+                          request-id (response-summary response elapsed-ms))
+               response)
+             (throw e))))))))
