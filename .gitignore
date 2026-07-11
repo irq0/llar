@@ -19,5 +19,6 @@ pom.xml.asc
 /.worktrees
 /doc/config.html
 /doc/static
+!/.dockerignore
 !/.github/
 !/.github/workflows/
