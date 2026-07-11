@@ -15,8 +15,8 @@
    [ring.util.codec :refer [form-encode form-encode* FormEncodeable]]
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.core :as cheshire]
+   [llar.apis.blob :as blob-api]
    [llar.appconfig :refer [postgresql-config credentials digest]]
-   [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.core :as db]
    [llar.fetch :as fetch]
@@ -2292,18 +2292,7 @@
       :body (fetch-preview)})
 
    (GET "/blob/:h" [h]
-     (try+
-      (let [blob (blobstore/get-blob h)]
-        {:status 200
-         :headers {"Content-Type" (:mime-type blob)
-                   "Etag" h
-                   "Last-Modified" (time/format
-                                    (time/formatter "EEE, dd MMM yyyy HH:mm:ss z")
-                                    (:created blob))}
-         :body (:data blob)})
-      (catch Object e
-        (log/warn e "get-blob failed: " h)
-        {:status 404})))
+     (blob-api/response h))
 
    (route/resources "/static" {:root "status"})
    (route/not-found "404 Not found")))

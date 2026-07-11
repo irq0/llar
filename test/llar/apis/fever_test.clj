@@ -64,6 +64,7 @@
               (.getBytes "image" java.nio.charset.StandardCharsets/UTF_8))]
     (with-redefs [blobstore/get-blob (constantly {:mime-type "image/jpeg"
                                                   :created (java.time.ZonedDateTime/now)
+                                                  :size 5
                                                   :data data})]
       (let [response ((uut/handler :db test-config)
                       {:request-method :get :uri (str "/blob/" hash)})]
@@ -71,6 +72,7 @@
         (is (= "image/jpeg" (get-in response [:headers "Content-Type"])))
         (is (= "public, max-age=31536000, immutable"
                (get-in response [:headers "Cache-Control"])))
+        (is (= (str "W/\"" hash "\"") (get-in response [:headers "ETag"])))
         (is (identical? data (:body response)))))))
 
 (deftest unauthenticated-response-does-not-query-data

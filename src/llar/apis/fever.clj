@@ -5,8 +5,8 @@
    [compojure.core :refer [ANY GET routes]]
    [digest]
    [java-time.api :as time]
+   [llar.apis.blob :as blob-api]
    [llar.appconfig :as appconfig]
-   [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.sql :as sql]
    [llar.persistency :as persistency])
@@ -367,28 +367,11 @@
                        (base-response sources)
                        (requested-operations params))}))))
 
-(defn- blob-response [hash]
-  (if-not (re-matches #"[0-9a-f]{64}" hash)
-    {:status 404}
-    (try
-      (let [blob (blobstore/get-blob hash)]
-        {:status 200
-         :headers {"Content-Type" (:mime-type blob)
-                   "Cache-Control" "public, max-age=31536000, immutable"
-                   "ETag" hash
-                   "Last-Modified" (time/format
-                                    (time/formatter "EEE, dd MMM yyyy HH:mm:ss z")
-                                    (:created blob))}
-         :body (:data blob)})
-      (catch Exception e
-        (log/warn e "[fever] get-blob failed: " hash)
-        {:status 404}))))
-
 (defn handler [db fever-config]
   (routes
    (GET "/blob/:hash" [hash]
      (log/debugf "[fever] blob %s" hash)
-     (blob-response hash))
+     (blob-api/response hash))
    (ANY "/" request
      (let [request-id (str (random-uuid))
            started-at (System/nanoTime)]

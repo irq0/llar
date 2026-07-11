@@ -183,6 +183,7 @@
    ring.middleware.json/wrap-json-response
    ring.middleware.params/wrap-params
    ring.middleware.gzip/wrap-gzip
+   ring.middleware.not-modified/wrap-not-modified
    wrap-exception
    wrap-security-headers
    (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})))
