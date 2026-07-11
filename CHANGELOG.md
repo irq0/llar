@@ -63,6 +63,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependency.
 - Reader: Blobify preview media during postprocessing so persisted items
   are self-contained before they reach the UI.
+- Reader: Show an explicit not-yet-compiled state for the Reading Queue,
+  distinct from a successfully compiled empty queue.
+- Blob delivery: Share Reader and Fever responses with immutable caching,
+  conditional `304 Not Modified` support, validators, content length, and
+  MIME-sniffing protection.
+- Observability: Bound HTTP metric cardinality with abstract Reader route
+  labels, separate item downloads and dumps, and classify Fever traffic by
+  semantic calls instead of URL paths.
 
 ### Fixed
 
