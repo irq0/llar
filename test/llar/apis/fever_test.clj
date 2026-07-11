@@ -54,7 +54,10 @@
 (deftest empty-account-has-complete-empty-responses
   (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
                 config/get-sources (constantly {})
-                sql/fever-sources (constantly [])]
+                sql/fever-sources (constantly [])
+                sql/fever-items (constantly [])
+                sql/fever-total-items (constantly {:total 0})
+                sql/fever-item-state-ids (constantly [])]
     (let [response (uut/fever-response
                     :db test-config
                     {:params {"api_key" api-key
@@ -64,8 +67,8 @@
                               "unread_item_ids" ""
                               "saved_item_ids" ""}})]
       (is (= 1 (get-in response [:body :auth])))
-      (is (= [] (get-in response [:body :groups])))
-      (is (= [] (get-in response [:body :feeds])))
+      (is (= [{:id 1 :title "LLAR"}] (get-in response [:body :groups])))
+      (is (= [uut/queue-feed] (get-in response [:body :feeds])))
       (is (= [] (get-in response [:body :items])))
       (is (= "" (get-in response [:body :unread_item_ids])))
       (is (= "" (get-in response [:body :saved_item_ids]))))))
@@ -83,6 +86,32 @@
         (is (= [[42 [:saved]]] @writes))
         (is (= "42" (get-in response [:body :saved_item_ids])))))))
 
+(deftest unsaving-a-bookmark-removes-all-queue-reasons
+  (let [removed (atom nil)
+        params {"api_key" api-key "mark" "item" "as" "unsaved" "id" "42"}]
+    (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
+                  config/get-sources (constantly {})
+                  sql/fever-sources (constantly [])
+                  sql/fever-item-selected (constantly {:selected true :bookmark true})
+                  sql/fever-item-state-ids (constantly [])
+                  persistency/item-remove-tags! (fn [_ id tags] (reset! removed [id tags]))]
+      (uut/fever-response :db test-config {:params params})
+      (is (= [42 [:saved :in-progress :unread]] @removed)))))
+
+(deftest reading-a-bookmark-refreshes-both-state-lists
+  (let [removed (atom nil)
+        params {"api_key" api-key "mark" "item" "as" "read" "id" "42"}]
+    (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
+                  config/get-sources (constantly {})
+                  sql/fever-sources (constantly [])
+                  sql/fever-item-selected (constantly {:selected true :bookmark true})
+                  sql/fever-item-state-ids (constantly [])
+                  persistency/item-remove-tags! (fn [_ id tags] (reset! removed [id tags]))]
+      (let [response (uut/fever-response :db test-config {:params params})]
+        (is (= [42 [:unread]] @removed))
+        (is (= "" (get-in response [:body :unread_item_ids])))
+        (is (= "" (get-in response [:body :saved_item_ids])))))))
+
 (deftest malformed-write-is-rejected-by-handler
   (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
                 config/get-sources (constantly {:phone {:tags #{:mobile}}})
@@ -95,6 +124,22 @@
                               "as" "saved"
                               "id" "not-an-id"}})]
       (is (= 400 (:status response))))))
+
+(deftest synthetic-queue-feed-rejects-bulk-mark-read
+  (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
+                config/get-sources (constantly {})
+                sql/fever-sources (constantly [])
+                sql/fever-mark-read (fn [& _] (throw (ex-info "must not write" {})))]
+    (let [response ((uut/handler :db test-config)
+                    {:request-method :post
+                     :uri "/"
+                     :params {"api_key" api-key
+                              "mark" "feed"
+                              "as" "read"
+                              "id" (str uut/queue-feed-id)
+                              "before" "1700000000"}})]
+      (is (= 400 (:status response)))
+      (is (= "Unknown feed" (get-in response [:body :error]))))))
 
 (deftest logging-summaries-redact-and-bound-data
   (let [request-summary (#'uut/request-summary

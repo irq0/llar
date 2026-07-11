@@ -19,6 +19,7 @@
 (def api-version 3)
 (def page-size 50)
 (def flat-group-id 1)
+(def queue-feed-id 2147483647)
 (def ^:private max-logged-param-chars 160)
 
 (defn- datastore [db]
@@ -79,6 +80,18 @@
    :is_spark 0
    :last_updated_on_time (seconds (:updated_ts source))})
 
+(def queue-feed
+  {:id queue-feed-id
+   :favicon_id 0
+   :title "Reading Queue"
+   :url "llar://reading-queue"
+   :site_url "llar://reading-queue"
+   :is_spark 0
+   :last_updated_on_time 0})
+
+(defn- fever-feeds [sources]
+  (conj (mapv feed-response sources) queue-feed))
+
 (defn- feeds-groups [sources]
   [{:group_id flat-group-id
     :feed_ids (string/join "," (map :id sources))}])
@@ -138,6 +151,9 @@
   {:unread-after (time/minus now (time/days (:initial-days fever-config)))
    :read-after (time/minus now (time/days (:recent-read-days fever-config)))})
 
+(defn- query-source-ids [source-ids]
+  (if (seq source-ids) source-ids [-1]))
+
 (defn- item-query [source-ids fever-config now params]
   (let [since-id (parse-positive-long (get params "since_id"))
         raw-max-id (get params "max_id")
@@ -145,7 +161,8 @@
         with-ids (parse-id-list (get params "with_ids"))]
     (when (and (contains? params "with_ids") (nil? with-ids))
       (throw (ex-info "Invalid with_ids" {:type ::bad-request})))
-    (cond-> (merge {:source-ids source-ids
+    (cond-> (merge {:source-ids (query-source-ids source-ids)
+                    :queue-feed-id queue-feed-id
                     :descending? (and (nil? since-id) (nil? with-ids))
                     :limit page-size}
                    (working-set-bounds fever-config now))
@@ -154,32 +171,37 @@
       with-ids (assoc :with-ids with-ids))))
 
 (defn- state-query [source-ids fever-config now state]
-  (merge {:source-ids source-ids
-          :state-query state}
+  (merge {:source-ids (query-source-ids source-ids)
+          :state-query state
+          :queue-state? (= "1" state)}
          (working-set-bounds fever-config now)))
 
 (defn- comma-ids [rows]
   (string/join "," (map :id rows)))
 
-(defn- selected-item? [db source-ids item-id]
-  (boolean (:selected (sql/fever-item-selected (datastore db)
-                                               {:source-ids source-ids
-                                                :item-id item-id}))))
+(defn- selected-item [db source-ids item-id]
+  (sql/fever-item-selected (datastore db)
+                           {:source-ids (query-source-ids source-ids)
+                            :item-id item-id}))
 
 (defn- apply-item-action! [db source-ids params]
   (let [item-id (parse-positive-long (get params "id"))
-        action (get params "as")]
-    (when-not (and item-id (selected-item? db source-ids item-id))
+        action (get params "as")
+        item (when item-id (selected-item db source-ids item-id))]
+    (when-not (:selected item)
       (throw (ex-info "Unknown item" {:type ::bad-request})))
     (case action
       "read" (persistency/item-remove-tags! db item-id [:unread])
       "saved" (persistency/item-set-tags! db item-id [:saved])
-      "unsaved" (persistency/item-remove-tags! db item-id [:saved])
+      "unsaved" (persistency/item-remove-tags!
+                 db item-id
+                 (cond-> [:saved :in-progress]
+                   (:bookmark item) (conj :unread)))
       (throw (ex-info "Unsupported item action" {:type ::bad-request})))))
 
 (defn- before-timestamp [value]
   (when-let [epoch (parse-positive-long value)]
-    (time/instant epoch 0)))
+    (java.time.Instant/ofEpochSecond epoch)))
 
 (defn- apply-bulk-action! [db source-ids params]
   (let [mark (get params "mark")
@@ -194,7 +216,8 @@
                 (throw (ex-info "Unknown group" {:type ::bad-request})))
       (throw (ex-info "Unsupported bulk action" {:type ::bad-request})))
     (sql/fever-mark-read (datastore db)
-                         (cond-> {:source-ids source-ids :before before}
+                         (cond-> {:source-ids (query-source-ids source-ids)
+                                  :before before}
                            (= mark "feed") (assoc :feed-id id)))))
 
 (defn- base-response [sources]
@@ -247,14 +270,16 @@
   (fn [operation _context] operation))
 
 (defmethod response-part :groups [_ {:keys [sources]}]
-  (log/debugf "[fever] groups: returned=%d" (if (seq sources) 1 0))
-  {:groups (if (seq sources) [{:id flat-group-id :title "LLAR"}] [])
-   :feeds_groups (if (seq sources) (feeds-groups sources) [])})
+  (let [feeds (fever-feeds sources)]
+    (log/debug "[fever] groups: returned=1")
+    {:groups [{:id flat-group-id :title "LLAR"}]
+     :feeds_groups (feeds-groups feeds)}))
 
 (defmethod response-part :feeds [_ {:keys [sources]}]
-  (log/debugf "[fever] feeds: returned=%d" (count sources))
-  {:feeds (mapv feed-response sources)
-   :feeds_groups (if (seq sources) (feeds-groups sources) [])})
+  (let [feeds (fever-feeds sources)]
+    (log/debugf "[fever] feeds: returned=%d" (count feeds))
+    {:feeds feeds
+     :feeds_groups (feeds-groups feeds)}))
 
 (defmethod response-part :favicons [_ _]
   (log/debug "[fever] favicons: unsupported, returned=0")
@@ -262,24 +287,20 @@
 
 (defmethod response-part :items
   [_ {:keys [db fever-config source-ids now params]}]
-  (if (empty? source-ids)
-    {:items [] :total_items 0}
-    (let [items (mapv #(item-response % fever-config)
-                      (sql/fever-items (datastore db)
-                                       (item-query source-ids fever-config now params)))
-          total (:total (sql/fever-total-items
-                         (datastore db)
-                         (merge {:source-ids source-ids}
-                                (working-set-bounds fever-config now))))]
-      (log/debugf "[fever] items: returned=%d total=%d" (count items) total)
-      {:items items :total_items total})))
+  (let [items (mapv #(item-response % fever-config)
+                    (sql/fever-items (datastore db)
+                                     (item-query source-ids fever-config now params)))
+        total (:total (sql/fever-total-items
+                       (datastore db)
+                       (merge {:source-ids (query-source-ids source-ids)}
+                              (working-set-bounds fever-config now))))]
+    (log/debugf "[fever] items: returned=%d total=%d" (count items) total)
+    {:items items :total_items total}))
 
 (defn- state-response-part [{:keys [db fever-config source-ids now]} state key]
-  (let [rows (if (seq source-ids)
-               (sql/fever-item-state-ids
-                (datastore db)
-                (state-query source-ids fever-config now state))
-               [])]
+  (let [rows (sql/fever-item-state-ids
+              (datastore db)
+              (state-query source-ids fever-config now state))]
     (log/debugf "[fever] %s: returned=%d" (name key) (count rows))
     {key (comma-ids rows)}))
 
@@ -289,21 +310,21 @@
 (defmethod response-part :saved-item-ids [_ context]
   (state-response-part context "1" :saved_item_ids))
 
-(defn- requested-operations [params include-action-state?]
+(defn- requested-operations [params]
   (cond-> []
     (contains? params "groups") (conj :groups)
     (contains? params "feeds") (conj :feeds)
     (contains? params "favicons") (conj :favicons)
     (contains? params "items") (conj :items)
     (or (contains? params "unread_item_ids")
-        (and include-action-state? (= "read" (get params "as"))))
+        (= "read" (get params "as")))
     (conj :unread-item-ids)
     (or (contains? params "saved_item_ids")
-        (and include-action-state? (#{"saved" "unsaved"} (get params "as"))))
+        (#{"read" "saved" "unsaved"} (get params "as")))
     (conj :saved-item-ids)))
 
 (defn- apply-request-action! [db source-ids params]
-  (when (and (seq source-ids) (contains? params "mark"))
+  (when (contains? params "mark")
     (if (= "item" (get params "mark"))
       (apply-item-action! db source-ids params)
       (apply-bulk-action! db source-ids params))))
@@ -326,7 +347,7 @@
          :body (reduce (fn [response operation]
                          (merge response (response-part operation context)))
                        (base-response sources)
-                       (requested-operations params (seq source-ids)))}))))
+                       (requested-operations params))}))))
 
 (defn handler [db fever-config]
   (routes

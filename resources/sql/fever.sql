@@ -5,12 +5,17 @@ order by id
 
 -- :name fever-items :? :*
 select i.id,
-       i.source_id as feed_id,
+       case when i.source_id in (:v*:source-ids)
+            then i.source_id
+            else :queue-feed-id
+       end as feed_id,
        i.title,
        i.author,
        i.ts,
        i.entry->>'url' as url,
-       i.tagi @@ '1' as is_saved,
+       (i.tagi @@ '1'
+        or i.tagi @@ '2'
+        or (i.type = 'bookmark' and i.tagi @@ '0')) as is_saved,
        i.tagi @@ '!0' as is_read,
        coalesce(content_html.text,
                 description_html.text,
@@ -38,10 +43,13 @@ left join item_data description_text
   on description_text.item_id = i.id
  and description_text.type = 'description'
  and description_text.mime_type = 'text/plain'
-where i.source_id in (:v*:source-ids)
-  and ((i.tagi @@ '0' and i.ts >= :unread-after)
-       or (i.tagi @@ '!0' and i.ts >= :read-after)
-       or i.tagi @@ '1')
+where ((i.source_id in (:v*:source-ids)
+        and ((i.tagi @@ '0' and i.ts >= :unread-after)
+             or (i.tagi @@ '!0' and i.ts >= :read-after)
+             or i.tagi @@ '1'))
+       or i.tagi @@ '1'
+       or i.tagi @@ '2'
+       or (i.type = 'bookmark' and i.tagi @@ '0'))
 --~ (when (:since-id params) "and i.id > :since-id")
 --~ (when (:max-id params) "and i.id < :max-id")
 --~ (when (:with-ids params) "and i.id in (:v*:with-ids)")
@@ -52,18 +60,25 @@ limit :limit
 -- :name fever-item-state-ids :? :*
 select i.id
 from items i
-where i.source_id in (:v*:source-ids)
-  and ((i.tagi @@ '0' and i.ts >= :unread-after)
-       or (i.tagi @@ '!0' and i.ts >= :read-after)
-       or i.tagi @@ '1')
-  and tagi @@ :state-query::query_int
+where ((i.source_id in (:v*:source-ids)
+        and ((i.tagi @@ '0' and i.ts >= :unread-after)
+             or (i.tagi @@ '!0' and i.ts >= :read-after)
+             or i.tagi @@ '1'))
+       or i.tagi @@ '1'
+       or i.tagi @@ '2'
+       or (i.type = 'bookmark' and i.tagi @@ '0'))
+--~ (if (:queue-state? params) "and (i.tagi @@ '1' or i.tagi @@ '2' or (i.type = 'bookmark' and i.tagi @@ '0'))" "and i.tagi @@ :state-query::query_int")
 order by i.id
 
 -- :name fever-item-selected :? :1
-select exists (
-  select 1 from items
-  where id = :item-id and source_id in (:v*:source-ids)
-) as selected
+select true as selected,
+       type = 'bookmark' as bookmark
+from items
+where id = :item-id
+  and (source_id in (:v*:source-ids)
+       or tagi @@ '1'
+       or tagi @@ '2'
+       or (type = 'bookmark' and tagi @@ '0'))
 
 -- :name fever-mark-read :! :n
 update items
@@ -75,8 +90,11 @@ where source_id in (:v*:source-ids)
 
 -- :name fever-total-items :? :1
 select count(*) as total
-from items
-where source_id in (:v*:source-ids)
-  and ((tagi @@ '0' and ts >= :unread-after)
-       or (tagi @@ '!0' and ts >= :read-after)
-       or tagi @@ '1')
+from items i
+where ((i.source_id in (:v*:source-ids)
+        and ((i.tagi @@ '0' and i.ts >= :unread-after)
+             or (i.tagi @@ '!0' and i.ts >= :read-after)
+             or i.tagi @@ '1'))
+       or i.tagi @@ '1'
+       or i.tagi @@ '2'
+       or (i.type = 'bookmark' and i.tagi @@ '0'))
