@@ -102,6 +102,7 @@ system configuration:
 
 ```clojure
 {:api {:fever {:port 8025
+               :base-url "https://llar.example/fever"
                :username "llar"
                :credentials :mobile-sync
                :source-tag :mobile}}}

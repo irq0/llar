@@ -44,6 +44,7 @@
                    :irq0-appconfig/username
                    :irq0-appconfig/credentials]
           :opt-un [:irq0-appconfig/source-tag
+                   :irq0-appconfig/base-url
                    :irq0-appconfig/initial-days
                    :irq0-appconfig/recent-read-days
                    :irq0-appconfig/max-content-bytes]))

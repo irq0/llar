@@ -2,10 +2,11 @@
   (:require
    [clojure.string :as string]
    [clojure.tools.logging :as log]
-   [compojure.core :refer [ANY routes]]
+   [compojure.core :refer [ANY GET routes]]
    [digest]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
+   [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.sql :as sql]
    [llar.persistency :as persistency])
@@ -104,20 +105,40 @@
             (recur mid high)
             (recur low (dec mid))))))))
 
-(defn sanitize-content [content html? base-url max-bytes]
-  (let [html (if html?
-               (or content "")
-               (str "<p>" (Entities/escape (or content "")) "</p>"))
-        safelist (doto (Safelist/relaxed)
-                   (.addTags (into-array String ["video" "audio" "source"]))
-                   (.addAttributes "a" (into-array String ["target"]))
-                   (.addProtocols "img" "src" (into-array String ["http" "https" "data"])))
-        cleaned (Jsoup/clean html (or base-url "") safelist)]
-    (-> cleaned
-        (byte-truncate max-bytes)
-        (Jsoup/parseBodyFragment (or base-url ""))
-        .body
-        .html)))
+(defn- absolute-blob-url [base-url value]
+  (if (and (string? base-url) (string/starts-with? value "/blob/"))
+    (str (string/replace base-url #"/+$" "") value)
+    value))
+
+(defn rewrite-blob-urls [html base-url]
+  (if (string/blank? base-url)
+    html
+    (let [document (Jsoup/parseBodyFragment html)]
+      (doseq [element (.select document "[src], [poster]")
+              attribute ["src" "poster"]
+              :when (.hasAttr element attribute)]
+        (.attr element attribute
+               (absolute-blob-url base-url (.attr element attribute))))
+      (-> document .body .html))))
+
+(defn sanitize-content
+  ([content html? base-url max-bytes]
+   (sanitize-content content html? base-url max-bytes nil))
+  ([content html? base-url max-bytes fever-base-url]
+   (let [html (if html?
+                (or content "")
+                (str "<p>" (Entities/escape (or content "")) "</p>"))
+         html (rewrite-blob-urls html fever-base-url)
+         safelist (doto (Safelist/relaxed)
+                    (.addTags (into-array String ["video" "audio" "source"]))
+                    (.addAttributes "a" (into-array String ["target"]))
+                    (.addProtocols "img" "src" (into-array String ["http" "https" "data"])))
+         cleaned (Jsoup/clean html (or base-url "") safelist)]
+     (-> cleaned
+         (byte-truncate max-bytes)
+         (Jsoup/parseBodyFragment (or base-url ""))
+         .body
+         .html))))
 
 (defn- item-response [item fever-config]
   {:id (:id item)
@@ -127,7 +148,8 @@
    :html (sanitize-content (:content item)
                            (:content_is_html item)
                            (:url item)
-                           (:max-content-bytes fever-config))
+                           (:max-content-bytes fever-config)
+                           (:base-url fever-config))
    :url (or (:url item) "")
    :is_saved (if (:is_saved item) 1 0)
    :is_read (if (:is_read item) 1 0)
@@ -345,8 +367,28 @@
                        (base-response sources)
                        (requested-operations params))}))))
 
+(defn- blob-response [hash]
+  (if-not (re-matches #"[0-9a-f]{64}" hash)
+    {:status 404}
+    (try
+      (let [blob (blobstore/get-blob hash)]
+        {:status 200
+         :headers {"Content-Type" (:mime-type blob)
+                   "Cache-Control" "public, max-age=31536000, immutable"
+                   "ETag" hash
+                   "Last-Modified" (time/format
+                                    (time/formatter "EEE, dd MMM yyyy HH:mm:ss z")
+                                    (:created blob))}
+         :body (:data blob)})
+      (catch Exception e
+        (log/warn e "[fever] get-blob failed: " hash)
+        {:status 404}))))
+
 (defn handler [db fever-config]
   (routes
+   (GET "/blob/:hash" [hash]
+     (log/debugf "[fever] blob %s" hash)
+     (blob-response hash))
    (ANY "/" request
      (let [request-id (str (random-uuid))
            started-at (System/nanoTime)]

@@ -9,6 +9,7 @@
        ;; credential entry is a dedicated API password, e.g.
        ;; {:mobile-sync {:password "..."}} in credentials.edn.
        ;; :fever {:port 8025
+       ;;         :base-url "https://reader.example/api/fever"
        ;;         :username "llar"
        ;;         :credentials :mobile-sync
        ;;         :source-tag :mobile

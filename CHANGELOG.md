@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fever: Stable feeds and a flat LLAR group for selected sources, with
   incremental and ID-based item retrieval, bounded working sets, unread
   and saved state synchronization, and idempotent read/save actions.
+- Fever: Serve content-addressed blobs through the Fever endpoint and
+  rewrite stored blob references using its configured public base URL.
 - Fever: Reader Reading Queue integration makes saved and in-progress
   items plus unread bookmarks available across all sources. Items from
   sources not otherwise exposed through Fever use a stable synthetic

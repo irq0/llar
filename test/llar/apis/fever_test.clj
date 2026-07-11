@@ -1,8 +1,10 @@
 (ns llar.apis.fever-test
   (:require
+   [clojure.string :as string]
    [clojure.test :refer [deftest is]]
    [llar.apis.fever :as uut]
    [llar.appconfig :as appconfig]
+   [llar.blobstore :as blobstore]
    [llar.config :as config]
    [llar.db.sql :as sql]
    [llar.persistency :as persistency]))
@@ -44,6 +46,32 @@
     (is (re-find #"https://example.test/story" html)))
   (is (re-find #"Content truncated"
                (uut/sanitize-content (apply str (repeat 100 "ä")) false nil 30))))
+
+(deftest fever-blob-urls-are-made-public-and-absolute
+  (let [hash (apply str (repeat 64 "a"))
+        html (uut/sanitize-content
+              (format "<img src='/blob/%s'><img src='https://cdn.test/image'>" hash)
+              true
+              "https://article.test/story"
+              4096
+              "https://reader.test/fever/")]
+    (is (string/includes? html (str "src=\"https://reader.test/fever/blob/" hash "\"")))
+    (is (string/includes? html "src=\"https://cdn.test/image\""))))
+
+(deftest fever-serves-content-addressed-blobs
+  (let [hash (apply str (repeat 64 "a"))
+        data (java.io.ByteArrayInputStream.
+              (.getBytes "image" java.nio.charset.StandardCharsets/UTF_8))]
+    (with-redefs [blobstore/get-blob (constantly {:mime-type "image/jpeg"
+                                                  :created (java.time.ZonedDateTime/now)
+                                                  :data data})]
+      (let [response ((uut/handler :db test-config)
+                      {:request-method :get :uri (str "/blob/" hash)})]
+        (is (= 200 (:status response)))
+        (is (= "image/jpeg" (get-in response [:headers "Content-Type"])))
+        (is (= "public, max-age=31536000, immutable"
+               (get-in response [:headers "Cache-Control"])))
+        (is (identical? data (:body response)))))))
 
 (deftest unauthenticated-response-does-not-query-data
   (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
