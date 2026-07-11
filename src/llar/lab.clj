@@ -47,7 +47,10 @@
     (catch Throwable th
       (log/error th "error fetching " (str src)))))
 
-(def current-clustered-saved-items (atom {}))
+(def +saved-clusters-not-compiled+ ::saved-clusters-not-compiled)
+
+(def current-clustered-saved-items
+  (atom +saved-clusters-not-compiled+))
 
 (defn- remove-useless-features [feats]
   (remove #(or
@@ -118,37 +121,40 @@
        (int (/ (ml-data/dataset-count ds) 5))))
 
 (defn cluster-saved [db]
-  (let [ds (make-saved-dataset db)
-        clst (ml-clusterers/make-clusterer :k-means {:random-seed (int (* (rand) 10E8))
-                                                     :replace-missing-values false
-                                                     :number-iterations 10000
-                                                     :number-clusters (get-number-of-clusters ds)})]
-    (ml-clusterers/clusterer-build clst ds)
-    (log/debug "Clusterer: " clst)
-    (let [centroids (:centroids (ml-clusterers/clusterer-info clst))
-          names (into {}
-                      (map (fn [[k cent]]
-                             [k
-                              (if-let [words (improvise-cluster-name
-                                              (ml-data/dataset-attributes ds)
-                                              (-> cent
-                                                  ml-data/instance-to-vector))]
-                                words
-                                (keyword (str k)))])
-                           centroids))
-          item-id-index (.index (.attribute ds "item_id"))]
-      (log/debug names item-id-index)
-      (log/debug centroids)
-      (->> ds
-           (map (fn [instance]
-                  (let [id (int (.value instance item-id-index))
-                        item (persistency/get-item-by-id db id)
-                        cluster (.clusterInstance clst instance)]
-                    (-> item
-                     ;; (select-keys item [:title :source-key :pub-ts :nwords])
-                        (assoc :cluster {:id cluster :words (get names cluster "?")})
-                        (assoc :id id)))))
-           (group-by :cluster)))))
+  (let [ds (make-saved-dataset db)]
+    (if (zero? (ml-data/dataset-count ds))
+      {}
+      (let [clst (ml-clusterers/make-clusterer
+                  :k-means
+                  {:random-seed (int (* (rand) 10E8))
+                   :replace-missing-values false
+                   :number-iterations 10000
+                   :number-clusters (get-number-of-clusters ds)})]
+        (ml-clusterers/clusterer-build clst ds)
+        (log/debug "Clusterer: " clst)
+        (let [centroids (:centroids (ml-clusterers/clusterer-info clst))
+              names (into {}
+                          (map (fn [[k cent]]
+                                 [k
+                                  (if-let [words (improvise-cluster-name
+                                                  (ml-data/dataset-attributes ds)
+                                                  (-> cent
+                                                      ml-data/instance-to-vector))]
+                                    words
+                                    (keyword (str k)))])
+                               centroids))
+              item-id-index (.index (.attribute ds "item_id"))]
+          (log/debug names item-id-index)
+          (log/debug centroids)
+          (->> ds
+               (map (fn [instance]
+                      (let [id (int (.value instance item-id-index))
+                            item (persistency/get-item-by-id db id)
+                            cluster (.clusterInstance clst instance)]
+                        (-> item
+                            (assoc :cluster {:id cluster :words (get names cluster "?")})
+                            (assoc :id id)))))
+               (group-by :cluster)))))))
 
 (defn update-saved-clusters! []
   (try
@@ -160,11 +166,15 @@
       (log/info "saved items clustering failed: " (ex-message ex)))))
 
 (defn- saved-cluster-stats []
-  (let [{:keys [clusters last-update]} @current-clustered-saved-items
-        groups (or clusters {})]
-    {:last-update last-update
-     :cluster-count (count groups)
-     :item-count (reduce + (map count (vals groups)))}))
+  (let [state @current-clustered-saved-items]
+    (if (= +saved-clusters-not-compiled+ state)
+      {:status :not-compiled}
+      (let [{:keys [clusters last-update]} state
+            groups (or clusters {})]
+        {:status :compiled
+         :last-update last-update
+         :cluster-count (count groups)
+         :item-count (reduce + (map count (vals groups)))}))))
 
 (defsched update-db-search-indices
   :now-and-early-morning

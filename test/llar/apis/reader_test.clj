@@ -4,6 +4,7 @@
    [clojure.test :refer [deftest is]]
    [llar.apis.reader :as uut]
    [llar.db.search :as db-search]
+   [llar.lab :as lab]
    [llar.rc :as rc]))
 
 (deftest list-style-uses-rc-defaults
@@ -40,6 +41,20 @@
   (is (= []
          (#'uut/queue-item-reasons {:tags ["unread" "highlight"]
                                     :type :item-type/link}))))
+
+(deftest reading-queue-distinguishes-not-compiled-from-empty
+  (with-redefs [lab/current-clustered-saved-items
+                (atom lab/+saved-clusters-not-compiled+)]
+    (let [rendered (pr-str (uut/tools-view-handler
+                            {:view :saved-overview :request-params {}}))]
+      (is (re-find #"has not been compiled yet" rendered))
+      (is (not (re-find #"No saved" rendered)))))
+  (with-redefs [lab/current-clustered-saved-items
+                (atom {:clusters {} :last-update nil})]
+    (let [rendered (pr-str (uut/tools-view-handler
+                            {:view :saved-overview :request-params {}}))]
+      (is (re-find #"No saved, in-progress" rendered))
+      (is (not (re-find #"has not been compiled yet" rendered))))))
 
 (deftest reading-queue-filters
   (let [saved {:tags ["saved"] :type :item-type/link}

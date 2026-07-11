@@ -23,7 +23,9 @@
    [llar.fetch.bookmark :as bookmark]
    [llar.human :as human]
    [llar.item :as item]
-   [llar.lab :refer [+current-fetch-preview+ current-clustered-saved-items]]
+   [llar.lab :refer [+current-fetch-preview+
+                     +saved-clusters-not-compiled+
+                     current-clustered-saved-items]]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
    [llar.postproc :as proc]
@@ -1714,11 +1716,8 @@
         label
         [:span {:class "badge text-bg-light ms-1"} n]])]))
 
-(defmethod tools-view-handler
-  :saved-overview
-  [x]
-  (let [{:keys [clusters last-update]} @current-clustered-saved-items
-        all-items (vec (mapcat second clusters))
+(defn- render-compiled-reading-queue [x {:keys [clusters last-update]}]
+  (let [all-items (vec (mapcat second clusters))
         queue-filter (some-> (get-in x [:request-params :queue-filter]) keyword)
         queue-time-filter (normalize-queue-time-filter
                            (some-> (get-in x [:request-params :queue-time-filter]) keyword))
@@ -1828,6 +1827,17 @@
              (for [btn (tag-buttons)
                    :when (show-button-in-this-view? x btn)]
                (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]])])]))
+
+(defmethod tools-view-handler
+  :saved-overview
+  [x]
+  (let [state @current-clustered-saved-items]
+    (if (= +saved-clusters-not-compiled+ state)
+      [:div
+       [:h2 "Reading Queue"]
+       [:p {:class "text-secondary"}
+        "The Reading Queue has not been compiled yet."]]
+      (render-compiled-reading-queue x state))))
 
 (defn- render-search-headline [headline]
   (letfn [(render-parts [s]
