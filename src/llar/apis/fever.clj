@@ -375,12 +375,12 @@
    (ANY "/" request
      (let [request-id (str (random-uuid))
            started-at (System/nanoTime)]
-       (log/infof "[fever] request %s: %s" request-id (request-summary request))
+       (log/debugf "[fever] request %s: %s" request-id (request-summary request))
        (try
          (let [response (fever-response db fever-config request)
                elapsed-ms (quot (- (System/nanoTime) started-at) 1000000)]
-           (log/infof "[fever] response %s: %s"
-                      request-id (response-summary response elapsed-ms))
+           (log/debugf "[fever] response %s: %s"
+                       request-id (response-summary response elapsed-ms))
            response)
          (catch clojure.lang.ExceptionInfo e
            (if (= ::bad-request (:type (ex-data e)))
@@ -395,7 +395,7 @@
                           (ex-message e)
                           (get params "mark")
                           (get params "as"))
-               (log/infof "[fever] response %s: %s"
-                          request-id (response-summary response elapsed-ms))
+               (log/debugf "[fever] response %s: %s"
+                           request-id (response-summary response elapsed-ms))
                response)
              (throw e))))))))
