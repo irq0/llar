@@ -58,6 +58,24 @@
     (is (string/includes? html (str "src=\"https://reader.test/fever/blob/" hash "\"")))
     (is (string/includes? html "src=\"https://cdn.test/image\""))))
 
+(deftest media-elements-keep-their-sources
+  (let [hash (apply str (repeat 64 "b"))
+        html (uut/sanitize-content
+              (format (str "<video poster='/blob/%s' controls>"
+                           "<source src='https://cdn.test/clip.mp4' type='video/mp4'>"
+                           "</video>"
+                           "<audio src='https://cdn.test/clip.mp3' controls></audio>")
+                      hash)
+              true
+              "https://article.test/story"
+              4096
+              "https://reader.test/fever/")]
+    (is (string/includes? html "<video"))
+    (is (string/includes? html (str "poster=\"https://reader.test/fever/blob/" hash "\"")))
+    (is (string/includes? html "src=\"https://cdn.test/clip.mp4\""))
+    (is (string/includes? html "src=\"https://cdn.test/clip.mp3\""))
+    (is (string/includes? html "controls"))))
+
 (deftest fever-serves-content-addressed-blobs
   (let [hash (apply str (repeat 64 "a"))
         data (java.io.ByteArrayInputStream.
