@@ -69,6 +69,7 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
 - Clojure-scriptable processing: Run code to filter or change fetched items
 - Reader UI
 - Dashboard UI
+- Fever-compatible mobile sync for feed-reader clients
 
 ## UI
 
@@ -92,6 +93,30 @@ configuration.
 
 Gives a *technical* view on the fetch status of configured sources.
 Shows timing and error information and allows manual triggers.
+
+### Mobile readers (Fever)
+
+LLAR can expose selected sources and the Reader Reading Queue through a
+Fever-compatible API. Configure a dedicated port and credential in the
+system configuration:
+
+```clojure
+{:api {:fever {:port 8025
+               :username "llar"
+               :credentials :mobile-sync
+               :source-tag :mobile}}}
+```
+
+Add the password to the configured credentials file:
+
+```clojure
+{:mobile-sync {:password "use-a-dedicated-password"}}
+```
+
+Sources tagged `:mobile` are exposed as regular Fever feeds. Saved and
+in-progress items plus unread bookmarks from all sources are available in
+the Reading Queue. Point the client at the Fever port through an HTTPS
+reverse proxy and use the configured username and password.
 
 ## Concept
 
