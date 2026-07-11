@@ -12,7 +12,6 @@
    [llar.persistency :as persistency])
   (:import
    [java.nio.charset StandardCharsets]
-   [java.security MessageDigest]
    [org.jsoup Jsoup]
    [org.jsoup.nodes Entities]
    [org.jsoup.safety Safelist]))

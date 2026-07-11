@@ -239,7 +239,7 @@
   {:pre [(spec/valid? :irq0-src-twitter/credentials oauth-creds)]
    :post [(spec/valid? source? %)]}
   (->TwitterApi
-   #_:clj-kondo/ignore
+   #_{:clj-kondo/ignore [:unresolved-var]}
    twitter-rest/statuses-home-timeline
    {:count 200}
    (make-oauth-creds
