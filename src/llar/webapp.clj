@@ -68,11 +68,12 @@
         (log/error ex "Exception during request" request)
         (exception-response request ex)))))
 
-(def +prom-shorten-path-of+
-  ["/blob" "/static" "/reader/item/by-id/"])
-
 (def +prom-route-patterns+
-  [[#"^/api/source/[^/]+$" "/api/source/:source-key"]
+  [[#"^/reader/(?:group/[^/]+/[^/]+/source/[^/]+/)?item/by-id/[^/]+(?:/.*)?$"
+    "/reader/item/by-id/:item-id"]
+   [#"^/blob(?:/.*)?$" "/blob/:hash"]
+   [#"^/static(?:/.*)?$" "/static"]
+   [#"^/api/source/[^/]+$" "/api/source/:source-key"]
    [#"^/api/update/[^/]+$" "/api/update/:source-key"]
    [#"^/source-details/[^/]+$" "/source-details/:key"]
    [#"^/api/podcast/retry/[^/]+$" "/api/podcast/retry/:item-id"]
@@ -81,12 +82,36 @@
 (defn prom-path-fn [request]
   (let [uri (:uri request)]
     (or
-     (some #(when (string/starts-with? uri %) %) +prom-shorten-path-of+)
      (some (fn [[re replacement]]
              (when (re-matches re uri)
                replacement))
            +prom-route-patterns+)
      uri)))
+
+(def ^:private fever-read-calls
+  [["groups" :fever/groups]
+   ["feeds" :fever/feeds]
+   ["favicons" :fever/favicons]
+   ["items" :fever/items]
+   ["unread_item_ids" :fever/unread-item-ids]
+   ["saved_item_ids" :fever/saved-item-ids]])
+
+(defn fever-call-fn [{:keys [uri params]}]
+  (cond
+    (string/starts-with? uri "/blob/") :fever/blob
+    (contains? params "mark") (case (get params "mark")
+                                "item" :fever/mark-item
+                                "feed" :fever/mark-feed
+                                "group" :fever/mark-group
+                                :fever/action)
+    (= uri "/") (let [calls (keep (fn [[parameter call]]
+                                    (when (contains? params parameter) call))
+                                  fever-read-calls)]
+                  (case (count calls)
+                    0 :fever/authenticate
+                    1 (first calls)
+                    :fever/sync))
+    :else :fever/other))
 
 (def ^:private reader-content-security-policy
   (string/join
@@ -181,12 +206,12 @@
   (->
    (fever/handler reader/frontend-db (appconfig/fever))
    ring.middleware.json/wrap-json-response
+   (wrap-instrumentation metrics/prom-registry {:path-fn fever-call-fn})
    ring.middleware.params/wrap-params
    ring.middleware.gzip/wrap-gzip
    ring.middleware.not-modified/wrap-not-modified
    wrap-exception
-   wrap-security-headers
-   (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})))
+   wrap-security-headers))
 
 (defstate podcast
   :start (when-let [port (appconfig/podcast :port)]
