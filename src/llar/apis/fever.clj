@@ -3,6 +3,7 @@
    [clojure.string :as string]
    [clojure.tools.logging :as log]
    [compojure.core :refer [ANY GET routes]]
+   [compojure.route :as route]
    [digest]
    [java-time.api :as time]
    [llar.apis.blob :as blob-api]
@@ -407,4 +408,5 @@
                (log/debugf "[fever] response %s: %s"
                            request-id (response-summary response elapsed-ms))
                response)
-             (throw e))))))))
+             (throw e))))))
+   (route/not-found {:status 404 :body {:error "Not found"}})))

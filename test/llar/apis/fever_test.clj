@@ -93,6 +93,14 @@
         (is (= (str "W/\"" hash "\"") (get-in response [:headers "ETag"])))
         (is (identical? data (:body response)))))))
 
+(deftest unknown-path-returns-404-not-nil
+  ;; A request that matches no route must not fall through to a nil response,
+  ;; which crashes the Jetty adapter with a NullPointerException.
+  (let [response ((uut/handler :db test-config)
+                  {:request-method :get :uri "/blobs"})]
+    (is (some? response))
+    (is (= 404 (:status response)))))
+
 (deftest unauthenticated-response-does-not-query-data
   (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
                 sql/fever-sources (fn [_] (throw (ex-info "must not query" {})))]
