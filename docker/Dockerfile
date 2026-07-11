@@ -16,32 +16,38 @@ RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
 RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sources.list && \
   apt-get update && apt-get -y --no-install-recommends install \
-  pandoc \
-  w3m \
-  lynx \
-  html2text \
-  poppler-utils \
-  openjdk-25-jdk-headless \
-  leiningen \
-  wget \
-  git \
+  atomicparsley \
+  ca-certificates \
   diction \
   exiftool \
-  locales \
-  build-essential \
   ffmpeg \
-  python3-pip \
-  atomicparsley \
-  fonts-noto-color-emoji
+  fonts-noto-color-emoji \
+  html2text \
+  locales \
+  lynx \
+  openjdk-25-jre-headless \
+  pandoc \
+  poppler-utils \
+  python3 \
+  w3m && \
+  rm -rf /var/lib/apt/lists/*
 
-RUN wget -qO- https://deb.nodesource.com/setup_lts.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs
+RUN apt-get update && \
+  apt-get -y --no-install-recommends install wget && \
+  wget -qO- https://deb.nodesource.com/setup_lts.x | bash - && \
+  apt-get -y --no-install-recommends install nodejs && \
+  apt-get purge -y curl gnupg wget && \
+  apt-get autoremove -y && \
+  rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --break-system-packages "yt-dlp[default,curl-cffi]"
+RUN apt-get update && \
+  apt-get -y --no-install-recommends install build-essential python3-pip && \
+  pip3 install --break-system-packages --no-cache-dir "yt-dlp[default,curl-cffi]" && \
+  apt-get purge -y build-essential python3-pip && \
+  apt-get autoremove -y && \
+  rm -rf /var/lib/apt/lists/*
 
 RUN echo '--js-runtimes node' > /etc/yt-dlp.conf
-
-RUN rm -rf /var/lib/apt/lists/*
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
@@ -65,7 +71,15 @@ RUN groupadd -g 42000 llar && \
    useradd -u 42000 -g llar llar \
    && chown -R llar:llar /llar
 
-RUN cd /llar && npm install && chown -R 0:0 /llar
+RUN apt-get update && \
+  apt-get -y --no-install-recommends install build-essential && \
+  cd /llar && \
+  npm ci --omit=dev && \
+  npm cache clean --force && \
+  chown -R 0:0 /llar && \
+  apt-get purge -y build-essential && \
+  apt-get autoremove -y && \
+  rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /llar/wekafiles && chown llar:llar /llar/wekafiles
 
