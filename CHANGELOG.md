@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fever: Fever-compatible API for syncing LLAR with mobile feed readers,
+  configured under `:api :fever` with dedicated credentials, port, and
+  source-selection tag.
+- Fever: Stable feeds and a flat LLAR group for selected sources, with
+  incremental and ID-based item retrieval, bounded working sets, unread
+  and saved state synchronization, and idempotent read/save actions.
+- Fever: Reader Reading Queue integration makes saved and in-progress
+  items plus unread bookmarks available across all sources. Items from
+  sources not otherwise exposed through Fever use a stable synthetic
+  Reading Queue feed.
 - Dashboard: Documentation tab with generated `.llar` config and
   system configuration reference.
 - Reader: Reading Queue tool replaces the old Saved Overview label and
