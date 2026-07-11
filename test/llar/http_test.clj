@@ -246,3 +246,46 @@
       (catch clojure.lang.ExceptionInfo ex
         (is (= :llar.http/request-error (:type (ex-data ex))))
         (is (= :body-too-large (:reason-class (ex-data ex))))))))
+
+(deftest fetch-bounds-streams-without-content-length
+  (with-redefs [appconfig/appconfig {:http {:max-body-bytes 4}}
+                clj-http.client/get (fn [& _]
+                                      {:status 200
+                                       :headers {}
+                                       :body (java.io.ByteArrayInputStream.
+                                              (.getBytes "12345"))})]
+    (try
+      (uut/fetch "https://example.com" :sanitize? false :blobify? false)
+      (is false "expected oversized stream to throw")
+      (catch clojure.lang.ExceptionInfo ex
+        (is (= :llar.http/request-error (:type (ex-data ex))))
+        (is (= :body-too-large (:reason-class (ex-data ex))))))))
+
+(deftest bounded-stream-preserves-response-charset
+  (with-redefs [appconfig/appconfig {:http {:max-body-bytes 32}}
+                clj-http.client/get (fn [& _]
+                                      {:status 200
+                                       :headers {"Content-Type" "text/html; charset=ISO-8859-1"}
+                                       :body (java.io.ByteArrayInputStream.
+                                              (byte-array [(unchecked-byte 0xE4)]))})]
+    (is (= "ä" (get-in (uut/fetch "https://example.com"
+                                  :sanitize? false
+                                  :blobify? false)
+                       [:raw :body])))))
+
+(deftest body-read-io-error-is-classified
+  (with-redefs [appconfig/appconfig {:http {:max-body-bytes 1024}}
+                clj-http.client/get (fn [& _]
+                                      {:status 200
+                                       :headers {}
+                                       :body (proxy [java.io.InputStream] []
+                                               (read
+                                                 ([] (throw (java.io.IOException. "boom")))
+                                                 ([_b] (throw (java.io.IOException. "boom")))
+                                                 ([_b _off _len] (throw (java.io.IOException. "boom")))))})]
+    (try
+      (uut/fetch "https://example.com" :sanitize? false :blobify? false)
+      (is false "expected mid-download IO error to be classified")
+      (catch clojure.lang.ExceptionInfo ex
+        (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
+        (is (= :io (:reason-class (ex-data ex))))))))

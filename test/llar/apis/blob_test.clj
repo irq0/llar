@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is testing]]
    [llar.apis.blob :as uut]
+   [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [ring.middleware.not-modified :refer [wrap-not-modified]]))
 
@@ -46,3 +47,18 @@
     (with-redefs [blobstore/get-blob (fn [_] (throw (ex-info "corrupt" {})))]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"corrupt"
                             (uut/response hash-value))))))
+
+(deftest blob-download-reader-enforces-limit-while-streaming
+  (with-redefs [appconfig/appconfig {:http {:max-blob-body-bytes 4}}]
+    (is (= [49 50 51 52]
+           (vec (#'blobstore/read-bounded-body!
+                 "https://example.test/image"
+                 (java.io.ByteArrayInputStream. (.getBytes "1234"))))))
+    (try
+      (#'blobstore/read-bounded-body!
+       "https://example.test/image"
+       (java.io.ByteArrayInputStream. (.getBytes "12345")))
+      (is false "expected oversized blob stream to throw")
+      (catch clojure.lang.ExceptionInfo ex
+        (is (= :body-too-large (:reason-class (ex-data ex))))
+        (is (= 4 (:limit (ex-data ex))))))))

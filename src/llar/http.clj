@@ -2,6 +2,7 @@
   (:require
    [llar.appconfig :refer [appconfig]]
    [llar.blobstore :as blobstore]
+   [llar.io :as llar-io]
    [llar.converter :as converter]
    [llar.commands :refer [html2text] :as commands]
    [llar.privacy :as privacy]
@@ -18,7 +19,10 @@
    [clojure.string :as string]
    [clojure.zip :as zip]
    [org.bovinegenius [exploding-fish :as uri]]
-   [java-time.api :as time]))
+   [java-time.api :as time])
+  (:import
+   [java.io InputStream]
+   [java.nio.charset Charset StandardCharsets]))
 
 ;; 🖖 HTTP Fetch utility
 
@@ -356,7 +360,7 @@
   (commands/readability raw-html url))
 
 (defn- utf8-size [s]
-  (count (.getBytes (str s) "UTF-8")))
+  (count (.getBytes (str s) StandardCharsets/UTF_8)))
 
 (defn- response-content-length [response]
   (some-> (or (get-in response [:headers "Content-Length"])
@@ -364,18 +368,54 @@
               (get-in response [:headers :content-length]))
           parse-long))
 
+(defn- throw-body-too-large! [url limit size]
+  (throw+ {:type ::request-error
+           :reason-class :body-too-large
+           :url url
+           :limit limit
+           :size size
+           :message (format "HTTP body too large: %s bytes exceeds %s bytes"
+                            size limit)}))
+
 (defn- enforce-body-size! [url response body]
   (let [limit (llar.appconfig/http-max-body-bytes)
         size (or (response-content-length response)
                  (some-> body utf8-size))]
     (when (and size (> size limit))
-      (throw+ {:type ::request-error
-               :reason-class :body-too-large
-               :url url
-               :limit limit
-               :size size
-               :message (format "HTTP body too large: %s bytes exceeds %s bytes"
-                                size limit)}))))
+      (throw-body-too-large! url limit size))))
+
+(defn- response-charset [response]
+  (let [content-type (or (get-in response [:headers "Content-Type"])
+                         (get-in response [:headers "content-type"])
+                         (get-in response [:headers :content-type]))
+        charset-name (some->> content-type
+                              (re-find #"(?i)charset\s*=\s*[\"']?([^;\"']+)")
+                              second)]
+    (try
+      (if charset-name
+        (Charset/forName charset-name)
+        StandardCharsets/UTF_8)
+      (catch Exception _
+        StandardCharsets/UTF_8))))
+
+(defn- materialize-bounded-body [response url]
+  (let [body (:body response)]
+    (if-not (instance? InputStream body)
+      (do
+        (enforce-body-size! url response body)
+        response)
+      (with-open [input ^InputStream body]
+        (enforce-body-size! url response nil)
+        (let [limit (llar.appconfig/http-max-body-bytes)
+              bytes (try
+                      (llar-io/read-bounded-bytes!
+                       input limit #(throw-body-too-large! url limit %))
+                      (catch java.io.IOException e
+                        (throw+ {:type ::server-error-retry-later
+                                 :reason-class :io
+                                 :url url
+                                 :message (str "HTTP body read failed: " (ex-message e))})))]
+          (assoc response :body (String. bytes (response-charset response))))))))
 
 (defn sanitize
   [root
@@ -569,15 +609,20 @@
                   (:etag conditionals) (assoc :if-none-match (:etag conditionals))
                   (:last-modified conditionals) (assoc :if-modified-since (:last-modified conditionals)))
         base-url (get-base-url-with-path url)
-        response (with-http-exception-handler {:headers headers :url url}
-                   (http/get (str url)
-                             {:headers headers
-                              :decode-cookies false
-                              :cookie-policy :none}))
+        response (-> (with-http-exception-handler {:headers headers :url url}
+                       (http/get (str url)
+                                 {:headers headers
+                                  :as :stream
+                                  :throw-exceptions false
+                                  :decode-cookies false
+                                  :cookie-policy :none}))
+                     (materialize-bounded-body url))
+        response (if (http/unexceptional-status? (:status response))
+                   response
+                   (http-resp-throw response {:headers headers :url url}))
 
         html (when (and (#{200 206} (:status response))
                         (some? (:body response)))
-               (enforce-body-size! url response (:body response))
                (if sanitize? (raw-sanitize (:body response))
                    (:body response)))
         parsed-html (when (some? html) (cond-> (-> html

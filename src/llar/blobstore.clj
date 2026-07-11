@@ -1,6 +1,7 @@
 (ns llar.blobstore
   (:require
    [llar.converter :as conv]
+   [llar.io :as llar-io]
    [llar.regex :as regex-collection]
    [llar.appconfig :as appconfig]
    [llar.contentdetect :as contentdetect]
@@ -13,7 +14,9 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [mount.core :refer [defstate]]
    [org.bovinegenius [exploding-fish :as uri]]
-   [nio2.core :as nio2]))
+   [nio2.core :as nio2])
+  (:import
+   [java.io InputStream]))
 
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
@@ -151,15 +154,23 @@
               (get-in response [:headers :content-length]))
           parse-long))
 
+(defn- throw-blob-too-large! [url limit size]
+  (log/warnf "BLOBSTORE ADD url %s too large: %sB > %sB" url size limit)
+  (throw+ {:type ::body-too-large
+           :reason-class :body-too-large
+           :url url
+           :limit limit
+           :size size}))
+
 (defn- enforce-blob-body-size! [url size]
   (let [limit (appconfig/http-max-blob-body-bytes)]
     (when (and size (> size limit))
-      (log/warnf "BLOBSTORE ADD url %s too large: %sB > %sB" url size limit)
-      (throw+ {:type ::body-too-large
-               :reason-class :body-too-large
-               :url url
-               :limit limit
-               :size size}))))
+      (throw-blob-too-large! url limit size))))
+
+(defn- read-bounded-body! [url ^InputStream input]
+  (let [limit (appconfig/http-max-blob-body-bytes)]
+    (llar-io/read-bounded-bytes!
+     input limit #(throw-blob-too-large! url limit %))))
 
 (defn- download-and-add!
   "Download, hash, add to primary index - create secondary index entry"
@@ -170,9 +181,9 @@
                               :socket-timeout 10000
                               :connection-timeout 5000})
 
-         _ (enforce-blob-body-size! url (response-content-length response))
-         body (.readAllBytes (:body response))
-         _ (enforce-blob-body-size! url (count body))
+         body (with-open [input ^InputStream (:body response)]
+                (enforce-blob-body-size! url (response-content-length response))
+                (read-bounded-body! url input))
          content-hash (digest/sha-256 body)
 
          response-mime (get-in response [:headers "Content-Type"])
