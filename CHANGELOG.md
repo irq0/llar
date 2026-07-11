@@ -56,6 +56,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   native IntersectionObserver implementation, keeping the same
   bottom-in-view behavior while removing the Waypoints frontend
   dependency.
+- Reader: Blobify preview media during postprocessing so persisted items
+  are self-contained before they reach the UI.
+
+### Fixed
+
+- Reader: Fix mark-read-on-view timing and the explicit mark-items-read
+  action.
+- Podcast: Treat permanent downloader failures as final instead of
+  retrying them indefinitely.
+- Database: Normalize zoned timestamps to UTC before persistence.
+
+### Security
+
+- Reader: Strip common tracking parameters from item and content URLs,
+  apply no-referrer link and response policies, and add a Content Security
+  Policy.
+- HTTP: Add configurable response-body and blob download size limits.
 
 ## [3.1.0] - 2026-06-21
 
