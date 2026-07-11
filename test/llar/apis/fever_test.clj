@@ -187,7 +187,7 @@
                                   :items [{:html (apply str (repeat 1000 "x"))}]
                                   :unread_item_ids "1,2,3"}}
                           12)]
-    (is (= api-key (get-in request-summary [:params "api_key"])))
+    (is (= "<redacted>" (get-in request-summary [:params "api_key"])))
     (is (re-find #"^1+\.\.\. \[200 chars\]$"
                  (get-in request-summary [:params "with_ids"])))
     (is (= {:type :collection :count 1}

@@ -263,7 +263,9 @@
    :content-length (get-in request [:headers "content-length"])
    :params (into (sorted-map)
                  (map (fn [[key value]]
-                        [key (bounded-param value)]))
+                        [key (if (= "api_key" key)
+                               "<redacted>"
+                               (bounded-param value))]))
                  (:params request))})
 
 (defn- response-value-summary [value]
