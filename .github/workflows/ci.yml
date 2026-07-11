@@ -184,6 +184,7 @@ jobs:
       with:
         context: .
         file: docker/Dockerfile
+        pull: true
         build-args: |
           VERSION=${{ env.VERSION }}
           UBUNTU_MIRROR=http://azure.archive.ubuntu.com/ubuntu
