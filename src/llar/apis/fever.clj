@@ -26,11 +26,7 @@
   (or (:datasource db) db))
 
 (defn- config-with-defaults [fever-config]
-  (merge {:source-tag :mobile
-          :initial-days 30
-          :recent-read-days 10
-          :max-content-bytes 1048576}
-         fever-config))
+  (merge appconfig/fever-defaults fever-config))
 
 (defn expected-api-key [username password]
   (digest/md5 (str username ":" password)))

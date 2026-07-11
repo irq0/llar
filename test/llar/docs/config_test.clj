@@ -4,6 +4,7 @@
    [clojure.string :as string]
    [clojure.test :refer [deftest is]]
    [clojure.tools.reader :as reader]
+   [llar.appconfig :as appconfig]
    [llar.config :as config]
    [llar.docs.config :as uut]
    [llar.sched :as sched]))
@@ -33,6 +34,30 @@
     (is (not (string/includes? html "<script")))
     (doseq [schedule-key (keys (sched/canned-schedule-metadata))]
       (is (string/includes? html (str schedule-key))))))
+
+(deftest appconfig-reference-comes-from-specs-and-defaults
+  (let [rows (uut/appconfig-spec-rows)
+        by-path (into {} (map (juxt :path identity) rows))
+        html (uut/render-static-html)]
+    (is (= :irq0-appconfig/fever (get-in by-path [[:api :fever] :spec])))
+    (is (= :irq0-appconfig/username
+           (get-in by-path [[:api :fever :username] :spec])))
+    (is (true? (get-in by-path [[:api :fever :username] :required?])))
+    (is (false? (get-in by-path [[:api :fever :source-tag] :required?])))
+    (is (= :mobile (get-in by-path [[:api :fever :source-tag] :default])))
+    (is (= appconfig/fever-defaults
+           (get-in (appconfig/documented-defaults) [:api :fever])))
+    (is (string/includes? html "System Configuration Reference"))
+    (is (string/includes? html "Three configuration sources"))
+    (is (string/includes? html "LLAR_CONFIG"))
+    (is (string/includes? html "PostgreSQL Connection Pools"))
+    (is (string/includes? html "github.com/tomekw/hikari-cp#configuration-options"))
+    (is (string/includes? html "jdbc.postgresql.org/documentation/datasource/"))
+    (is (string/includes? html "Services and APIs"))
+    (is (string/includes? html "Fever-compatible sync"))
+    (is (string/includes? html "Overrides are shallow"))
+    (is (string/includes? html "[:api :podcast :retention :default-episode-limit]"))
+    (is (not (string/includes? html "correct horse")))))
 
 (deftest docs-writer-creates-html
   (let [out-dir (doto (io/file (System/getProperty "java.io.tmpdir")

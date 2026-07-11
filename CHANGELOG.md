@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reading Queue feed.
 - Dashboard: Documentation tab with generated `.llar` config and
   system configuration reference.
+- Configuration docs: Generate the appconfig reference from Clojure specs and
+  effective defaults, document configuration sources and API services, and add
+  PostgreSQL/HikariCP guidance shared by the dashboard and published docs.
 - Reader: Reading Queue tool replaces the old Saved Overview label and
   shows saved items, in-progress items, and unread bookmarks with
   queue-reason badges, queue stats, and queue filters.

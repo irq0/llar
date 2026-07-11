@@ -4,6 +4,7 @@
    [clojure.spec.alpha :as s]
    [clojure.string :as string]
    [hiccup2.core :as h]
+   [llar.appconfig :as appconfig]
    [llar.config :as config]
    [llar.rc :as rc]
    [llar.sched :as sched]
@@ -136,6 +137,85 @@
     (catch Exception _
       nil)))
 
+(def ^:private no-default ::no-default)
+
+(defn- spec-op [form]
+  (when (seq? form)
+    (some-> form first name keyword)))
+
+(defn- child-specs [spec]
+  (let [form (s/form spec)]
+    (when (and (seq? form) (= :keys (spec-op form)))
+      (let [args (apply hash-map (rest form))]
+        (concat
+         (for [k (:req args)] [k k true])
+         (for [k (:req-un args)] [(keyword (name k)) k true])
+         (for [k (:opt args)] [k k false])
+         (for [k (:opt-un args)] [(keyword (name k)) k false]))))))
+
+(defn appconfig-spec-rows
+  "Flatten the appconfig spec into documentable paths."
+  ([] (appconfig-spec-rows :irq0-llar/appconfig (appconfig/documented-defaults)))
+  ([root-spec defaults]
+   (letfn [(walk [path spec required?]
+             (let [value (get-in defaults path no-default)]
+               (cons {:path path :spec spec :required? required? :default value}
+                     (mapcat (fn [[config-k child-spec child-required?]]
+                               (walk (conj path config-k) child-spec child-required?))
+                             (child-specs spec)))))]
+     (rest (walk [] root-spec true)))))
+
+(defn appconfig-reference-table []
+  [:table {:class "table table-sm align-middle"}
+   [:thead
+    [:tr
+     [:th {:scope "col"} "Path"]
+     [:th {:scope "col"} "Status"]
+     [:th {:scope "col"} "Schema"]
+     [:th {:scope "col"} "Default"]]]
+   [:tbody
+    (for [{:keys [path spec required? default]} (appconfig-spec-rows)]
+      [:tr
+       [:th {:scope "row"} (code (pr-str path))]
+       [:td (if required? "required" "optional")]
+       [:td (code (or (spec-description spec) (pr-str spec)))]
+       [:td (when-not (= no-default default) (code (pr-str default)))]])]])
+
+(defn- service-card [title config-path description example & notes]
+  [:div {:class "card mb-3"}
+   [:div {:class "card-body"}
+    [:h3 {:class "h5 card-title"} title]
+    [:p [:strong "Config path: "] (code (pr-str config-path))]
+    [:p description]
+    (when (seq notes) (into [:ul] (map (fn [note] [:li note]) notes)))
+    [:h4 {:class "h6 mt-3"} "Example"]
+    (code-block example)]])
+
+(defn- services-docs []
+  [(service-card
+    "Dashboard" [:api :dashboard]
+    "Administrative UI and Prometheus metrics endpoint. It starts when :port is present."
+    ":dashboard {:port 9999 :enabled true}")
+   (service-card
+    "Reader" [:api :reader]
+    "The browser-based reader. It starts when :port is present; :base-url is used when LLAR builds absolute reader links."
+    ":reader {:port 8023 :enabled true\n         :base-url \"https://reader.example.org\"}")
+   (service-card
+    "Podcast" [:api :podcast]
+    "HTTP service for downloaded podcast and video media. It starts when :port is present."
+    ":podcast {:port 8024\n          :base-url \"https://media.example.org\"\n          :retention {:default-episode-limit 25}}")
+   (service-card
+    "Fever-compatible sync" [:api :fever]
+    "Mobile sync endpoint for Fever clients such as Fiery Feeds and ReadKit. It starts when :port is present."
+    ":fever {:port 8025\n        :username \"llar\"\n        :credentials :mobile-sync\n        :source-tag :mobile}\n\n;; credentials.edn\n{:mobile-sync {:password \"replace-me\"}}"
+    "Only sources carrying :source-tag (default :mobile) are exposed."
+    "Clients authenticate with the Fever MD5 API key derived from username and the dedicated password."
+    "The working-set defaults are 30 initial days, 10 recent-read days, and 1048576 content bytes.")
+   (service-card
+    "Digest delivery" [:api :digest]
+    "Scheduled EPUB delivery to an e-reader address. This is not an HTTP API and requires top-level :mail configuration."
+    ":digest {:to \"you_abc123@kindle.com\"\n         :from \"llar@example.org\"\n         :schedule :sundays\n         :keep-unread-issues 1\n         :inline-images? true}")])
+
 (defn- section [id title & body]
   (into [:section {:id id :class "mb-5"}
          [:h2 {:class "border-bottom pb-2"} title]]
@@ -210,7 +290,22 @@
      " files. These files define sources, schedules, processing hooks, highlights, and related behavior."]
     [:p
      "This page is generated from metadata attached to LLAR's config and source vars. The same content is rendered in the dashboard and exported for "
-     [:a {:href "https://docs.llar.dev/config.html"} "docs.llar.dev"] "."]]
+     [:a {:href "https://docs.llar.dev/config.html"} "docs.llar.dev"] "."]
+    [:div {:class "card mt-4"}
+     [:div {:class "card-body"}
+      [:h2 {:class "h5 card-title"} "Three configuration sources"]
+      [:dl {:class "row mb-0"}
+       [:dt {:class "col-sm-3"} "System config"]
+       [:dd {:class "col-sm-9"}
+        "Startup-only EDN for paths, databases, services, and host settings. LLAR reads the packaged "
+        (code "resources/config.edn") ", then " (code "LLAR_CONFIG") ", then the JVM "
+        (code "-Dconfig=...") " file; later files replace complete top-level values."]
+       [:dt {:class "col-sm-3"} "Runtime config"]
+       [:dd {:class "col-sm-9"}
+        (code ".llar") " files under " (code ":runtime-config-dir") ", watched and reloaded while LLAR runs. They define sources, schedules, processing, and runtime overrides."]
+       [:dt {:class "col-sm-3"} "Credentials"]
+       [:dd {:class "col-sm-9"}
+        "Secrets in the EDN file selected by " (code ":credentials-file") ". Runtime config and service settings refer to entries by keyword; PostgreSQL passwords are currently configured directly in the system-config pool maps."]]]]]
 
    (section
     "quick-start"
@@ -296,7 +391,41 @@
     [:p
      "Use " (code "resources/config.edn") " as the complete default example and "
      (code "docker/docker-config.edn") " for Docker Compose deployments. Secrets belong in "
-     (code "credentials.edn") "."])])
+     (code "credentials.edn") "."]
+    [:div {:class "alert alert-warning"}
+     [:strong "Overrides are shallow. "]
+     "Later config files replace complete top-level values. For example, an "
+     (code ":api") " override must repeat every API entry that should remain enabled; it is not merged into the shipped "
+     (code ":api") " map."])
+
+   (section
+    "postgresql"
+    "PostgreSQL Connection Pools"
+    [:p
+     (code "[:postgresql :frontend]") " and " (code "[:postgresql :backend]")
+     " are independent HikariCP pool maps. LLAR passes both maps directly to "
+     [:a {:href "https://github.com/tomekw/hikari-cp#configuration-options"} "hikari-cp"]
+     ", whose configuration reference defines the accepted kebab-case pool keys and their defaults."]
+    [:p
+     "Connection fields such as " (code ":server-name") ", " (code ":database-name") ", "
+     (code ":username") ", and " (code ":password") " select the PostgreSQL database. See the official "
+     [:a {:href "https://jdbc.postgresql.org/documentation/datasource/"} "pgJDBC data-source documentation"]
+     " for PostgreSQL connection properties. Start with the shipped Docker example and tune pool sizes only when deployment load requires it."]
+    (code-block ":postgresql\n{:frontend {:adapter \"postgresql\"\n            :server-name \"db\"\n            :database-name \"llar\"\n            :username \"llar\"\n            :password \"replace-me\"\n            :maximum-pool-size 5\n            :pool-name \"frontend\"}\n :backend  {:adapter \"postgresql\"\n            :server-name \"db\"\n            :database-name \"llar\"\n            :username \"llar\"\n            :password \"replace-me\"\n            :maximum-pool-size 10\n            :pool-name \"backend\"}}")
+    [:div {:class "alert alert-secondary"}
+     "Database passwords are currently part of system config, unlike named application credentials. Restrict access to the system-config file and avoid committing deployment passwords."])
+
+   (section
+    "services-and-apis"
+    "Services and APIs"
+    [:p "Service settings are part of the top-level " (code ":api") " map. The examples below are entries inside that map; preserve the other shipped entries when overriding it."]
+    (for [service (services-docs)] service))
+
+   (section
+    "system-config-reference"
+    "System Configuration Reference"
+    [:p "This reference is generated by walking " (code ":irq0-llar/appconfig") ". Required and optional status comes from the Clojure specs; displayed defaults come from packaged configuration and shared runtime defaults."]
+    (appconfig-reference-table))])
 
 (defn docs-page []
   [:html {:lang "en"}

@@ -23,24 +23,60 @@
       {})))
 
 (s/def :irq0-appconfig/port pos-int?)
-(s/def :irq0-appconfig/jetty-config (s/keys :req-un [:irq0-appconfig/port]))
+(s/def :irq0-appconfig/enabled boolean?)
+(s/def :irq0-appconfig/base-url string?)
+(s/def :irq0-appconfig/username string?)
+(s/def :irq0-appconfig/credentials keyword?)
+(s/def :irq0-appconfig/source-tag keyword?)
+(s/def :irq0-appconfig/initial-days pos-int?)
+(s/def :irq0-appconfig/recent-read-days pos-int?)
+(s/def :irq0-appconfig/max-content-bytes pos-int?)
+(s/def :irq0-appconfig/jetty-config
+  (s/keys :req-un [:irq0-appconfig/port]
+          :opt-un [:irq0-appconfig/enabled]))
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
-(s/def :irq0-appconfig/reader :irq0-appconfig/jetty-config)
+(s/def :irq0-appconfig/reader
+  (s/keys :req-un [:irq0-appconfig/port]
+          :opt-un [:irq0-appconfig/enabled
+                   :irq0-appconfig/base-url]))
 (s/def :irq0-appconfig/fever
-  (s/and :irq0-appconfig/jetty-config
-         #(string? (:username %))
-         #(keyword? (:credentials %))
-         #(or (nil? (:source-tag %)) (keyword? (:source-tag %)))
-         #(or (nil? (:initial-days %)) (pos-int? (:initial-days %)))
-         #(or (nil? (:recent-read-days %)) (pos-int? (:recent-read-days %)))
-         #(or (nil? (:max-content-bytes %)) (pos-int? (:max-content-bytes %)))))
+  (s/keys :req-un [:irq0-appconfig/port
+                   :irq0-appconfig/username
+                   :irq0-appconfig/credentials]
+          :opt-un [:irq0-appconfig/source-tag
+                   :irq0-appconfig/initial-days
+                   :irq0-appconfig/recent-read-days
+                   :irq0-appconfig/max-content-bytes]))
 ;; Digest delivery (e-reader magazines). Optional. Lives under :api :digest.
 ;; Uses the general top-level :mail config for sending.
+(s/def :irq0-appconfig/to string?)
+(s/def :irq0-appconfig/from string?)
+(s/def :irq0-appconfig/schedule keyword?)
+(s/def :irq0-appconfig/inline-images? boolean?)
+(s/def :irq0-appconfig/keep-unread-issues nat-int?)
 (s/def :irq0-appconfig/digest
-  (s/and map?
-         #(string? (:to %))))
+  (s/keys :req-un [:irq0-appconfig/to]
+          :opt-un [:irq0-appconfig/from
+                   :irq0-appconfig/schedule
+                   :irq0-appconfig/inline-images?
+                   :irq0-appconfig/keep-unread-issues]))
+(s/def :irq0-appconfig/default-episode-limit pos-int?)
+(s/def :irq0-appconfig/sources (s/map-of keyword? pos-int?))
+(s/def :irq0-appconfig/retention
+  (s/keys :req-un [:irq0-appconfig/default-episode-limit]
+          :opt-un [:irq0-appconfig/sources]))
+(s/def :irq0-appconfig/video-format string?)
+(s/def :irq0-appconfig/av-downloader-extra-args
+  (s/coll-of string? :kind vector?))
+(s/def :irq0-appconfig/podcast
+  (s/keys :req-un [:irq0-appconfig/port]
+          :opt-un [:irq0-appconfig/base-url
+                   :irq0-appconfig/video-format
+                   :irq0-appconfig/av-downloader-extra-args
+                   :irq0-appconfig/retention]))
 (s/def :irq0-appconfig/api (s/keys :opt-un [:irq0-appconfig/reader
                                             :irq0-appconfig/dashboard
+                                            :irq0-appconfig/podcast
                                             :irq0-appconfig/fever
                                             :irq0-appconfig/digest]))
 
@@ -54,19 +90,27 @@
 ;;          :credentials :smtp :starttls true}
 ;; with credentials.edn: {:smtp {:user "llar@example.org" :pass "secret"}}
 ;; Implicit TLS instead: :mail {... :port 465 :credentials :smtp :tls true}
+(s/def :irq0-appconfig/host string?)
+(s/def :irq0-appconfig/tls boolean?)
+(s/def :irq0-appconfig/starttls boolean?)
 (s/def :irq0-appconfig/mail
-  (s/and map?
-         #(or (nil? (:from %)) (string? (:from %)))
-         #(or (nil? (:host %)) (string? (:host %)))
-         #(or (nil? (:port %)) (int? (:port %)))
-         #(or (nil? (:credentials %)) (keyword? (:credentials %)))
-         #(or (nil? (:tls %)) (boolean? (:tls %)))
-         #(or (nil? (:starttls %)) (boolean? (:starttls %)))))
+  (s/keys :opt-un [:irq0-appconfig/from
+                   :irq0-appconfig/host
+                   :irq0-appconfig/port
+                   :irq0-appconfig/credentials
+                   :irq0-appconfig/tls
+                   :irq0-appconfig/starttls]))
 (s/def :irq0-appconfig/blob-store-dir :irq0/path-writable-dir)
 (s/def :irq0-appconfig/credentials-file :irq0/path-exists)
 (s/def :irq0-appconfig/runtime-config-dir :irq0/path-exists-is-dir)
+(s/def :irq0-appconfig/update-max-retry nat-int?)
 (s/def :irq0-appconfig/command-max-concurrent pos-int?)
-(s/def :irq0-appconfig/throttle (s/keys :req-un [:irq0-appconfig/command-max-concurrent]))
+(s/def :irq0-appconfig/av-downloader-max-concurrent pos-int?)
+(s/def :irq0-appconfig/streaming-max-concurrent pos-int?)
+(s/def :irq0-appconfig/throttle
+  (s/keys :req-un [:irq0-appconfig/command-max-concurrent]
+          :opt-un [:irq0-appconfig/av-downloader-max-concurrent
+                   :irq0-appconfig/streaming-max-concurrent]))
 (s/def :irq0-appconfig/timeouts (s/map-of keyword pos-int?))
 (s/def :irq0-appconfig/command :irq0/path)
 (s/def :irq0-appconfig/commands (s/map-of keyword :irq0-appconfig/command))
@@ -95,11 +139,7 @@
 (s/def :irq0-appconfig/export
   (s/keys :opt-un [:irq0-appconfig/url-handler]))
 (s/def :irq0-appconfig/enabled? boolean?)
-(s/def :irq0-appconfig/to string?)
-(s/def :irq0-appconfig/from string?)
 (s/def :irq0-appconfig/limit pos-int?)
-(s/def :irq0-appconfig/inline-images? boolean?)
-(s/def :irq0-appconfig/keep-unread-issues nat-int?)
 (s/def :irq0-appconfig/runtime-digest
   (s/and (s/keys :opt-un [:irq0-appconfig/enabled?
                           :irq0-appconfig/to
@@ -109,8 +149,6 @@
                           :irq0-appconfig/keep-unread-issues])
          #(or (not (:enabled? %))
               (string? (:to %)))))
-(s/def :irq0-appconfig/default-episode-limit pos-int?)
-(s/def :irq0-appconfig/sources (s/map-of keyword? pos-int?))
 (s/def :irq0-appconfig/podcast-retention
   (s/keys :req-un [:irq0-appconfig/default-episode-limit]
           :opt-un [:irq0-appconfig/sources]))
@@ -143,10 +181,29 @@
                    :irq0-appconfig/api
                    :irq0-appconfig/ui
                    :irq0-appconfig/postgresql]
-          :opt-un [:irq0-appconfig/ranking
+          :opt-un [:irq0-appconfig/update-max-retry
+                   :irq0-appconfig/throttle
+                   :irq0-appconfig/timeouts
+                   :irq0-appconfig/ranking
                    :irq0-appconfig/export
                    :irq0-appconfig/http
                    :irq0-appconfig/mail]))
+
+(def fever-defaults
+  "Effective defaults for an enabled Fever service. Activation and credentials
+  deliberately have no defaults."
+  {:source-tag :mobile
+   :initial-days 30
+   :recent-read-days 10
+   :max-content-bytes 1048576})
+
+(defn documented-defaults
+  "Shipped system defaults plus effective defaults for optional services.
+  This reads packaged data only; it never reads deployment config or credentials."
+  []
+  (assoc-in (edn/read-string (slurp (io/resource "config.edn")))
+            [:api :fever]
+            fever-defaults))
 
 (defn verify-config [config]
   (let [conform (s/conform :irq0-llar/appconfig config)]
