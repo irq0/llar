@@ -69,8 +69,18 @@
         (exception-response request ex)))))
 
 (def +prom-route-patterns+
-  [[#"^/reader/(?:group/[^/]+/[^/]+/source/[^/]+/)?item/by-id/[^/]+(?:/.*)?$"
+  [[#"^/reader/(?:group/[^/]+/[^/]+/source/[^/]+/)?item/by-id/[^/]+/download/?$"
+    "/reader/item/by-id/:item-id/download"]
+   [#"^/reader/(?:group/[^/]+/[^/]+/source/[^/]+/)?item/by-id/[^/]+/dump/?$"
+    "/reader/item/by-id/:item-id/dump"]
+   [#"^/reader/(?:group/[^/]+/[^/]+/source/[^/]+/)?item/by-id/[^/]+(?:/.*)?$"
     "/reader/item/by-id/:item-id"]
+   [#"^/reader/annotation/[^/]+/?$" "/reader/annotation/:id"]
+   [#"^/reader/export/[^/]+/zotero/?$" "/reader/export/:item-id/zotero"]
+   [#"^/reader/export/[^/]+/url-handler/?$" "/reader/export/:item-id/url-handler"]
+   [#"^/reader/tools/saved-overview/?$" "/reader/tools/reading-queue"]
+   [#"^/reader/tools/search/?$" "/reader/tools/search"]
+   [#"^/reader/tools/[^/]+/?$" "/reader/tools/:view"]
    [#"^/blob(?:/.*)?$" "/blob/:hash"]
    [#"^/static(?:/.*)?$" "/static"]
    [#"^/api/source/[^/]+$" "/api/source/:source-key"]
@@ -79,9 +89,29 @@
    [#"^/api/podcast/retry/[^/]+$" "/api/podcast/retry/:item-id"]
    [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]])
 
+(defn- abstract-reader-group-path [uri]
+  (when-let [[_ group-name group-item source-key endpoint]
+             (re-matches
+              #"^/reader/group/([^/]+)/([^/]+)/source/([^/]+)/(items|update)/?$"
+              uri)]
+    (let [group-name (if (#{"default" "item-tags" "source-tag" "type"} group-name)
+                       group-name
+                       ":group")
+          group-item (cond
+                       (#{"item-tags" "source-tag"} group-name) ":tag"
+                       (= "type" group-name) ":type"
+                       (= "default" group-name) (if (#{"all" "none"} group-item)
+                                                  group-item
+                                                  ":view")
+                       :else ":group-item")
+          source-key (if (= "all" source-key) "all" ":source-key")]
+      (format "/reader/group/%s/%s/source/%s/%s"
+              group-name group-item source-key endpoint))))
+
 (defn prom-path-fn [request]
   (let [uri (:uri request)]
     (or
+     (abstract-reader-group-path uri)
      (some (fn [[re replacement]]
              (when (re-matches re uri)
                replacement))
