@@ -71,6 +71,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Observability: Bound HTTP metric cardinality with abstract Reader route
   labels, separate item downloads and dumps, and classify Fever traffic by
   semantic calls instead of URL paths.
+- Configuration: Enable API services by the presence of their `:port` and
+  remove the unused `:enabled` flag from the dashboard and reader config.
+- Docker: Shrink the runtime image by installing build tooling only
+  transiently and purging it after builds, cleaning apt lists, and adding a
+  `.dockerignore`.
 
 ### Fixed
 
@@ -85,7 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reader: Strip common tracking parameters from item and content URLs,
   apply no-referrer link and response policies, and add a Content Security
   Policy.
-- HTTP: Add configurable response-body and blob download size limits.
+- HTTP: Add configurable response-body and blob download size limits,
+  enforced while streaming so oversized or decompression-bomb responses are
+  rejected without buffering the whole body.
+- Fever: Redact the API key and other credentials from request and
+  response logs.
 
 ## [3.1.0] - 2026-06-21
 
