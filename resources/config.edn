@@ -8,6 +8,10 @@
        ;; Fever-compatible mobile inbox for Fiery Feeds and ReadKit. The
        ;; credential entry is a dedicated API password, e.g.
        ;; {:mobile-sync {:password "..."}} in credentials.edn.
+       ;; :base-url is important: it must be the externally reachable URL of
+       ;; this Fever endpoint (including any reverse-proxy path). Blobstored
+       ;; images in items are served from <base-url>/blob/<hash> and rewritten
+       ;; to absolute URLs; without a correct :base-url they break on the phone.
        ;; :fever {:port 8025
        ;;         :base-url "https://reader.example/api/fever"
        ;;         :username "llar"

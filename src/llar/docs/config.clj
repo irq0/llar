@@ -207,10 +207,16 @@
    (service-card
     "Fever-compatible sync" [:api :fever]
     "Mobile sync endpoint for Fever clients such as Fiery Feeds and ReadKit. It starts when :port is present."
-    ":fever {:port 8025\n        :username \"llar\"\n        :credentials :mobile-sync\n        :source-tag :mobile}\n\n;; credentials.edn\n{:mobile-sync {:password \"replace-me\"}}"
+    ":fever {:port 8025\n        :base-url \"https://reader.example.org/api/fever\"\n        :username \"llar\"\n        :credentials :mobile-sync\n        :source-tag :mobile}\n\n;; credentials.edn\n{:mobile-sync {:password \"replace-me\"}}"
     "Only sources carrying :source-tag (default :mobile) are exposed."
     "Clients authenticate with the Fever MD5 API key derived from username and the dedicated password."
-    "The working-set defaults are 30 initial days, 10 recent-read days, and 1048576 content bytes.")
+    "The working-set defaults are 30 initial days, 10 recent-read days, and 1048576 content bytes."
+    [:span
+     [:strong ":base-url is important. "]
+     "Set it to the externally reachable URL of this Fever endpoint, including any reverse-proxy path. "
+     "Privacy-rewritten images and media are stored in the local blobstore and served by this endpoint at "
+     (code "<base-url>/blob/<hash>") ". Content is rewritten to those absolute URLs so mobile clients can load them; "
+     "without a correct :base-url the relative " (code "/blob/") " URLs break on the phone. The endpoint must be exposed over HTTPS."])
    (service-card
     "Digest delivery" [:api :digest]
     "Scheduled EPUB delivery to an e-reader address. This is not an HTTP API and requires top-level :mail configuration."
