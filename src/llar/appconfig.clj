@@ -23,7 +23,6 @@
       {})))
 
 (s/def :irq0-appconfig/port pos-int?)
-(s/def :irq0-appconfig/enabled boolean?)
 (s/def :irq0-appconfig/base-url string?)
 (s/def :irq0-appconfig/username string?)
 (s/def :irq0-appconfig/credentials keyword?)
@@ -32,13 +31,11 @@
 (s/def :irq0-appconfig/recent-read-days pos-int?)
 (s/def :irq0-appconfig/max-content-bytes pos-int?)
 (s/def :irq0-appconfig/jetty-config
-  (s/keys :req-un [:irq0-appconfig/port]
-          :opt-un [:irq0-appconfig/enabled]))
+  (s/keys :req-un [:irq0-appconfig/port]))
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
 (s/def :irq0-appconfig/reader
   (s/keys :req-un [:irq0-appconfig/port]
-          :opt-un [:irq0-appconfig/enabled
-                   :irq0-appconfig/base-url]))
+          :opt-un [:irq0-appconfig/base-url]))
 (s/def :irq0-appconfig/fever
   (s/keys :req-un [:irq0-appconfig/port
                    :irq0-appconfig/username

@@ -195,11 +195,11 @@
   [(service-card
     "Dashboard" [:api :dashboard]
     "Administrative UI and Prometheus metrics endpoint. It starts when :port is present."
-    ":dashboard {:port 9999 :enabled true}")
+    ":dashboard {:port 9999}")
    (service-card
     "Reader" [:api :reader]
     "The browser-based reader. It starts when :port is present; :base-url is used when LLAR builds absolute reader links."
-    ":reader {:port 8023 :enabled true\n         :base-url \"https://reader.example.org\"}")
+    ":reader {:port 8023\n         :base-url \"https://reader.example.org\"}")
    (service-card
     "Podcast" [:api :podcast]
     "HTTP service for downloaded podcast and video media. It starts when :port is present."
