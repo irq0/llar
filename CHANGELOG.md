@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-07-11
+
 ### Added
 
 - Fever: Fever-compatible API for syncing LLAR with mobile feed readers,
@@ -255,7 +257,8 @@ You can now add a GitHub repository as a source and follow its activity.
 
 ### initial tagged release
 
-[Unreleased]: https://github.com/irq0/llar/compare/3.1.0...HEAD
+[Unreleased]: https://github.com/irq0/llar/compare/4.0.0...HEAD
+[4.0.0]: https://github.com/irq0/llar/compare/3.1.0...4.0.0
 [3.1.0]: https://github.com/irq0/llar/compare/3.0.0...3.1.0
 [3.0.0]: https://github.com/irq0/llar/compare/2.0.0...3.0.0
 [2.0.0]: https://github.com/irq0/llar/compare/1.1.0...2.0.0
