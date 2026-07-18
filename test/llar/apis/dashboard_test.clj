@@ -5,6 +5,9 @@
    [hiccup2.core :as h]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
+   [llar.apis.podcast :as podcast-api]
+   [llar.persistency :as persistency]
+   [llar.podcast :as podcast]
    [llar.rc :as rc]
    [llar.sched :as sched]
    [llar.apis.dashboard :as uut]))
@@ -134,3 +137,69 @@
                                :uri "/api/schedule/daily/run"})]
         (is (= 200 (:status response)))
         (is (= :triggered (get-in response [:body :result])))))))
+
+(deftest podcast-tab-offers-untag-action
+  (reset! podcast/download-state
+          {42 {:status :perm-failed
+               :media-url "https://example.com/episode"
+               :error "video unavailable"}})
+  (try
+    (with-redefs [podcast/podcast-disk-stats (constantly nil)
+                  podcast-api/format-duration (constantly nil)]
+      (let [body (str (h/html (uut/podcast-tab)))]
+        (is (string/includes? body "Perm Failed"))
+        (is (string/includes? body ">Untag<"))
+        (is (string/includes? body "/api/podcast/42/tag"))))
+    (finally
+      (reset! podcast/download-state {}))))
+
+(deftest podcast-untag-removes-tag-and-tracking-state
+  (reset! podcast/download-state
+          {42 {:status :perm-failed
+               :media-url "https://example.com/episode"}})
+  (let [removed (atom nil)]
+    (try
+      (with-redefs [persistency/item-remove-tags!
+                    (fn [_ item-id tags]
+                      (reset! removed [item-id tags]))]
+        (let [response (uut/podcast-untag "42")]
+          (is (= 200 (:status response)))
+          (is (= 42 (get-in response [:body :item-id])))
+          (is (true? (get-in response [:body :untagged])))
+          (is (= [42 [:podcast]] @removed))
+          (is (not (contains? @podcast/download-state 42)))))
+      (finally
+        (reset! podcast/download-state {})))))
+
+(deftest podcast-untag-keeps-blob-but-removes-unique-index-entry
+  (reset! podcast/download-state
+          {42 {:status :complete
+               :blob-hash "blob-hash"}})
+  (let [removed-index (atom nil)]
+    (try
+      (with-redefs [persistency/item-remove-tags! (fn [& _])
+                    podcast/remove-from-podcast-index! (fn [blob-hash]
+                                                         (reset! removed-index blob-hash))]
+        (let [response (uut/podcast-untag "42")]
+          (is (= 200 (:status response)))
+          (is (true? (get-in response [:body :blob-kept])))
+          (is (true? (get-in response [:body :index-removed])))
+          (is (= "blob-hash" @removed-index))
+          (is (not (contains? @podcast/download-state 42)))))
+      (finally
+        (reset! podcast/download-state {})))))
+
+(deftest podcast-untag-route-handles-conflict-and-missing-item
+  (try
+    (reset! podcast/download-state {42 {:status :downloading}})
+    (let [response (uut/app {:request-method :delete
+                             :uri "/api/podcast/42/tag"})]
+      (is (= 409 (:status response)))
+      (is (= :download-in-progress (get-in response [:body :error])))
+      (is (contains? @podcast/download-state 42)))
+
+    (reset! podcast/download-state {})
+    (is (= 404 (:status (uut/app {:request-method :delete
+                                  :uri "/api/podcast/99/tag"}))))
+    (finally
+      (reset! podcast/download-state {}))))

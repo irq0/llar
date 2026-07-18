@@ -213,3 +213,24 @@
         (let [candidates (uut/eviction-candidates :src-b)]
           (is (= [200] (mapv first candidates)))))
       (reset! uut/download-state {}))))
+
+(deftest cleanup-perm-failed-untags-stale-items
+  (let [now (time/zoned-date-time)
+        old (time/minus now (time/days 8))
+        recent (time/minus now (time/days 1))
+        removed-tags (atom [])]
+    (reset! uut/download-state
+            {100 {:status :perm-failed :last-attempt old}
+             101 {:status :perm-failed :last-attempt recent}
+             102 {:status :failed :last-attempt old}})
+    (try
+      (with-redefs [llar.persistency/item-remove-tags!
+                    (fn [_ item-id tags]
+                      (swap! removed-tags conj [item-id tags]))]
+        (#'uut/cleanup-perm-failed!)
+        (is (= [[100 [:podcast]]] @removed-tags))
+        (is (not (contains? @uut/download-state 100)))
+        (is (contains? @uut/download-state 101))
+        (is (contains? @uut/download-state 102)))
+      (finally
+        (reset! uut/download-state {})))))

@@ -400,6 +400,7 @@
               :downloading "bg-primary"
               :pending "bg-warning text-dark"
               :failed "bg-danger"
+              :perm-failed "bg-danger"
               "bg-secondary")]
     [:span {:class (str "badge " cls)} (name status)]))
 
@@ -416,7 +417,8 @@
             [["Complete" :complete "text-success"]
              ["Downloading" :downloading "text-primary"]
              ["Pending" :pending "text-warning"]
-             ["Failed" :failed "text-danger"]]]
+             ["Failed" :failed "text-danger"]
+             ["Perm Failed" :perm-failed "text-danger"]]]
         [:div {:class "col-auto"}
          [:h4 {:class cls} (count (get by-status status [])) " " label]])
       (when (and stats (pos? (:total-size stats)))
@@ -507,6 +509,12 @@
                          :onclick (str "fetch('/api/podcast/retry/" item-id "', {method:'POST'})"
                                        ".then(()=>location.reload())")}
                 "Retry"])
+             (when (#{:complete :failed :perm-failed :pending} status)
+               [:button {:class "btn btn-sm btn-outline-secondary me-1"
+                         :onclick (str "if(confirm('Remove the podcast tag? The downloaded blob will be kept.'))"
+                                       "fetch('/api/podcast/" item-id "/tag', {method:'DELETE'})"
+                                       ".then(()=>location.reload())")}
+                "Untag"])
              (when (#{:complete :failed :perm-failed :pending} status)
                [:button {:class "btn btn-sm btn-outline-danger"
                          :onclick (str "if(confirm('Delete episode and blob?'))"
@@ -836,6 +844,30 @@
       {:status 404
        :body {:item-id str-id :error :not-found}})))
 
+(defn podcast-untag [str-id]
+  (let [item-id (parse-long str-id)]
+    (if-let [info (get @podcast/download-state item-id)]
+      (if (= :downloading (:status info))
+        {:status 409
+         :body {:item-id item-id :error :download-in-progress}}
+        (let [blob-hash (:blob-hash info)
+              other-refs (->> @podcast/download-state
+                              (filter (fn [[id v]] (and (not= id item-id)
+                                                        (= blob-hash (:blob-hash v)))))
+                              count)
+              remove-index? (and blob-hash (zero? other-refs))]
+          (persistency/item-remove-tags! frontend-db item-id [:podcast])
+          (when remove-index?
+            (podcast/remove-from-podcast-index! blob-hash))
+          (swap! podcast/download-state dissoc item-id)
+          {:status 200
+           :body {:item-id item-id
+                  :untagged true
+                  :blob-kept (boolean blob-hash)
+                  :index-removed (boolean remove-index?)}}))
+      {:status 404
+       :body {:item-id str-id :error :not-found}})))
+
 (defn all-sources-status []
   {:status 200
    :body {:data
@@ -867,6 +899,9 @@
 
      (DELETE "/podcast/:item-id" [item-id]
        (podcast-delete item-id))
+
+     (DELETE "/podcast/:item-id/tag" [item-id]
+       (podcast-untag item-id))
 
      (POST "/podcast/enforce-retention" []
        (future (podcast/enforce-retention!))

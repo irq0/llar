@@ -445,19 +445,20 @@
         (swap! download-state dissoc item-id)))))
 
 (defn- cleanup-perm-failed!
-  "Remove permanently failed download entries older than 7 days."
+  "Untag and remove permanently failed download entries older than 7 days."
   []
   (let [cutoff (time/minus (time/zoned-date-time) (time/days 7))]
     (doseq [[item-id state] @download-state
             :when (and (= :perm-failed (:status state))
                        (:last-attempt state)
                        (time/before? (:last-attempt state) cutoff))]
-      (log/infof "podcast: removing perm-failed entry %s (last attempt: %s)"
+      (log/infof "podcast: untagging and removing perm-failed entry %s (last attempt: %s)"
                  item-id (:last-attempt state))
+      (persistency/item-remove-tags! store/backend-db item-id [:podcast])
       (swap! download-state dissoc item-id))))
 
 (defn enforce-retention!
-  "Enforce count-based retention across all sources. Also cleanup stale perm-failed entries."
+  "Enforce count-based retention across all sources. Also untag and cleanup stale perm-failed entries."
   []
   (cleanup-perm-failed!)
   (let [sources (->> @download-state
