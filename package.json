@@ -1,7 +1,9 @@
 {
+  "scripts": {
+    "test": "node --test tools/readability/test/*.test.js"
+  },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "deasync": "^0.1.31",
     "dompurify": "^3.4.11",
     "jsdom": "^29.1.1",
     "metascraper": "^5.51.1",
@@ -9,15 +11,10 @@
     "metascraper-author": "^5.51.1",
     "metascraper-date": "^5.51.1",
     "metascraper-description": "^5.51.1",
-    "metascraper-iframe": "^5.51.1",
     "metascraper-image": "^5.51.1",
     "metascraper-logo": "^5.51.1",
-    "metascraper-media-provider": "^5.51.1",
     "metascraper-publisher": "^5.51.1",
-    "metascraper-spotify": "^5.51.1",
     "metascraper-title": "^5.51.1",
-    "metascraper-url": "^5.51.1",
-    "metascraper-video": "^5.51.1",
-    "metascraper-youtube": "^5.51.1"
+    "metascraper-url": "^5.51.1"
   }
 }

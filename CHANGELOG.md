@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Readability: Extract passive Open Graph, Twitter Card, canonical, microdata,
+  and JSON-LD metadata from the original inert document while keeping rendered
+  article HTML on a separate hardened DOMPurify path.
+- Media extraction: Remove global `metascraper-media-provider`, iframe/oEmbed,
+  and service network lookups. Readability fetches no longer launch the bundled
+  `yt-dlp`; explicitly podcast-tagged URLs use the existing configured system
+  `yt-dlp` download and retry path.
+
 ## [4.0.0] - 2026-07-11
 
 ### Added
