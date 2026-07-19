@@ -7,10 +7,12 @@
    [llar.db.core :as db]
    [llar.db.modify]
    [llar.db.sql :as sql]
+   [llar.metrics :as metrics]
    [llar.persistency :as persistency]
    [llar.podcast :as podcast]
    [llar.store :as store]
    [llar.update :as update]
+   [iapetos.core :as prometheus]
    [mount.core :as mount]
    [llar.sched :as uut])
   (:import
@@ -45,6 +47,49 @@
     (is (:last-duration state))
     (is (= {:count 1} (:last-result state)))
     (is (nil? (:last-exception state)))))
+
+(deftest run-schedule-publishes-next-run-and-expected-interval
+  (let [base (time/zoned-date-time 2026 7 19 12 0 0 0 "UTC")
+        next-run (time/plus base (time/minutes 10))
+        following-run (time/plus base (time/minutes 30))
+        schedule-name "metrics-test"
+        schedule (test-schedule {:sched-name schedule-name
+                                 :schedule-times [next-run following-run]})]
+    (with-redefs [time/zoned-date-time (constantly base)]
+      (uut/run-schedule! schedule :scheduled))
+    (is (= (/ (time/to-millis-from-epoch next-run) 1000.0)
+           (prometheus/value metrics/prom-registry
+                             :llar-sched/next-run-unixtime
+                             {:schedule schedule-name})))
+    (is (= 1200.0
+           (prometheus/value metrics/prom-registry
+                             :llar-sched/expected-interval-seconds
+                             {:schedule schedule-name})))))
+
+(deftest schedule-timing-advances-across-irregular-runs
+  (let [base (time/zoned-date-time 2026 7 19 12 0 0 0 "UTC")
+        first-run (time/plus base (time/minutes 5))
+        second-run (time/plus base (time/minutes 15))
+        third-run (time/plus base (time/minutes 45))
+        schedule-name "irregular-metrics-test"
+        schedule (test-schedule {:sched-name schedule-name
+                                 :schedule-times [first-run second-run third-run]})]
+    (with-redefs [time/zoned-date-time (constantly base)]
+      (#'uut/observe-schedule-timing! schedule))
+    (is (= 600.0
+           (prometheus/value metrics/prom-registry
+                             :llar-sched/expected-interval-seconds
+                             {:schedule schedule-name})))
+    (with-redefs [time/zoned-date-time (constantly (time/plus base (time/minutes 6)))]
+      (#'uut/observe-schedule-timing! schedule))
+    (is (= (/ (time/to-millis-from-epoch second-run) 1000.0)
+           (prometheus/value metrics/prom-registry
+                             :llar-sched/next-run-unixtime
+                             {:schedule schedule-name})))
+    (is (= 1800.0
+           (prometheus/value metrics/prom-registry
+                             :llar-sched/expected-interval-seconds
+                             {:schedule schedule-name})))))
 
 (deftest snapshot-includes-next-run-at
   (let [past (time/minus (time/zoned-date-time) (time/minutes 5))

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Observability: Export each recurring schedule's next run and the expected
+  interval to the following run for cadence-aware Prometheus alerting.
+
 ### Changed
 
 - Readability: Extract passive Open Graph, Twitter Card, canonical, microdata,

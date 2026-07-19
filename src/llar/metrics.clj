@@ -11,7 +11,13 @@
       (ring/initialize)
       (prometheus/register
        (prometheus/gauge :llar-sched/last-run
-                         {:description "Last time the schedume was run"
+                         {:description "Last time the schedule was run."
+                          :labels [:schedule]})
+       (prometheus/gauge :llar-sched/next-run-unixtime
+                         {:description "Next time a recurring schedule is expected to run."
+                          :labels [:schedule]})
+       (prometheus/gauge :llar-sched/expected-interval-seconds
+                         {:description "Expected gap between the next two runs of a recurring schedule."
                           :labels [:schedule]})
        (prometheus/histogram
         :llar-ui/compile-sources

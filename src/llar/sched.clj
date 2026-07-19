@@ -52,6 +52,20 @@
          (drop-while #(time/before? % now))
          first)))
 
+(defn- observe-schedule-timing! [schedule]
+  (let [now (time/zoned-date-time)
+        [next-run following-run] (->> (:schedule-times schedule)
+                                      (drop-while #(not (time/after? % now)))
+                                      (take 2))]
+    (when (and next-run following-run)
+      (let [labels {:schedule (:sched-name schedule)}]
+        (prometheus/set metrics/prom-registry :llar-sched/next-run-unixtime
+                        labels
+                        (/ (time/to-millis-from-epoch next-run) 1000.0))
+        (prometheus/set metrics/prom-registry :llar-sched/expected-interval-seconds
+                        labels
+                        (/ (.toMillis (time/duration next-run following-run)) 1000.0))))))
+
 (defn snapshot
   "Return dashboard/API-safe schedule metadata plus runtime state."
   [schedule]
@@ -81,6 +95,7 @@
          (try
            (prometheus/set-to-current-time metrics/prom-registry :llar-sched/last-run
                                            {:schedule (:sched-name schedule)})
+           (observe-schedule-timing! schedule)
            (let [result (metrics/with-log-exec-time-named (:sched-name schedule)
                           ((:run-fn schedule)))
                  finished-at (time/zoned-date-time)]
@@ -137,6 +152,7 @@
 (defn start-schedule! [schedule chime-times]
   (let [schedule-times (resolve-chime-times chime-times)
         schedule (assoc schedule :schedule-times schedule-times)]
+    (observe-schedule-timing! schedule)
     (attach-closeable!
      schedule
      (chime/chime-at
