@@ -14,8 +14,8 @@
 ;; Wrapper for all external commands we run
 
 (defonce +kill-timeout-secs+ 120)
-(defonce +semaphore+ (delay (Semaphore. (get-in appconfig [:throttle :command-max-concurrent]))))
-(defonce +semaphore-av-download+ (delay (Semaphore. (get-in appconfig [:throttle :av-downloader-max-concurrent]))))
+(defonce +semaphore+ (delay (Semaphore. (get-in appconfig [:throttle :command-max-concurrent] 2))))
+(defonce +semaphore-av-download+ (delay (Semaphore. (get-in appconfig [:throttle :av-downloader-max-concurrent] 2))))
 
 (defmacro with-throttle [sem & body]
   `(do
