@@ -15,6 +15,21 @@
     (is (= :gallery (uut/get-list-style {:group-item :blog
                                          :list-style :gallery})))))
 
+(deftest youtube-preview-fills-ratio-container
+  (let [rendered (str (uut/render-special-item-content
+                       {:url "https://www.youtube.com/watch?v=abc123"
+                        :entry {:thumbnail "/blob/youtube-thumbnail.jpg"}}
+                       #{}))]
+    (is (re-find #"class=\"youtube-preview-container\"" rendered))
+    (is (re-find #"class=\"lazy-youtube\"" rendered))
+    (is (re-find #"data-vid=\"abc123\"" rendered))
+    (is (re-find #"alt=\"Play video on YouTube\"" rendered))))
+
+(deftest youtube-player-sends-origin-referrer
+  (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (re-find #"youtube-nocookie\.com/embed/" javascript))
+    (is (re-find #"referrerpolicy=\"strict-origin-when-cross-origin\"" javascript))))
+
 (deftest ranked-query-args-use-rc-ranking
   (with-redefs [rc/rc (fn [path]
                         (when (= [:reader :ranking] path)

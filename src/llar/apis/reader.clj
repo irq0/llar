@@ -632,10 +632,12 @@
        (when (some? vid)
          (when-let [thumb (:thumbnail entry)]
            [:div {:class "ratio ratio-16x9"}
-            [:div {:id (str "youtube-container-" (last vid))}
-             [:img {:class "lazy-youtube img-fluid"
+            [:div {:id (str "youtube-container-" (last vid))
+                   :class "youtube-preview-container"}
+             [:img {:class "lazy-youtube"
                     :data-vid (last vid)
                     :data-target (str "youtube-container-" (last vid))
+                    :alt "Play video on YouTube"
                     :src thumb}]]])))
 
      (when-let [twit-pic (first (get-in entry [:entities :photos]))]

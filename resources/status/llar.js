@@ -398,8 +398,14 @@ $(document).ready(function () {
   $(".lazy-youtube").on("click", function () {
     var vid = $(this).data("vid");
     var target = $(this).data("target");
-    $("#" + target).html(`<div class="ratio ratio-16x9">
-<iframe class="img-fluid" src="https://www.youtube.com/embed/${vid}" frameborder="0" allowfullscreen="true"></iframe></div>`);
+    var embedUrl =
+      "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(vid);
+    $("#" + target).html(
+      `<iframe src="${embedUrl}" title="YouTube video player" ` +
+        `referrerpolicy="strict-origin-when-cross-origin" ` +
+        `allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ` +
+        `allowfullscreen></iframe>`,
+    );
   });
 
   // main list: mark on view, toggle read

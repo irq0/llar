@@ -64,6 +64,18 @@ div.item-preview-small img {
   padding-right: 1.5em;
 }
 
+.youtube-preview-container > .lazy-youtube,
+.youtube-preview-container > iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.youtube-preview-container > .lazy-youtube {
+  object-fit: cover;
+  cursor: pointer;
+}
+
 div.navbar-toggler {
   border: none;
   white-space: nowrap;
