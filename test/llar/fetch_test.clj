@@ -2,14 +2,15 @@
   (:require
    [llar.appconfig :as appconfig]
    [llar.apis.reader :as reader]
+   [llar.commands :as commands]
    [llar.repl :as repl]
    [llar.store :as store]
    [llar.fetch :as uut]
    [llar.fetch.custom]
+   [llar.fetch.feed]
    [llar.fetch.http]
    [llar.fetch.imap]
    [llar.fetch.readability]
-   [llar.fetch.feed]
    [llar.converter :as converter]
    [hickory.select :as S]
    [llar.fetch.reddit]
@@ -154,6 +155,41 @@
           (is (= n-items (count fetched)))
           (is (every? #(= (get-in % [:meta :source]) src) fetched))
           (log/info "Test item:" item))))))
+
+(deftest titleless-rss-feed-test
+  (let [url "https://bsky.app/profile/alexmillerdb.bsky.social/rss"
+        post-url "https://bsky.app/profile/alexmillerdb.bsky.social/post/3mqug4xumy723"
+        src (src/feed url)
+        response {:raw {:body (slurp (io/resource "test/bluesky_rss.xml"))}
+                  :summary {:ts (time/zoned-date-time)
+                            :title nil}}]
+    (with-redefs [http/fetch (fn [& _] response)
+                  http/raw-sanitize identity
+                  commands/html2text identity]
+      (let [item (first (uut/fetch-source src {}))]
+        (is (= url (get-in item [:meta :source-name])))
+        (is (= "A titleless Bluesky post"
+               (get-in item [:summary :title])))
+        (is (= post-url (str (get-in item [:entry :url]))))
+        (is (= (uut/make-item-hash post-url) (:hash item)))))))
+
+(deftest titled-rss-feed-backward-compatibility-test
+  (let [url "http://example.com/feed.xml"
+        post-url "https://irq0.org/test/"
+        src (src/feed url)
+        response {:raw {:body (slurp (io/resource "test/example_rss.xml"))}
+                  :summary {:ts (time/zoned-date-time)
+                            :title "Test Feed Title"}}]
+    (with-redefs [http/fetch (fn [& _] response)
+                  http/raw-sanitize identity
+                  commands/html2text identity]
+      (let [item (first (uut/fetch-source src {}))]
+        (is (= "🄸🅁🅀␀" (get-in item [:meta :source-name])))
+        (is (= "Test" (get-in item [:summary :title])))
+        (is (= post-url (str (get-in item [:entry :url]))))
+        ;; This was the hashing scheme before titleless feeds were supported.
+        (is (= (uut/make-item-hash "Test" post-url)
+               (:hash item)))))))
 
 (deftest http-fetcher
   (let [resource {:etag "\"4144426715\"",

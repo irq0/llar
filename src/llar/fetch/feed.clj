@@ -105,7 +105,7 @@
                              (assoc-in [:body] :removed))}))))
 
 (defn- make-rome-feed [url res]
-  {:title (-> res :title)
+  {:title (or (:title res) (str url))
    :language (-> res :language)
    :url (if (nil? (:link res))
           url
@@ -114,6 +114,25 @@
    :encoding (-> res :encoding)
    :pub-ts (some->> res :published-date feed-date-to-zoned-date-time)
    :feed-type (-> res :feed-type)})
+
+(defn- make-rome-entry-hash [entry]
+  (let [{:keys [title link uri description published-date updated-date]} entry]
+    ;; Keep the hashes of conventional feeds stable. Some feeds (notably
+    ;; Bluesky) omit item titles, but expose a stable GUID as :uri.
+    (if (and (string? title) (string? link))
+      (make-item-hash title link)
+      (if-let [identifier (some #(when (string? %) %)
+                                [uri link])]
+        (make-item-hash identifier)
+        (let [fallback (filter string?
+                               [title
+                                (:value description)
+                                (some-> published-date str)
+                                (some-> updated-date str)])]
+          (if (seq fallback)
+            (apply make-item-hash fallback)
+            (throw (ex-info "Feed entry has no stable identity"
+                            {:entry entry}))))))))
 
 (defn- get-rome-entry-url [feed-url entry]
   (let [entry-url (-> entry :link uri/uri)
@@ -152,15 +171,21 @@
           (with-meta
             (doall
              (for [entry (:entries res)]
-               (make-feed-item
-                (merge (make-meta src)
-                       {:source-name (:title feed)})
-                {:ts (extract-feed-timestamp entry http-response)
-                 :title (:title entry)}
-                (make-item-hash (:title entry) (:link entry))
-                (rome-entry-to-llar-entry url entry)
-                entry
-                feed)))
+               (let [llar-entry (rome-entry-to-llar-entry url entry)
+                     title (or (:title entry)
+                               (get-in llar-entry [:descriptions "text/plain"])
+                               (:uri entry)
+                               (:link entry)
+                               "")]
+                 (make-feed-item
+                  (merge (make-meta src)
+                         {:source-name (:title feed)})
+                  {:ts (extract-feed-timestamp entry http-response)
+                   :title title}
+                  (make-rome-entry-hash entry)
+                  llar-entry
+                  entry
+                  feed))))
             {:conditional-tokens (:conditional-tokens http-response)}))))))
 
 (defn default-selector-feed-extractor [hick]
