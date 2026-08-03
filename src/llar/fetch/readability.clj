@@ -11,8 +11,10 @@
    [hickory.render :as hick-r]
    [digest]
    [llar.item]
-   [java-time.api :as time]
-   [clojure.spec.alpha :as s]))
+   [clojure.spec.alpha :as s])
+  (:import
+   [java.time LocalDate LocalDateTime ZoneOffset ZonedDateTime]
+   [java.time.format DateTimeFormatter DateTimeFormatterBuilder]))
 
 (defrecord ReadabilityItem
            [meta
@@ -79,6 +81,36 @@
             (assoc :body (when processed (hick-r/hickory-to-html processed)))
             (assoc :hickory processed))))))
 
+(def ^:private published-time-formatter
+  (-> (DateTimeFormatterBuilder.)
+      (.append DateTimeFormatter/ISO_LOCAL_DATE_TIME)
+      ;; Readability emits both extended (-05:00 / XXX) and compact
+      ;; (-0500 / XX) numeric offsets.
+      (.appendPattern "[XXX][XX]['['VV']']")
+      (.toFormatter)))
+
+(def ^:private local-published-time-formatter
+  (-> (DateTimeFormatterBuilder.)
+      (.append DateTimeFormatter/ISO_LOCAL_DATE)
+      ;; Upstream fixtures contain both ISO's T and a space separator.
+      (.appendPattern "['T'][' ']")
+      (.append DateTimeFormatter/ISO_LOCAL_TIME)
+      (.toFormatter)))
+
+(defn- parse-published-time [timestamp]
+  (try
+    (ZonedDateTime/parse timestamp published-time-formatter)
+    (catch java.time.format.DateTimeParseException zoned-error
+      (try
+        (.atZone (LocalDateTime/parse timestamp local-published-time-formatter)
+                 ZoneOffset/UTC)
+        (catch java.time.format.DateTimeParseException _
+          (try
+            (.atStartOfDay (LocalDate/parse timestamp DateTimeFormatter/ISO_LOCAL_DATE)
+                           ZoneOffset/UTC)
+            (catch java.time.format.DateTimeParseException _
+              (throw zoned-error))))))))
+
 (extend-protocol FetchSource
   llar.src.Readability
   (fetch-source [src _conditional-tokens]
@@ -91,10 +123,8 @@
                     (when-not (string/blank? (get-in fetch [:summary :title])) (get-in fetch [:summary :title]))
                     (when-not (string/blank? (:title metadata)) (:title metadata))
                     "")
-          pub-ts (or (when-not (string/blank? (:publishedTime data)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
-                                                                                           (:publishedTime data)))
-                     (when-not (string/blank? (:date metadata)) (time/zoned-date-time (time/formatter :iso-zoned-date-time)
-                                                                                      (:date metadata)))
+          pub-ts (or (when-not (string/blank? (:publishedTime data)) (parse-published-time (:publishedTime data)))
+                     (when-not (string/blank? (:date metadata)) (parse-published-time (:date metadata)))
                      (get-in fetch [:summary :ts]))]
       [(make-readability-item
         (fetch/make-meta src)

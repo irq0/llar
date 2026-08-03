@@ -10,7 +10,7 @@
    [llar.fetch.feed]
    [llar.fetch.http]
    [llar.fetch.imap]
-   [llar.fetch.readability]
+   [llar.fetch.readability :as readability]
    [llar.converter :as converter]
    [hickory.select :as S]
    [llar.fetch.reddit :as reddit]
@@ -33,6 +33,29 @@
    [clojure.test :refer [deftest is testing] :as t]))
 
 (s/check-asserts true)
+
+(deftest readability-published-time-test
+  (let [parse-published-time @#'readability/parse-published-time]
+    (testing "compact numeric UTC offset"
+      (is (= "2016-01-07T00:00-05:00"
+             (str (parse-published-time "2016-01-07T00:00:00-0500")))))
+    (testing "ISO offset forms remain unchanged"
+      (is (= "2016-01-07T00:00Z"
+             (str (parse-published-time "2016-01-07T00:00:00Z"))))
+      (is (= "2016-01-07T00:00:00.123-05:00"
+             (str (parse-published-time "2016-01-07T00:00:00.123-05:00"))))
+      (is (= "2016-01-07T00:00-05:00[America/New_York]"
+             (str (parse-published-time
+                   "2016-01-07T00:00:00-0500[America/New_York]")))))
+    (testing "zone-less forms emitted by Readability"
+      (is (= "2018-04-05T06:00Z"
+             (str (parse-published-time "2018-04-05T06:00"))))
+      (is (= "2019-04-28T06:01:07Z"
+             (str (parse-published-time "2019-04-28 06:01:07"))))
+      (is (= "2017-11-03T03:01Z"
+             (str (parse-published-time "2017-11-03 03:01:00.000000"))))
+      (is (= "2020-09-21T00:00Z"
+             (str (parse-published-time "2020-09-21")))))))
 
 (defn fake-fetch-rss [url & _args]
   (when-not (= (str url) "http://example.com/feed.xml")
