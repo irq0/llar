@@ -4,17 +4,17 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "dompurify": "^3.4.11",
-    "jsdom": "^29.1.1",
-    "metascraper": "^5.51.1",
-    "metascraper-amazon": "^5.51.2",
-    "metascraper-author": "^5.51.1",
-    "metascraper-date": "^5.51.1",
-    "metascraper-description": "^5.51.1",
-    "metascraper-image": "^5.51.1",
-    "metascraper-logo": "^5.51.1",
-    "metascraper-publisher": "^5.51.1",
-    "metascraper-title": "^5.51.1",
-    "metascraper-url": "^5.51.1"
+    "dompurify": "^3.4.12",
+    "jsdom": "^30.0.1",
+    "metascraper": "^5.53.0",
+    "metascraper-amazon": "^5.53.0",
+    "metascraper-author": "^5.53.0",
+    "metascraper-date": "^5.53.0",
+    "metascraper-description": "^5.53.0",
+    "metascraper-image": "^5.53.0",
+    "metascraper-logo": "^5.53.0",
+    "metascraper-publisher": "^5.53.0",
+    "metascraper-title": "^5.53.0",
+    "metascraper-url": "^5.53.0"
   }
 }
