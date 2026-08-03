@@ -262,3 +262,18 @@
        clojure.lang.ExceptionInfo
        #"Invalid runtime config value"
        (uut/rc [:podcast :retention :default-episode-limit] -1))))
+
+(deftest on-change-fires-for-every-override-write
+  ;; pools and throttles are constructed before .llar files are even loaded, so they
+  ;; need a hook that fires on writes from any source: .llar load, hot reload, REPL
+  (let [fired (atom 0)]
+    (uut/on-change! ::resize-test (fn [] (swap! fired inc)))
+    (try
+      (uut/rc [:throttle :source-update-max-concurrent] 3)
+      (is (= 1 @fired))
+      (uut/reset-rc!)
+      (is (= 2 @fired) "clearing overrides is a change too")
+      (finally
+        (uut/remove-on-change! ::resize-test)))
+    (uut/rc [:throttle :source-update-max-concurrent] 2)
+    (is (= 2 @fired) "removed handlers stop firing")))

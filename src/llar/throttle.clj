@@ -14,6 +14,7 @@
    [iapetos.core :as prometheus]
    [llar.metrics :as metrics]
    [llar.metrics.resources :as resources]
+   [llar.rc :as rc]
    [llar.work :as work])
   (:import
    [java.util.concurrent Semaphore]))
@@ -26,27 +27,59 @@
                               :labels [:resource]
                               :buckets [0.001 0.01 0.1 0.5 1 5 30 60 300 1800]}))))
 
-(defrecord Throttle [name ^Semaphore semaphore limit])
+(defrecord Throttle [name ^Semaphore semaphore limit*])
+
+(defn- resizable-semaphore
+  "`Semaphore.reducePermits` is protected, so shrinking needs a subclass to expose it."
+  ^Semaphore [permits]
+  (proxy [Semaphore] [permits]
+    (reducePermits [n] (proxy-super reducePermits n))))
 
 (defn sample
   "Live saturation, in the shape `llar.metrics.resources` expects.
 
   `:queued` comes from `Semaphore.getQueueLength`, which the JDK documents as an
   estimate intended for exactly this kind of monitoring."
-  [{:keys [^Semaphore semaphore limit]}]
-  {:in-use (- limit (.availablePermits semaphore))
-   :limit limit
-   :queued (.getQueueLength semaphore)})
+  [{:keys [^Semaphore semaphore limit*]}]
+  (let [limit @limit*]
+    {:in-use (- limit (.availablePermits semaphore))
+     :limit limit
+     :queued (.getQueueLength semaphore)}))
 
 (defn make-throttle
   "A throttle of `limit` permits, registered for /metrics until shut down."
   [throttle-name limit]
-  (let [throttle (->Throttle throttle-name (Semaphore. limit) limit)]
+  (let [throttle (->Throttle throttle-name (resizable-semaphore limit) (atom limit))]
     (resources/register! resources/resources throttle-name :throttle #(sample throttle))
     (log/debugf "throttle %s created with %d permits" throttle-name limit)
     throttle))
 
+(defn resize!
+  "Change the permit count of a running throttle.
+
+  Growing releases the difference. Shrinking removes permits without touching work
+  already in flight, so a shrink below the number of held permits leaves the throttle
+  temporarily over its limit - `sample` reports that honestly rather than hiding it, and
+  no new work starts until enough holders finish."
+  [{:keys [name ^Semaphore semaphore limit*]} new-limit]
+  (let [old (long @limit*)
+        new (long new-limit)]
+    (when (not= old new)
+      (if (> new old)
+        (.release semaphore (- new old))
+        (.reducePermits semaphore (- old new)))
+      (reset! limit* new)
+      (log/infof "throttle %s resized %d -> %d permits" name old new))
+    new))
+
+(defn follow-runtime-config!
+  "Keep this throttle's permit count in step with the runtime config at `path`."
+  [{:keys [name] :as throttle} path]
+  (rc/on-change! name #(resize! throttle (rc/rc path)))
+  throttle)
+
 (defn shutdown! [{:keys [name]}]
+  (rc/remove-on-change! name)
   (resources/unregister! resources/resources name)
   true)
 

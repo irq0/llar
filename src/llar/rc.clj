@@ -217,6 +217,21 @@
 (defn reset-rc! []
   (reset! rc-overrides* {}))
 
+(defn on-change!
+  "Call `f` whenever runtime overrides change, under `key` so it can be removed again.
+
+  Resources that read runtime config at construction need this: they are built during
+  Mount startup, which happens before `.llar` files are loaded, so their configured value
+  is stale the moment a config file sets it. Every write goes through one atom, so this
+  covers `.llar` load, hot reload and REPL writes alike."
+  [key f]
+  (add-watch rc-overrides* key (fn [_ _ old new] (when (not= old new) (f))))
+  key)
+
+(defn remove-on-change! [key]
+  (remove-watch rc-overrides* key)
+  key)
+
 (defn- kvs->map [form kvs]
   (when (odd? (count kvs))
     (throw (ex-info (str form " expects key/value pairs")

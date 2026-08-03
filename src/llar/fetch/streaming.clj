@@ -94,8 +94,11 @@
 
 ;;; Rate limiting
 
+(def ^:private +streaming-limit-path+ [:throttle :streaming-max-concurrent])
+
 (defstate streaming-throttle
-  :start (throttle/make-throttle :streaming (rc/rc [:throttle :streaming-max-concurrent]))
+  :start (-> (throttle/make-throttle :streaming (rc/rc +streaming-limit-path+))
+             (throttle/follow-runtime-config! +streaming-limit-path+))
   :stop (throttle/shutdown! streaming-throttle))
 
 ;;; StreamingItem

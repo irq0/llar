@@ -3,6 +3,7 @@
    [clojure.test :refer [deftest is]]
    [llar.metrics.resources :as resources]
    [llar.pool :as uut]
+   [llar.rc :as rc]
    [slingshot.slingshot :refer [throw+ try+]])
   (:import
    [java.util.concurrent CountDownLatch ExecutorService TimeUnit]))
@@ -205,4 +206,18 @@
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"boom"
                             (uut/call-on pool #(throw (ex-info "boom" {})))))
       (finally
+        (uut/shutdown! pool)))))
+
+(deftest pools-follow-runtime-config-changes
+  ;; pools are constructed at Mount start, before .llar files load, so the configured
+  ;; size has to be reconciled when overrides arrive
+  (let [pool (uut/follow-runtime-config!
+              (uut/make-pool :rc-follow 2)
+              [:throttle :source-update-max-concurrent])]
+    (try
+      (is (= 2 (:limit (uut/sample pool))))
+      (rc/rc [:throttle :source-update-max-concurrent] 9)
+      (is (= 9 (:limit (uut/sample pool))))
+      (finally
+        (rc/reset-rc!)
         (uut/shutdown! pool)))))

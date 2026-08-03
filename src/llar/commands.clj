@@ -15,12 +15,17 @@
 
 (defonce +kill-timeout-secs+ 120)
 
+(def ^:private +command-limit-path+ [:throttle :command-max-concurrent])
+(def ^:private +av-download-limit-path+ [:throttle :av-downloader-max-concurrent])
+
 (defstate command-throttle
-  :start (throttle/make-throttle :command (rc/rc [:throttle :command-max-concurrent]))
+  :start (-> (throttle/make-throttle :command (rc/rc +command-limit-path+))
+             (throttle/follow-runtime-config! +command-limit-path+))
   :stop (throttle/shutdown! command-throttle))
 
 (defstate av-download-throttle
-  :start (throttle/make-throttle :av-download (rc/rc [:throttle :av-downloader-max-concurrent]))
+  :start (-> (throttle/make-throttle :av-download (rc/rc +av-download-limit-path+))
+             (throttle/follow-runtime-config! +av-download-limit-path+))
   :stop (throttle/shutdown! av-download-throttle))
 
 (defmacro with-temp-dir [dir-sym & body]

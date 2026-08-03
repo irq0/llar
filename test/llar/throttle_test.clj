@@ -4,6 +4,7 @@
    [iapetos.registry :as registry]
    [llar.metrics :as metrics]
    [llar.metrics.resources :as resources]
+   [llar.rc :as rc]
    [llar.throttle :as uut]
    [llar.work :as work])
   (:import
@@ -131,3 +132,48 @@
         (deref holder 30000 nil)
         (uut/shutdown! t)
         (work/reset-work!)))))
+
+(deftest throttle-resizes-in-both-directions
+  (let [t (uut/make-throttle :resize-test 2)]
+    (try
+      (is (= 2 (:limit (uut/sample t))))
+      (uut/resize! t 5)
+      (is (= {:in-use 0 :limit 5 :queued 0} (uut/sample t)))
+      (uut/resize! t 1)
+      (is (= {:in-use 0 :limit 1 :queued 0} (uut/sample t)))
+      (finally
+        (uut/shutdown! t)))))
+
+(deftest shrinking-does-not-revoke-a-permit-already-held
+  ;; a smaller limit must gate new work without yanking a permit from work in progress
+  (let [t (uut/make-throttle :resize-held 2)
+        entered (CountDownLatch. 1)
+        release (CountDownLatch. 1)
+        holder (future (uut/with-throttle t
+                         (.countDown entered)
+                         (.await release 30 TimeUnit/SECONDS)))]
+    (try
+      (is (.await entered 30 TimeUnit/SECONDS))
+      (uut/resize! t 1)
+      (is (= 1 (:limit (uut/sample t))))
+      (is (= 1 (:in-use (uut/sample t))) "the running holder still counts as in use")
+      (.countDown release)
+      ;; with-throttle returns the body value, and await-with-timeout returns a boolean
+      (is (true? (deref holder 30000 :timed-out)) "the holder finishes once released")
+      (is (= 0 (:in-use (uut/sample t))))
+      (finally
+        (.countDown release)
+        (deref holder 30000 nil)
+        (uut/shutdown! t)))))
+
+(deftest throttles-follow-runtime-config-changes
+  (let [t (uut/follow-runtime-config!
+           (uut/make-throttle :rc-follow 2)
+           [:throttle :command-max-concurrent])]
+    (try
+      (is (= 2 (:limit (uut/sample t))))
+      (rc/rc [:throttle :command-max-concurrent] 9)
+      (is (= 9 (:limit (uut/sample t))) "an .llar rc write must reach the live throttle")
+      (finally
+        (rc/reset-rc!)
+        (uut/shutdown! t)))))

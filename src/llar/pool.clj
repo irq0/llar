@@ -67,10 +67,20 @@
       (doto executor (.setCorePoolSize n) (.setMaximumPoolSize n)))
     n))
 
+(defn follow-runtime-config!
+  "Keep this pool's size in step with the runtime config at `path`.
+
+  Pools are built during Mount startup, which happens before `.llar` files are loaded, so
+  without this the configured size is stale the moment a config file sets it."
+  [{:keys [name] :as pool} path]
+  (rc/on-change! name #(resize! pool (rc/rc path)))
+  pool)
+
 (defn shutdown!
   "Stop accepting work, drain for a grace period, then interrupt what is left.
   Returns true when the pool terminated cleanly."
   [{:keys [name ^ThreadPoolExecutor executor]}]
+  (rc/remove-on-change! name)
   (resources/unregister! resources/resources name)
   (.shutdown executor)
   (or (.awaitTermination executor +shutdown-grace-seconds+ TimeUnit/SECONDS)
@@ -132,10 +142,15 @@
                  (catch InterruptedException e
                    {:ok? false :error e}))))))
 
+(def ^:private +source-size-path+ [:throttle :source-update-max-concurrent])
+(def ^:private +item-size-path+ [:throttle :item-postproc-max-concurrent])
+
 (defstate source-pool
-  :start (make-pool :source-update (rc/rc [:throttle :source-update-max-concurrent]))
+  :start (-> (make-pool :source-update (rc/rc +source-size-path+))
+             (follow-runtime-config! +source-size-path+))
   :stop (shutdown! source-pool))
 
 (defstate item-pool
-  :start (make-pool :item-postproc (rc/rc [:throttle :item-postproc-max-concurrent]))
+  :start (-> (make-pool :item-postproc (rc/rc +item-size-path+))
+             (follow-runtime-config! +item-size-path+))
   :stop (shutdown! item-pool))
