@@ -470,10 +470,10 @@
        (map (fn [^Thread th] {:bucket (thread-bucket (.getName th))
                               :state (str (.getState th))}))
        (group-by :bucket)
-       (map (fn [[bucket ths]]
+       (map (fn [[bucket threads]]
               {:bucket bucket
-               :total (count ths)
-               :states (frequencies (map :state ths))}))
+               :total (count threads)
+               :states (frequencies (map :state threads))}))
        (sort-by :total >)))
 
 (defn- thread-rows [stack-traces]
