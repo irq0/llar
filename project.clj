@@ -1,5 +1,7 @@
 (defproject llar "_"
-  :profiles {:uberjar {:omit-source false
+  :profiles {:dev {:dependencies [[com.clojure-goes-fast/clj-memory-meter "0.5.0"]]
+                   :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]}
+             :uberjar {:omit-source false
                        :aot :all}}
   :description "LLAR - Live Long and Read 🖖"
   :url "https://llar.dev"
@@ -8,7 +10,6 @@
              "-XX:-OmitStackTraceInFastThrow"
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
-             "-Djdk.attach.allowAttachSelf=true"
              "-Dtika.config=tika-config.xml"
              "-Dlog4j2.statusLoggerLevel=ERROR"
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
@@ -105,7 +106,6 @@
                  ;; monitoring
                  [io.prometheus/simpleclient_hotspot "0.16.0"]
                  [clj-commons/iapetos "0.1.15"]
-                 [com.clojure-goes-fast/clj-memory-meter "0.5.0"]
 
                  ;; apis
                  [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
