@@ -7,6 +7,7 @@
    [hikari-cp.core :as hikari]
    [java-time.api :as time]
    [clojure.tools.logging :as log]
+   [llar.metrics :as metrics]
    [next.jdbc :as jdbc]
    [next.jdbc.prepare :as prepare]
    [next.jdbc.protocols :as p]
@@ -131,7 +132,9 @@
   (get-datasource [_] datasource))
 
 (defn make-postgresql-pooled-datastore [config]
-  (->PostgresqlDataStore (hikari/make-datasource config)))
+  (->PostgresqlDataStore
+   (hikari/make-datasource
+    (assoc config :metrics-tracker-factory metrics/hikari-metrics-tracker-factory))))
 
 (defn make-postgresql-ds-for-testing [config]
   (->PostgresqlDataStore

@@ -3,7 +3,10 @@
    [clojure.string :as string]
    [iapetos.core :as prometheus]
    [iapetos.collector.jvm :as jvm]
-   [iapetos.collector.ring :as ring]))
+   [iapetos.collector.ring :as ring]
+   [iapetos.registry :as registry])
+  (:import
+   [com.zaxxer.hikari.metrics.prometheus PrometheusMetricsTrackerFactory]))
 
 (defonce prom-registry
   (-> (prometheus/collector-registry)
@@ -35,6 +38,9 @@
        (prometheus/counter :llar/degraded-item-exceptions-total
                            {:description "Item-level processor exceptions that were caught and did not fail the source update."
                             :labels [:source :source_type :step :reason_class :exception_class]}))))
+
+(defonce hikari-metrics-tracker-factory
+  (PrometheusMetricsTrackerFactory. (registry/raw prom-registry)))
 
 (defn label-value [x]
   (-> (name (or x :unknown))

@@ -409,9 +409,13 @@
     "PostgreSQL Connection Pools"
     [:p
      (code "[:postgresql :frontend]") " and " (code "[:postgresql :backend]")
-     " are independent HikariCP pool maps. LLAR passes both maps directly to "
+     " are independent HikariCP pool maps. LLAR passes their pool options to "
      [:a {:href "https://github.com/tomekw/hikari-cp#configuration-options"} "hikari-cp"]
-     ", whose configuration reference defines the accepted kebab-case pool keys and their defaults."]
+     ", whose configuration reference defines the accepted kebab-case pool keys and their defaults. LLAR adds the metrics tracker described below."]
+    [:p
+     "Both pools automatically publish HikariCP metrics to the dashboard's "
+     (code "/metrics") " endpoint. The standard " (code "hikaricp_*")
+     " series use the configured " (code ":pool-name") " as their pool label."]
     [:p
      "Connection fields such as " (code ":server-name") ", " (code ":database-name") ", "
      (code ":username") ", and " (code ":password") " select the PostgreSQL database. See the official "
