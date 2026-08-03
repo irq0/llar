@@ -173,86 +173,159 @@
 
   Each entry contains doc-facing metadata plus a :schedule-times factory. The
   factory returns a fresh lazy sequence of chime times when the schedule starts."
-  (array-map
-   :during-daytime
-   {:description "Daily at 10:00, 12:00, 13:00, 14:00, 16:00, and 18:00."
-    :schedule-times (fn []
-                      (->>
-                       (chime/periodic-seq
-                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
-                                          (ZoneId/systemDefault))
-                        (Duration/ofHours 1))
-                       (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
-                       (chime/without-past-times)))}
+  (let [schedule-order [:during-daytime
+                        :sundays
+                        :early-morning
+                        :now-and-early-morning
+                        :noon
+                        :now-and-noon
+                        :now-and-hourly
+                        :hourly
+                        :every-4-hours
+                        :now-and-every-4-hours
+                        :now-and-every-15-minutes
+                        :now-and-every-5-minutes]
+        rank (zipmap schedule-order (range))]
+    (sorted-map-by
+     (fn [left right]
+       (compare [(get rank left Long/MAX_VALUE) (str left)]
+                [(get rank right Long/MAX_VALUE) (str right)]))
+     :during-daytime
+     {:description "Daily at 10:00, 12:00, 13:00, 14:00, 16:00, and 18:00."
+      :schedule-times (fn []
+                        (->>
+                         (chime/periodic-seq
+                          (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 9 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofHours 1))
+                         (filter (comp #{10 12 13 14 16 18} #(.getHour %)))
+                         (chime/without-past-times)))}
 
-   :sundays
-   {:description "Weekly on Sunday at 05:00."
-    :schedule-times (fn []
-                      (->>
-                       (chime/periodic-seq
-                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
-                                          (ZoneId/systemDefault))
-                        (Duration/ofDays 1))
-                       (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
-                       (chime/without-past-times)))}
+     :sundays
+     {:description "Weekly on Sunday at 05:00."
+      :schedule-times (fn []
+                        (->>
+                         (chime/periodic-seq
+                          (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 5 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofDays 1))
+                         (filter (comp #{java.time.DayOfWeek/SUNDAY} #(.getDayOfWeek %)))
+                         (chime/without-past-times)))}
 
-   :early-morning
-   {:description "Daily at 07:00."
-    :schedule-times (fn []
-                      (->>
-                       (chime/periodic-seq
-                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
-                                          (ZoneId/systemDefault))
-                        (Duration/ofDays 1))
-                       (chime/without-past-times)))}
+     :early-morning
+     {:description "Daily at 07:00."
+      :schedule-times (fn []
+                        (->>
+                         (chime/periodic-seq
+                          (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofDays 1))
+                         (chime/without-past-times)))}
 
-   :now-and-early-morning
-   {:description "Once within the next 0-120 seconds, then daily at 07:00."
-    :schedule-times (fn []
-                      (now-and-schedule-times
-                       (->>
-                        (chime/periodic-seq
-                         (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
-                                           (ZoneId/systemDefault))
-                         (Duration/ofDays 1))
-                        (chime/without-past-times))))}
+     :now-and-early-morning
+     {:description "Once within the next 0-120 seconds, then daily at 07:00."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 7 0))
+                                             (ZoneId/systemDefault))
+                           (Duration/ofDays 1))
+                          (chime/without-past-times))))}
 
-   :now-and-hourly
-   {:description "Once within the next 0-120 seconds, then every hour."
-    :schedule-times (fn []
-                      (now-and-schedule-times
-                       (->>
-                        (chime/periodic-seq
-                         (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
-                                           (ZoneId/systemDefault))
-                         (Duration/ofHours 1))
-                        (chime/without-past-times))))}
+     :noon
+     {:description "Daily at 12:00."
+      :schedule-times (fn []
+                        (->>
+                         (chime/periodic-seq
+                          (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofHours 1))
+                         (filter (comp #{12} #(.getHour %)))
+                         (chime/without-past-times)))}
 
-   :hourly
-   {:description "Every hour."
-    :schedule-times (fn []
-                      (->>
-                       (chime/periodic-seq
-                        (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
-                                          (ZoneId/systemDefault))
-                        (Duration/ofHours 1))
-                       (chime/without-past-times)))}
+     :now-and-noon
+     {:description "Once within the next 0-120 seconds, then daily at 12:00."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                             (ZoneId/systemDefault))
+                           (Duration/ofHours 1))
+                          (filter (comp #{12} #(.getHour %)))
+                          (chime/without-past-times))))}
 
-   :now-and-every-5-minutes
-   {:description "Once within the next 0-120 seconds, then every 5 minutes."
-    :schedule-times (fn []
-                      (now-and-schedule-times
-                       (->>
-                        (chime/periodic-seq
-                         (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
-                                           (ZoneId/systemDefault))
-                         (Duration/ofMinutes 5))
-                        (chime/without-past-times))))}))
+     :now-and-hourly
+     {:description "Once within the next 0-120 seconds, then every hour."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                             (ZoneId/systemDefault))
+                           (Duration/ofHours 1))
+                          (chime/without-past-times))))}
+
+     :hourly
+     {:description "Every hour."
+      :schedule-times (fn []
+                        (->>
+                         (chime/periodic-seq
+                          (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofHours 1))
+                         (chime/without-past-times)))}
+
+     :every-4-hours
+     {:description "Every 4 hours at 00:00, 04:00, 08:00, 12:00, 16:00, and 20:00."
+      :schedule-times (fn []
+                        (->>
+                         (chime/periodic-seq
+                          (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                            (ZoneId/systemDefault))
+                          (Duration/ofHours 1))
+                         (filter (comp #{0 4 8 12 16 20} #(.getHour %)))
+                         (chime/without-past-times)))}
+
+     :now-and-every-4-hours
+     {:description "Once within the next 0-120 seconds, then every 4 hours."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                             (ZoneId/systemDefault))
+                           (Duration/ofHours 1))
+                          (filter (comp #{0 4 8 12 16 20} #(.getHour %)))
+                          (chime/without-past-times))))}
+
+     :now-and-every-15-minutes
+     {:description "Once within the next 0-120 seconds, then every 15 minutes."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                             (ZoneId/systemDefault))
+                           (Duration/ofMinutes 15))
+                          (chime/without-past-times))))}
+
+     :now-and-every-5-minutes
+     {:description "Once within the next 0-120 seconds, then every 5 minutes."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
+                                             (ZoneId/systemDefault))
+                           (Duration/ofMinutes 5))
+                          (chime/without-past-times))))})))
 
 (defn canned-schedule-metadata
   "Return doc-safe metadata for supported canned schedules."
   []
-  (into (array-map)
+  (into (empty canned-schedules)
         (map (fn [[k v]]
                [k (dissoc v :schedule-times)]))
         canned-schedules))

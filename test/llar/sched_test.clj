@@ -103,8 +103,13 @@
             :sundays
             :early-morning
             :now-and-early-morning
+            :noon
+            :now-and-noon
             :now-and-hourly
             :hourly
+            :every-4-hours
+            :now-and-every-4-hours
+            :now-and-every-15-minutes
             :now-and-every-5-minutes]
            (keys metadata)))
     (is (= (keys uut/canned-schedules) (keys metadata)))
@@ -124,11 +129,47 @@
 
 (deftest now-and-canned-schedules-are-ordered
   (doseq [schedule-key [:now-and-early-morning
+                        :now-and-noon
                         :now-and-hourly
+                        :now-and-every-4-hours
+                        :now-and-every-15-minutes
                         :now-and-every-5-minutes]
           :let [times (take 5 (uut/resolve-chime-times schedule-key))]]
     (is (apply <= (map #(time/to-millis-from-epoch %) times))
         (str schedule-key " should return ascending times"))))
+
+(deftest new-canned-schedules-use-documented-cadences
+  (let [noon-times (take 3 (uut/resolve-chime-times :noon))
+        four-hour-times (take 12 (uut/resolve-chime-times :every-4-hours))
+        now-and-noon-times (take 3 (uut/resolve-chime-times :now-and-noon))
+        now-and-four-hour-times (take 8 (uut/resolve-chime-times :now-and-every-4-hours))
+        now-and-quarter-hour-times (take 8 (uut/resolve-chime-times :now-and-every-15-minutes))]
+    (is (every? #(and (= 12 (.getHour %))
+                      (zero? (.getMinute %)))
+                noon-times))
+    (is (every? #(and (#{0 4 8 12 16 20} (.getHour %))
+                      (zero? (.getMinute %)))
+                four-hour-times))
+    (is (every? #(and (= 12 (.getHour %))
+                      (zero? (.getMinute %)))
+                (rest now-and-noon-times)))
+    (is (every? #(and (#{0 4 8 12 16 20} (.getHour %))
+                      (zero? (.getMinute %)))
+                (rest now-and-four-hour-times)))
+    (is (every? #(zero? (mod (.getMinute %) 15))
+                (rest now-and-quarter-hour-times)))))
+
+(deftest new-now-and-schedules-start-within-120-seconds
+  (doseq [schedule-key [:now-and-noon
+                        :now-and-every-4-hours
+                        :now-and-every-15-minutes]]
+    (let [before (time/zoned-date-time)
+          startup (first (uut/resolve-chime-times schedule-key))
+          after (time/plus (time/zoned-date-time) (time/seconds 120))]
+      (is (not (time/before? startup before))
+          (str schedule-key " should not start in the past"))
+      (is (time/before? startup after)
+          (str schedule-key " should start within 120 seconds")))))
 
 (deftest now-and-schedule-times-skips-startup-window
   (let [base (time/zoned-date-time)
