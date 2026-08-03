@@ -63,7 +63,7 @@
    (catch [:type ::props-read-error] err
      (log/warn "Propsfile broken. Recreating" err)
 
-     (let [urls (or (into #{} (->> (:content err)
+     (let [urls (or (into #{} (->> (or (:content err) "")
                                    (re-seq regex-collection/url)
                                    (map first)
                                    (map uri/uri)))
