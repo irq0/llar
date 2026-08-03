@@ -63,7 +63,11 @@
     :appconfig->rc #(hash-map :max-retry %)
     :default {:max-retry 5}
     :spec :irq0-appconfig/update
-    :doc "Source update retry policy."}])
+    :doc "Source update retry policy."}
+   {:path [:throttle]
+    :appconfig-path [:throttle]
+    :spec :irq0-appconfig/throttle
+    :doc "Bounds on concurrent work: external commands, media downloads, streaming fetches, source updates and item post-processing."}])
 
 (defn- shipped-system-config-defaults []
   (edn/read-string (slurp (io/resource "config.edn"))))
@@ -235,7 +239,7 @@
         :llar.config/order 80
         :llar.config/keys ["PATH is a vector under a supported runtime config root"
                            "VALUE is validated with the path's runtime config spec"
-                           "Supported roots include [:reader ...], [:podcast ...], [:digest], and [:update]"]
+                           "Supported roots include [:reader ...], [:podcast ...], [:digest], [:update], and [:throttle ...]"]
         :llar.config/example "(rc [:reader :ranking :highlight-boost-hours] 48)\n(rc [:reader :default-list-view :storage] :headlines)"}
   rc
   "Read or set dynamic runtime behavior config.

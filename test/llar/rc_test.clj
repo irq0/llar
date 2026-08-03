@@ -39,6 +39,40 @@
     (is (= (get shipped :update-max-retry)
            (uut/rc [:update :max-retry])))))
 
+(deftest throttle-concurrency-defaults-come-from-shipped-config
+  ;; appconfig must be pinned: llar.postproc-test starts mount with a fake appconfig
+  ;; whose :throttle sets :command-max-concurrent 10, rc reads appconfig lazily, and
+  ;; kaocha randomizes namespace order - so without this the assertions below depend
+  ;; on which namespace ran first.
+  (with-redefs [appconfig/appconfig (shipped-system-config-defaults)]
+    (uut/reset-rc!)
+    (let [shipped (shipped-system-config-defaults)]
+      (is (= 4 (uut/rc [:throttle :source-update-max-concurrent])))
+      (is (= :auto (uut/rc [:throttle :item-postproc-max-concurrent])))
+      ;; the throttles that already existed must keep resolving through the same entry
+      (is (= (get-in shipped [:throttle :command-max-concurrent])
+             (uut/rc [:throttle :command-max-concurrent])))
+      (is (= (get-in shipped [:throttle :streaming-max-concurrent])
+             (uut/rc [:throttle :streaming-max-concurrent]))))))
+
+(deftest throttle-concurrency-accepts-runtime-overrides
+  (uut/reset-rc!)
+  (is (= 12 (uut/rc [:throttle :item-postproc-max-concurrent] 12)))
+  (is (= 12 (uut/rc [:throttle :item-postproc-max-concurrent])))
+  (is (= 2 (uut/rc [:throttle :source-update-max-concurrent] 2)))
+  (is (= 2 (uut/rc [:throttle :source-update-max-concurrent]))))
+
+(deftest throttle-concurrency-rejects-invalid-values
+  (uut/reset-rc!)
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/rc [:throttle :source-update-max-concurrent] 0)))
+  (is (thrown-with-msg?
+       clojure.lang.ExceptionInfo
+       #"Invalid runtime config value"
+       (uut/rc [:throttle :item-postproc-max-concurrent] :not-auto))))
+
 (deftest rc-entries-describe-supported-paths
   (let [entries (uut/rc-entries)
         favorites (some #(when (= [:reader :favorites] (:path %)) %) entries)]

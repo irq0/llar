@@ -105,10 +105,17 @@
 (s/def :irq0-appconfig/command-max-concurrent pos-int?)
 (s/def :irq0-appconfig/av-downloader-max-concurrent pos-int?)
 (s/def :irq0-appconfig/streaming-max-concurrent pos-int?)
+(s/def :irq0-appconfig/source-update-max-concurrent pos-int?)
+;; :auto resolves to the JVM-reported available processor count where the pool is built.
+(s/def :irq0-appconfig/item-postproc-max-concurrent
+  (s/or :auto #{:auto}
+        :fixed pos-int?))
 (s/def :irq0-appconfig/throttle
   (s/keys :req-un [:irq0-appconfig/command-max-concurrent]
           :opt-un [:irq0-appconfig/av-downloader-max-concurrent
-                   :irq0-appconfig/streaming-max-concurrent]))
+                   :irq0-appconfig/streaming-max-concurrent
+                   :irq0-appconfig/source-update-max-concurrent
+                   :irq0-appconfig/item-postproc-max-concurrent]))
 (s/def :irq0-appconfig/timeouts (s/map-of keyword pos-int?))
 (s/def :irq0-appconfig/command :irq0/path)
 (s/def :irq0-appconfig/commands (s/map-of keyword :irq0-appconfig/command))

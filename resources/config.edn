@@ -48,9 +48,13 @@
                   [:highlight :item-tags]
                   [:in-progress :item-tags]
                   [:bookmark :type]]}
+ ;; Bounds on concurrent work. All of these are runtime-overridable from .llar via
+ ;; (rc [:throttle KEY] VALUE).
  :throttle {:command-max-concurrent 20
             :av-downloader-max-concurrent 2
-            :streaming-max-concurrent 1}
+            :streaming-max-concurrent 1
+            :source-update-max-concurrent 4
+            :item-postproc-max-concurrent :auto}
  :timeouts {:readability 60
             :av-downloader 600
             :av-downloader-transcode 1800
