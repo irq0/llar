@@ -13,7 +13,7 @@
    [llar.fetch.readability]
    [llar.converter :as converter]
    [hickory.select :as S]
-   [llar.fetch.reddit]
+   [llar.fetch.reddit :as reddit]
    [llar.fetch.twitter]
    [llar.http :as http]
    [mount.core :as mount]
@@ -148,8 +148,12 @@
                      #'repl/nrepl-server nil})
   (doseq [{:keys [src fake-fetch fake-http-get n-items]} basic-tests]
     (testing (str src)
+      ;; the reddit fetcher authenticates via OAuth2; stub the token and user agent so
+      ;; no credentials file or network round trip is needed here
       (with-redefs [http/fetch fake-fetch
-                    http-client/get fake-http-get]
+                    http-client/get fake-http-get
+                    reddit/access-token (constantly "test-token")
+                    reddit/reddit-user-agent (constantly "java:llar:test (by /u/test)")]
         (let [fetched (uut/fetch-source src {})
               item (first fetched)]
           (is (= n-items (count fetched)))

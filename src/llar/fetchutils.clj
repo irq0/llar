@@ -156,32 +156,33 @@
     (let [categories (set (get-in item [:entry :categories]))]
       (>= (count (intersection categories (set denylist))) 1))))
 
-(defonce reddit-scores (atom {}))
+(defn top-percentile-score
+  "Score bounding the top `fraction` of `scores`, i.e. the cutoff that keeps roughly
+  that fraction of the batch. nil for an empty collection."
+  [scores fraction]
+  (when (seq scores)
+    (let [sorted (vec (sort scores))
+          keep-n (int (Math/ceil (* (count sorted) fraction)))]
+      (nth sorted (max 0 (- (count sorted) keep-n))))))
 
-(defn- update-reddit-cutoff-score! [k src]
-  (let [s (reddit/reddit-get-scores src)
-        next {:top-n-score (nth (sort s) (- (count s) (num (* (count s) 0.05))))
-              :update-ts (time/zoned-date-time)}]
-    (swap! reddit-scores assoc k next)
-    next))
+(defn get-reddit-cutoff-score
+  "Dynamic score cutoff keeping the top 5% of the listing most recently fetched for
+  `src`. nil before the first fetch, or when the listing came back empty."
+  [src]
+  (top-percentile-score (get @reddit/last-listing-scores src) 0.05))
 
-(defn get-reddit-cutoff-score [k src]
-  (if-let [{:keys [top-n-score update-ts]} (get @reddit-scores k)]
-    (if (time/before? update-ts (time/minus (time/zoned-date-time) (time/hours 12)))
-      (:top-n-score (update-reddit-cutoff-score! k src))
-      top-n-score)
-    (:top-n-score (update-reddit-cutoff-score! k src))))
-
-(defn make-reddit-proc [k src options]
+(defn make-reddit-proc [src options]
   (let [{:keys [min-score dynamic?]
          :or {min-score 0
-              dynamic? false}} options]
+              ;; matches the fetch-reddit macro default in llar.config
+              dynamic? true}} options]
     (proc/make
      :filter (fn [item]
-               (let [dynamic-min-score (if dynamic? (get-reddit-cutoff-score k src) min-score)
-                     min-score (max dynamic-min-score min-score)
+               ;; recomputed per item, which is cheap: the batch is at most 100 scores
+               (let [cutoff (max min-score
+                                 (or (when dynamic? (get-reddit-cutoff-score src)) 0))
                      score (get-in item [:entry :score])]
-                 (<= score dynamic-min-score min-score)))
+                 (< score cutoff)))
      :post [(fn [item]
               (let [site (some-> item :entry :url uri/host)
                     path (some-> item :entry :url uri/path)]

@@ -269,7 +269,9 @@
   (->Readability
    (uri/uri url) (merge +http-default-args+ args)))
 
-(def reddit-supported-listings #{:controversial :best :hot :new :random :rising :top})
+;; :random is deliberately absent - reddit answers it with a single-post array rather
+;; than a listing, so it can never yield items here.
+(def reddit-supported-listings #{:controversial :best :hot :new :rising :top})
 (def reddit-supported-timeframes #{:hour :day :week :month :year :all})
 
 (defrecord Reddit

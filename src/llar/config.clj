@@ -150,8 +150,8 @@
   "Define a Reddit source with a generated source key and the source tag :reddit."
   {:llar.config/kind :construct
    :llar.config/order 20
-   :llar.config/keys [":min-score score below will be filtered out"
-                      ":dynamic? enable dynamic score cut-off feature. keep top 5% rated entries"
+   :llar.config/keys [":min-score entries scoring below this are filtered out"
+                      ":dynamic? also require the score to reach the top 5% of the fetched listing. combined with :min-score, whichever is higher wins"
                       ":tags see fetch"
                       ":options see fetch"]
    :llar.config/example "(fetch-reddit (src/reddit \"clojure\" :top :week)\n  :min-score 50\n  :tags #{:programming})"}
@@ -161,13 +161,16 @@
     (s/valid? (s/coll-of keyword? :kind set?) tags)
     (s/valid? (s/coll-of keyword? :kind set?) options)
 
+    ;; NB the source key is derived from the subreddit alone, so two fetch-reddit
+    ;; forms for the same subreddit with different listings overwrite each other.
+    ;; Changing this would rename existing keys in the sources table.
     `(do (let [src-key# (keyword (str "reddit-" (string/lower-case (:subreddit ~src))))]
            (swap! srcs assoc src-key#
                   {:src ~src
                    :options ~options
                    :tags (conj ~tags :reddit)
-                   :proc (make-reddit-proc src-key# ~src {:min-score ~min-score
-                                                          :dynamic? ~dynamic?})})
+                   :proc (make-reddit-proc ~src {:min-score ~min-score
+                                                 :dynamic? ~dynamic?})})
            (keyword src-key#)))))
 
 ;; autoread feature: remove unread tag after a certain time
