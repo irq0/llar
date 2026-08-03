@@ -10,6 +10,7 @@
    [llar.metrics :as metrics]
    [llar.pool :as pool]
    [llar.privacy :as privacy]
+   [llar.work :as work]
    [slingshot.slingshot :refer [throw+ try+]]))
 
 ;;;; Postprocessing and Filtering
@@ -267,56 +268,60 @@
 (defn process-item
   "Postprocess and filter a single item"
   [feed state item]
-  (let [{:keys [src]} feed
-        all-proc-first #(all-items-process-first % src state)
-        all-proc-last #(all-items-process-last % src state)
-        per-feed-proc-pre (apply comp
-                                 (->> feed
-                                      :proc :pre
-                                      (map #(wrap-proc-fn item % "per-feed-proc-pre"))))
-        per-feed-proc-post (apply comp
-                                  (->> feed
-                                       :proc :post
-                                       (map #(wrap-proc-fn item % "per-feed-proc-post"))))
-        proto-feed-proc (wrap-proc-fn item
-                                      #(post-process-item % src state)
-                                      "proto-feed-proc")
+  (work/with-work {:kind :item :source (:key state) :stage :postproc}
+    (let [{:keys [src]} feed
+          all-proc-first #(all-items-process-first % src state)
+          all-proc-last #(all-items-process-last % src state)
+          per-feed-proc-pre (apply comp
+                                   (->> feed
+                                        :proc :pre
+                                        (map #(wrap-proc-fn item % "per-feed-proc-pre"))))
+          per-feed-proc-post (apply comp
+                                    (->> feed
+                                         :proc :post
+                                         (map #(wrap-proc-fn item % "per-feed-proc-post"))))
+          proto-feed-proc (wrap-proc-fn item
+                                        #(post-process-item % src state)
+                                        "proto-feed-proc")
 
-        per-feed-filter (-> feed :proc :filter)
+          per-feed-filter (-> feed :proc :filter)
 
-        pre-chain (fn [item] (some-> item
-                                     (all-proc-first)
-                                     (check-intermediate :all-proc-first)
-                                     (per-feed-proc-pre)
-                                     (check-intermediate-maybe-coll :per-feed-pre-processor)))
+          pre-chain (fn [item] (some-> item
+                                       (all-proc-first)
+                                       (check-intermediate :all-proc-first)
+                                       (per-feed-proc-pre)
+                                       (check-intermediate-maybe-coll :per-feed-pre-processor)))
 
-        main-chain (fn [item] (some-> item
-                                      (apply-filter
-                                       #(filter-item % src state))
-                                      (check-intermediate :protocol-filter)
-                                      (proto-feed-proc)
-                                      (check-intermediate :protocol-processor)
-                                      (apply-filter per-feed-filter)
-                                      (check-intermediate :per-feed-filter)
-                                      (per-feed-proc-post)
-                                      (check-intermediate :per-feed-post-processor)
-                                      (all-proc-last)
-                                      (check-intermediate :all-proc-last)))]
+          main-chain (fn [item] (some-> item
+                                        (apply-filter
+                                         #(filter-item % src state))
+                                        (check-intermediate :protocol-filter)
+                                        (proto-feed-proc)
+                                        (check-intermediate :protocol-processor)
+                                        (apply-filter per-feed-filter)
+                                        (check-intermediate :per-feed-filter)
+                                        (per-feed-proc-post)
+                                        (check-intermediate :per-feed-post-processor)
+                                        (all-proc-last)
+                                        (check-intermediate :all-proc-last)))]
 
-    (log/debugf "processing %s"
-                (str item))
+      (log/debugf "processing %s"
+                  (str item))
 
-    (let [pre-chain-processed (pre-chain item)
+      (let [pre-chain-processed (pre-chain item)
 
-          processed (if (sequential? pre-chain-processed)
-                      (do
-                        (log/debug "Pre chain produced " (count pre-chain-processed) " extra items")
-                        (map main-chain pre-chain-processed))
-                      (main-chain pre-chain-processed))]
-      (when (nil? processed)
-        (log/debugf "Filtered out: %s"
-                    (str item)))
-      processed)))
+            processed (if (sequential? pre-chain-processed)
+                        (do
+                          (log/debug "Pre chain produced " (count pre-chain-processed) " extra items")
+                          ;; mapv, not map: a lazy seq here would escape both this work
+                          ;; entry and the item pool, and get realized on the calling
+                          ;; source thread instead. `process` realizes it either way.
+                          (mapv main-chain pre-chain-processed))
+                        (main-chain pre-chain-processed))]
+        (when (nil? processed)
+          (log/debugf "Filtered out: %s"
+                      (str item)))
+        processed))))
 
 (defn process [feed state items]
   (let [{:keys [src]} feed]

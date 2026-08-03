@@ -4,7 +4,8 @@
    [iapetos.registry :as registry]
    [llar.metrics :as metrics]
    [llar.metrics.resources :as resources]
-   [llar.throttle :as uut])
+   [llar.throttle :as uut]
+   [llar.work :as work])
   (:import
    [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -105,3 +106,28 @@
       (is (= 3.0 (wait-observations "timed_test")))
       (finally
         (uut/shutdown! t)))))
+
+(deftest a-blocked-acquire-reports-what-it-is-waiting-on
+  ;; the payoff of the whole design: "slow" and "queued behind a permit" must be
+  ;; distinguishable from the outside
+  (work/reset-work!)
+  (let [t (uut/make-throttle :waiting-test 1)
+        entered (CountDownLatch. 1)
+        release (CountDownLatch. 1)
+        holder (future (uut/with-throttle t
+                         (.countDown entered)
+                         (.await release 30 TimeUnit/SECONDS)))]
+    (try
+      (is (.await entered 30 TimeUnit/SECONDS))
+      (let [waiter (future (work/with-work {:kind :item :source :s :stage :postproc}
+                             (uut/with-throttle t :done)))]
+        (is (wait-until #(= :waiting-test (:waiting-on (first (work/in-flight)))))
+            "a unit blocked on a permit must say so")
+        (.countDown release)
+        (is (= :done (deref waiter 30000 :timed-out)))
+        (is (wait-until #(empty? (work/in-flight)))))
+      (finally
+        (.countDown release)
+        (deref holder 30000 nil)
+        (uut/shutdown! t)
+        (work/reset-work!)))))

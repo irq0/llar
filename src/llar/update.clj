@@ -14,6 +14,7 @@
    [llar.rc :as rc]
    [llar.sched :refer [defsched] :as sched]
    [llar.store :as store :refer [store-items!]]
+   [llar.work :as work]
    [llar.digest :as digest]
    [llar.persistency :as persistency]))
 
@@ -166,7 +167,9 @@
      (let [fetched (fetch/fetch feed (:fetch-meta state))
            processed (try
                        (if-not skip-proc
-                         (proc/process feed state fetched)
+                         (do
+                           (work/stage! :postproc)
+                           (proc/process feed state fetched))
                          fetched)
                        (catch clojure.lang.ExceptionInfo ex
                          (throw+ (merge (ex-data ex)
@@ -179,7 +182,9 @@
 
            dbks (try+
                  (if-not skip-store
-                   (store-items! processed :overwrite? overwrite?)
+                   (do
+                     (work/stage! :store)
+                     (store-items! processed :overwrite? overwrite?))
                    processed)
                  (catch Object _
                    (throw+ {:type ::store-error
@@ -447,17 +452,18 @@
 (defn- run-update!
   "Fetch, process and store one source, moving its state. Caller holds the reservation."
   [k args cur-state]
-  (swap! state update k assoc :status :updating)
-  (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
-  (observe-update-start! k (get @state k))
-  (let [kw-args (mapcat identity (dissoc args :force))
-        new-state (apply update-feed! k kw-args)
-        new-status (:status new-state)]
-    (log/debugf "[%s] State: %s -> %s " k (:status cur-state) new-status)
-    (swap! state (fn [current]
-                   (assoc current k new-state)))
-    (observe-update-complete! k (config/get-source k) cur-state new-state)
-    new-status))
+  (work/with-work {:kind :source :source k :stage :fetch}
+    (swap! state update k assoc :status :updating)
+    (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
+    (observe-update-start! k (get @state k))
+    (let [kw-args (mapcat identity (dissoc args :force))
+          new-state (apply update-feed! k kw-args)
+          new-status (:status new-state)]
+      (log/debugf "[%s] State: %s -> %s " k (:status cur-state) new-status)
+      (swap! state (fn [current]
+                     (assoc current k new-state)))
+      (observe-update-complete! k (config/get-source k) cur-state new-state)
+      new-status)))
 
 (defn update-outcome!
   "Update one source, returning a structured outcome:

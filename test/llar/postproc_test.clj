@@ -12,6 +12,7 @@
    [llar.item]
    [llar.metrics :as metrics]
    [llar.postproc :as uut]
+   [llar.work :as work]
    [llar.repl :as repl]
    [llar.src :as src]
    [llar.store :as store]
@@ -211,3 +212,17 @@
                                        (= 3 item) [item item]
                                        :else item))]
       (is (= [1 3 3 5 7 9] (uut/process {:src source} {} (range 10)))))))
+
+(deftest processing-an-item-registers-item-level-work
+  ;; returning nil from the first processor short-circuits the rest of the chain, so this
+  ;; observes the work entry without needing a spec-valid item
+  (let [source (src/feed "https://example.com/feed.xml")
+        observed (atom nil)]
+    (with-redefs [uut/all-items-process-first
+                  (fn [_ _ _] (reset! observed (work/in-flight)) nil)]
+      (is (nil? (uut/process-item {:src source} {:key :some-source} :the-item))))
+    (let [entry (first @observed)]
+      (is (= :item (:kind entry)))
+      (is (= :some-source (:source entry)))
+      (is (= :postproc (:stage entry))))
+    (is (empty? (work/in-flight)))))

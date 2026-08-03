@@ -13,7 +13,8 @@
    [clojure.tools.logging :as log]
    [iapetos.core :as prometheus]
    [llar.metrics :as metrics]
-   [llar.metrics.resources :as resources])
+   [llar.metrics.resources :as resources]
+   [llar.work :as work])
   (:import
    [java.util.concurrent Semaphore]))
 
@@ -57,13 +58,20 @@
                       (/ elapsed-nanos 1e9)))
 
 (defmacro with-throttle
-  "Run `body` holding one of `throttle`'s permits, timing the acquire."
+  "Run `body` holding one of `throttle`'s permits, timing the acquire.
+
+  While blocked, the current unit of work reports what it is waiting on, so the
+  dashboard can tell \"slow\" apart from \"queued behind a permit\"."
   [throttle & body]
   `(let [throttle# ~throttle
          ^Semaphore sem# (:semaphore throttle#)
          start# (System/nanoTime)]
-     (.acquire sem#)
-     (observe-wait! (:name throttle#) (- (System/nanoTime) start#))
+     (work/waiting-on! (:name throttle#))
+     (try
+       (.acquire sem#)
+       (finally
+         (observe-wait! (:name throttle#) (- (System/nanoTime) start#))
+         (work/waiting-on! nil)))
      (try
        ~@body
        (finally

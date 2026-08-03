@@ -7,6 +7,7 @@
    [llar.pool :as pool]
    [llar.src :as src]
    [llar.update :as uut]
+   [llar.work :as work]
    [mount.core :as mount]
    [slingshot.slingshot :refer [throw+]])
   (:import
@@ -169,3 +170,27 @@
         (is (= [:completed :error :completed] (mapv :outcome results)))
         (is (= "config blew up" (get-in results [1 :error :message])))
         (is (= :exploding (get-in results [1 :error :data :key])))))))
+
+(deftest a-running-update-appears-in-the-work-registry
+  (let [source-key :work-wiring
+        source (src/feed "https://example.com/feed.xml")
+        entered (CountDownLatch. 1)
+        release (CountDownLatch. 1)
+        observed (atom nil)]
+    (with-redefs [uut/state (atom (source-state source-key :ok))
+                  config/get-source (constantly {:src source})
+                  http/fetch (fn [& _]
+                               (reset! observed (work/in-flight))
+                               (.countDown entered)
+                               (.await release 30 TimeUnit/SECONDS)
+                               {:status :not-modified :conditional-tokens nil})]
+      (let [run (future (uut/update! source-key :skip-proc true :skip-store true))]
+        (is (.await entered 30 TimeUnit/SECONDS))
+        (.countDown release)
+        (is (= :ok @run))
+        (let [entry (first @observed)]
+          (is (= :source (:kind entry)))
+          (is (= source-key (:source entry)))
+          (is (= :fetch (:stage entry)) "http/fetch runs during the :fetch stage"))
+        (is (empty? (work/in-flight))
+            "the entry must be gone once the update finishes")))))

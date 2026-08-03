@@ -10,10 +10,8 @@
   (:require
    [clojure.tools.logging :as log]
    [iapetos.registry :as registry]
-   [llar.metrics :as metrics])
-  (:import
-   [io.prometheus.client Collector Collector$Type
-    Collector$MetricFamilySamples Collector$MetricFamilySamples$Sample]))
+   [llar.metrics :as metrics]
+   [llar.metrics.collector :as collector]))
 
 (def ^:private +label-names+ ["resource" "kind"])
 
@@ -21,19 +19,19 @@
   "Measure key -> metric family. Order determines /metrics output order."
   [{:measure :in-use
     :metric "llar_resource_in_use"
-    :type Collector$Type/GAUGE
+    :type collector/gauge
     :help "Currently occupied slots of a bounded resource."}
    {:measure :limit
     :metric "llar_resource_limit"
-    :type Collector$Type/GAUGE
+    :type collector/gauge
     :help "Configured capacity of a bounded resource."}
    {:measure :queued
     :metric "llar_resource_queued"
-    :type Collector$Type/GAUGE
+    :type collector/gauge
     :help "Work waiting for a bounded resource to free up."}
    {:measure :completed
     :metric "llar_resource_completed_total"
-    :type Collector$Type/COUNTER
+    :type collector/counter
     :help "Work units a bounded resource has completed."}])
 
 (defn make-resources
@@ -72,37 +70,20 @@
         @resources*))
 
 (defn- family [{:keys [measure metric type help]} samples]
-  (let [values (into []
-                     (keep (fn [{:keys [resource kind measures]}]
-                             (when-let [value (get measures measure)]
-                               (Collector$MetricFamilySamples$Sample.
-                                metric +label-names+ [resource kind] (double value)))))
-                     samples)]
-    (when (seq values)
-      (Collector$MetricFamilySamples. metric type help values))))
-
-(defn- collect-families [resources*]
-  (let [samples (sample-all resources*)]
-    (into [] (keep #(family % samples)) +families+)))
+  (collector/family
+   metric type help
+   (map (fn [{:keys [resource kind measures]}]
+          (when-let [value (get measures measure)]
+            (collector/sample metric +label-names+ [resource kind] value)))
+        samples)))
 
 (defn make-collector
   "A Prometheus collector that samples `resources*` on every scrape."
-  ^Collector [resources*]
-  (proxy [Collector] []
-    ;; Both arities are required. `proxy` shadows every arity of a method name, and
-    ;; CollectorRegistry always enumerates through collect(Predicate) - so implementing
-    ;; only collect() turns every scrape of /metrics into an ArityException.
-    (collect
-      ([]
-       (collect-families resources*))
-      ([sample-name-filter]
-       (let [families (collect-families resources*)]
-         (if (nil? sample-name-filter)
-           families
-           (into []
-                 (keep (fn [^Collector$MetricFamilySamples fam]
-                         (.filter fam sample-name-filter)))
-                 families)))))))
+  [resources*]
+  (collector/sampling-collector
+   (fn []
+     (let [samples (sample-all resources*)]
+       (map #(family % samples) +families+)))))
 
 ;; The app-wide registry. Pools and throttles register themselves here at start, and
 ;; `collector` publishes them on /metrics for as long as they stay registered.
