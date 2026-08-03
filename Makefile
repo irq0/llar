@@ -15,11 +15,11 @@ ibmplex_packages := \
 	"IBM-Plex-Sans-Condensed @ibm/plex-sans-condensed plex-sans-condensed $(ibmplex_sans_condensed_version) ibm-plex-sans-condensed" \
 	"IBM-Plex-Mono @ibm/plex-mono plex-mono $(ibmplex_mono_version) ibm-plex-mono" \
 	"IBM-Plex-Serif @ibm/plex-serif plex-serif $(ibmplex_serif_version) ibm-plex-serif"
-fontawesome_version := 7.3.0
+fontawesome_version := 7.3.1
 bootstrap_version := 5.3.8
 jquery_version := 4.0.0
 chartjs_version := 4.5.1
-datatables_version := 3.0.0-beta.2
+datatables_version := 3.0.1
 llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
 DOCS_OUT ?= target/docs
 
