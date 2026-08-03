@@ -100,6 +100,18 @@
 (defn- unwrap [^ExecutionException e]
   (or (.getCause e) e))
 
+(defn- cancel-all! [futures]
+  (run! (fn [^Future fut] (.cancel fut true)) futures))
+
+(defn- abandon!
+  "The caller is being torn down mid-wait. Drop the work it will never collect and
+  re-arm the interrupt, which `.get` cleared when it threw, so callers up the stack
+  still see it."
+  [futures ^InterruptedException e]
+  (cancel-all! futures)
+  (.interrupt (Thread/currentThread))
+  (throw e))
+
 (defn call-on
   "Run `f` on `pool` and wait for its value, rethrowing the original cause on failure.
 
@@ -123,24 +135,29 @@
     (try
       (mapv (fn [^Future fut] (.get fut)) futures)
       (catch ExecutionException e
-        (run! (fn [^Future fut] (.cancel fut true)) futures)
-        (throw (unwrap e))))))
+        (cancel-all! futures)
+        (throw (unwrap e)))
+      (catch InterruptedException e
+        (abandon! futures e)))))
 
 (defn pmap-isolated
   "Map `f` over `coll` on `pool`, returning one outcome per element in input order:
   `{:ok? true :value v}` or `{:ok? false :error throwable}`.
 
-  Never propagates. Use for source-level batches, where one bad source must not
-  discard everything else's results."
+  Task failures never propagate - one bad source must not discard everything else's
+  results. Caller interruption does propagate: that is the caller going away, not a task
+  failing, and reporting it as an outcome left the remaining `.get` calls blocking again."
   [pool f coll]
-  (->> (submit-all pool f coll)
-       (mapv (fn [^Future fut]
-               (try
-                 {:ok? true :value (.get fut)}
-                 (catch ExecutionException e
-                   {:ok? false :error (unwrap e)})
-                 (catch InterruptedException e
-                   {:ok? false :error e}))))))
+  (let [futures (submit-all pool f coll)]
+    (try
+      (mapv (fn [^Future fut]
+              (try
+                {:ok? true :value (.get fut)}
+                (catch ExecutionException e
+                  {:ok? false :error (unwrap e)})))
+            futures)
+      (catch InterruptedException e
+        (abandon! futures e)))))
 
 (def ^:private +source-size-path+ [:throttle :source-update-max-concurrent])
 (def ^:private +item-size-path+ [:throttle :item-postproc-max-concurrent])

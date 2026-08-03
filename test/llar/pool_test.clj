@@ -6,7 +6,7 @@
    [llar.rc :as rc]
    [slingshot.slingshot :refer [throw+ try+]])
   (:import
-   [java.util.concurrent CountDownLatch ExecutorService TimeUnit]))
+   [java.util.concurrent CountDownLatch ExecutionException ExecutorService TimeUnit]))
 
 (def ^:dynamic *conveyed* :unbound)
 
@@ -220,4 +220,58 @@
       (is (= 9 (:limit (uut/sample pool))))
       (finally
         (rc/reset-rc!)
+        (uut/shutdown! pool)))))
+
+(deftest failfast-cancels-queued-work-when-the-caller-is-interrupted
+  ;; shutdown! interrupts workers once its grace period expires. A source task blocked
+  ;; in here must not leave its item tasks running behind it.
+  (let [pool (uut/make-pool :ff-interrupt 1)
+        caller (promise)
+        gate (CountDownLatch. 1)
+        ran (atom 0)
+        ;; only the head blocks; the rest would increment the moment a worker frees up,
+        ;; so releasing the gate after the interrupt gives un-cancelled work its chance
+        result (future
+                 (deliver caller (Thread/currentThread))
+                 (uut/pmap-failfast pool
+                                    (fn [i]
+                                      (if (zero? i)
+                                        (.await gate 30 TimeUnit/SECONDS)
+                                        (swap! ran inc)))
+                                    (range 8)))]
+    (try
+      (is (some? (deref caller 10000 nil)))
+      (Thread/sleep 200)
+      (.interrupt ^Thread @caller)
+      (let [thrown (try @result nil (catch ExecutionException e e))]
+        (is (instance? InterruptedException (some-> thrown .getCause))
+            "interruption must propagate, not be swallowed"))
+      (.countDown gate)
+      (Thread/sleep 500)
+      (is (zero? @ran) "queued tasks must be cancelled, not left to run later")
+      (finally
+        (.countDown gate)
+        (uut/shutdown! pool)))))
+
+(deftest isolated-propagates-caller-interruption-instead-of-reporting-outcomes
+  ;; "never propagates" is about task failure, not about the caller being torn down:
+  ;; swallowing the interrupt here left the remaining .get calls blocking again, because
+  ;; .get clears the interrupt flag when it throws
+  (let [pool (uut/make-pool :iso-interrupt 1)
+        caller (promise)
+        gate (CountDownLatch. 1)
+        result (future
+                 (deliver caller (Thread/currentThread))
+                 (uut/pmap-isolated pool
+                                    (fn [_] (.await gate 30 TimeUnit/SECONDS))
+                                    (range 8)))]
+    (try
+      (is (some? (deref caller 10000 nil)))
+      (Thread/sleep 200)
+      (.interrupt ^Thread @caller)
+      (let [thrown (try (deref result 20000 ::timeout) nil
+                        (catch ExecutionException e e))]
+        (is (instance? InterruptedException (some-> thrown .getCause))))
+      (finally
+        (.countDown gate)
         (uut/shutdown! pool)))))
