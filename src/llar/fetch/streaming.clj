@@ -6,7 +6,9 @@
    [llar.postproc :as postproc]
    [llar.analysis :as analysis]
    [llar.item]
-   [llar.appconfig :refer [appconfig]]
+   [llar.rc :as rc]
+   [llar.throttle :as throttle :refer [with-throttle]]
+   [mount.core :refer [defstate]]
    [clojure.spec.alpha :as s]
    [hiccup2.core :refer [html]]
    [clj-http.client :as http]
@@ -21,8 +23,7 @@
    [org.schabi.newpipe.extractor.stream StreamInfoItem]
    [org.schabi.newpipe.extractor.downloader Downloader Request Response]
    [org.schabi.newpipe.extractor.localization Localization]
-   [org.schabi.newpipe.extractor.exceptions ExtractionException ContentNotAvailableException ContentNotSupportedException]
-   [java.util.concurrent Semaphore]))
+   [org.schabi.newpipe.extractor.exceptions ExtractionException ContentNotAvailableException ContentNotSupportedException]))
 
 ;;; clj-http backed Downloader for NewPipeExtractor
 
@@ -93,16 +94,9 @@
 
 ;;; Rate limiting
 
-(defonce +semaphore-streaming+
-  (delay (Semaphore. (get-in appconfig [:throttle :streaming-max-concurrent] 1))))
-
-(defmacro with-streaming-throttle [& body]
-  `(let [sem# @+semaphore-streaming+]
-     (.acquire sem#)
-     (try
-       ~@body
-       (finally
-         (.release sem#)))))
+(defstate streaming-throttle
+  :start (throttle/make-throttle :streaming (rc/rc [:throttle :streaming-max-concurrent]))
+  :stop (throttle/shutdown! streaming-throttle))
 
 ;;; StreamingItem
 
@@ -230,7 +224,7 @@
   "Extract stream items from a streaming channel or playlist URL."
   [url max-results]
   @init!
-  (with-streaming-throttle
+  (with-throttle streaming-throttle
     (try
       (let [{:keys [service kind]} (resolve-streaming-url url)]
         (case kind

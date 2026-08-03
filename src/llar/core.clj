@@ -18,6 +18,8 @@
    [llar.db.modify]
    [llar.db.search]
    [llar.http :as http]
+   [llar.commands :as commands]
+   [llar.fetch.streaming :as streaming]
    [llar.pool :as pool]
    [llar.config :as config]
    [llar.docs.config :as docs.config]
@@ -47,6 +49,9 @@
   [#'store/backend-db
    #'reader/frontend-db
    #'blobstore/locks
+   #'commands/command-throttle
+   #'commands/av-download-throttle
+   #'streaming/streaming-throttle
    #'pool/source-pool
    #'pool/item-pool
    #'update/state

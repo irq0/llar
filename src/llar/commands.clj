@@ -7,23 +7,21 @@
    [slingshot.slingshot :refer [try+ throw+]]
    [llar.appconfig :as appcfg :refer [appconfig]]
    [llar.rc :as rc]
-   [nio2.core :as nio2])
-  (:import
-   [java.util.concurrent Semaphore]))
+   [llar.throttle :as throttle :refer [with-throttle]]
+   [mount.core :refer [defstate]]
+   [nio2.core :as nio2]))
 
 ;; Wrapper for all external commands we run
 
 (defonce +kill-timeout-secs+ 120)
-(defonce +semaphore+ (delay (Semaphore. (get-in appconfig [:throttle :command-max-concurrent] 2))))
-(defonce +semaphore-av-download+ (delay (Semaphore. (get-in appconfig [:throttle :av-downloader-max-concurrent] 2))))
 
-(defmacro with-throttle [sem & body]
-  `(do
-     (.acquire ~sem)
-     (try
-       ~@body
-       (finally
-         (.release ~sem)))))
+(defstate command-throttle
+  :start (throttle/make-throttle :command (rc/rc [:throttle :command-max-concurrent]))
+  :stop (throttle/shutdown! command-throttle))
+
+(defstate av-download-throttle
+  :start (throttle/make-throttle :av-download (rc/rc [:throttle :av-downloader-max-concurrent]))
+  :stop (throttle/shutdown! av-download-throttle))
 
 (defmacro with-temp-dir [dir-sym & body]
   `(let [~dir-sym (nio2/create-tmp-dir-on-default-fs "llar-")]
@@ -69,7 +67,7 @@
 
 (defn sanitize [raw-html]
   (let [{:keys [out exit err]}
-        (with-throttle @+semaphore+
+        (with-throttle command-throttle
           (sh+timeout (get-in appconfig [:timeouts :readability])
                       ["node" "tools/dompurify"] {:in raw-html}))]
     (if (zero? exit)
@@ -80,7 +78,7 @@
 
 (defn readability [raw-html url]
   (let [{:keys [out exit err]}
-        (with-throttle @+semaphore+
+        (with-throttle command-throttle
           (sh+timeout (get-in appconfig [:timeouts :readability])
                       ["node" "tools/readability"] {:in (cheshire/generate-string {:url url :html raw-html})}))]
     (if (zero? exit)
@@ -101,8 +99,8 @@
   "Convert html to text"
   [html & {:keys [tool] :or {tool :lynx}}]
   (let [cmdline (concat (html-to-text-command tool) [:in html])
-        {:keys [exit out]} (with-throttle @+semaphore+ (sh+timeout (get-in appconfig [:timeouts :html2text])
-                                                                   cmdline))]
+        {:keys [exit out]} (with-throttle command-throttle (sh+timeout (get-in appconfig [:timeouts :html2text])
+                                                                       cmdline))]
     (if (zero? exit)
       (if (= :for-exceptions tool)
         (string/replace out #"[\n\t]" " ")
@@ -124,7 +122,7 @@
   "Fetch metadata from yt-dlp without downloading"
   [url]
   (let [{:keys [exit out err]}
-        (with-throttle @+semaphore-av-download+
+        (with-throttle av-download-throttle
           (sh+timeout (get-in appconfig [:timeouts :av-downloader])
                       (into [(appcfg/command :av-downloader)
                              "--dump-json"]
@@ -143,7 +141,7 @@
         timeout (get-in appconfig [:timeouts :av-downloader-transcode]
                         (get-in appconfig [:timeouts :av-downloader]))
         {:keys [exit out err]}
-        (with-throttle @+semaphore-av-download+
+        (with-throttle av-download-throttle
           (sh+timeout timeout
                       (-> [(appcfg/command :av-downloader)
                            "--format" format-spec
@@ -212,7 +210,7 @@
   (with-temp-dir dir
     (with-retry 2 [:type ::av-download-error :ret 1]
       (let [{:keys [exit out err]}
-            (with-throttle @+semaphore-av-download+
+            (with-throttle av-download-throttle
               (sh+timeout (get-in appconfig [:timeouts :av-downloader])
                           (-> [(appcfg/command :av-downloader)
                                "--skip-download"
