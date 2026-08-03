@@ -15,7 +15,8 @@
    [llar.repl :as repl]
    [llar.src :as src]
    [llar.store :as store]
-   [mount.core :as mount]))
+   [mount.core :as mount]
+   [slingshot.slingshot :refer [throw+]]))
 
 (def +fake-appconfig+
   {:update-max-retry 5
@@ -36,6 +37,19 @@
   (mount/stop))
 
 (use-fixtures :once with-mount)
+
+(deftest server-timeout-during-processing-is-retryable
+  (let [source (src/feed "https://example.com/feed.xml")]
+    (with-redefs [uut/process-item
+                  (fn [& _]
+                    (throw+ {:type :llar.http/server-error-retry-later
+                             :reason-class :timeout}))]
+      (try
+        (uut/process {:src source} {} [:item])
+        (is false "expected processing timeout to throw")
+        (catch clojure.lang.ExceptionInfo ex
+          (is (= :llar.postproc/postproc-temp-fail (:type (ex-data ex))))
+          (is (= :timeout (get-in (ex-data ex) [:error :reason-class]))))))))
 
 (deftest add-tag-via-process-test
   (testing "all-items-process-first adds :unread tag"

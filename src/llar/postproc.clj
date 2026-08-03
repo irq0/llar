@@ -335,6 +335,10 @@
        (throw+ {:type ::postproc-temp-fail :items-count (count items)
                 :feed feed
                 :error ex}))
+     (catch [:type :llar.http/server-error-retry-later] ex
+       (throw+ {:type ::postproc-temp-fail :items-count (count items)
+                :feed feed
+                :error ex}))
      (catch Object _
        (let [cause (:throwable &throw-context)]
          (log/warn cause "postprocessing failed during parallel item proc: " (str src)

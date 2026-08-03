@@ -191,8 +191,23 @@
         (is (= (uut/make-item-hash "Test" post-url)
                (:hash item)))))))
 
+(deftest rss-feed-preserves-conditional-tokens-on-not-modified
+  (let [source (src/feed "https://example.com/feed.xml")
+        conditional-tokens {:etag "W/\"ec627-nOlkMvp2fc86N4xolHdhQgksVmY\""}
+        requested-conditionals (atom nil)]
+    (with-redefs [http/fetch
+                  (fn [_url & {:keys [conditionals]}]
+                    (reset! requested-conditionals conditionals)
+                    {:status :not-modified
+                     :conditional-tokens conditionals})]
+      (let [fetched (uut/fetch-source source conditional-tokens)]
+        (is (empty? fetched))
+        (is (= conditional-tokens @requested-conditionals))
+        (is (= {:conditional-tokens conditional-tokens}
+               (meta fetched)))))))
+
 (deftest http-fetcher
-  (let [resource {:etag "\"4144426715\"",
+  (let [resource {:etag "W/\"ec627-nOlkMvp2fc86N4xolHdhQgksVmY\"",
                   :last-modified-ts (converter/parse-http-ts "Thu, 22 Feb 2024 18:31:13 GMT")
                   :last-modified "Thu, 22 Feb 2024 18:31:13 GMT"
                   :data "<html><head><title>http-fetch-test</title></head><body><h1>foo</h1></body></html>"}]

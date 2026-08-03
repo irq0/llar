@@ -289,3 +289,54 @@
       (catch clojure.lang.ExceptionInfo ex
         (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
         (is (= :io (:reason-class (ex-data ex))))))))
+
+(deftest fetch-applies-configured-http-timeouts
+  (let [request-options (atom nil)]
+    (with-redefs [appconfig/appconfig
+                  {:http {:connection-timeout-ms 11000
+                          :connection-request-timeout-ms 12000
+                          :socket-timeout-ms 13000}}
+                  clj-http.client/get
+                  (fn [_url options]
+                    (reset! request-options options)
+                    {:status 304 :headers {} :body nil})]
+      (is (= :not-modified
+             (:status (uut/fetch "https://example.com"
+                                 :sanitize? false
+                                 :blobify? false))))
+      (is (= {:connection-timeout 11000
+              :connection-request-timeout 12000
+              :socket-timeout 13000}
+             (select-keys @request-options
+                          [:connection-timeout
+                           :connection-request-timeout
+                           :socket-timeout]))))))
+
+(deftest fetch-classifies-socket-timeout-as-retryable
+  (with-redefs [clj-http.client/get
+                (fn [& _]
+                  (throw (java.net.SocketTimeoutException. "Read timed out")))]
+    (try
+      (uut/fetch "https://example.com" :sanitize? false :blobify? false)
+      (is false "expected socket timeout to throw")
+      (catch clojure.lang.ExceptionInfo ex
+        (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
+        (is (= :timeout (:reason-class (ex-data ex))))))))
+
+(deftest fetch-classifies-stream-read-timeout-as-retryable
+  (with-redefs [clj-http.client/get
+                (fn [& _]
+                  {:status 200
+                   :headers {}
+                   :body (proxy [java.io.InputStream] []
+                           (read
+                             ([] (throw (java.net.SocketTimeoutException. "Read timed out")))
+                             ([_b] (throw (java.net.SocketTimeoutException. "Read timed out")))
+                             ([_b _off _len]
+                              (throw (java.net.SocketTimeoutException. "Read timed out")))))})]
+    (try
+      (uut/fetch "https://example.com" :sanitize? false :blobify? false)
+      (is false "expected stream read timeout to throw")
+      (catch clojure.lang.ExceptionInfo ex
+        (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
+        (is (= :timeout (:reason-class (ex-data ex))))))))

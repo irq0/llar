@@ -167,9 +167,15 @@
   (s/keys :req-un [:irq0-appconfig/max-retry]))
 (s/def :irq0-appconfig/max-body-bytes pos-int?)
 (s/def :irq0-appconfig/max-blob-body-bytes pos-int?)
+(s/def :irq0-appconfig/connection-timeout-ms pos-int?)
+(s/def :irq0-appconfig/connection-request-timeout-ms pos-int?)
+(s/def :irq0-appconfig/socket-timeout-ms pos-int?)
 (s/def :irq0-appconfig/http
   (s/keys :opt-un [:irq0-appconfig/max-body-bytes
-                   :irq0-appconfig/max-blob-body-bytes]))
+                   :irq0-appconfig/max-blob-body-bytes
+                   :irq0-appconfig/connection-timeout-ms
+                   :irq0-appconfig/connection-request-timeout-ms
+                   :irq0-appconfig/socket-timeout-ms]))
 
 (s/def :irq0-llar/appconfig
   (s/keys :req-un [:irq0-appconfig/blob-store-dir
@@ -296,6 +302,11 @@
 
 (defn http-max-blob-body-bytes []
   (or (http :max-blob-body-bytes) 52428800))
+
+(defn http-request-timeouts []
+  {:connection-timeout (or (http :connection-timeout-ms) 10000)
+   :connection-request-timeout (or (http :connection-request-timeout-ms) 10000)
+   :socket-timeout (or (http :socket-timeout-ms) 120000)})
 
 (defn credentials [name]
   (try

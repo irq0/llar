@@ -410,6 +410,11 @@
               bytes (try
                       (llar-io/read-bounded-bytes!
                        input limit #(throw-body-too-large! url limit %))
+                      (catch java.net.SocketTimeoutException e
+                        (throw+ {:type ::server-error-retry-later
+                                 :reason-class :timeout
+                                 :url url
+                                 :message (str "HTTP body read timed out: " (ex-message e))}))
                       (catch java.io.IOException e
                         (throw+ {:type ::server-error-retry-later
                                  :reason-class :io
@@ -564,6 +569,12 @@
                        :message (str "Connection refused (gone?): " (ex-message e#))}
                       ~throw-extra)))
 
+     (catch java.net.SocketTimeoutException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :timeout
+                       :message (str "HTTP timeout: " (ex-message e#))}
+                      ~throw-extra)))
+
      (catch java.security.cert.CertificateExpiredException e#
        (throw+ (merge {:type ::server-error-retry-later
                        :reason-class :ssl
@@ -586,6 +597,12 @@
        (throw+ (merge {:type ::server-error-retry-later
                        :reason-class :io
                        :message (str "EOF Exception: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.io.InterruptedIOException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :timeout
+                       :message (str "HTTP timeout: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.lang.Throwable e#
@@ -611,11 +628,13 @@
         base-url (get-base-url-with-path url)
         response (-> (with-http-exception-handler {:headers headers :url url}
                        (http/get (str url)
-                                 {:headers headers
-                                  :as :stream
-                                  :throw-exceptions false
-                                  :decode-cookies false
-                                  :cookie-policy :none}))
+                                 (merge
+                                  (llar.appconfig/http-request-timeouts)
+                                  {:headers headers
+                                   :as :stream
+                                   :throw-exceptions false
+                                   :decode-cookies false
+                                   :cookie-policy :none})))
                      (materialize-bounded-body url))
         response (if (http/unexceptional-status? (:status response))
                    response
