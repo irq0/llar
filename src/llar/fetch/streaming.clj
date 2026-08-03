@@ -210,30 +210,54 @@
 
 ;;; Extraction
 
-(defn- get-channel-videos
-  "Extract video items from a streaming channel URL"
+(defn- resolve-streaming-url
+  "Resolve a streaming URL to the NewPipe service and supported collection kind."
+  [url]
+  (let [service (NewPipe/getServiceByUrl (str url))
+        link-type (.getLinkTypeByUrl service (str url))
+        kind (case (.name link-type)
+               "CHANNEL" :channel
+               "PLAYLIST" :playlist
+               nil)]
+    (when-not kind
+      (throw+ {:type :llar.http/request-error
+               :reason-class :unsupported-url
+               :url url
+               :msg (format "Streaming URL is not a channel or playlist: %s" url)}))
+    {:service service :kind kind}))
+
+(defn- get-stream-items
+  "Extract stream items from a streaming channel or playlist URL."
   [url max-results]
   @init!
   (with-streaming-throttle
     (try
-      (let [service (NewPipe/getServiceByUrl (str url))
-            extractor (.getChannelExtractor service (str url))]
-        (.fetchPage extractor)
-        (let [channel-name (.getName extractor)
-              tabs (.getTabs extractor)
-              video-tab (first (filter #(= (first (.getContentFilters %)) ChannelTabs/VIDEOS) tabs))]
-          (if video-tab
-            (let [tab-extractor (.getChannelTabExtractor service video-tab)]
-              (.fetchPage tab-extractor)
-              (let [page (.getInitialPage tab-extractor)
-                    items (.getItems page)]
-                {:channel-name channel-name
-                 :items (take max-results
-                              (filter #(instance? StreamInfoItem %) items))}))
-            (do
-              (log/warnf "No videos tab found for channel %s" url)
-              {:channel-name channel-name
-               :items []}))))
+      (let [{:keys [service kind]} (resolve-streaming-url url)]
+        (case kind
+          :channel
+          (let [extractor (.getChannelExtractor service (str url))]
+            (.fetchPage extractor)
+            (let [channel-name (.getName extractor)
+                  tabs (.getTabs extractor)
+                  video-tab (first (filter #(= (first (.getContentFilters %)) ChannelTabs/VIDEOS) tabs))]
+              (if video-tab
+                (let [tab-extractor (.getChannelTabExtractor service video-tab)]
+                  (.fetchPage tab-extractor)
+                  {:collection-name channel-name
+                   :items (->> (.getItems (.getInitialPage tab-extractor))
+                               (filter #(instance? StreamInfoItem %))
+                               (take max-results))})
+                (do
+                  (log/warnf "No videos tab found for channel %s" url)
+                  {:collection-name channel-name :items []}))))
+
+          :playlist
+          (let [extractor (.getPlaylistExtractor service (str url))]
+            (.fetchPage extractor)
+            {:collection-name (.getName extractor)
+             :items (->> (.getItems (.getInitialPage extractor))
+                         (filter #(instance? StreamInfoItem %))
+                         (take max-results))})))
       (catch ContentNotAvailableException e
         (log/warnf "Content not available for %s: %s" url (.getMessage e))
         (throw+ {:type :llar.http/request-error :url url :msg (.getMessage e)}))
@@ -257,10 +281,10 @@
   (fetch-source [src _conditional-tokens]
     (let [url (str (:url src))
           max-results (get-in src [:args :max-results] 30)
-          {:keys [channel-name items]} (get-channel-videos url max-results)]
-      (log/infof "Fetched %d items from streaming channel %s (%s)" (count items) channel-name url)
+          {:keys [collection-name items]} (get-stream-items url max-results)]
+      (log/infof "Fetched %d items from streaming collection %s (%s)" (count items) collection-name url)
       (for [^StreamInfoItem item items
-            :let [entry (stream-info-item-to-entry item channel-name)]]
+            :let [entry (stream-info-item-to-entry item collection-name)]]
         (make-streaming-item
          (fetch/make-meta src)
          {:ts (or (:pub-ts entry) (time/zoned-date-time))

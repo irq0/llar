@@ -32,6 +32,16 @@
     (let [src (src/streaming-channel "https://www.youtube.com/@veritasium" :max-results 10)]
       (is (= 10 (get-in src [:args :max-results]))))))
 
+(deftest resolve-streaming-url-test
+  (testing "recognizes YouTube channel URLs"
+    (is (= :channel
+           (:kind (#'uut/resolve-streaming-url
+                   "https://www.youtube.com/@veritasium")))))
+  (testing "recognizes YouTube playlist URLs"
+    (is (= :playlist
+           (:kind (#'uut/resolve-streaming-url
+                   "https://www.youtube.com/playlist?list=PLQsxaNhYv8daNMn09aN-5x50ptLVvXTPl"))))))
+
 (deftest streaming-html-summary-test
   (testing "generates HTML with channel and duration"
     (let [html (#'uut/streaming-html-summary "Video Title" "Channel" 600 "http://thumb.jpg" "http://example.com/watch")]

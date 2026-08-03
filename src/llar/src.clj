@@ -387,7 +387,7 @@
   {:max-results 30})
 
 (defn streaming-channel
-  "Streaming channel source such as supported video/audio channels."
+  "Streaming collection source such as supported video/audio channels or playlists."
   {:llar.config/kind :source
    :llar.config/order 130
    :llar.config/specs [:irq0/url-str]
