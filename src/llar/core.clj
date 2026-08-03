@@ -18,6 +18,7 @@
    [llar.db.modify]
    [llar.db.search]
    [llar.http :as http]
+   [llar.pool :as pool]
    [llar.config :as config]
    [llar.docs.config :as docs.config]
    [llar.lab :as lab]
@@ -46,6 +47,8 @@
   [#'store/backend-db
    #'reader/frontend-db
    #'blobstore/locks
+   #'pool/source-pool
+   #'pool/item-pool
    #'update/state
 
    #'webapp/dashboard

@@ -8,6 +8,7 @@
    [llar.converter :as conv]
    [llar.http :as http]
    [llar.metrics :as metrics]
+   [llar.pool :as pool]
    [llar.privacy :as privacy]
    [slingshot.slingshot :refer [throw+ try+]]))
 
@@ -324,8 +325,7 @@
      (if (some? items)
        (doall
         (->>
-         items
-         (pmap  #(process-item feed state %))
+         (pool/pmap-failfast pool/item-pool #(process-item feed state %) items)
          (remove nil?)
          (flatten)))
        (do

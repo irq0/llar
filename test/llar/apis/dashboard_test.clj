@@ -6,10 +6,12 @@
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
    [llar.apis.podcast :as podcast-api]
+   [llar.config :as config]
    [llar.persistency :as persistency]
    [llar.podcast :as podcast]
    [llar.rc :as rc]
    [llar.sched :as sched]
+   [llar.update :as update]
    [llar.apis.dashboard :as uut]))
 
 (deftest status-index-renders-non-source-tabs-lazily
@@ -203,3 +205,28 @@
                                   :uri "/api/podcast/99/tag"}))))
     (finally
       (reset! podcast/download-state {}))))
+
+(deftest update-source-defers-to-single-flight-admission
+  ;; the old guard only knew about dashboard-initiated futures, so clicking update
+  ;; during a scheduled fetch queued a duplicate forced update
+  (with-redefs [config/get-sources (constantly {:held {:src :a-source}})
+                update/in-flight-sources (constantly #{:held})]
+    (let [{:keys [status body]} (uut/update-source "held" false)]
+      (is (= 200 status))
+      (is (= :already-updating (:status body)))))
+  (with-redefs [config/get-sources (constantly {:held {:src :a-source}})]
+    (is (= 404 (:status (uut/update-source "nope" false))))))
+
+(deftest source-status-survives-a-source-with-no-dashboard-future
+  ;; reachable as soon as update-source reports :already-updating for a scheduled run:
+  ;; there is no future to poll, and future-done? would NPE on nil
+  (with-redefs [uut/get-state (constantly {:status :ok})
+                config/get-sources (constantly {:held {:src :a-source}})
+                update/in-flight-sources (constantly #{:held})]
+    (let [{:keys [status body]} (uut/source-status "held")]
+      (is (= 200 status))
+      (is (false? (get-in body [:update-status :done])))))
+  (with-redefs [uut/get-state (constantly {:status :ok})
+                config/get-sources (constantly {:idle {:src :a-source}})
+                update/in-flight-sources (constantly #{})]
+    (is (true? (get-in (uut/source-status "idle") [:body :update-status :done])))))

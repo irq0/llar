@@ -9,6 +9,7 @@
    [llar.converter :as converter]
    [iapetos.core :as prometheus]
    [llar.fetch :as fetch]
+   [llar.pool :as pool]
    [llar.postproc :as proc]
    [llar.rc :as rc]
    [llar.sched :refer [defsched] :as sched]
@@ -367,37 +368,59 @@
 
 ;;; Update API
 
-(defn update!
-  "Update feed by id"
-  [k & {:keys [force]
-        :as args}]
+;;; Single-flight admission
+;;;
+;;; The source status alone cannot gate concurrency: reading it and writing :updating
+;;; are two separate swap!s, and :force skips the status check altogether. Reservations
+;;; carry a per-run token so a finishing run can never release a newer run's claim.
 
+(defonce ^:private in-flight
+  (atom {}))
+
+(defn- reserve!
+  "Atomically claim `k` for one run. Returns a token, or nil if a run already holds it."
+  [k]
+  (let [token (Object.)
+        [_ after] (swap-vals! in-flight (fn [m] (if (contains? m k) m (assoc m k token))))]
+    (when (identical? token (get after k))
+      token)))
+
+(defn- release! [k token]
+  (swap! in-flight (fn [m] (if (identical? token (get m k)) (dissoc m k) m)))
+  nil)
+
+(defn in-flight-sources
+  "Source keys with an update currently in flight."
+  []
+  (set (keys @in-flight)))
+
+(defn reset-in-flight! []
+  (reset! in-flight {}))
+
+(defn- assert-updateable! [k]
   (when (nil? (config/get-source k))
     (throw+ {:type ::unknown-source-key :key k :known-keys (keys (config/get-sources))}))
-
   (when-not (satisfies? fetch/FetchSource (:src (config/get-source k)))
     (let [src (config/get-source k)]
       (throw+ {:type ::source-not-fetchable
                :key k
                :src (:src src)
-               :src-type (type (:src src))})))
+               :src-type (type (:src src))}))))
 
+(defn- ensure-tracked! [k]
   (when-not (contains? @state k)
-    (swap! state assoc k (assoc src-state-template :key k)))
+    (swap! state assoc k (assoc src-state-template :key k))))
 
-    ;; don't update the same feed in parallel
-    ;; push force update flag into state to make it accessible to ItemProcessor
-  (swap! state update k assoc :forced-update? force)
-  (let [cur-state (get @state k)
-        cur-status (:status cur-state)]
+(defn- log-update-decision [k cur-state force]
+  (let [cur-status (:status cur-state)]
     (condp = cur-status
       :new
       (log/debug "updating new feed: " k)
       :ok
       (log/debug "updating working feed: " k)
       :temp-fail
-      (log/debug "temporary failing feed %d/%d: %s"
-                 (:retry-count cur-state) (rc/rc [:update :max-retry]) k)
+      (log/debugf "temporary failing feed %d/%d: %s"
+                  (:retry-count cur-state) (rc/rc [:update :max-retry]) k)
       :perm-fail
       (log/debug "skipping perm fail feed: " k)
 
@@ -410,78 +433,129 @@
       (log/debugf "unknown status \"%s\": %s" cur-status k))
 
     (when force
-      (log/debugf "force updating %s feed %s" cur-status k))
+      (log/debugf "force updating %s feed %s" cur-status k))))
 
-    (let [update? (or force
-                      (#{:ok :new} cur-status)
-                      (and (= cur-status :temp-fail)
-                           (< (:retry-count cur-state) (rc/rc [:update :max-retry]))))]
-      (if update?
-        (do
-          (swap! state update k assoc :status :updating)
-          (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
-          (observe-update-start! k (get @state k))
-          (let [kw-args (mapcat identity (dissoc args :force))
-                new-state (apply update-feed! k kw-args)
-                new-status (:status new-state)]
-            (log/debugf "[%s] State: %s -> %s " k
-                        cur-status new-status)
-            (swap! state (fn [current]
-                           (assoc current k new-state)))
-            (observe-update-complete! k (config/get-source k) cur-state new-state)
-            new-status))
-        (do
-          (observe-source-state! k cur-state)
-          (observe-state-summary-metrics)
-          cur-status)))))
+(defn- should-update?
+  "Retry/failure-state policy. `force` bypasses this - but never single-flight."
+  [force cur-state]
+  (let [cur-status (:status cur-state)]
+    (or (boolean force)
+        (boolean (#{:ok :new} cur-status))
+        (and (= cur-status :temp-fail)
+             (< (:retry-count cur-state) (rc/rc [:update :max-retry]))))))
+
+(defn- run-update!
+  "Fetch, process and store one source, moving its state. Caller holds the reservation."
+  [k args cur-state]
+  (swap! state update k assoc :status :updating)
+  (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
+  (observe-update-start! k (get @state k))
+  (let [kw-args (mapcat identity (dissoc args :force))
+        new-state (apply update-feed! k kw-args)
+        new-status (:status new-state)]
+    (log/debugf "[%s] State: %s -> %s " k (:status cur-state) new-status)
+    (swap! state (fn [current]
+                   (assoc current k new-state)))
+    (observe-update-complete! k (config/get-source k) cur-state new-state)
+    new-status))
+
+(defn update-outcome!
+  "Update one source, returning a structured outcome:
+
+    {:source-key k :outcome :completed :status STATUS}
+    {:source-key k :outcome :skipped :reason :state-policy|:already-in-flight :status STATUS}"
+  [k & {:keys [force] :as args}]
+  (assert-updateable! k)
+  (ensure-tracked! k)
+  (if-let [token (reserve! k)]
+    (try
+      ;; push force update flag into state to make it accessible to ItemProcessor
+      (swap! state update k assoc :forced-update? force)
+      (let [cur-state (get @state k)]
+        (log-update-decision k cur-state force)
+        (if (should-update? force cur-state)
+          {:source-key k :outcome :completed :status (run-update! k args cur-state)}
+          (do
+            (observe-source-state! k cur-state)
+            (observe-state-summary-metrics)
+            {:source-key k :outcome :skipped :reason :state-policy
+             :status (:status cur-state)})))
+      (finally
+        (release! k token)))
+    (do
+      (log/debugf "update already in flight, skipping: %s" k)
+      {:source-key k :outcome :skipped :reason :already-in-flight :status :updating})))
+
+(defn update!
+  "Update feed by id. Returns the resulting status keyword."
+  [k & args]
+  (:status (apply update-outcome! k args)))
 
 (defn updateable-sources []
   (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) (config/get-sources))))
-
-(defn update-some! [keys & args]
-  (doall
-   (pmap #(apply update! (key %) args)
-         (filter #(contains? (set keys) (key %)) (updateable-sources)))))
-
-(defn update-all! [& args]
-  (doall
-   (pmap #(apply update! (key %) args) (updateable-sources))))
-
-(defn update-matching! [re & args]
-  (doall
-   (pmap #(apply update! (key %) args)
-         (filter #(re-find re (name (key %))) (updateable-sources)))))
-
-(defn update-tagged! [tag & args]
-  (doall
-   (pmap #(apply update! (key %) args)
-         (filter #(contains? (:tags (val %)) tag) (updateable-sources)))))
-
-(defn update-failed! [& args]
-  (let [failed-source-keys (map key (filter (fn [[_k v]]
-                                              (contains? #{:perm-fail :temp-fail} (:status v)))
-                                            @state))
-        failed-sources (select-keys (updateable-sources) failed-source-keys)]
-    (doall (pmap #(apply update! (key %) args) failed-sources))))
-
-(defn update-bugged! [& args]
-  (let [failed-source-keys (map key (filter (fn [[_k v]]
-                                              (contains? #{:bug} (:status v)))
-                                            @state))
-        failed-sources (select-keys (updateable-sources) failed-source-keys)]
-    (doall
-     (map #(apply update! (key %) args) failed-sources))))
-
-(defn update-unfetched! [& args]
-  (let [sources-and-state (merge-with merge (updateable-sources) @state)
-        unfetched-keys (map key (filter (fn [[_k v]] (nil? (:status v))) sources-and-state))
-        result (doall (pmap #(apply update! % args) unfetched-keys))]
-    result))
 
 (defn- throwable-error [throwable]
   {:message (ex-message throwable)
    :data (ex-data throwable)
    :class (some-> throwable class str)})
+
+(defn- batch-outcome [k {:keys [ok? value error]}]
+  (if ok?
+    value
+    {:source-key k :outcome :error :error (throwable-error error)}))
+
+(defn update-sources!
+  "Update `source-keys` on the bounded source pool.
+
+  Returns one outcome per key, in input order. Every bulk and scheduled update funnels
+  through here, so a single unexpected failure surfaces as that source's `:error`
+  outcome instead of discarding the whole batch."
+  [source-keys & args]
+  (let [ks (vec source-keys)]
+    (mapv batch-outcome
+          ks
+          (pool/pmap-isolated pool/source-pool
+                              (fn [k] (apply update-outcome! k args))
+                              ks))))
+
+(defn update-some! [keys & args]
+  (apply update-sources!
+         (map key (filter #(contains? (set keys) (key %)) (updateable-sources)))
+         args))
+
+(defn update-all! [& args]
+  (apply update-sources! (map key (updateable-sources)) args))
+
+(defn update-matching! [re & args]
+  (apply update-sources!
+         (map key (filter #(re-find re (name (key %))) (updateable-sources)))
+         args))
+
+(defn update-tagged! [tag & args]
+  (apply update-sources!
+         (map key (filter #(contains? (:tags (val %)) tag) (updateable-sources)))
+         args))
+
+(defn update-failed! [& args]
+  (let [failed-source-keys (map key (filter (fn [[_k v]]
+                                              (contains? #{:perm-fail :temp-fail} (:status v)))
+                                            @state))]
+    (apply update-sources!
+           (keys (select-keys (updateable-sources) failed-source-keys))
+           args)))
+
+(defn update-bugged! [& args]
+  (let [bugged-source-keys (map key (filter (fn [[_k v]]
+                                              (contains? #{:bug} (:status v)))
+                                            @state))]
+    (apply update-sources!
+           (keys (select-keys (updateable-sources) bugged-source-keys))
+           args)))
+
+(defn update-unfetched! [& args]
+  (let [sources-and-state (merge-with merge (updateable-sources) @state)
+        unfetched-keys (map key (filter (fn [[_k v]] (nil? (:status v))) sources-and-state))]
+    (apply update-sources! unfetched-keys args)))
 
 (defn- autoread-config-error [sched-name reason detail sched]
   {:name sched-name
@@ -623,9 +697,10 @@
                                                                       ~pred))
                                                                   sources#)
                                                 keys# (mapv first filtered#)
-                                                results# (doall (pmap update! keys#))]
-                                            (log/infof "Scheduled feed update %s: %s"
-                                                       '~sched-name (vec (interleave keys# results#)))
+                                                results# (update-sources! keys#)]
+                                            (log/infof "Scheduled feed update %s: %d sources, outcomes %s"
+                                                       '~sched-name (count keys#)
+                                                       (frequencies (map :outcome results#)))
                                             {:keys keys#
                                              :results results#
                                              :count (count keys#)}))})

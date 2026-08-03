@@ -743,23 +743,25 @@
   {:pre [(string? str-k)
          (boolean? overwrite)]}
   (let [k (keyword str-k)
-        src (get (config/get-sources) k)
-        existing-fut (get @update-futures k)]
+        src (get (config/get-sources) k)]
     (cond
       (nil? src)
       {:status 404
        :body {:source-key k
               :status :not-found}}
 
-      (and existing-fut (not (future-done? existing-fut)))
+      ;; llar.update owns single-flight now, so this sees scheduled runs too - the old
+      ;; guard only knew about dashboard-initiated futures and queued a duplicate
+      ;; forced update whenever a schedule already held the source
+      (contains? (update/in-flight-sources) k)
       {:status 200
        :body {:source-key k
-              :future (str existing-fut)
+              :future (str (get @update-futures k))
               :status :already-updating}}
 
       :else
       (let [fut (future (update/update! k :force true :overwrite? overwrite))]
-        (swap! update-futures assoc (keyword k) fut)
+        (swap! update-futures assoc k fut)
         {:status 200
          :body {:source-key k
                 :status :updating
@@ -788,9 +790,15 @@
       {:status 200
        :body {:source-key k
               :row (source-status-row k src state)
-              :update-status {:future (str fut)
-                              :done (future-done? fut)
-                              :result (when (future-done? fut) @fut)}}}
+              :update-status (if fut
+                               {:future (str fut)
+                                :done (future-done? fut)
+                                :result (when (future-done? fut) @fut)}
+                               ;; no dashboard-initiated run to poll; a scheduled
+                               ;; update may still hold the source
+                               {:future nil
+                                :done (not (contains? (update/in-flight-sources) k))
+                                :result nil})}}
       {:status 404
        :body {:source-key k
               :error :not-found}})))

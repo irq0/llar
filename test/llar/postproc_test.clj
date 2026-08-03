@@ -200,3 +200,14 @@
                 :step "per_feed_proc_post"
                 :reason_class "http_4xx"
                 :exception_class "clojure.lang.ExceptionInfo"})))))
+
+(deftest process-preserves-input-order-and-flattens-and-filters
+  ;; characterisation test pinned before moving off pmap: nil items are dropped,
+  ;; sequential results are flattened in place, and order follows the input
+  (let [source (src/feed "https://example.com/feed.xml")]
+    (with-redefs [uut/process-item (fn [_feed _state item]
+                                     (cond
+                                       (even? item) nil
+                                       (= 3 item) [item item]
+                                       :else item))]
+      (is (= [1 3 3 5 7 9] (uut/process {:src source} {} (range 10)))))))
