@@ -441,11 +441,17 @@
       (log/debugf "force updating %s feed %s" cur-status k))))
 
 (defn- should-update?
-  "Retry/failure-state policy. `force` bypasses this - but never single-flight."
+  "Retry/failure-state policy. `force` bypasses this - but never single-flight.
+
+  `:updating` counts as runnable. It used to double as the concurrency guard, but
+  single-flight owns that now and this only runs while holding the reservation - so
+  seeing `:updating` here proves the status is stale, left behind by a run that died
+  between setting it and writing its result. Treating it as blocked stranded the source
+  permanently: nothing clears the status, and `set-status!` is REPL-only."
   [force cur-state]
   (let [cur-status (:status cur-state)]
     (or (boolean force)
-        (boolean (#{:ok :new} cur-status))
+        (boolean (#{:ok :new :updating} cur-status))
         (and (= cur-status :temp-fail)
              (< (:retry-count cur-state) (rc/rc [:update :max-retry]))))))
 

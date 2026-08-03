@@ -218,3 +218,21 @@
   (with-redefs [config/get-source (constantly nil)
                 config/get-sources (constantly {})]
     (is (thrown? clojure.lang.ExceptionInfo (uut/update! :no-such-source)))))
+
+(deftest a-stale-updating-status-does-not-block-later-runs
+  ;; :updating used to double as the concurrency guard. Single-flight owns that now, and
+  ;; the policy check only runs while holding the reservation - so reaching it with a
+  ;; status of :updating proves the status is stale, not that a run is in progress.
+  ;; Without this the source is skipped forever: nothing clears :updating, and
+  ;; set-status! is REPL-only.
+  (let [source-key :stale-updating
+        source (src/feed "https://example.com/feed.xml")
+        fetches (atom 0)]
+    (with-redefs [uut/state (atom (source-state source-key :updating))
+                  config/get-source (constantly {:src source})
+                  http/fetch (fn [& _]
+                               (swap! fetches inc)
+                               {:status :not-modified :conditional-tokens nil})]
+      (is (= :ok (uut/update! source-key :skip-proc true :skip-store true)))
+      (is (= 1 @fetches) "a source left in :updating must not be skipped forever")
+      (is (= :ok (get-in @uut/state [source-key :status]))))))
