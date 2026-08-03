@@ -312,6 +312,28 @@
                            :connection-request-timeout
                            :socket-timeout]))))))
 
+(deftest non-fetch-requests-apply-configured-http-timeouts
+  (let [request-options (atom nil)]
+    (with-redefs [appconfig/appconfig
+                  {:http {:connection-timeout-ms 11000
+                          :connection-request-timeout-ms 12000
+                          :socket-timeout-ms 13000}}
+                  clj-http.client/get
+                  (fn [_url options]
+                    (reset! request-options options)
+                    {:status 200 :headers {} :body "example.com\nexample.org"})]
+      ;; note: get-blocklist threads into `(into lines #{})`, so it returns the
+      ;; split lines as-is rather than a set. fetch-domain-blocklists coerces.
+      (is (= #{"example.com" "example.org"}
+             (set (uut/get-blocklist "https://example.com/blocklist.txt"))))
+      (is (= {:connection-timeout 11000
+              :connection-request-timeout 12000
+              :socket-timeout 13000}
+             (select-keys @request-options
+                          [:connection-timeout
+                           :connection-request-timeout
+                           :socket-timeout]))))))
+
 (deftest fetch-classifies-socket-timeout-as-retryable
   (with-redefs [clj-http.client/get
                 (fn [& _]

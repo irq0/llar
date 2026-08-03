@@ -184,9 +184,13 @@
   [thumbnail-url]
   (when (and thumbnail-url (not (str/blank? thumbnail-url)))
     (try+
-     (let [response (http/get thumbnail-url {:as :byte-array
-                                             :socket-timeout 10000
-                                             :connection-timeout 5000})
+     (let [response (http/get thumbnail-url
+                              ;; tighter than the global defaults on purpose: a
+                              ;; thumbnail is not worth waiting on
+                              (merge (appconfig/http-request-timeouts)
+                                     {:as :byte-array
+                                      :socket-timeout 10000
+                                      :connection-timeout 5000}))
            padded (pad-to-square-png (:body response))
            tmp-file (java.io.File/createTempFile "podcast-thumb" ".png")]
        (try
@@ -454,8 +458,13 @@
                        (time/before? (:last-attempt state) cutoff))]
       (log/infof "podcast: untagging and removing perm-failed entry %s (last attempt: %s)"
                  item-id (:last-attempt state))
-      (persistency/item-remove-tags! store/backend-db item-id [:podcast])
-      (swap! download-state dissoc item-id))))
+      ;; keep going on failure: the entry stays tracked and is retried next tick,
+      ;; and retention enforcement for the other sources still runs
+      (try+
+       (persistency/item-remove-tags! store/backend-db item-id [:podcast])
+       (swap! download-state dissoc item-id)
+       (catch Object e
+         (log/error e "podcast: failed to untag perm-failed entry" item-id))))))
 
 (defn enforce-retention!
   "Enforce count-based retention across all sources. Also untag and cleanup stale perm-failed entries."

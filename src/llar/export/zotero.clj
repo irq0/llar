@@ -69,16 +69,20 @@
   "Find the Zotero collection named 'llar', or create it. Returns the collection key."
   [base-url headers]
   (let [url (str base-url "/collections")
-        resp (http/get url {:as :json :headers headers})
+        resp (http/get url (merge
+                            (appconfig/http-request-timeouts)
+                            {:as :json :headers headers}))
         existing (->> (:body resp)
                       (filter #(= "llar" (get-in % [:data :name])))
                       first)]
     (if existing
       (get-in existing [:data :key])
-      (let [create-resp (http/post url {:content-type :json
-                                        :as :json
-                                        :headers headers
-                                        :body (json/generate-string [{:name "llar"}])})]
+      (let [create-resp (http/post url (merge
+                                        (appconfig/http-request-timeouts)
+                                        {:content-type :json
+                                         :as :json
+                                         :headers headers
+                                         :body (json/generate-string [{:name "llar"}])}))]
         (get-in create-resp [:body :successful :0 :key])))))
 
 (defn make-webpage-item
@@ -114,17 +118,21 @@
           collection-key (resolve-or-create-collection! base-url headers)
           webpage-item (make-webpage-item item collection-key)]
       (try+
-       (let [resp (http/post items-url {:content-type :json
-                                        :as :json
-                                        :headers headers
-                                        :body (json/generate-string [webpage-item])})
+       (let [resp (http/post items-url (merge
+                                        (appconfig/http-request-timeouts)
+                                        {:content-type :json
+                                         :as :json
+                                         :headers headers
+                                         :body (json/generate-string [webpage-item])}))
              parent-key (get-in resp [:body :successful :0 :key])
              note-html (format-note-html item annotations)
              child-note (make-child-note parent-key note-html)
-             note-resp (http/post items-url {:content-type :json
-                                             :as :json
-                                             :headers headers
-                                             :body (json/generate-string [child-note])})
+             note-resp (http/post items-url (merge
+                                             (appconfig/http-request-timeouts)
+                                             {:content-type :json
+                                              :as :json
+                                              :headers headers
+                                              :body (json/generate-string [child-note])}))
              note-key (get-in note-resp [:body :successful :0 :key])]
          (log/infof "Exported item to Zotero: parent=%s note=%s title=%s"
                     parent-key note-key (:title item))

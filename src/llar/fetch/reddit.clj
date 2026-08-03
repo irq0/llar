@@ -1,5 +1,6 @@
 (ns llar.fetch.reddit
   (:require
+   [llar.appconfig :as appconfig]
    [llar.fetch :as fetch]
    [llar.specs]
    [llar.persistency :as persistency]
@@ -52,9 +53,11 @@
     {:url url
      :user-agent +reddit-user-agent+
      :request ::reddit-get}
-    (let [resp  (http/get url {:accept :json
-                               :as :json
-                               :headers {:user-agent +reddit-user-agent+}})]
+    (let [resp  (http/get url (merge
+                               (appconfig/http-request-timeouts)
+                               {:accept :json
+                                :as :json
+                                :headers {:user-agent +reddit-user-agent+}}))]
       (:body resp))))
 
 (defn reddit-get-scores [src]

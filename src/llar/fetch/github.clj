@@ -1,5 +1,6 @@
 (ns llar.fetch.github
   (:require
+   [llar.appconfig :as appconfig]
    [llar.fetch :as fetch]
    [llar.specs]
    [llar.src]
@@ -54,11 +55,13 @@
     (with-http-exception-handler
       {:url url :user-agent +github-user-agent+ :request ::github-search}
       (let [resp (http/get url
-                           {:query-params params
-                            :accept :json
-                            :as :json
-                            :headers {"User-Agent" +github-user-agent+
-                                      "Accept" "application/vnd.github.v3+json"}})]
+                           (merge
+                            (appconfig/http-request-timeouts)
+                            {:query-params params
+                             :accept :json
+                             :as :json
+                             :headers {"User-Agent" +github-user-agent+
+                                       "Accept" "application/vnd.github.v3+json"}}))]
         (log/infof "GitHub search returned %d items (total: %d)"
                    (count (get-in resp [:body :items]))
                    (get-in resp [:body :total_count]))

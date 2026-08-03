@@ -3,12 +3,14 @@
    [clojure.java.io :as io]
    [cheshire.core :as json]
    [clojure.test :refer [deftest is testing use-fixtures]]
+   [clojure.tools.logging :as log]
    [java-time.api :as time]
    [llar.appconfig]
    [llar.apis.podcast :as podcast-api]
    [llar.persistency]
    [llar.podcast :as uut]
-   [llar.rc :as rc]))
+   [llar.rc :as rc]
+   [slingshot.slingshot :refer [throw+]]))
 
 (use-fixtures :each
   (fn [f]
@@ -232,5 +234,27 @@
         (is (not (contains? @uut/download-state 100)))
         (is (contains? @uut/download-state 101))
         (is (contains? @uut/download-state 102)))
+      (finally
+        (reset! uut/download-state {})))))
+
+(deftest cleanup-perm-failed-survives-untag-failure
+  (let [now (time/zoned-date-time)
+        old (time/minus now (time/days 8))
+        removed-tags (atom [])]
+    (reset! uut/download-state
+            {100 {:status :perm-failed :last-attempt old}
+             200 {:status :perm-failed :last-attempt old}})
+    (try
+      (with-redefs [log/log* (fn [& _])
+                    llar.persistency/item-remove-tags!
+                    (fn [_ item-id tags]
+                      (when (= 100 item-id)
+                        (throw+ {:type ::db-unavailable}))
+                      (swap! removed-tags conj [item-id tags]))]
+        (#'uut/cleanup-perm-failed!)
+        ;; the failing entry stays tracked for the next tick, the other is still processed
+        (is (= [[200 [:podcast]]] @removed-tags))
+        (is (contains? @uut/download-state 100))
+        (is (not (contains? @uut/download-state 200))))
       (finally
         (reset! uut/download-state {})))))

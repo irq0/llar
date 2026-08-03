@@ -1,5 +1,6 @@
 (ns llar.fetch.hackernews
   (:require
+   [llar.appconfig :as appconfig]
    [llar.fetch :as fetch]
    [llar.fetchutils :as fetchutils]
    [llar.specs]
@@ -93,10 +94,12 @@
      :user-agent +hn-user-agent+
      :request ::hn-algolia-query}
     (let [resp  (http/get +hn-algoia-url+
-                          {:query-params query
-                           :accept :json
-                           :as :json
-                           :headers {:user-agent +hn-user-agent+}})]
+                          (merge
+                           (appconfig/http-request-timeouts)
+                           {:query-params query
+                            :accept :json
+                            :as :json
+                            :headers {:user-agent +hn-user-agent+}}))]
       (:body resp))))
 
 ;; tag: front_page, comment, ask_hn, show_hn, job

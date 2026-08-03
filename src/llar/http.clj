@@ -47,8 +47,7 @@
    "https://raw.githubusercontent.com/austinheap/sophos-xg-block-lists/master/easylist.txt"])
 
 (defn get-blocklist [url]
-  (-> url
-      http/get
+  (-> (http/get url (llar.appconfig/http-request-timeouts))
       :body
       (string/split #"\n")
       (into #{})))

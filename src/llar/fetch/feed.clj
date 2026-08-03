@@ -1,5 +1,6 @@
 (ns llar.fetch.feed
-  (:require [llar.fetch :refer [FetchSource
+  (:require [llar.appconfig :as appconfig]
+            [llar.fetch :refer [FetchSource
                                 item-to-string
                                 make-meta
                                 make-item-hash]]
@@ -339,8 +340,10 @@
                              :request ::wp-json-author
                              :user-agent user-agent}
                             (http/get url
-                                      {:as :json
-                                       :headers {:user-agent user-agent}}))
+                                      (merge
+                                       (appconfig/http-request-timeouts)
+                                       {:as :json
+                                        :headers {:user-agent user-agent}})))
                  author (get-in response [:body :name])]]
        (do (log/debugf "wordpress JSON author fetch %s: %s" url author)
            author)))
@@ -364,15 +367,19 @@
                   :request :wp-json-site
                   :user-agent user-agent}
                  (http/get wp-json-url
-                           {:as :json
-                            :headers {"User-Agent" user-agent}}))
+                           (merge
+                            (appconfig/http-request-timeouts)
+                            {:as :json
+                             :headers {"User-Agent" user-agent}})))
           posts-url (str (get-posts-url (:body site)) "?_embed")
           posts (-> (with-http-exception-handler
                       {:url posts-url
                        :request ::wp-json-posts
                        :user-agent user-agent}
-                      (http/get posts-url {:as :reader
-                                           :headers {:user-agent user-agent}}))
+                      (http/get posts-url (merge
+                                           (appconfig/http-request-timeouts)
+                                           {:as :reader
+                                            :headers {:user-agent user-agent}})))
                     :body (cheshire/parse-stream true))]
       (log/debugf "wordpress JSON feed %s / %s fetched: %s posts" wp-json-url posts-url (count posts))
       (doall
