@@ -13,6 +13,22 @@
 (defn truncate [s len]
   (if (<= (count s) len) s (subs s 0 len)))
 
+(defn format-duration
+  "Format a duration compactly. Accepts either a java.time.Duration or seconds."
+  [duration]
+  (let [seconds (if (instance? java.time.Duration duration)
+                  (/ (.toNanos ^java.time.Duration duration) 1000000000.0)
+                  (double duration))]
+    (cond
+      (< seconds 1) (format "%.0f ms" (* 1000.0 seconds))
+      (< seconds 60) (format "%.1f s" seconds)
+      (< seconds 3600) (format "%d m %d s"
+                               (long (/ seconds 60))
+                               (long (mod seconds 60)))
+      :else (format "%d h %d m"
+                    (long (/ seconds 3600))
+                    (long (mod (/ seconds 60) 60))))))
+
 (defn datetime-ago [ts]
   (let [raw-duration (time/duration ts (time/zoned-date-time))
         duration (-> raw-duration

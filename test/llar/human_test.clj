@@ -26,6 +26,16 @@
   (testing "empty string"
     (is (= "" (uut/truncate "" 5)))))
 
+(deftest format-duration-test
+  (testing "numeric seconds"
+    (are [expected seconds] (= expected (uut/format-duration seconds))
+      "500 ms" 0.5
+      "12.5 s" 12.5
+      "2 m 5 s" 125
+      "2 h 3 m" 7380))
+  (testing "java duration"
+    (is (= "1 m 30 s" (uut/format-duration (time/seconds 90))))))
+
 (deftest filesize-test
   (testing "bytes"
     (is (= "1.00 B" (uut/filesize 1)))

@@ -112,6 +112,7 @@
                    :run-fn (constantly :ok)})]
     (swap! (:state* schedule) assoc
            :running? false
+           :last-duration (time/seconds 90)
            :last-trigger :manual
            :last-result {:count 1})
     (with-redefs [sched/find-schedules (constantly [schedule])]
@@ -119,6 +120,7 @@
         (is (string/includes? body "daily"))
         (is (string/includes? body "Next Run"))
         (is (string/includes? body "in "))
+        (is (string/includes? body "1 m 30 s"))
         (is (string/includes? body "llar.test/daily"))
         (is (string/includes? body "manual"))
         (is (string/includes? body ":count"))

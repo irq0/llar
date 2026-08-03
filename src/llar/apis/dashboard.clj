@@ -360,17 +360,6 @@
     :limit "hikaricp_max_connections"
     :queued "hikaricp_pending_threads"}])
 
-(defn- format-seconds
-  "Compact duration. Sub-millisecond permit waits and multi-hour stragglers both have to
-  stay readable in the same column."
-  [secs]
-  (let [s (double secs)]
-    (cond
-      (< s 1) (format "%.0f ms" (* 1000.0 s))
-      (< s 60) (format "%.1f s" s)
-      (< s 3600) (format "%d m %d s" (long (/ s 60)) (long (mod s 60)))
-      :else (format "%d h %d m" (long (/ s 3600)) (long (mod (/ s 60) 60))))))
-
 (defn- find-value [samples metric labels]
   (when metric
     (some (fn [sample]
@@ -430,7 +419,7 @@
         [:td kind]
         [:td (meter-bar row)]
         [:td (when queued (format "%.0f" (double queued)))]
-        [:td (when wait-mean (format-seconds wait-mean))]
+        [:td (when wait-mean (human/format-duration wait-mean))]
         [:td (when wait-count (format "%.0f" (double wait-count)))]])]]])
 
 (defn- in-flight-section []
@@ -446,7 +435,7 @@
         [:tbody
          (for [{:keys [age-seconds kind source stage waiting-on thread]} entries]
            [:tr
-            [:td (format-seconds age-seconds)]
+            [:td (human/format-duration age-seconds)]
             [:td kind]
             [:th source]
             [:td stage]
@@ -567,7 +556,7 @@
           [:td (if running? "yes" "no")]
           [:td (some-> last-started-at human/datetime-ago)]
           [:td (some-> last-finished-at human/datetime-ago)]
-          [:td (some-> last-duration str)]
+          [:td (some-> last-duration human/format-duration)]
           [:td (some-> last-trigger name)]
           [:td (when (some? last-result) (pprint-html last-result))]
           [:td (when (some? last-exception) (pprint-html last-exception))]
