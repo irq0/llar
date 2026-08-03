@@ -12,6 +12,8 @@
    [llar.rc :as rc]
    [llar.sched :as sched]
    [llar.update :as update]
+   [llar.metrics.resources :as resources]
+   [llar.work :as work]
    [llar.apis.dashboard :as uut]))
 
 (deftest status-index-renders-non-source-tabs-lazily
@@ -230,3 +232,69 @@
                 config/get-sources (constantly {:idle {:src :a-source}})
                 update/in-flight-sources (constantly #{})]
     (is (true? (get-in (uut/source-status "idle") [:body :update-status :done])))))
+
+(def ^:private +activity-samples+
+  {"llar_resource_in_use" [{:labels {"resource" "item_postproc" "kind" "executor"} :value 32.0}
+                           {:labels {"resource" "streaming" "kind" "throttle"} :value 0.0}]
+   "llar_resource_limit" [{:labels {"resource" "item_postproc" "kind" "executor"} :value 32.0}
+                          {:labels {"resource" "streaming" "kind" "throttle"} :value 1.0}]
+   "llar_resource_queued" [{:labels {"resource" "item_postproc" "kind" "executor"} :value 7.0}
+                           {:labels {"resource" "streaming" "kind" "throttle"} :value 0.0}]
+   "llar_resource_wait_seconds_count" [{:labels {"resource" "streaming"} :value 4.0}]
+   "llar_resource_wait_seconds_sum" [{:labels {"resource" "streaming"} :value 2.0}]
+   "hikaricp_active_connections" [{:labels {"pool" "backend"} :value 3.0}]
+   "hikaricp_max_connections" [{:labels {"pool" "backend"} :value 10.0}]
+   "hikaricp_pending_threads" [{:labels {"pool" "backend"} :value 0.0}]})
+
+(deftest meter-rows-describes-every-bounded-resource
+  (let [by-name (into {} (map (juxt :name identity)) (#'uut/meter-rows +activity-samples+))]
+    (is (= #{"item_postproc" "streaming" "backend"} (set (keys by-name))))
+    (is (= {:in-use 32.0 :limit 32.0 :queued 7.0} (select-keys (by-name "item_postproc")
+                                                               [:in-use :limit :queued])))
+    ;; hikaricp uses different metric names and a different label, same row shape
+    (is (= {:in-use 3.0 :limit 10.0 :queued 0.0} (select-keys (by-name "backend")
+                                                              [:in-use :limit :queued])))
+    (is (= 0.5 (:wait-mean (by-name "streaming"))) "mean wait is sum/count")
+    ;; every row needs a kind, but only llar_resource_* carries one as a label -
+    ;; hikaricp samples are labelled by pool alone
+    (is (= {"item_postproc" "executor"
+            "streaming" "throttle"
+            "backend" "db-pool"}
+           (into {} (map (juxt :name :kind)) (vals by-name))))))
+
+(deftest meter-rows-flags-and-promotes-saturated-resources
+  (let [rows (#'uut/meter-rows +activity-samples+)
+        by-name (into {} (map (juxt :name identity)) rows)]
+    (is (true? (:saturated? (by-name "item_postproc"))) "32 of 32 is pinned")
+    (is (false? (:saturated? (by-name "streaming"))))
+    (is (false? (:saturated? (by-name "backend"))))
+    ;; a pinned resource is the thing you came to the page to find
+    (is (= "item_postproc" (:name (first (#'uut/sort-meters rows)))))))
+
+(deftest threads-are-bucketed-by-name
+  (is (= "Work pools" (#'uut/thread-bucket "llar-item-postproc-3")))
+  (is (= "HTTP server" (#'uut/thread-bucket "qtp1234567-42")))
+  (is (= "Schedulers" (#'uut/thread-bucket "chime-7")))
+  (is (= "Database" (#'uut/thread-bucket "HikariPool-1 housekeeper")))
+  (is (= "JVM & other" (#'uut/thread-bucket "Reference Handler"))))
+
+(deftest activity-tab-renders-saturation-inflight-and-census
+  (let [work-id (work/register! {:kind :source :source :a-stuck-feed
+                                 :stage :store :waiting-on :av-download})]
+    (resources/register! resources/resources :pinned-pool :executor
+                         (constantly {:in-use 4 :limit 4 :queued 9}))
+    (try
+      (let [html (str (h/html (uut/activity-tab)))]
+        ;; saturation strip, driven by whatever happens to be registered
+        (is (string/includes? html "pinned_pool"))
+        (is (string/includes? html "table-danger") "a pinned resource is highlighted")
+        ;; in-flight detail - exactly what prometheus deliberately does not carry
+        (is (string/includes? html "a-stuck-feed"))
+        (is (string/includes? html "store"))
+        (is (string/includes? html "av-download"))
+        ;; the raw dump is demoted but keeps the id the stacktrace handler binds to
+        (is (string/includes? html "All threads and stacks"))
+        (is (string/includes? html "threads-datatable")))
+      (finally
+        (work/unregister! work-id)
+        (resources/unregister! resources/resources :pinned-pool)))))

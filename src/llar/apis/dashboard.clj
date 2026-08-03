@@ -7,6 +7,7 @@
    [compojure.route :as route]
    [hiccup2.core :as h]
    [iapetos.export :as prometheus-export]
+   [iapetos.registry :as registry]
    [java-time.api :as time]
    [mount.core :as mount]
    [puget.printer :as puget]
@@ -25,7 +26,8 @@
    [llar.podcast :as podcast]
    [llar.rc :as rc]
    [llar.sched :as sched]
-   [llar.update :as update])
+   [llar.update :as update]
+   [llar.work :as work])
   (:import
    [io.prometheus.client.exporter.common TextFormat]
    [org.apache.commons.text StringEscapeUtils]
@@ -310,36 +312,216 @@
           [:td (type val)]
           [:td pretty]])]])))
 
-(defn thread-tab []
-  (let [stack-traces (sort-by #(-> % key .getState) (Thread/getAllStackTraces))]
-    [:table {:id "threads-datatable" :class "table"}
-     [:thead
-      [:tr
-       [:th ""]
-       [:th "Group"]
-       [:th "Name"]
-       [:th "State"]
-       [:th "Top Frame"]]]
-     [:tbody
-      (->>
-       (for [[th stack] stack-traces]
-         [(-> th .getThreadGroup .getName)
-          (.getName th)
-          (.getState th)
-          (first stack)
-          stack])
-       (sort-by second)
-       (map (fn [[group name state top-of-stack stack]]
+;;; Activity tab
+;;;
+;;; A thread list answers the wrong question. What you actually want to know is which
+;;; bounded resource is pinned and which work item is the straggler, so this renders
+;;; saturation and in-flight work first and demotes the raw dump to a collapsed section.
+
+(defn- metric-samples
+  "Every sample in the app registry as {metric-name [{:labels {} :value v}]}.
+
+  Reading the registry rather than the pools and throttles directly keeps this panel and
+  Grafana looking at exactly the same numbers."
+  []
+  (group-by :metric
+            (for [family (enumeration-seq
+                          (.metricFamilySamples (registry/raw metrics/prom-registry)))
+                  sample (.-samples family)]
+              {:metric (.-name sample)
+               :labels (zipmap (.-labelNames sample) (.-labelValues sample))
+               :value (.-value sample)})))
+
+(def ^:private +meter-groups+
+  "Which metrics supply each column, per family of bounded resource.
+
+  Declarative so that `llar_resource_*` and `hikaricp_*` - different metric names,
+  different identifying labels - render through one generic renderer without either
+  re-emitting the other's series."
+  [{:group "Pools & throttles"
+    :discover "llar_resource_in_use"
+    :id-labels ["resource" "kind"]
+    :name-label "resource"
+    :kind-label "kind"
+    :in-use "llar_resource_in_use"
+    :limit "llar_resource_limit"
+    :queued "llar_resource_queued"
+    :wait-labels ["resource"]
+    :wait-count "llar_resource_wait_seconds_count"
+    :wait-sum "llar_resource_wait_seconds_sum"}
+   {:group "Database pools"
+    ;; hikaricp labels its samples by pool alone, so the kind is supplied here rather
+    ;; than read from a label
+    :kind "db-pool"
+    :discover "hikaricp_active_connections"
+    :id-labels ["pool"]
+    :name-label "pool"
+    :in-use "hikaricp_active_connections"
+    :limit "hikaricp_max_connections"
+    :queued "hikaricp_pending_threads"}])
+
+(defn- format-seconds
+  "Compact duration. Sub-millisecond permit waits and multi-hour stragglers both have to
+  stay readable in the same column."
+  [secs]
+  (let [s (double secs)]
+    (cond
+      (< s 1) (format "%.0f ms" (* 1000.0 s))
+      (< s 60) (format "%.1f s" s)
+      (< s 3600) (format "%d m %d s" (long (/ s 60)) (long (mod s 60)))
+      :else (format "%d h %d m" (long (/ s 3600)) (long (mod (/ s 60) 60))))))
+
+(defn- find-value [samples metric labels]
+  (when metric
+    (some (fn [sample]
+            (when (= labels (select-keys (:labels sample) (keys labels)))
+              (:value sample)))
+          (get samples metric))))
+
+(defn- meter-rows [samples]
+  (vec
+   (for [{:keys [group discover id-labels name-label kind kind-label wait-labels
+                 wait-count wait-sum] :as spec} +meter-groups+
+         sample (get samples discover)
+         :let [id (select-keys (:labels sample) id-labels)
+               wait-id (select-keys id wait-labels)
+               in-use (or (find-value samples (:in-use spec) id) 0)
+               limit (find-value samples (:limit spec) id)
+               observed (find-value samples wait-count wait-id)
+               waited (find-value samples wait-sum wait-id)]]
+     {:group group
+      :name (get (:labels sample) name-label)
+      :kind (or (when kind-label (get (:labels sample) kind-label)) kind)
+      :in-use in-use
+      :limit limit
+      :queued (or (find-value samples (:queued spec) id) 0)
+      :saturated? (boolean (and limit (pos? limit) (>= in-use limit)))
+      :wait-count observed
+      :wait-mean (when (and waited observed (pos? observed))
+                   (/ waited observed))})))
+
+(defn- sort-meters
+  "Pinned resources first - that is what you opened the page to find."
+  [rows]
+  (sort-by (juxt (complement :saturated?) :group :name) rows))
+
+(defn- meter-bar [{:keys [in-use limit saturated?]}]
+  (let [pct (if (and limit (pos? limit))
+              (min 100.0 (* 100.0 (/ (double in-use) limit)))
+              0.0)]
+    [:div {:class "progress" :style "height:1.1rem;min-width:8rem"}
+     [:div {:class (str "progress-bar" (when saturated? " bg-danger"))
+            :role "progressbar"
+            :style (format "width:%.0f%%" pct)}
+      (format "%.0f/%s" (double in-use) (if limit (format "%.0f" (double limit)) "?"))]]))
+
+(defn- saturation-section [samples]
+  [:div
+   [:h5 "Saturation"]
+   [:table {:class "table table-sm"}
+    [:thead
+     [:tr [:th "Resource"] [:th "Kind"] [:th "In use"] [:th "Queued"]
+      [:th "Mean wait"] [:th "Acquires"]]]
+    [:tbody
+     (for [{:keys [name kind queued wait-mean wait-count saturated?] :as row}
+           (sort-meters (meter-rows samples))]
+       [:tr {:class (when saturated? "table-danger")}
+        [:th name]
+        [:td kind]
+        [:td (meter-bar row)]
+        [:td (when queued (format "%.0f" (double queued)))]
+        [:td (when wait-mean (format-seconds wait-mean))]
+        [:td (when wait-count (format "%.0f" (double wait-count)))]])]]])
+
+(defn- in-flight-section []
+  (let [entries (work/in-flight)]
+    [:div {:class "pt-4"}
+     [:h5 "In flight" [:small {:class "text-muted"} " (oldest first)"]]
+     (if (empty? entries)
+       [:p {:class "text-muted"} "Nothing in flight."]
+       [:table {:class "table table-sm"}
+        [:thead
+         [:tr [:th "Age"] [:th "Kind"] [:th "Source"] [:th "Stage"]
+          [:th "Waiting on"] [:th "Thread"]]]
+        [:tbody
+         (for [{:keys [age-seconds kind source stage waiting-on thread]} entries]
+           [:tr
+            [:td (format-seconds age-seconds)]
+            [:td kind]
+            [:th source]
+            [:td stage]
+            [:td (when waiting-on [:span {:class "badge text-bg-warning"} (str waiting-on)])]
+            [:td [:small thread]]])]])]))
+
+(def ^:private +thread-buckets+
+  [["Work pools" #"^llar-"]
+   ["HTTP server" #"^qtp"]
+   ["Schedulers" #"^chime-"]
+   ["Database" #"(?i)hikari"]
+   ["nREPL" #"(?i)nrepl"]])
+
+(defn- thread-bucket [thread-name]
+  (or (some (fn [[label pattern]] (when (re-find pattern thread-name) label))
+            +thread-buckets+)
+      "JVM & other"))
+
+(defn- thread-census [threads]
+  (->> threads
+       (map (fn [^Thread th] {:bucket (thread-bucket (.getName th))
+                              :state (str (.getState th))}))
+       (group-by :bucket)
+       (map (fn [[bucket ths]]
+              {:bucket bucket
+               :total (count ths)
+               :states (frequencies (map :state ths))}))
+       (sort-by :total >)))
+
+(defn- thread-rows [stack-traces]
+  (->> (for [[^Thread th stack] stack-traces]
+         {:bucket (thread-bucket (.getName th))
+          :name (.getName th)
+          :state (.getState th)
+          :top (first stack)
+          :stack stack})
+       (sort-by (juxt :bucket :name))
+       (map (fn [{:keys [bucket name state top stack]}]
               [:tr {:data-stacktrace (h/html [:ol
                                               (for [s (stacktrace/parse-trace-elems stack)
                                                     :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
-                                                [:li [:pre formatted]])])
-                    :class ""}
+                                                [:li [:pre formatted]])])}
                [:td {:class "details-control"}]
-               [:td {:class "col-xs-1"} group]
+               [:td {:class "col-xs-1"} bucket]
                [:th {:class "col-xs-1"} name]
                [:td {:class "col-xs-1"} [:pre state]]
-               [:td {:class "col-xs-4"} [:span {:title top-of-stack} (human/truncate-ellipsis (str top-of-stack) 20)]]])))]]))
+               [:td {:class "col-xs-4"} [:span {:title top}
+                                         (human/truncate-ellipsis (str top) 20)]]]))))
+
+(defn- thread-census-section []
+  (let [stack-traces (Thread/getAllStackTraces)]
+    [:div {:class "pt-4"}
+     [:h5 "Threads"
+      [:small {:class "text-muted"} (format " (%d total)" (count stack-traces))]]
+     [:table {:class "table table-sm"}
+      [:thead [:tr [:th "Group"] [:th "Threads"] [:th "States"]]]
+      [:tbody
+       (for [{:keys [bucket total states]} (thread-census (keys stack-traces))]
+         [:tr
+          [:th bucket]
+          [:td total]
+          [:td (string/join ", " (for [[state n] (sort-by val > states)]
+                                   (str (string/lower-case state) " " n)))]])]]
+     [:details {:class "pt-2"}
+      [:summary {:class "text-muted"} "All threads and stacks"]
+      [:table {:id "threads-datatable" :class "table"}
+       [:thead
+        [:tr [:th ""] [:th "Group"] [:th "Name"] [:th "State"] [:th "Top Frame"]]]
+       [:tbody (thread-rows stack-traces)]]]]))
+
+(defn activity-tab []
+  [:div
+   (saturation-section (metric-samples))
+   (in-flight-section)
+   (thread-census-section)])
 
 (defn metrics-tab []
   [:div
@@ -685,7 +867,7 @@
    :schedules #'schedule-tab
    :state #'state-tab
    :metrics #'metrics-tab
-   :threads #'thread-tab
+   :activity #'activity-tab
    :docs #'docs-tab
    :config #'config-tab})
 
