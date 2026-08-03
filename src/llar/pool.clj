@@ -90,6 +90,18 @@
 (defn- unwrap [^ExecutionException e]
   (or (.getCause e) e))
 
+(defn call-on
+  "Run `f` on `pool` and wait for its value, rethrowing the original cause on failure.
+
+  Bounds a single call the same way the map helpers bound a batch. Callers must not
+  already be running on `pool`, or the wait would occupy a slot while needing another."
+  [pool f]
+  (let [^Future fut (first (submit-all pool (fn [_] (f)) [nil]))]
+    (try
+      (.get fut)
+      (catch ExecutionException e
+        (throw (unwrap e))))))
+
 (defn pmap-failfast
   "Map `f` over `coll` on `pool`, returning results in input order.
 

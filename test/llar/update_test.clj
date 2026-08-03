@@ -1,5 +1,6 @@
 (ns llar.update-test
   (:require
+   [clojure.string :as string]
    [clojure.test :refer [deftest is use-fixtures]]
    [llar.config :as config]
    [llar.fetch.feed]
@@ -194,3 +195,26 @@
           (is (= :fetch (:stage entry)) "http/fetch runs during the :fetch stage"))
         (is (empty? (work/in-flight))
             "the entry must be gone once the update finishes")))))
+
+(deftest update-runs-on-the-bounded-source-pool
+  ;; The bound has to be global. dashboard.clj wraps update! in a future, so if update!
+  ;; ran inline the fetch would land on clojure's unbounded send-off pool and every
+  ;; manual update would escape the source-pool limit.
+  (let [source-key :pool-thread
+        source (src/feed "https://example.com/feed.xml")
+        fetch-thread (atom nil)]
+    (with-redefs [uut/state (atom (source-state source-key :ok))
+                  config/get-source (constantly {:src source})
+                  http/fetch (fn [& _]
+                               (reset! fetch-thread (.getName (Thread/currentThread)))
+                               {:status :not-modified :conditional-tokens nil})]
+      (is (= :ok @(future (uut/update! source-key :skip-proc true :skip-store true))))
+      (is (string/starts-with? (str @fetch-thread) "llar-source-update-")
+          (str "fetch ran on " @fetch-thread)))))
+
+(deftest update-propagates-validation-errors-through-the-pool
+  ;; submitting through an executor must not turn a thrown selector into an
+  ;; ExecutionException, or callers stop being able to classify it
+  (with-redefs [config/get-source (constantly nil)
+                config/get-sources (constantly {})]
+    (is (thrown? clojure.lang.ExceptionInfo (uut/update! :no-such-source)))))

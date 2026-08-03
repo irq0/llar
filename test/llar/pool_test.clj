@@ -195,3 +195,14 @@
       (is (= 1 (:limit (uut/sample pool))))
       (finally
         (uut/shutdown! pool)))))
+
+(deftest call-on-runs-a-single-call-on-the-pool
+  (let [pool (uut/make-pool :call-on-test 2)]
+    (try
+      (is (= :value (uut/call-on pool (constantly :value))))
+      (is (re-find #"^llar-call-on-test-"
+                   (uut/call-on pool #(.getName (Thread/currentThread)))))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"boom"
+                            (uut/call-on pool #(throw (ex-info "boom" {})))))
+      (finally
+        (uut/shutdown! pool)))))

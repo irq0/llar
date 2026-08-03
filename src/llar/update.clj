@@ -493,9 +493,13 @@
       {:source-key k :outcome :skipped :reason :already-in-flight :status :updating})))
 
 (defn update!
-  "Update feed by id. Returns the resulting status keyword."
+  "Update feed by id on the bounded source pool. Returns the resulting status keyword.
+
+  Submitting here rather than inside `update-outcome!` keeps the bound global without
+  nesting: `update-sources!` already runs on the pool and calls `update-outcome!`
+  directly, so a pool thread never ends up waiting for another pool slot."
   [k & args]
-  (:status (apply update-outcome! k args)))
+  (:status (pool/call-on pool/source-pool #(apply update-outcome! k args))))
 
 (defn updateable-sources []
   (into {} (filter #(satisfies? fetch/FetchSource (:src (val %))) (config/get-sources))))
