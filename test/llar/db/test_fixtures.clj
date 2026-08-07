@@ -55,6 +55,7 @@
   [container]
   {:store :database
    :migration-dir "migrations/"
+   :command-separator "--;;"
    :init-script "init.sql"
    :db {:dbtype "postgresql"
         :dbname "llar_test"

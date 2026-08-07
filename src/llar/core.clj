@@ -130,6 +130,7 @@
         (let [config {:store :database
                       :db store/backend-db
                       :migration-dir "migrations/"
+                      :command-separator "--;;"
                       :init-script "init.sql"}]
           (log/info "initializing database" config)
           (log/info (migratus/init config))
@@ -143,7 +144,8 @@
 
     (let [config {:store :database
                   :db store/backend-db
-                  :migration-dir "migrations/"}
+                  :migration-dir "migrations/"
+                  :command-separator "--;;"}
           result (migratus/migrate config)]
       (log/info "database migrations: " (if (nil? result) "ok" result)))
 
