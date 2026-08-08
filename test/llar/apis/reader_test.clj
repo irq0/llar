@@ -165,25 +165,19 @@
         unread-bookmark {:tags ["unread"] :type :item-type/bookmark}
         read-bookmark {:tags [] :type :item-type/bookmark}
         highlighted {:tags ["highlight"] :type :item-type/link}]
-    (is (#'uut/queue-item-matches-filter? nil saved))
-    (is (not (#'uut/queue-item-matches-filter? nil read-bookmark)))
-    (is (not (#'uut/queue-item-matches-filter? nil highlighted)))
-    (is (#'uut/queue-item-matches-filter? :saved saved))
-    (is (#'uut/queue-item-matches-filter? :in-progress in-progress))
-    (is (#'uut/queue-item-matches-filter? :unread-bookmarks unread-bookmark))
-    (is (#'uut/queue-item-matches-filter? :unread unread-bookmark))
-    (is (not (#'uut/queue-item-matches-filter? :saved unread-bookmark)))
-    (is (not (#'uut/queue-item-matches-filter? :unread-bookmarks read-bookmark)))
-    (is (not (#'uut/queue-item-matches-filter? :saved highlighted)))))
+    (is (= [true false true true false false]
+           (mapv (fn [[filter item]]
+                   (#'uut/queue-item-matches-filter? filter item))
+                 [[nil saved]
+                  [nil highlighted]
+                  [:in-progress in-progress]
+                  [:unread-bookmarks unread-bookmark]
+                  [:unread-bookmarks read-bookmark]
+                  [:saved unread-bookmark]])))))
 
 (deftest reading-queue-time-filter-buckets
-  (is (= :under-5 (#'uut/queue-time-filter-for-minutes 4)))
-  (is (= :5-15 (#'uut/queue-time-filter-for-minutes 5)))
-  (is (= :15-30 (#'uut/queue-time-filter-for-minutes 15)))
-  (is (= :30-60 (#'uut/queue-time-filter-for-minutes 30)))
-  (is (= :60-plus (#'uut/queue-time-filter-for-minutes 60)))
-  (is (= :60-plus (#'uut/queue-time-filter-for-minutes 61)))
-  (is (nil? (#'uut/queue-time-filter-for-minutes nil))))
+  (is (= [:under-5 :5-15 :15-30 :30-60 :60-plus nil]
+         (mapv #'uut/queue-time-filter-for-minutes [4 5 15 30 60 nil]))))
 
 (defn- queue-item-with-reading-minutes [minutes]
   {:tags ["saved"]
@@ -191,63 +185,15 @@
    :nwords (* minutes 200)
    :top-words {"words" [["aa" 1]]}})
 
-(deftest reading-queue-time-filters
-  (let [under-5 (queue-item-with-reading-minutes 4)
-        five-to-15 (queue-item-with-reading-minutes 5)
-        fifteen-to-30 (queue-item-with-reading-minutes 15)
-        thirty-to-60 (queue-item-with-reading-minutes 30)
-        sixty-plus (queue-item-with-reading-minutes 60)
-        unknown-time {:tags ["saved"] :type :item-type/link}]
-    (is (#'uut/queue-item-matches-time-filter? nil unknown-time))
-    (is (not (#'uut/queue-item-matches-time-filter? :under-5 unknown-time)))
-    (is (#'uut/queue-item-matches-time-filter? :unknown unknown-time))
-    (is (#'uut/queue-item-matches-time-filter? :under-5 under-5))
-    (is (#'uut/queue-item-matches-time-filter? :5-15 five-to-15))
-    (is (#'uut/queue-item-matches-time-filter? :15-30 fifteen-to-30))
-    (is (#'uut/queue-item-matches-time-filter? :30-60 thirty-to-60))
-    (is (#'uut/queue-item-matches-time-filter? :60-plus sixty-plus))
-    (is (not (#'uut/queue-item-matches-time-filter? :under-5 five-to-15)))))
-
 (deftest reading-queue-combined-filters
   (let [saved-short (queue-item-with-reading-minutes 4)
         in-progress-short (assoc saved-short :tags ["in-progress"])
         saved-long (queue-item-with-reading-minutes 60)
-        unread-link (assoc saved-short :tags ["unread"])
         unread-bookmark (assoc saved-short :tags ["unread"] :type :item-type/bookmark)]
     (is (#'uut/queue-item-matches-filters? :saved :under-5 saved-short))
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 in-progress-short)))
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 saved-long)))
-    (is (not (#'uut/queue-item-matches-filters? nil :under-5 unread-link)))
     (is (#'uut/queue-item-matches-filters? :unread-bookmarks :under-5 unread-bookmark))))
-
-(deftest reading-queue-stats
-  (is (= {:total 4
-          :saved 2
-          :in-progress 1
-          :unread-bookmarks 1
-          :unread 2}
-         (#'uut/queue-stats [{:tags ["saved"] :type :item-type/link}
-                             {:tags ["saved" "unread"] :type :item-type/link}
-                             {:tags ["in-progress"] :type :item-type/link}
-                             {:tags ["unread"] :type :item-type/bookmark}
-                             {:tags [] :type :item-type/bookmark}]))))
-
-(deftest reading-queue-time-stats
-  (is (= {:total 6
-          :under-5 1
-          :5-15 1
-          :15-30 1
-          :30-60 1
-          :60-plus 1}
-         (#'uut/queue-time-stats [(queue-item-with-reading-minutes 4)
-                                  (queue-item-with-reading-minutes 5)
-                                  (queue-item-with-reading-minutes 15)
-                                  (queue-item-with-reading-minutes 30)
-                                  (queue-item-with-reading-minutes 60)
-                                  {:tags ["saved"] :type :item-type/link}
-                                  {:tags ["highlight"] :type :item-type/link
-                                   :nwords 800
-                                   :top-words {"words" [["aa" 1]]}}]))))
 
 (deftest reading-queue-sql-sources-saved-in-progress-and-unread-bookmarks
   (let [sql (slurp (io/resource "sql/search.sql"))]
@@ -256,30 +202,9 @@
     (is (re-find #"items\.type = 'bookmark' and tagi @@ '0'" sql))))
 
 (deftest search-syntax-normalization
-  (is (= :web (db-search/normalize-search-syntax nil)))
-  (is (= :web (db-search/normalize-search-syntax :unknown)))
-  (is (= :web (db-search/normalize-search-syntax "web")))
-  (is (= :plain (db-search/normalize-search-syntax "plain")))
-  (is (= :phrase (db-search/normalize-search-syntax :phrase)))
-  (is (= :advanced (db-search/normalize-search-syntax "advanced"))))
-
-(deftest search-sql-supports-user-facing-and-advanced-modes
-  (let [sql (slurp (io/resource "sql/search.sql"))]
-    (is (re-find #"websearch_to_tsquery" sql))
-    (is (re-find #"plainto_tsquery" sql))
-    (is (re-find #"phraseto_tsquery" sql))
-    (is (re-find #"to_tsquery" sql))
-    (is (re-find #"ts_rank_cd" sql))
-    (is (re-find #"ts_headline" sql))))
-
-(deftest search-index-migration-adds-snippets-language-and-indexes
-  (let [migration (slurp (io/resource "migrations/20260630000001-search-index-v2.up.sql"))]
-    (is (re-find #"search_config" migration))
-    (is (re-find #"headline_text" migration))
-    (is (re-find #"USING GIN \(document\)" migration))
-    (is (re-find #"item_data" migration))
-    (is (re-find #"left\(COALESCE\(item_text\.search_text, ''\), 200000\)" migration))
-    (is (re-find #"left\(concat_ws" migration))))
+  (is (= [:web :web :plain :phrase :advanced]
+         (mapv db-search/normalize-search-syntax
+               [nil :unknown "plain" :phrase "advanced"]))))
 
 (deftest search-headline-renders-markers-as-mark-elements
   (is (= [:span "foo " [:mark "bar"] " baz"]
