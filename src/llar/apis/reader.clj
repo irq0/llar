@@ -219,6 +219,19 @@
        (string/join "/" path)
        (str (string/join "/" path) "?" query-string)))))
 
+(defn show-item-href
+  "Build the item-detail URL for an item in the current reader context."
+  [x item]
+  (when-let [id (:id item)]
+    (make-site-href ["/reader/group"
+                     (name (or (:group-name x) :default))
+                     (name (or (:group-item x) :none))
+                     "source"
+                     (name (or (:source-key x) :all))
+                     "item/by-id"
+                     id]
+                    x)))
+
 (defn html-header [title mode item]
   [:head
    [:meta {:charset "utf-8"}]
@@ -359,7 +372,9 @@
             [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
              source-key]]))
        (when (= mode :show-item)
-         [:li {:class "breadcrumb-item"} (-> items first :title)])]
+         (let [item (first items)]
+           [:li {:class "breadcrumb-item"}
+            [:a {:href (show-item-href x item)} (:title item)]]))]
 
       (when-not (= mode :tools)
         [:div {:class "navbar-list row justify-content-between col-xs-12 col-md-3 col-lg-2"}
@@ -667,6 +682,13 @@
       [:p {:style "white-space: pre-line"} (get-in doc [:data sel-descr sel-content-type])]
       (some-> (get-in doc [:data sel-descr sel-content-type]) h/raw))))
 
+(defn related-button [id]
+  [:a {:class "btn"
+       :title "Find related items"
+       :aria-label "Find related items"
+       :href (str "/reader/item/by-id/" id "/related")}
+   (icon "fas fa-project-diagram")])
+
 (defn main-show-item
   "Show Item View"
   [x]
@@ -704,6 +726,7 @@
             :role "button"
             :class "btn"}
         "\u00a0" (icon "fas fa-external-link-alt")]
+       (related-button id)
        [:a {:class "btn"
             :title "Show internal data representation of this item"
             :href (make-site-href [id "dump"] x)}
@@ -1073,6 +1096,7 @@
        (tags-button-modal id tags)
        [:a {:class "btn" :href url}
         "\u00a0" (icon "fas fa-external-link-alt")]
+       (related-button id)
        [:a {:class "btn"
             :title "Show internal data representation of this item"
             :href (make-site-href [link-prefix "item/by-id" id "dump"] x)}
@@ -1146,6 +1170,7 @@
              [:li
               [:a {:class "btn" :href url}
                (icon "fas fa-external-link-alt")]
+              (related-button id)
               [:a {:class "btn"
                    :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
                                                                                 :content-type "text/html"} x)}
@@ -1199,7 +1224,8 @@
            [:div {:class "card-footer toolbox"}
             (concat
              [[:a {:class "btn" :href url}
-               (icon "fas fa-external-link-alt")]]
+               (icon "fas fa-external-link-alt")]
+              (related-button id)]
              (for [btn (tag-buttons)
                    :when (show-button-in-this-view? x btn)]
                (tag-button id
@@ -1481,6 +1507,23 @@
      (throw+ {:type ::gather-data-error
               :params index-params}))))
 
+(defn- render-reader-shell [params main-content title]
+  (let [focus? (= :focus-item (:mode params))
+        nav-bar (when-not focus? (nav-bar params))
+        group-nav (when-not focus? (group-nav params))
+        source-nav (when-not focus? (source-nav params))]
+    (html5
+     (html-header title (:mode params) (first (:items params)))
+     [:body
+      (concat
+       [nav-bar]
+       [[:div {:class "container-fluid"}
+         [:div {:class "row"}
+          group-nav
+          main-content
+          source-nav]]]
+       (html-footer))])))
+
 (defn reader-index
   "Reader Entrypoint"
   ([]
@@ -1489,26 +1532,8 @@
    (log/debug "reader: " index-params)
    (let [params (gather-reader-index-data index-params)]
      (try+
-      (let [{:keys [mode]} params
-            nav-bar (when-not (= :focus-item mode) (nav-bar params))
-            group-nav (when-not (= :focus-item mode) (group-nav params))
-            main-view (main-view params)
-            source-nav (when-not (= :focus-item mode) (source-nav params))
-            title (short-page-headline params)
-
-            html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
-                   (html5
-                    (html-header title (:mode params) (some-> params :items first))
-                    [:body
-                     (concat
-                      [nav-bar]
-                      [[:div {:class "container-fluid"}
-                        [:div {:class "row"}
-                         group-nav
-                         main-view
-                         source-nav]]]
-                      (html-footer))]))]
-        html)
+      (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
+        (render-reader-shell params (main-view params) (short-page-headline params)))
       (catch Object _
         (throw+ {:type ::render-error
                  :params index-params
@@ -1857,6 +1882,70 @@
               (when-not (string/blank? s) [s])))]
     (into [:span] (render-parts headline))))
 
+(defn reader-related [item-id]
+  (if-let [{:keys [item results query]} (db-search/related-items frontend-db item-id)]
+    (let [offered-results (mapv #(assoc % :reasons [:lexical-match]) results)
+          offers (persistency/record-results-offered!
+                  frontend-db offered-results
+                  (events/context :related :related-generated
+                    {:seed-item-id item-id
+                     :query query
+                     :generator "postgres-full-text"
+                     :feature-version 1}))
+          results (mapv #(assoc %1 :offer-id (:id %2)) results offers)
+          params (gather-reader-index-data
+                  {:uri (str "/reader/item/by-id/" item-id "/related")
+                   :group-name :default
+                   :group-item :none
+                   :source-key :all
+                   :item-id item-id
+                   :mode :show-item})
+          view [:main {:role "main" :class "col-xs-12 col-md-6 col-lg-8"}
+                [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+                 [:h2 "Related to “" (:title item) "”"]
+                 [:p {:class "text-secondary"}
+                  "Ranked by lexical overlap. Titles count most; names and nouns count next; "
+                  "verbs, body text, author, and URLs count less. Relative scores compare with "
+                  "the strongest result in this list."]
+                 (if (seq results)
+                   [:div {:class "list-group list-group-flush"}
+                    (for [{:keys [title key rank title-rank relative-score matched-terms
+                                  id ts headline offer-id]} results]
+                      [:div {:class "list-group-item px-0 py-3"}
+                       [:div {:class "d-flex w-100 justify-content-between"}
+                        [:h5 {:class "mb-1"}
+                         [:a {:class "link-dark result-offer"
+                              :data-offer-id offer-id
+                              :href (make-site-href
+                                     ["/reader/group/default/none/source/all/item/by-id" id]
+                                     {:mark :read :offer offer-id}
+                                     params)}
+                          title]]
+                        [:small {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
+                       [:div {:class "d-flex flex-wrap gap-1 align-items-center small mb-1"}
+                        [:span {:class "badge bg-primary"
+                                :title "Lexical score relative to the strongest result shown"}
+                         (format "%.0f%% of top" (* 100.0 (double (or relative-score 0.0))))]
+                        [:span {:class "badge bg-light text-dark"
+                                :title "PostgreSQL normalized full-text rank"}
+                         (format "search %.3f" (double (or rank 0.0)))]
+                        (when (pos? (double (or title-rank 0.0)))
+                          [:span {:class "badge bg-info text-dark"
+                                  :title "Matching words occur in the title, the highest-weight field"}
+                           (format "title %.3f" (double title-rank))])
+                        [:span {:class "text-secondary ms-1"} key]]
+                       (when (seq matched-terms)
+                         [:div {:class "small mb-1"}
+                          [:span {:class "text-secondary"} "Matched: "]
+                          (for [term matched-terms]
+                            [:span {:class "badge bg-secondary me-1"} term])])
+                       (when-not (string/blank? headline)
+                         [:div {:class "small mt-1"} (render-search-headline headline)])])]
+                   [:p {:class "text-secondary"}
+                    "No sufficiently strong lexical matches yet."])]]]
+      (render-reader-shell params view (str "Related — " (:title item))))
+    {:status 404 :body "Item not found"}))
+
 (defn reader-record-impressions [offer-ids]
   (let [ids (->> (string/split (or offer-ids "") #",")
                  (keep parse-long)
@@ -2166,6 +2255,9 @@
          (reader-export-zotero item-id))
        (GET "/:item-id/url-handler" [item-id :<< as-int]
          (reader-export-url-handler item-id)))
+
+     (GET "/item/by-id/:item-id/related" [item-id :<< as-int]
+       (reader-related item-id))
 
      (POST "/bookmark/add"
        [url type :<< as-keyword]

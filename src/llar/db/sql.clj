@@ -46,6 +46,7 @@
  get-type-stats
  get-table-row-counts
  search-item
+ item-tf-idf-terms
  saved-items-tf-idf
  saved-items-tf-idf-terms
  conflict-items-overwrite-snip

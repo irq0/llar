@@ -15,10 +15,10 @@ with query as (
     end as german
 ), matches as (
 select
-  id,
-  title,
-  key,
-  ts,
+  search_index.id,
+  search_index.title,
+  search_index.key,
+  search_index.ts,
   :syntax as syntax,
   case search_config
     when 'german' then query.german
@@ -32,8 +32,8 @@ where document @@ case search_config
   when 'german' then query.german
   else query.english
 end
---~ (when (:time-ago params) "and ts > :time-ago")
---~ (when (:source-key params) "and key = :source-key")
+--~ (when (:time-ago params) "and search_index.ts > :time-ago")
+--~ (when (:source-key params) "and search_index.key = :source-key")
 )
 select
   id,
@@ -42,6 +42,11 @@ select
   ts,
   syntax,
   ts_rank_cd(document, q, 32) as rank,
+  ts_rank_cd(
+    to_tsvector(search_config::regconfig, COALESCE(title, '')),
+    q,
+    32
+  ) as title_rank,
   ts_headline(
     search_config::regconfig,
     headline_text,
@@ -67,6 +72,17 @@ from
 inner join
   idf_top_words on (term_tf->0 = idf_top_words.term)
 group by id
+
+-- :name item-tf-idf-terms :? :*
+select term_tf->>0 as term,
+       (term_tf->>1)::float * idf_top_words.ln as score
+from items,
+     lateral jsonb_array_elements(nlp_top->'words') as term_tf
+inner join idf_top_words on term_tf->0 = idf_top_words.term
+where items.id = :item-id
+  and length(term_tf->>0) > 2
+order by score desc
+limit 20
 
 
 -- :name saved-items-tf-idf-terms :? :raw

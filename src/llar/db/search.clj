@@ -70,3 +70,76 @@
     {:min-tf-idf min-tf-idf})
    first
    :array_agg))
+
+(defn- useful-term? [term]
+  (and (string? term)
+       (<= 3 (count (string/trim term)) 80)
+       (re-find #"[\p{L}\p{N}]" term)))
+
+(defn- quote-websearch-term [term]
+  (str "\"" (string/replace (string/trim term) "\"" "") "\""))
+
+(defn- related-query [item tf-idf-terms]
+  (let [title-terms (some->> (:title item)
+                             (re-seq #"[\p{L}\p{N}][\p{L}\p{N}-]{3,}")
+                             (take 8))
+        top-terms (map :term tf-idf-terms)
+        named-terms (concat (take 8 (:names item))
+                            (take 8 (:nouns item)))]
+    (->> (concat named-terms title-terms top-terms)
+         (filter useful-term?)
+         distinct
+         (take 24)
+         (map quote-websearch-term)
+         (string/join " OR "))))
+
+(defn- cap-per-source [limit rows]
+  (second
+   (reduce (fn [[counts result] row]
+             (let [source (:key row)
+                   seen (get counts source 0)]
+               (if (or (>= seen limit) (>= (count result) 20))
+                 [counts result]
+                 [(assoc counts source (inc seen)) (conj result row)])))
+           [{} []]
+           rows)))
+
+(defn- highlighted-terms [headline]
+  (->> (re-seq #"\[\[\[(.+?)\]\]\]" (or headline ""))
+       (map (comp string/trim second))
+       (remove string/blank?)
+       (reduce (fn [terms term]
+                 (if (some #(= (string/lower-case %) (string/lower-case term)) terms)
+                   terms
+                   (conj terms term)))
+               [])))
+
+(defn- add-related-evidence [rows]
+  (let [top-rank (double (or (:rank (first rows)) 0.0))]
+    (mapv (fn [row]
+            (assoc row
+                   :relative-score (if (pos? top-rank)
+                                     (/ (double (or (:rank row) 0.0)) top-rank)
+                                     0.0)
+                   :matched-terms (highlighted-terms (:headline row))))
+          rows)))
+
+(defn related-items
+  "Return a deliberately simple lexical neighborhood from the current search
+  index. Index refresh cadence is accepted as part of this feature's contract."
+  [db item-id]
+  (when-let [item (sql/get-item-by-id db {:id item-id
+                                          :select (sql/item-select-default-snip)
+                                          :from (sql/item-from-join-default-snip)})]
+    (let [tf-idf-terms (sql/item-tf-idf-terms db {:item-id item-id})
+          query (related-query item tf-idf-terms)
+          matches (if (string/blank? query)
+                    []
+                    (sql/search-item db {:query query :syntax "web"}))]
+      {:item item
+       :query query
+       :results (->> matches
+                     (remove #(= item-id (:id %)))
+                     (filter #(>= (double (or (:rank %) 0.0)) 0.01))
+                     (cap-per-source 3)
+                     add-related-evidence)})))
