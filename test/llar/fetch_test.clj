@@ -160,11 +160,11 @@
                                             :timeouts {:readability 30
                                                        :av-downloader 600
                                                        :html2text 30}
-                                            :commands {:pandoc "/bin/true"
-                                                       :w3m "/bin/true"
-                                                       :lynx "/bin/true"
-                                                       :av-downloader "/bin/true"
-                                                       :html2text "/bin/true"}
+                                            :commands {:pandoc "true"
+                                                       :w3m "true"
+                                                       :lynx "true"
+                                                       :av-downloader "true"
+                                                       :html2text "true"}
                                             :blob-store-dir "/tmp"}
                      #'reader/frontend-db nil
                      #'store/backend-db nil

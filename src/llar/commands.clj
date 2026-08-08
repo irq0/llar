@@ -38,7 +38,7 @@
              (.delete path#)))))))
 
 (defn sh+timeout [timeout-secs args & opts]
-  (let [cmd (into ["/bin/timeout" (str "--kill-after=" +kill-timeout-secs+ "s")
+  (let [cmd (into ["timeout" (str "--kill-after=" +kill-timeout-secs+ "s")
                    (str timeout-secs "s")] args)
         sh-arg (apply concat cmd (when opts (apply concat opts)))
         {:keys [exit out err] :as ret} (apply shell/sh sh-arg)]

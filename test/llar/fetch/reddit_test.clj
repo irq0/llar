@@ -35,10 +35,10 @@
                        :throttle {:command-max-concurrent 10}
                        :timeouts {:html2text 30}
                        ;; the 4xx error path renders the body via html2text
-                       :commands {:lynx "/bin/true"
-                                  :w3m "/bin/true"
-                                  :pandoc "/bin/true"
-                                  :html2text "/bin/true"}}
+                       :commands {:lynx "true"
+                                  :w3m "true"
+                                  :pandoc "true"
+                                  :html2text "true"}}
                       #'reader/frontend-db nil
                       #'store/backend-db nil
                       #'repl/nrepl-server nil})))
