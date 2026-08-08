@@ -35,7 +35,51 @@
       (is (= 2 (count clusters)))
       (is (= 2 (:article-count cross-source)))
       (is (= 2 (:unseen-count cross-source)))
+      (is (> (:match-score cross-source) 0.15))
       (is (some #{"election"} (:terms cross-source))))))
+
+(deftest selection-prefers-strong-cross-source-stories-and-has-a-hard-budget
+  (let [now (time/zoned-date-time)
+        cluster (fn [id source-count article-count match-score age-minutes]
+                  {:id id
+                   :source-count source-count
+                   :article-count article-count
+                   :unseen-count article-count
+                   :match-score match-score
+                   :latest-ts (time/minus now (time/minutes age-minutes))})
+        clusters [(cluster 1 3 3 0.8 30)
+                  (cluster 2 2 2 0.3 10)
+                  (cluster 3 2 2 0.1 5)
+                  (cluster 4 1 1 nil 1)
+                  (cluster 5 1 1 nil 20)]]
+    (with-redefs [rc/rc (fn [& _]
+                          (assoc settings
+                                 :min-match-score 0.15
+                                 :max-clusters 3
+                                 :max-single-source-clusters 1))]
+      (let [selection (vibe/select-clusters clusters)]
+        (is (= [1 2] (mapv :id (:multi-source selection))))
+        (is (= [4] (mapv :id (:other selection))))
+        (is (= 3 (:shown-count selection)))
+        (is (= 5 (:total-count selection)))))))
+
+(deftest very-common-features-do-not-drive-clustering
+  (let [now (time/zoned-date-time)
+        items (mapv (fn [id]
+                      {:id id
+                       :title (str "Unique headline " id)
+                       :top-words {:words (cond-> [["news" 1.0]]
+                                            (< id 2) (conj ["election" 1.0]))}
+                       :names []
+                       :nouns []
+                       :urls []
+                       :ts now})
+                    (range 10))]
+    (with-redefs [rc/rc (fn [& _]
+                          (assoc settings :max-feature-frequency-ratio 0.2))]
+      (let [features (#'vibe/weighted-features items)]
+        (is (not-any? #(contains? % "term:news") features))
+        (is (every? #(contains? % "term:election") (take 2 features)))))))
 
 (deftest stale-run-cannot-resolve-cluster
   (with-redefs [vibe/current-vibe

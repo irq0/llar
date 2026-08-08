@@ -13,6 +13,7 @@
                   :generated-at now
                   :clusters [{:id 0 :representative-id 1
                               :source-count 2 :article-count 2 :unseen-count 1
+                              :match-score 0.75
                               :latest-ts now :terms ["election"]
                               :items [{:id 1 :title "Election result" :source-key "a"
                                        :ts now :tags ["unread"]}
@@ -35,6 +36,7 @@
         (is (re-find #"Election result" rendered))
         (is (re-find #"<small class=\"text-secondary ms-2\">a</small>" rendered))
         (is (re-find #"data-vibe-cluster-id=\"0\"" rendered))
+        (is (re-find #"75% lexical match" rendered))
         (is (re-find #"data-vibe-terms=\"election\"" rendered))
         (is (re-find #"data-offer-id=\"101\"" rendered))
         (is (re-find #"action=\"/reader/tools/todays-vibe/seen\"" rendered))

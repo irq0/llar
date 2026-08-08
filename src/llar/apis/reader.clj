@@ -2005,6 +2005,7 @@
     [:article {:class "card mb-3"
                :data-vibe-cluster-id (:id cluster)
                :data-vibe-source-count (:source-count cluster)
+               :data-vibe-match-score (:match-score cluster)
                :data-vibe-terms (string/join "," (:terms cluster))}
      [:div {:class "card-body"}
       [:div {:class "d-flex justify-content-between"}
@@ -2019,7 +2020,9 @@
         (human/datetime-ago-short (:latest-ts cluster))]]
       [:p {:class "text-secondary"}
        (:source-count cluster) " sources · " (:article-count cluster) " articles · "
-       (:unseen-count cluster) " unseen"]
+       (:unseen-count cluster) " unseen"
+       (when-let [match-score (:match-score cluster)]
+         (format " · %.0f%% lexical match" (* 100 match-score)))]
       [:p (for [term (:terms cluster)]
             [:span {:class "badge bg-light text-dark me-1"} term])]
       [:p (for [source (distinct (map :source-key (:items cluster)))]
@@ -2051,8 +2054,9 @@
       (let [clusters (if include-seen?
                        (:clusters snapshot)
                        (filterv #(pos? (:unseen-count %)) (:clusters snapshot)))
-            multi-source (filter #(>= (:source-count %) 2) clusters)
-            other (filter #(< (:source-count %) 2) clusters)
+            {:keys [multi-source other shown-count total-count]}
+            (vibe/select-clusters clusters)
+            clusters (into multi-source other)
             offered-items (mapv #(assoc % :reasons [:story-cluster])
                                 (mapcat ordered-cluster-items clusters))
             offers (persistency/record-results-offered!
@@ -2060,7 +2064,7 @@
                     (events/context :today-vibe :vibe-generated
                       {:run-id (:run-id snapshot)
                        :generator "weka-cobweb"
-                       :feature-version 1}))
+                       :feature-version (or (:feature-version snapshot) 1)}))
             offers-by-cluster (loop [remaining offers
                                      clusters clusters
                                      result []]
@@ -2081,6 +2085,10 @@
                                      {:include-seen (when-not include-seen? true)}
                                      x)}
            (if include-seen? "Hide fully seen" "Include fully seen")]]
+         [:p {:class "text-secondary small"}
+          "Showing " shown-count " of " total-count
+          " quality-ranked clusters (maximum "
+          (:max-clusters (merge {:max-clusters 12} (rc/rc [:reader :vibe]))) ")."]
          [:h2 "Reported across sources"]
          (if (seq multi-source)
            (for [cluster multi-source]

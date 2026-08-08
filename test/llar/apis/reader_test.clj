@@ -74,6 +74,7 @@
                   :generated-at now
                   :clusters [{:id 0 :representative-id 1
                               :source-count 2 :article-count 2 :unseen-count 1
+                              :match-score 0.75
                               :latest-ts now :terms ["election"]
                               :items [{:id 1 :title "Election result" :source-key "a"
                                        :ts now :tags ["unread"]}

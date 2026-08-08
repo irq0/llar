@@ -15,6 +15,15 @@
 (def not-compiled ::not-compiled)
 (def current-vibe (atom not-compiled))
 
+(def ^:private tuning-defaults
+  {:max-feature-frequency-ratio 0.2
+   :min-match-score 0.15
+   :max-clusters 12
+   :max-single-source-clusters 4})
+
+(defn- tuning-settings []
+  (merge tuning-defaults (rc/rc [:reader :vibe])))
+
 (defn- recent-candidates [db]
   (let [{:keys [hours limit source-tags]} (rc/rc [:reader :vibe])
         cutoff (time/minus (time/zoned-date-time) (time/hours hours))
@@ -51,14 +60,16 @@
 (defn- weighted-features [items]
   (let [raw (mapv raw-features items)
         n (count raw)
-        df (frequencies (mapcat keys (map #(into {} (map (fn [[k _]] [k 1]) %)) raw)))]
+        df (frequencies (mapcat keys raw))
+        max-common-count (max 5 (long (Math/ceil
+                                       (* n (:max-feature-frequency-ratio
+                                             (tuning-settings))))))]
     (mapv (fn [features]
             (into {}
                   (for [[feature value] features
                         :let [freq (get df feature 0)]
                         :when (and (>= freq 2)
-                                   (or (not (string/starts-with? feature "url:"))
-                                       (<= freq (max 2 (quot n 3)))))]
+                                   (<= freq max-common-count))]
                     [feature (* value (+ 1.0 (Math/log (/ (inc n) (inc freq)))))])))
           raw)))
 
@@ -95,6 +106,14 @@
       0.0
       (/ dot (* left-norm right-norm)))))
 
+(defn- mean-pairwise-cosine [feature-maps]
+  (let [pairs (for [left-index (range (count feature-maps))
+                    right-index (range (inc left-index) (count feature-maps))]
+                (cosine (nth feature-maps left-index)
+                        (nth feature-maps right-index)))]
+    (when (seq pairs)
+      (/ (reduce + pairs) (count pairs)))))
+
 (defn- summarize-cluster [id pairs]
   (let [items (mapv first pairs)
         feature-maps (map second pairs)
@@ -108,13 +127,15 @@
                                         (- (.getEpochSecond (.toInstant (:ts item))))
                                         (:id item)]))
                             ffirst)
-        sources (set (map :source-key items))]
+        sources (set (map :source-key items))
+        match-score (mean-pairwise-cosine feature-maps)]
     {:id id
      :items items
      :representative-id (:id representative)
      :source-count (count sources)
      :article-count (count items)
      :unseen-count (count (filter #(some #{"unread"} (:tags %)) items))
+     :match-score match-score
      :terms (->> feature-totals
                  (sort-by val >)
                  (map (comp display-term key))
@@ -131,7 +152,7 @@
           clusterable (filterv (comp seq second) pairs)
           unsupported (filterv (comp empty? second) pairs)
           {:keys [dataset]} (make-dataset (mapv second clusterable))
-          settings (rc/rc [:reader :vibe])
+          settings (tuning-settings)
           assignments (if (< (count clusterable) 2)
                         [0]
                         (let [clusterer (ml-clusterers/make-clusterer
@@ -151,6 +172,46 @@
             (range)
             all-groups))))
 
+(defn- latest-epoch [{:keys [latest-ts]}]
+  (if latest-ts
+    (.getEpochSecond (.toInstant latest-ts))
+    0))
+
+(defn- quality-cluster? [min-match-score {:keys [article-count match-score]}]
+  (or (= 1 article-count)
+      (and match-score (>= match-score min-match-score))))
+
+(defn- multi-source-rank [cluster]
+  [(- (or (:match-score cluster) 0.0))
+   (- (:source-count cluster))
+   (- (:article-count cluster))
+   (- (:unseen-count cluster))
+   (- (latest-epoch cluster))])
+
+(defn- single-source-rank [cluster]
+  [(- (:unseen-count cluster))
+   (- (latest-epoch cluster))
+   (- (:article-count cluster))])
+
+(defn select-clusters
+  "Quality-rank and budget clusters for the reader without discarding the raw snapshot."
+  [clusters]
+  (let [{:keys [min-match-score max-clusters max-single-source-clusters]}
+        (tuning-settings)
+        quality-clusters (filter #(quality-cluster? min-match-score %) clusters)
+        multi-source (sort-by multi-source-rank
+                              (filter #(>= (:source-count %) 2) quality-clusters))
+        selected-multi (take max-clusters multi-source)
+        remaining (- max-clusters (count selected-multi))
+        single-budget (min remaining max-single-source-clusters)
+        other (sort-by single-source-rank
+                       (filter #(< (:source-count %) 2) quality-clusters))
+        selected-other (take single-budget other)]
+    {:multi-source (vec selected-multi)
+     :other (vec selected-other)
+     :shown-count (+ (count selected-multi) (count selected-other))
+     :total-count (count clusters)}))
+
 (defn build! [db]
   (try
     (locking current-vibe
@@ -159,7 +220,7 @@
                       :generated-at (time/zoned-date-time)
                       :window-hours (get (rc/rc [:reader :vibe]) :hours)
                       :algorithm :cobweb
-                      :feature-version 1
+                      :feature-version 2
                       :clusters (cluster-items items)}]
         (reset! current-vibe snapshot))
       @current-vibe)

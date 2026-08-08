@@ -36,13 +36,23 @@
 (s/def :irq0-appconfig/acuity number?)
 (s/def :irq0-appconfig/cutoff number?)
 (s/def :irq0-appconfig/random-seed int?)
+(s/def :irq0-appconfig/max-feature-frequency-ratio
+  (s/and number? #(<= 0 % 1)))
+(s/def :irq0-appconfig/min-match-score
+  (s/and number? #(<= 0 % 1)))
+(s/def :irq0-appconfig/max-clusters pos-int?)
+(s/def :irq0-appconfig/max-single-source-clusters nat-int?)
 (s/def :irq0-appconfig/vibe
   (s/keys :req-un [:irq0-appconfig/source-tags
                    :irq0-appconfig/hours
                    :irq0-appconfig/limit
                    :irq0-appconfig/acuity
                    :irq0-appconfig/cutoff
-                   :irq0-appconfig/random-seed]))
+                   :irq0-appconfig/random-seed]
+          :opt-un [:irq0-appconfig/max-feature-frequency-ratio
+                   :irq0-appconfig/min-match-score
+                   :irq0-appconfig/max-clusters
+                   :irq0-appconfig/max-single-source-clusters]))
 (s/def :irq0-appconfig/jetty-config
   (s/keys :req-un [:irq0-appconfig/port]))
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
