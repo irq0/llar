@@ -140,16 +140,16 @@
                                           :cutoff (:cutoff settings)
                                           :random-seed (:random-seed settings)})]
                           (ml-clusterers/clusterer-build clusterer dataset)
-                          (mapv #(.clusterInstance clusterer %) dataset)))]
-      (let [supported-clusters (->> (map vector assignments clusterable)
-                                    (group-by first)
-                                    (sort-by key)
-                                    (mapv (fn [[_ assigned]]
-                                            (mapv second assigned))))
-            all-groups (concat supported-clusters (map vector unsupported))]
-        (mapv (fn [idx group] (summarize-cluster idx group))
-              (range)
-              all-groups)))))
+                          (mapv #(.clusterInstance clusterer %) dataset)))
+          supported-clusters (->> (map vector assignments clusterable)
+                                  (group-by first)
+                                  (sort-by key)
+                                  (mapv (fn [[_ assigned]]
+                                          (mapv second assigned))))
+          all-groups (concat supported-clusters (map vector unsupported))]
+      (mapv (fn [idx group] (summarize-cluster idx group))
+            (range)
+            all-groups))))
 
 (defn build! [db]
   (try

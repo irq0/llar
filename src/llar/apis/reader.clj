@@ -2102,8 +2102,7 @@
        (fn [cluster]
          (doseq [item-id (map :id (:items cluster))]
            (persistency/item-remove-tags! frontend-db item-id [:unread]))))
-    (do
-      {:status 303 :headers {"Location" "/reader/tools/todays-vibe"} :body ""})
+    {:status 303 :headers {"Location" "/reader/tools/todays-vibe"} :body ""}
     {:status 409 :body "This Vibe snapshot is stale; reload and try again."}))
 
 (defn- render-opened-reader-item [params context offer-id]
