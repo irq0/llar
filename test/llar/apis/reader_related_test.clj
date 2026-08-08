@@ -12,7 +12,36 @@
     (is (= "Find related items" (get-in button [1 :title])))
     (is (= "Find related items" (get-in button [1 :aria-label])))
     (is (= "/reader/item/by-id/42/related" (get-in button [1 :href])))
-    (is (= "fas fa-project-diagram" (get-in button [2 1 :class])))))
+    (is (= "\u00a0" (nth button 2)))
+    (is (= "fas fa-project-diagram" (get-in button [3 1 :class])))))
+
+(deftest external-link-button-preserves-optional-target
+  (let [same-tab (uut/external-link-button "https://example.test")
+        new-tab (uut/external-link-button "https://example.test" "_blank")]
+    (is (= {:class "btn"
+            :title "Open item URL"
+            :aria-label "Open item URL"
+            :href "https://example.test"}
+           (second same-tab)))
+    (is (= "_blank" (get-in new-tab [1 :target])))
+    (is (= "fas fa-external-link-alt" (get-in same-tab [3 1 :class])))))
+
+(deftest item-toolbox-buttons-share-icon-button-markup
+  (doseq [[button label icon-class]
+          [[(uut/dump-button "/item/dump")
+            "Show internal data representation of this item"
+            "fas fa-code"]
+           [(uut/focus-button "/item/focus")
+            "Show item HTML focus mode"
+            "fas fa-expand"]
+           [(uut/download-button "/item/download")
+            "Open raw HTML content"
+            "fas fa-remove-format"]]]
+    (is (= "btn" (get-in button [1 :class])))
+    (is (= label (get-in button [1 :title])))
+    (is (= label (get-in button [1 :aria-label])))
+    (is (= "\u00a0" (nth button 2)))
+    (is (= icon-class (get-in button [3 1 :class])))))
 
 (deftest related-route-renders-ranked-offer-links
   (let [now (java.time.ZonedDateTime/now)]

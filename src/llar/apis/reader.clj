@@ -195,6 +195,13 @@
 (defn icon [ico & args]
   [:i (assoc (apply hash-map args) :class ico) "\u2009"])
 
+(defn icon-button
+  "Render the common Reader icon-only button markup."
+  [attrs icon-class]
+  [:a (merge {:class "btn"} attrs)
+   "\u00a0"
+   (icon icon-class)])
+
 (extend-protocol FormEncodeable
   clojure.lang.Keyword
   (form-encode* [x encoding]
@@ -408,7 +415,8 @@
            (= mode :show-item)
            [:div {:class "col-xs-8 col-ld-12"}
             (for [btn (tag-buttons)]
-              (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+              (tag-button id (assoc btn
+                                    :is-set? (some #(= % (name (:tag btn))) tags))))
             next-item-button])])]]))
 
 (defn group-list
@@ -683,11 +691,44 @@
       (some-> (get-in doc [:data sel-descr sel-content-type]) h/raw))))
 
 (defn related-button [id]
-  [:a {:class "btn"
-       :title "Find related items"
-       :aria-label "Find related items"
-       :href (str "/reader/item/by-id/" id "/related")}
-   (icon "fas fa-project-diagram")])
+  (icon-button {:title "Find related items"
+                :aria-label "Find related items"
+                :href (str "/reader/item/by-id/" id "/related")}
+               "fas fa-project-diagram"))
+
+(defn external-link-button
+  ([url]
+   (external-link-button url nil))
+  ([url target]
+   (icon-button (cond-> {:title "Open item URL"
+                         :aria-label "Open item URL"
+                         :href url}
+                  target (assoc :target target))
+                "fas fa-external-link-alt")))
+
+(defn dump-button [href]
+  (icon-button {:title "Show internal data representation of this item"
+                :aria-label "Show internal data representation of this item"
+                :href href}
+               "fas fa-code"))
+
+(defn focus-button [href]
+  (icon-button {:title "Show item HTML focus mode"
+                :aria-label "Show item HTML focus mode"
+                :href href}
+               "fas fa-expand"))
+
+(defn download-button [href]
+  (icon-button {:title "Open raw HTML content"
+                :aria-label "Open raw HTML content"
+                :href href}
+               "fas fa-remove-format"))
+
+(defn annotation-button []
+  (icon-button {:id "btn-annotation-mode"
+                :title "Annotation Mode (a)"
+                :aria-label "Annotation Mode (a)"}
+               "fas fa-pen-fancy"))
 
 (defn main-show-item
   "Show Item View"
@@ -720,29 +761,14 @@
           "&nbsp;&nbsp;"
           (icon "far fa-calendar") "\u00a0" (human/datetime-ago ts)]])
       [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
-       [:a {:target "_blank"
-            :title "Open Item URL"
-            :href url
-            :role "button"
-            :class "btn"}
-        "\u00a0" (icon "fas fa-external-link-alt")]
+       (external-link-button url "_blank")
        (related-button id)
-       [:a {:class "btn"
-            :title "Show internal data representation of this item"
-            :href (make-site-href [id "dump"] x)}
-        "\u00a0" (icon "fas fa-code")]
-       [:a {:class "btn"
-            :title "Focus Content"
-            :href (make-site-href [id "focus"] {:data "content"
-                                                :content-type "text/html"} x)}
-        "\u00a0" (icon "fas fa-expand")]
-       [:a {:class "btn"
-            :title "Open Raw content"
-            :href (make-site-href [id "download"] {:data "content"
-                                                   :content-type "text/html"} x)}
-        "\u00a0" (icon "fas fa-remove-format")]
-       [:a {:class "btn" :id "btn-annotation-mode" :title "Annotation Mode (a)"}
-        "\u00a0" (icon "fas fa-pen-fancy")]
+       (dump-button (make-site-href [id "dump"] x))
+       (focus-button (make-site-href [id "focus"] {:data "content"
+                                                   :content-type "text/html"} x))
+       (download-button (make-site-href [id "download"] {:data "content"
+                                                         :content-type "text/html"} x))
+       (annotation-button)
        (let [has-zotero (some? (credentials :zotero))
              url-handler-cfg (rc/rc [:reader :export :url-handler])
              has-url-handler (some? url-handler-cfg)]
@@ -1094,23 +1120,13 @@
       [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
        (tags-button-group id tags)
        (tags-button-modal id tags)
-       [:a {:class "btn" :href url}
-        "\u00a0" (icon "fas fa-external-link-alt")]
+       (external-link-button url)
        (related-button id)
-       [:a {:class "btn"
-            :title "Show internal data representation of this item"
-            :href (make-site-href [link-prefix "item/by-id" id "dump"] x)}
-        "\u00a0" (icon "fas fa-code")]
-       [:a {:class "btn"
-            :title "Show item HTML focus mode"
-            :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
-                                                                         :content-type "text/html"} x)}
-        "\u00a0" (icon "fas fa-expand")]
-       [:a {:class "btn"
-            :title "Open Raw HTML content"
-            :href (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
-                                                                            :content-type "text/html"} x)}
-        "\u00a0" (icon "fas fa-remove-format")]]
+       (dump-button (make-site-href [link-prefix "item/by-id" id "dump"] x))
+       (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
+                                                                            :content-type "text/html"} x))
+       (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
+                                                                                  :content-type "text/html"} x))]
 
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
        (for [btn (tag-buttons)
@@ -1168,13 +1184,10 @@
             [:a {:type "button" :class "btn btn-link" :data-bs-toggle "dropdown"} (icon "fa fa-ellipsis-v fa-lg")]
             [:ul {:class "dropdown-menu position-absolute"}
              [:li
-              [:a {:class "btn" :href url}
-               (icon "fas fa-external-link-alt")]
+              (external-link-button url)
               (related-button id)
-              [:a {:class "btn"
-                   :href (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
-                                                                                :content-type "text/html"} x)}
-               (icon "fas fa-expand")]]
+              (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
+                                                                                   :content-type "text/html"} x))]
              [:li
               (for [btn (tag-buttons)
                     :when (show-button-in-this-view? x btn)]
@@ -1223,8 +1236,7 @@
              [:small {:class "text-muted"} (human/datetime-ago ts)]]]
            [:div {:class "card-footer toolbox"}
             (concat
-             [[:a {:class "btn" :href url}
-               (icon "fas fa-external-link-alt")]
+             [(external-link-button url)
               (related-button id)]
              (for [btn (tag-buttons)
                    :when (show-button-in-this-view? x btn)]
@@ -1846,11 +1858,8 @@
 
            [:div {:class "btn-toolbar" :role "toolbar"}
             [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
-             [:a {:class "btn"
-                  :title "Show item in focus mode"
-                  :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"] {:data "content"
-                                                                                                         :content-type "text/html"} x)}
-              "\u00a0" (icon "fas fa-expand")]]
+             (focus-button (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"] {:data "content"
+                                                                                                            :content-type "text/html"} x))]
             [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
              (for [btn (tag-buttons)
                    :when (show-button-in-this-view? x btn)]
