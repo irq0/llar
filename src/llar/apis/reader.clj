@@ -16,7 +16,7 @@
    [slingshot.slingshot :refer [throw+ try+]]
    [cheshire.core :as cheshire]
    [llar.apis.blob :as blob-api]
-   [llar.appconfig :refer [postgresql-config credentials digest]]
+   [llar.appconfig :refer [postgresql-config credentials]]
    [llar.config :as config]
    [llar.db.core :as db]
    [llar.events :as events]
@@ -177,7 +177,7 @@
     :icon-unset "fas fa-cog"}])
 
 (def +digest-tag-button+
-  "Shown only when the digest feature is configured (:api :digest)."
+  "Shown only when digest delivery is enabled in the effective runtime config."
   {:tag :digest
    :icon-set "fas fa-book-reader icon-is-set"
    :icon-unset "fas fa-book-reader"})
@@ -187,7 +187,7 @@
   only offered when the digest feature is configured."
   []
   (cond-> +tag-buttons+
-    (digest) (conj +digest-tag-button+)))
+    (rc/rc [:digest :enabled?]) (conj +digest-tag-button+)))
 
 (def +headline-view-tag-buttons+
   "Select from +tag-buttons+"
@@ -263,17 +263,31 @@
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar.js"}]])
 
+(def ^:private tag-action-labels
+  {:saved "Save for later"
+   :in-progress "Continue reading"
+   :archive "Keep in archive"
+   :unread "Mark unread"
+   :podcast "Toggle podcast"
+   :digest {:set "Remove from next digest"
+            :unset "Include in next digest"}})
+
 (defn tag-button [id {:keys [tag is-set? icon-set icon-unset]}]
-  [:a {:class (str "btn ajax-toggle " "btn-tag-" (name tag))
-       :title (str "Toggle tag " (name tag))
-       :data-id id
-       :data-icon-set icon-set
-       :data-icon-unset icon-unset
-       :data-tag (name tag)
-       :data-is-set (str (boolean is-set?))}
-   (if is-set?
-     (icon icon-set)
-     (icon icon-unset))])
+  (let [configured-label (get tag-action-labels tag)
+        label (if (map? configured-label)
+                (get configured-label (if is-set? :set :unset))
+                (or configured-label (str "Toggle tag " (name tag))))]
+    [:a {:class (str "btn ajax-toggle " "btn-tag-" (name tag))
+         :title label
+         :aria-label label
+         :data-id id
+         :data-icon-set icon-set
+         :data-icon-unset icon-unset
+         :data-tag (name tag)
+         :data-is-set (str (boolean is-set?))}
+     (if is-set?
+       (icon icon-set)
+       (icon icon-unset))]))
 
 (defn nav-bar
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
@@ -2299,7 +2313,14 @@
   [id action tag]
   (log/debug "reader item mod: " id action tag)
   (str (case action
-         :set (persistency/item-set-tags! frontend-db id [tag])
+         :set (case tag
+                :in-progress (do
+                               (persistency/item-set-tags! frontend-db id [:in-progress])
+                               (persistency/item-remove-tags! frontend-db id [:saved :unread]))
+                :archive (do
+                           (persistency/item-set-tags! frontend-db id [:archive])
+                           (persistency/item-remove-tags! frontend-db id [:saved :in-progress :unread]))
+                (persistency/item-set-tags! frontend-db id [tag]))
          :del (persistency/item-remove-tags! frontend-db id [tag]))))
 
 (defn reader-get-annotations [item-id]
