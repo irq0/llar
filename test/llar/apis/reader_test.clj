@@ -2,11 +2,14 @@
   (:require
    [clojure.java.io :as io]
    [clojure.test :refer [deftest is]]
+   [hiccup2.core :as h]
+   [java-time.api :as time]
    [llar.apis.reader :as uut]
    [llar.db.search :as db-search]
    [llar.lab :as lab]
    [llar.persistency :as persistency]
-   [llar.rc :as rc]))
+   [llar.rc :as rc]
+   [llar.vibe :as vibe]))
 
 (deftest list-style-uses-rc-defaults
   (with-redefs [rc/rc (fn [path]
@@ -30,6 +33,70 @@
   (let [javascript (slurp (io/resource "status/llar.js"))]
     (is (re-find #"youtube-nocookie\.com/embed/" javascript))
     (is (re-find #"referrerpolicy=\"strict-origin-when-cross-origin\"" javascript))))
+
+(deftest intentional-reader-tags-use-explicit-transitions
+  (let [calls (atom [])]
+    (with-redefs [uut/frontend-db :db
+                  persistency/item-set-tags!
+                  (fn [_ id tags] (swap! calls conj [:set id tags]))
+                  persistency/item-remove-tags!
+                  (fn [_ id tags] (swap! calls conj [:remove id tags]))]
+      (uut/reader-item-modify 42 :set :archive)
+      (is (= [[:set 42 [:archive]]
+              [:remove 42 [:saved :in-progress :unread]]]
+             @calls)))))
+
+(deftest item-view-tag-buttons-are-icon-only-with-tooltip-labels
+  (let [button (uut/tag-button 42 {:tag :saved
+                                   :is-set? false
+                                   :icon-set "fas fa-star icon-is-set"
+                                   :icon-unset "far fa-star"})]
+    (is (= {:title "Save for later" :aria-label "Save for later"}
+           (select-keys (second button) [:title :aria-label])))
+    (is (= [[:i {:class "far fa-star"} "\u2009"]]
+           (subvec button 2)))))
+
+(deftest digest-tag-button-follows-runtime-configuration
+  (with-redefs [rc/rc (fn [path] (= path [:digest :enabled?]))]
+    (is (some #(= :digest (:tag %)) (uut/tag-buttons)))
+    (is (= "Include in next digest"
+           (get-in (uut/tag-button 42 (assoc uut/+digest-tag-button+ :is-set? false))
+                   [1 :title])))
+    (is (= "Remove from next digest"
+           (get-in (uut/tag-button 42 (assoc uut/+digest-tag-button+ :is-set? true))
+                   [1 :title]))))
+  (with-redefs [rc/rc (constantly false)]
+    (is (not-any? #(= :digest (:tag %)) (uut/tag-buttons)))))
+
+(deftest todays-vibe-renders-offer-provenance-and-hides-seen-by-default
+  (let [now (time/zoned-date-time)
+        snapshot {:run-id "run-1"
+                  :generated-at now
+                  :clusters [{:id 0 :representative-id 1
+                              :source-count 2 :article-count 2 :unseen-count 1
+                              :latest-ts now :terms ["election"]
+                              :items [{:id 1 :title "Election result" :source-key "a"
+                                       :ts now :tags ["unread"]}
+                                      {:id 2 :title "Second report" :source-key "b"
+                                       :ts now :tags []}]}
+                             {:id 1 :representative-id 3
+                              :source-count 1 :article-count 1 :unseen-count 0
+                              :latest-ts now :terms []
+                              :items [{:id 3 :title "Fully seen" :source-key "c"
+                                       :ts now :tags []}]}]}]
+    (with-redefs [vibe/current-vibe (atom snapshot)
+                  uut/frontend-db :db
+                  persistency/record-results-offered!
+                  (fn [_ items _]
+                    (mapv (fn [position item]
+                            {:id (+ 100 position) :item-id (:id item)})
+                          (range 1 (inc (count items))) items))]
+      (let [rendered (str (h/html (uut/tools-view-handler
+                                   {:view :todays-vibe :request-params {}})))]
+        (is (re-find #"Election result" rendered))
+        (is (re-find #"data-offer-id=\"101\"" rendered))
+        (is (re-find #"action=\"/reader/tools/todays-vibe/seen\"" rendered))
+        (is (not (re-find #"Fully seen" rendered)))))))
 
 (deftest item-detail-route-accepts-optional-offer-provenance
   (let [opened (atom [])
