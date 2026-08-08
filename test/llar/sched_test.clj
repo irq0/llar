@@ -64,7 +64,14 @@
     (is (= 1200.0
            (prometheus/value metrics/prom-registry
                              :llar-sched/expected-interval-seconds
-                             {:schedule schedule-name})))))
+                             {:schedule schedule-name})))
+    (is (= next-run (:expected-next-run-at (uut/snapshot schedule))))
+    (is (= (time/minutes 20) (:expected-interval (uut/snapshot schedule))))))
+
+(deftest fetch-schedule-exposes-current-matching-source-keys
+  (let [schedule (test-schedule {:source-keys-fn (constantly [:one :two])})]
+    (is (= [:one :two] (uut/source-keys schedule))))
+  (is (nil? (uut/source-keys (test-schedule {})))))
 
 (deftest schedule-timing-advances-across-irregular-runs
   (let [base (time/zoned-date-time 2026 7 19 12 0 0 0 "UTC")
