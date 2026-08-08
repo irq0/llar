@@ -79,6 +79,7 @@
    [#"^/reader/export/[^/]+/zotero/?$" "/reader/export/:item-id/zotero"]
    [#"^/reader/export/[^/]+/url-handler/?$" "/reader/export/:item-id/url-handler"]
    [#"^/reader/tools/saved-overview/?$" "/reader/tools/reading-queue"]
+   [#"^/reader/tools/todays-vibe/?$" "/reader/tools/todays-vibe"]
    [#"^/reader/tools/search/?$" "/reader/tools/search"]
    [#"^/reader/tools/[^/]+/?$" "/reader/tools/:view"]
    [#"^/blob(?:/.*)?$" "/blob/:hash"]

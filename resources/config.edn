@@ -79,6 +79,12 @@
  ;; :mail {:from "llar@mydomain.tld"}
  :ranking {:highlight-boost-hours 48
            :rarity-boost-cap-hours 168}
+ :vibe {:source-tags #{:news}
+        :hours 36
+        :limit 500
+        :acuity 1.0
+        :cutoff 0.002
+        :random-seed 1}
  ;; Annotation export. Uncomment and configure to enable.
  ;; Zotero: add {:zotero {:api-key "ZOTERO_API_KEY"
  ;;                       :user-id "ZOTERO_USER_ID"}} to credentials.edn

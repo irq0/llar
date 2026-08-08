@@ -7,6 +7,7 @@
    [llar.fetch :as fetch]
    [llar.postproc :as proc]
    [llar.metrics]
+   [llar.vibe :as vibe]
    [java-time.api :as time]
    [clojure.tools.logging :as log]
    [clojure.string :as string]
@@ -181,6 +182,9 @@
   (log/info "updating database search indices")
   (let [index-result (persistency/update-index! backend-db)]
     (update-saved-clusters!)
-    {:updated-indexes? true
-     :index-result index-result
-     :saved-clusters (saved-cluster-stats)}))
+    (let [vibe-result (vibe/build! backend-db)]
+      {:updated-indexes? true
+       :index-result index-result
+       :saved-clusters (saved-cluster-stats)
+       :vibe {:run-id (:run-id vibe-result)
+              :cluster-count (count (:clusters vibe-result))}})))

@@ -56,6 +56,7 @@
            ["/reader/export/48324/zotero" "/reader/export/:item-id/zotero"]
            ["/reader/export/48324/url-handler" "/reader/export/:item-id/url-handler"]
            ["/reader/tools/saved-overview" "/reader/tools/reading-queue"]
+           ["/reader/tools/todays-vibe" "/reader/tools/todays-vibe"]
            ["/reader/tools/search" "/reader/tools/search"]
            ["/reader/tools/future-view" "/reader/tools/:view"]
            ["/blob/abcdef" "/blob/:hash"]

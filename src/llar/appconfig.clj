@@ -30,6 +30,19 @@
 (s/def :irq0-appconfig/initial-days pos-int?)
 (s/def :irq0-appconfig/recent-read-days pos-int?)
 (s/def :irq0-appconfig/max-content-bytes pos-int?)
+(s/def :irq0-appconfig/source-tags (s/coll-of keyword? :kind set?))
+(s/def :irq0-appconfig/hours pos-int?)
+(s/def :irq0-appconfig/limit pos-int?)
+(s/def :irq0-appconfig/acuity number?)
+(s/def :irq0-appconfig/cutoff number?)
+(s/def :irq0-appconfig/random-seed int?)
+(s/def :irq0-appconfig/vibe
+  (s/keys :req-un [:irq0-appconfig/source-tags
+                   :irq0-appconfig/hours
+                   :irq0-appconfig/limit
+                   :irq0-appconfig/acuity
+                   :irq0-appconfig/cutoff
+                   :irq0-appconfig/random-seed]))
 (s/def :irq0-appconfig/jetty-config
   (s/keys :req-un [:irq0-appconfig/port]))
 (s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
@@ -196,6 +209,7 @@
                    :irq0-appconfig/throttle
                    :irq0-appconfig/timeouts
                    :irq0-appconfig/ranking
+                   :irq0-appconfig/vibe
                    :irq0-appconfig/export
                    :irq0-appconfig/http
                    :irq0-appconfig/mail]))

@@ -18,6 +18,10 @@
     :appconfig-path [:ranking]
     :spec :irq0-appconfig/ranking
     :doc "Ranking query tuning."}
+   {:path [:reader :vibe]
+    :appconfig-path [:vibe]
+    :spec :irq0-appconfig/vibe
+    :doc "Today’s Vibe source selection and Cobweb clustering tuning."}
    {:path [:reader :export :url-handler]
     :appconfig-path [:export :url-handler]
     :spec :irq0-appconfig/url-handler

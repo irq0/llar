@@ -33,6 +33,7 @@
    [llar.rc :as rc]
    [llar.store :refer [store-items!]]
    [llar.update :as update]
+   [llar.vibe :as vibe]
    [llar.db.annotations]
    [llar.db.search :as db-search]
    [llar.export.zotero :as zotero]
@@ -500,12 +501,17 @@
        [:span "Tools"]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
-        [:a {:class "nav-link"
+        [:a {:class (str "nav-link" (when (= (:view x) :saved-overview) " active"))
              :href (make-site-href ["/reader/tools/saved-overview"] x)}
          (icon "fas fa-project-diagram") "\u00a0" "Reading Queue"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
-        [:a {:class "nav-link"
+        [:a {:class (str "nav-link" (when (= (:view x) :todays-vibe) " active"))
+             :href (make-site-href ["/reader/tools/todays-vibe"] x)}
+         (icon "fas fa-fire") "\u00a0" "Today’s Vibe"]]]
+      [:ul {:class "nav flex-column"}
+       [:li {:class "nav-item"}
+        [:a {:class (str "nav-link" (when (= (:view x) :search) " active"))
              :href (make-site-href ["/reader/tools/search"] x)}
          (icon "fas fa-search") "\u00a0" "Search"]]]
 
@@ -984,7 +990,7 @@
 
 (defn short-page-headline
   [x]
-  (let [{:keys [mode source-key group-item]} x
+  (let [{:keys [mode source-key group-item view]} x
         current-item (first (:items x))]
     (cond
       (= mode :dump-item)
@@ -996,7 +1002,14 @@
 
       (= mode :list-items)
       (format "▤ %s/%s"
-              (name group-item) (name source-key)))))
+              (name group-item) (name source-key))
+
+      (= mode :tools)
+      (case view
+        :saved-overview "Reading Queue"
+        :todays-vibe "Today’s Vibe"
+        :search "Search"
+        "Reader Tools"))))
 
 ;; todo - add number of images
 ;; add number of nouns
@@ -1963,6 +1976,122 @@
     {:status 204
      :body (do (persistency/record-impressions! frontend-db ids) "")}))
 
+(defn- ordered-cluster-items [{:keys [representative-id items]}]
+  (sort-by #(if (= representative-id (:id %)) 0 1) items))
+
+(defn- vibe-item-link [x item offer-id]
+  (make-site-href ["/reader/group/default/none/source/all/item/by-id" (:id item)]
+                  {:mark :read :offer offer-id}
+                  x))
+
+(defn- render-vibe-cluster [x snapshot cluster offers]
+  (let [ordered (ordered-cluster-items cluster)
+        representative (first ordered)
+        offer-by-item (into {} (map (juxt :item-id :id) offers))]
+    [:article {:class "card mb-3"}
+     [:div {:class "card-body"}
+      [:div {:class "d-flex justify-content-between"}
+       [:h4 {:class "card-title"}
+        [:a {:class "link-dark result-offer"
+             :data-offer-id (offer-by-item (:id representative))
+             :href (vibe-item-link x representative (offer-by-item (:id representative)))}
+         (:title representative)]]
+       [:span {:class "timestamp text-secondary" :title (:latest-ts cluster)}
+        (human/datetime-ago-short (:latest-ts cluster))]]
+      [:p {:class "text-secondary"}
+       (:source-count cluster) " sources · " (:article-count cluster) " articles · "
+       (:unseen-count cluster) " unseen"]
+      [:p (for [term (:terms cluster)]
+            [:span {:class "badge bg-light text-dark me-1"} term])]
+      [:p (for [source (distinct (map :source-key (:items cluster)))]
+            [:span {:class "badge bg-secondary me-1"} source])]
+      [:form {:method "post" :action "/reader/tools/todays-vibe/seen" :class "d-inline"}
+       [:input {:type "hidden" :name "run-id" :value (:run-id snapshot)}]
+       [:input {:type "hidden" :name "cluster-id" :value (:id cluster)}]
+       [:button {:class "btn btn-sm btn-outline-secondary" :type "submit"}
+        "Mark story seen"]]
+      (when (> (count ordered) 1)
+        [:details {:class "mt-3"}
+         [:summary "Show all reports"]
+         [:div {:class "list-group list-group-flush mt-2"}
+          (for [item (rest ordered)
+                :let [offer-id (offer-by-item (:id item))]]
+            [:a {:class "list-group-item list-group-item-action result-offer"
+                 :data-offer-id offer-id
+                 :href (vibe-item-link x item offer-id)}
+             [:span (:title item)]
+             [:small {:class "text-secondary ms-2"} (:source-key item)]])]])]]))
+
+(defn- render-todays-vibe [x include-seen?]
+  (let [snapshot @vibe/current-vibe]
+    (if (= vibe/not-compiled snapshot)
+      [:div
+       [:h2 "Today’s Vibe"]
+       [:p {:class "text-secondary"}
+        "The first clustering run has not completed yet."]]
+      (let [clusters (if include-seen?
+                       (:clusters snapshot)
+                       (filterv #(pos? (:unseen-count %)) (:clusters snapshot)))
+            multi-source (filter #(>= (:source-count %) 2) clusters)
+            other (filter #(< (:source-count %) 2) clusters)
+            offered-items (mapv #(assoc % :reasons [:story-cluster])
+                                (mapcat ordered-cluster-items clusters))
+            offers (persistency/record-results-offered!
+                    frontend-db offered-items
+                    (events/context :today-vibe :vibe-generated
+                      {:run-id (:run-id snapshot)
+                       :generator "weka-cobweb"
+                       :feature-version 1}))
+            offers-by-cluster (loop [remaining offers
+                                     clusters clusters
+                                     result []]
+                                (if-let [cluster (first clusters)]
+                                  (let [n (count (:items cluster))]
+                                    (recur (drop n remaining) (rest clusters)
+                                           (conj result [cluster (take n remaining)])))
+                                  result))
+            offer-map (into {} (map (fn [[cluster offers]] [(:id cluster) offers])
+                                    offers-by-cluster))]
+        [:div
+         [:h2 "Today’s Vibe"]
+         [:p {:class "text-secondary"} "Generated "
+          [:span {:class "timestamp" :title (:generated-at snapshot)}
+           (human/datetime-ago-short (:generated-at snapshot))]
+          " · "
+          [:a {:href (make-site-href ["/reader/tools/todays-vibe"]
+                                     {:include-seen (when-not include-seen? true)}
+                                     x)}
+           (if include-seen? "Hide fully seen" "Include fully seen")]]
+         [:h2 "Reported across sources"]
+         (if (seq multi-source)
+           (for [cluster multi-source]
+             (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))
+           [:p {:class "text-secondary"} "No cross-source stories in this window."])
+         [:h2 {:class "mt-4"} "Other recent stories"]
+         (for [cluster other]
+           (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))]))))
+
+(defmethod tools-view-handler
+  :todays-vibe
+  [x]
+  (render-todays-vibe x (= "true" (get-in x [:request-params :include-seen]))))
+
+(defn reader-todays-vibe [include-seen?]
+  {:status 303
+   :headers {"Location" (str "/reader/tools/todays-vibe"
+                             (when include-seen? "?include-seen=true"))}
+   :body ""})
+
+(defn reader-mark-story-seen [run-id cluster-id]
+  (if (vibe/apply-to-current-cluster!
+       run-id cluster-id
+       (fn [cluster]
+         (doseq [item-id (map :id (:items cluster))]
+           (persistency/item-remove-tags! frontend-db item-id [:unread]))))
+    (do
+      {:status 303 :headers {"Location" "/reader/tools/todays-vibe"} :body ""})
+    {:status 409 :body "This Vibe snapshot is stale; reload and try again."}))
+
 (defn- render-opened-reader-item [params context offer-id]
   (let [body (reader-index params)
         item-id (:item-id params)]
@@ -2250,6 +2379,13 @@
 
      (POST "/events/impression" [offer-ids]
        (reader-record-impressions offer-ids))
+
+     (GET "/todays-vibe" []
+       (reader-todays-vibe (= "true" (get-in req [:params :include-seen]))))
+     (POST "/todays-vibe/seen" [run-id cluster-id :<< as-int]
+       (reader-mark-story-seen run-id cluster-id))
+     (POST "/tools/todays-vibe/seen" [run-id cluster-id :<< as-int]
+       (reader-mark-story-seen run-id cluster-id))
 
      (context "/annotation" []
        (GET "/:item-id" [item-id :<< as-int]
