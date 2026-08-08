@@ -65,7 +65,11 @@
  fever-item-state-ids
  fever-item-selected
  fever-mark-read
- fever-total-items)
+ fever-total-items
+ create-item-event
+ get-item-event
+ get-item-events
+ record-impression-for-offer)
 
 (hugsql/def-db-fns (io/resource "sql/items.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/sources.sql") {:quoting :ansi})
@@ -76,4 +80,5 @@
 (hugsql/def-db-fns (io/resource "sql/annotations.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/ranking.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/fever.sql") {:quoting :ansi})
+(hugsql/def-db-fns (io/resource "sql/events.sql") {:quoting :ansi})
 (hugsql/def-sqlvec-fns (io/resource "sql/ranking.sql") {:quoting :ansi})

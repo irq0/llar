@@ -7,12 +7,16 @@
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-item create-test-tag create-test-item-data]]
    [llar.db.modify]  ; Load protocol implementations
+   [llar.events :as events]
    [llar.persistency :as persistency]
    [next.jdbc :as jdbc]
    [next.jdbc.result-set :as rs]))
 
 (use-fixtures :once with-test-db-fixture)
 (use-fixtures :each with-clean-db-fixture)
+
+(defn- test-context []
+  (events/context :related :related-generated))
 
 (deftest test-store-new-item
   (testing "Store a new item with basic fields"
@@ -50,6 +54,16 @@
                                  {:builder-fn rs/as-unqualified-lower-maps})]
         (is (= 1 (count items)) "Should have exactly one item")
         (is (= "Updated Title" (:title (first items))) "Title should be updated")))))
+
+(deftest test-overwrite-preserves-user-tags-without-events
+  (let [item-id (:id (create-test-item *test-db* :hash "overwrite-tags"
+                                       :tags #{:saved}))]
+    (create-test-item *test-db* :hash "overwrite-tags" :tags #{:unread}
+                      :title "Refetched" :overwrite? true)
+    (let [stored (jdbc/execute-one! *test-db* ["SELECT tagi FROM items WHERE id = ?" item-id]
+                                    {:builder-fn rs/as-unqualified-lower-maps})]
+      (is (= [1] (:tagi stored)))
+      (is (empty? (persistency/get-events-for-item *test-db* item-id))))))
 
 (deftest test-store-item-with-tags
   (testing "Store item with tags creates tag associations"
@@ -146,6 +160,27 @@
           remaining-tags (persistency/item-remove-tags! *test-db* item-id [:unread])]
       (is (= 2 (count remaining-tags)) "Should have 2 tags remaining")
       (is (not (some #(= :unread %) remaining-tags)) "unread tag should be removed"))))
+
+(deftest offered-impression-open-provenance-and-delete-lifecycle
+  (let [item-id (:id (create-test-item *test-db* :hash "offered-item"))
+        [offer] (persistency/record-results-offered!
+                 *test-db* [{:id item-id :title "Offered" :rank 0.5 :key "test"}]
+                 (test-context))]
+    (is (= 1 (:position offer)))
+    (is (= {:score 0.5} (:data offer)))
+    (is (= 1 (count (persistency/record-impressions! *test-db* [(:id offer)]))))
+    (is (empty? (persistency/record-impressions! *test-db* [(:id offer)]))
+        "impressions are idempotent per offer")
+    (let [impression (some #(when (= :impression (:event-type %)) %)
+                           (persistency/get-events-for-item *test-db* item-id))]
+      (is (= :related (:surface impression)))
+      (is (= :viewport-dwell (:trigger impression))))
+    (persistency/record-item-opened! *test-db* item-id (test-context) (:id offer))
+    (is (= (:id offer)
+           (:parent-event-id (last (persistency/get-events-for-item *test-db* item-id)))))
+    (jdbc/execute! *test-db* ["DELETE FROM items WHERE id = ?" item-id])
+    (is (zero? (:count (jdbc/execute-one! *test-db* ["SELECT count(*) FROM item_events"]
+                                          {:builder-fn rs/as-unqualified-lower-maps}))))))
 
 (deftest test-remove-unread-for-source-older-than
   (testing "remove-unread-for-items-of-source-older-then! removes unread tags from old items"

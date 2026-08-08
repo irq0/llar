@@ -6,7 +6,9 @@ do update set
   title = excluded.title,
   author = excluded.author,
   type = excluded.type,
-  tagi = excluded.tagi,
+  -- Preserve user state. Ingestion initializes tags on insert but overwriting
+  -- content must not silently manufacture an unrecorded tag transition.
+  tagi = items.tagi,
   nlp_nwords = excluded.nlp_nwords,
   nlp_urls = excluded.nlp_urls,
   nlp_names = excluded.nlp_names,

@@ -24,6 +24,12 @@
   (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts])
   (remove-unread-for-items-with-tag! [this tag]))
 
+(defprotocol ItemEventPersistency
+  (record-results-offered! [this item-ids context])
+  (record-impressions! [this offered-event-ids])
+  (record-item-opened! [this item-id context parent-event-id])
+  (get-events-for-item [this item-id]))
+
 (defprotocol StatsQueries
   (get-table-row-counts [this])
   (get-type-stats [this])

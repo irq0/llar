@@ -5,6 +5,7 @@
    [llar.apis.reader :as uut]
    [llar.db.search :as db-search]
    [llar.lab :as lab]
+   [llar.persistency :as persistency]
    [llar.rc :as rc]))
 
 (deftest list-style-uses-rc-defaults
@@ -29,6 +30,26 @@
   (let [javascript (slurp (io/resource "status/llar.js"))]
     (is (re-find #"youtube-nocookie\.com/embed/" javascript))
     (is (re-find #"referrerpolicy=\"strict-origin-when-cross-origin\"" javascript))))
+
+(deftest item-detail-route-accepts-optional-offer-provenance
+  (let [opened (atom [])
+        modifications (atom [])
+        request (fn [params]
+                  (uut/app {:request-method :get
+                            :uri "/reader/group/item-tags/digest-issue-4/source/all/item/by-id/24292"
+                            :params params}))]
+    (with-redefs [uut/frontend-db :db
+                  uut/reader-index (fn [_] {:status 200 :body "item"})
+                  uut/reader-item-modify
+                  (fn [& args]
+                    (swap! modifications conj args)
+                    "")
+                  persistency/record-item-opened!
+                  (fn [& args] (swap! opened conj args))]
+      (is (= 200 (:status (request {:mark "read"}))))
+      (is (= 200 (:status (request {:mark "read" :offer "91"}))))
+      (is (= [nil 91] (mapv last @opened)))
+      (is (= 2 (count @modifications))))))
 
 (deftest ranked-query-args-use-rc-ranking
   (with-redefs [rc/rc (fn [path]

@@ -2,12 +2,13 @@
   (:require
    [byte-streams :refer [to-byte-buffer]]
    [clojure.string :as string]
+   [clojure.tools.logging :as log]
    [digest]
    [java-time.api :as time]
    [llar.contentdetect :as contentdetect]
    [llar.db.core]
    [llar.db.sql :as sql]
-   [llar.persistency :refer [ItemPersistency ItemTagsPersistency]]
+   [llar.persistency :refer [ItemEventPersistency ItemPersistency ItemTagsPersistency]]
    [llar.tags :as tags]
    [next.jdbc :as jdbc])
   (:import
@@ -96,6 +97,18 @@
 
 ;; ----------
 
+(defn- create-event!
+  [tx context item-id event-type & {:keys [parent-event-id position data]}]
+  (let [{:keys [surface trigger metadata]} context]
+    (sql/create-item-event tx {:item-id item-id
+                               :event-type (keyword "item-event-type" (name event-type))
+                               :surface (keyword "item-event-surface" (name surface))
+                               :trigger (keyword "item-event-trigger" (name trigger))
+                               :parent-event-id parent-event-id
+                               :position position
+                               :metadata metadata
+                               :data (or data {})})))
+
 (extend-protocol
  ItemTagsPersistency
   PostgresqlDataStore
@@ -144,3 +157,50 @@
                                   ["AND"]
                                   ["tagi @@ '0'"]]})
         []))))
+
+(extend-protocol
+ ItemEventPersistency
+  PostgresqlDataStore
+
+  (record-results-offered! [this results context]
+    (if (seq results)
+      (jdbc/with-transaction [tx (:datasource this)]
+        (mapv (fn [position result]
+                (let [item-id (if (map? result) (:id result) result)
+                      data (if (map? result)
+                             (cond-> (select-keys result [:score :reasons])
+                               (:rank result) (assoc :score (:rank result)))
+                             {})]
+                  (create-event! tx context item-id :result-offered
+                                 :position position :data data)))
+              (iterate inc 1)
+              results))
+      []))
+
+  (record-impressions! [this offered-event-ids]
+    (->> offered-event-ids
+         distinct
+         (keep #(sql/record-impression-for-offer
+                 this {:offered-event-id % :data {}}))
+         vec))
+
+  (record-item-opened! [this item-id context parent-event-id]
+    (jdbc/with-transaction [tx (:datasource this)]
+      (let [parent (when parent-event-id
+                     (sql/get-item-event tx {:id parent-event-id}))
+            valid-parent-id (when (and (= "result-offered" (some-> parent :event-type name))
+                                       (= item-id (:item-id parent)))
+                              parent-event-id)
+            _ (when (and parent-event-id (nil? valid-parent-id))
+                (log/warn "ignoring invalid result offer for item open"
+                          {:item-id item-id :parent-event-id parent-event-id}))]
+        (create-event! tx context item-id :item-opened
+                       :parent-event-id valid-parent-id))))
+
+  (get-events-for-item [this item-id]
+    (mapv (fn [event]
+            (-> event
+                (update :event-type (comp keyword name))
+                (update :surface (comp keyword name))
+                (update :trigger (comp keyword name))))
+          (sql/get-item-events this {:item-id item-id}))))

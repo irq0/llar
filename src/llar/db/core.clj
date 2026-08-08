@@ -78,7 +78,10 @@
 (def +schema-enums+
   "A set of all PostgreSQL enums in schema.sql. Used to convert
   enum-values back into Clojure keywords."
-  #{"item_type"})
+  #{"item_type"
+    "item_event_type"
+    "item_event_surface"
+    "item_event_trigger"})
 
 ;; Read: PostgreSQL → Clojure
 (extend-protocol rs/ReadableColumn

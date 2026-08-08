@@ -19,6 +19,7 @@
    [llar.appconfig :refer [postgresql-config credentials digest]]
    [llar.config :as config]
    [llar.db.core :as db]
+   [llar.events :as events]
    [llar.fetch :as fetch]
    [llar.fetch.bookmark :as bookmark]
    [llar.human :as human]
@@ -1856,6 +1857,21 @@
               (when-not (string/blank? s) [s])))]
     (into [:span] (render-parts headline))))
 
+(defn reader-record-impressions [offer-ids]
+  (let [ids (->> (string/split (or offer-ids "") #",")
+                 (keep parse-long)
+                 (filter pos?)
+                 vec)]
+    {:status 204
+     :body (do (persistency/record-impressions! frontend-db ids) "")}))
+
+(defn- render-opened-reader-item [params context offer-id]
+  (let [body (reader-index params)
+        item-id (:item-id params)]
+    (persistency/record-item-opened!
+     frontend-db item-id context offer-id)
+    body))
+
 (defmethod tools-view-handler
   :search
   [x]
@@ -2134,6 +2150,9 @@
         tag :<< as-keyword]
        (reader-item-modify item-id action tag))
 
+     (POST "/events/impression" [offer-ids]
+       (reader-record-impressions offer-ids))
+
      (context "/annotation" []
        (GET "/:item-id" [item-id :<< as-int]
          (reader-get-annotations item-id))
@@ -2220,36 +2239,54 @@
          (GET "/"
            [data :<< as-keyword
             content-type]
-           (when (and (some? item-id) (= (get-in req [:params :mark]) "read"))
-             (reader-item-modify item-id :del :unread))
-           (reader-index {:uri (:uri req)
-                          :filter (as-keyword (get-in req [:params :filter]))
-                          :group-name group-name
-                          :group-item group-item
-                          :source-key source-key
-                          :item-id item-id
-                          :mode :show-item
-                          :list-style (as-keyword (get-in req [:params :list-style]))
-                          :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
-                          :content-type content-type
-                          :data data}))
+           (let [auto-read? (and (some? item-id) (= (get-in req [:params :mark]) "read"))
+                 offer (some-> (get-in req [:params :offer]) parse-long)
+                 event-context (events/context :item-detail
+                                 (if auto-read? :open-and-mark-read
+                                     :item-rendered)
+                                 {:auto-read auto-read?
+                                  :group (name group-name)
+                                  :source (name source-key)})]
+             (when auto-read?
+               (reader-item-modify item-id :del :unread))
+             (render-opened-reader-item {:uri (:uri req)
+                                         :filter (as-keyword (get-in req [:params :filter]))
+                                         :group-name group-name
+                                         :group-item group-item
+                                         :source-key source-key
+                                         :item-id item-id
+                                         :mode :show-item
+                                         :list-style (as-keyword (get-in req [:params :list-style]))
+                                         :sort-order (as-keyword (get-in req [:params :sort-order]))
+                                         :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                                         :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
+                                         :content-type content-type
+                                         :data data}
+                                        event-context offer)))
 
          (GET "/" []
-           (when (and (some? item-id) (= (get-in req [:params :mark]) "read"))
-             (reader-item-modify item-id :del :unread))
-           (reader-index {:uri (:uri req)
-                          :filter (as-keyword (get-in req [:params :filter]))
-                          :group-name group-name
-                          :group-item group-item
-                          :source-key source-key
-                          :item-id item-id
-                          :mode :show-item
-                          :list-style (as-keyword (get-in req [:params :list-style]))
-                          :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))
+           (let [auto-read? (and (some? item-id) (= (get-in req [:params :mark]) "read"))
+                 offer (some-> (get-in req [:params :offer]) parse-long)
+                 event-context (events/context :item-detail
+                                 (if auto-read? :open-and-mark-read
+                                     :item-rendered)
+                                 {:auto-read auto-read?
+                                  :group (name group-name)
+                                  :source (name source-key)})]
+             (when auto-read?
+               (reader-item-modify item-id :del :unread))
+             (render-opened-reader-item {:uri (:uri req)
+                                         :filter (as-keyword (get-in req [:params :filter]))
+                                         :group-name group-name
+                                         :group-item group-item
+                                         :source-key source-key
+                                         :item-id item-id
+                                         :mode :show-item
+                                         :list-style (as-keyword (get-in req [:params :list-style]))
+                                         :sort-order (as-keyword (get-in req [:params :sort-order]))
+                                         :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                                         :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}
+                                        event-context offer)))
 
          (GET "/download"
            [data :<< as-keyword

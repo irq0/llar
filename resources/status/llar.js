@@ -568,6 +568,53 @@ $(document).ready(function () {
     });
   });
 
+  // Only ranked result cards produce impressions. Generic reader lists do not.
+  var offeredResults = document.querySelectorAll(
+    ".result-offer[data-offer-id]",
+  );
+  if (offeredResults.length && "IntersectionObserver" in window) {
+    var offerTimers = new Map();
+    var pendingOffers = new Set();
+    var offerFlushTimer = null;
+    function flushOffers() {
+      offerFlushTimer = null;
+      if (!pendingOffers.size) return;
+      var ids = Array.from(pendingOffers);
+      pendingOffers.clear();
+      $.post("/reader/events/impression", { offer_ids: ids.join(",") });
+    }
+    function queueOffer(element) {
+      pendingOffers.add(element.dataset.offerId);
+      offerObserver.unobserve(element);
+      offerTimers.delete(element);
+      if (!offerFlushTimer) offerFlushTimer = setTimeout(flushOffers, 250);
+    }
+    var offerObserver = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          var enoughVisible =
+            entry.isIntersecting &&
+            (entry.intersectionRatio >= 0.5 ||
+              entry.intersectionRect.height >=
+                Math.min(300, entry.rootBounds.height * 0.5));
+          if (enoughVisible && !offerTimers.has(entry.target)) {
+            offerTimers.set(
+              entry.target,
+              setTimeout(queueOffer, 750, entry.target),
+            );
+          } else if (!enoughVisible && offerTimers.has(entry.target)) {
+            clearTimeout(offerTimers.get(entry.target));
+            offerTimers.delete(entry.target);
+          }
+        });
+      },
+      { threshold: [0, 0.5] },
+    );
+    offeredResults.forEach(function (element) {
+      offerObserver.observe(element);
+    });
+  }
+
   // custom tag modal form
   $("form.add-custom-tag").on("submit", function (event) {
     event.preventDefault();
