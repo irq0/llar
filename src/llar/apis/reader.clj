@@ -2002,14 +2002,19 @@
   (let [ordered (ordered-cluster-items cluster)
         representative (first ordered)
         offer-by-item (into {} (map (juxt :item-id :id) offers))]
-    [:article {:class "card mb-3"}
+    [:article {:class "card mb-3"
+               :data-vibe-cluster-id (:id cluster)
+               :data-vibe-source-count (:source-count cluster)
+               :data-vibe-terms (string/join "," (:terms cluster))}
      [:div {:class "card-body"}
       [:div {:class "d-flex justify-content-between"}
        [:h4 {:class "card-title"}
         [:a {:class "link-dark result-offer"
              :data-offer-id (offer-by-item (:id representative))
              :href (vibe-item-link x representative (offer-by-item (:id representative)))}
-         (:title representative)]]
+         (:title representative)]
+        [:small {:class "text-secondary ms-2"}
+         (:source-key representative)]]
        [:span {:class "timestamp text-secondary" :title (:latest-ts cluster)}
         (human/datetime-ago-short (:latest-ts cluster))]]
       [:p {:class "text-secondary"}

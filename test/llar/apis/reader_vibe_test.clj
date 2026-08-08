@@ -33,6 +33,9 @@
       (let [rendered (str (h/html (reader/tools-view-handler
                                    {:view :todays-vibe :request-params {}})))]
         (is (re-find #"Election result" rendered))
+        (is (re-find #"<small class=\"text-secondary ms-2\">a</small>" rendered))
+        (is (re-find #"data-vibe-cluster-id=\"0\"" rendered))
+        (is (re-find #"data-vibe-terms=\"election\"" rendered))
         (is (re-find #"data-offer-id=\"101\"" rendered))
         (is (re-find #"action=\"/reader/tools/todays-vibe/seen\"" rendered))
         (is (not (re-find #"Fully seen" rendered)))))))
