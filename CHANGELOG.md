@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dashboard: Make stale-source reporting cadence-aware, show each source's
+  matching fetch schedules and expected next run, and flag configured sources
+  that match no fetch schedule.
+
 - Readability: Extract passive Open Graph, Twitter Card, canonical, microdata,
   and JSON-LD metadata from the original inert document while keeping rendered
   article HTML on a separate hardened DOMPurify path.

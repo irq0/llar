@@ -16,7 +16,8 @@
 
 (declare resolve-chime-times)
 
-(defrecord Schedule [key mount-state sched-name sched-type chime-times schedule-times pred run-fn state* closeable*]
+(defrecord Schedule [key mount-state sched-name sched-type chime-times schedule-times pred
+                     source-keys-fn run-fn state* closeable*]
   Closeable
   (close [_]
     (when-let [closeable @closeable*]
@@ -58,13 +59,26 @@
                                       (drop-while #(not (time/after? % now)))
                                       (take 2))]
     (when (and next-run following-run)
-      (let [labels {:schedule (:sched-name schedule)}]
+      (let [labels {:schedule (:sched-name schedule)}
+            expected-interval (time/duration next-run following-run)]
+        ;; Keep the advertised value in runtime state as well as Prometheus. Unlike
+        ;; `next-run-at`, this deliberately remains in the past when chime stops
+        ;; firing, which makes a missed schedule visible to the dashboard.
+        (swap! (:state* schedule) assoc
+               :expected-next-run-at next-run
+               :expected-interval expected-interval)
         (prometheus/set metrics/prom-registry :llar-sched/next-run-unixtime
                         labels
                         (/ (time/to-millis-from-epoch next-run) 1000.0))
         (prometheus/set metrics/prom-registry :llar-sched/expected-interval-seconds
                         labels
-                        (/ (.toMillis (time/duration next-run following-run)) 1000.0))))))
+                        (/ (.toMillis expected-interval) 1000.0))))))
+
+(defn source-keys
+  "Return the source keys currently selected by a fetch schedule."
+  [schedule]
+  (when-let [source-keys-fn (:source-keys-fn schedule)]
+    (source-keys-fn)))
 
 (defn snapshot
   "Return dashboard/API-safe schedule metadata plus runtime state."

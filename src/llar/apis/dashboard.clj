@@ -139,11 +139,48 @@
 (def +failure-states+
   #{:temp-fail :perm-fail :bug})
 
-(defn- source-summary [k src state]
+(defn- fetch-schedule-index []
+  (reduce
+   (fn [{:keys [by-source] :as index} schedule]
+     (if (= :update-feed-by-filter (:sched-type schedule))
+       (try
+         (let [schedule-summary (select-keys (sched/snapshot schedule)
+                                             [:sched-name :expected-next-run-at
+                                              :expected-interval])]
+           (assoc index :by-source
+                  (reduce (fn [result source-key]
+                            (update result source-key (fnil conj []) schedule-summary))
+                          by-source
+                          (sched/source-keys schedule))))
+         (catch Throwable t
+           (update index :errors conj {:schedule (:sched-name schedule)
+                                       :message (ex-message t)})))
+       index))
+   {:by-source {} :errors []}
+   (sched/find-schedules)))
+
+(defn- schedule-overdue? [now {:keys [expected-next-run-at expected-interval]}]
+  (and expected-next-run-at
+       expected-interval
+       (time/after? now (time/plus expected-next-run-at expected-interval))))
+
+(defn- source-stale? [now {:keys [status last-success schedules bookmark?]}]
+  (and (not bookmark?)
+       last-success
+       (not (+failure-states+ status))
+       (not= :updating status)
+       (some (fn [{:keys [expected-next-run-at] :as schedule}]
+               (and (schedule-overdue? now schedule)
+                    (time/before? last-success expected-next-run-at)))
+             schedules)))
+
+(defn- source-summary [k src state schedules]
   (let [status (or (:status state) :new)]
     {:key k
      :source src
      :status status
+     :bookmark? (contains? (:tags src) :bookmark)
+     :schedules schedules
      :retry-count (:retry-count state)
      :last-success (:last-successful-fetch-ts state)
      :last-attempt (:last-attempt-ts state)
@@ -151,7 +188,28 @@
      :last-finished (:last-finished-ts state)
      :last-exception (:last-exception state)}))
 
-(defn- source-summary-row [{:keys [key status retry-count last-success last-attempt start-ts last-exception]}]
+(defn- datetime-until [ts]
+  (let [raw-duration (time/duration (time/zoned-date-time) ts)
+        duration (-> raw-duration
+                     (.minusNanos (.getNano raw-duration)))]
+    (str "in " (subs (string/lower-case (str duration)) 2))))
+
+(defn- scheduling-cell [schedules]
+  (if (seq schedules)
+    [:span
+     (string/join ", " (map :sched-name schedules))
+     (when-let [next-run (->> schedules
+                              (keep :expected-next-run-at)
+                              (sort-by time/to-millis-from-epoch)
+                              first)]
+       [:small {:class "d-block text-muted"}
+        "Expected " (if (time/after? next-run (time/zoned-date-time))
+                      (datetime-until next-run)
+                      (str (human/datetime-ago next-run) " ago"))])]
+    [:span {:class "text-danger"} "No matching fetch schedule"]))
+
+(defn- source-summary-row [{:keys [key status retry-count last-success last-attempt start-ts
+                                   last-exception schedules]}]
   [:tr
    [:td [:a {:href "#sources"
              :data-bs-toggle "tab"} (name key)]]
@@ -159,6 +217,7 @@
    [:td (or retry-count "")]
    [:td (some-> last-success human/datetime-ago)]
    [:td (some-> (or last-attempt start-ts) human/datetime-ago)]
+   [:td (scheduling-cell schedules)]
    [:td (or (some-> last-exception :data :reason-class name)
             (some-> last-exception :data :type name)
             "")]])
@@ -175,6 +234,7 @@
         [:th "Retries"]
         [:th "Last Success"]
         [:th "Last Attempt"]
+        [:th "Scheduling"]
         [:th "Reason"]]]
       [:tbody
        (for [row rows]
@@ -182,20 +242,36 @@
      [:p {:class "text-muted"} "None"])])
 
 (defn overview-tab []
-  (let [sources (for [[k src] (config/get-sources)]
-                  (source-summary k src (get-state k)))
+  (let [now (time/zoned-date-time)
+        {:keys [by-source errors]} (fetch-schedule-index)
+        sources (for [[k src] (config/get-sources)]
+                  (source-summary k src (get-state k) (get by-source k [])))
         counts (frequencies (map :status sources))
         updating (filter #(= :updating (:status %)) sources)
         failures (filter #(+failure-states+ (:status %)) sources)
-        stale (filter :last-success sources)
+        stale (filter #(source-stale? now %) sources)
+        unscheduled (filter #(and (not (:bookmark? %))
+                                  (empty? (:schedules %)))
+                            sources)
+        never-successful (filter #(and (nil? (:last-success %))
+                                       (not (:bookmark? %))
+                                       (not (+failure-states+ (:status %)))
+                                       (not= :updating (:status %)))
+                                 sources)
+        scheduling-issues (distinct (concat unscheduled never-successful))
         summary [["Total" (count sources) "text-primary"]
                  ["OK" (get counts :ok 0) "text-success"]
                  ["Updating" (count updating) "text-info"]
                  ["New" (get counts :new 0) "text-primary"]
                  ["Temp Fail" (get counts :temp-fail 0) "text-warning"]
                  ["Perm Fail" (get counts :perm-fail 0) "text-danger"]
-                 ["Bug" (get counts :bug 0) "text-dark"]]]
+                 ["Bug" (get counts :bug 0) "text-dark"]
+                 ["Unscheduled" (count unscheduled) (if (seq unscheduled) "text-danger" "text-success")]]]
     [:div
+     (when (seq errors)
+       [:div {:class "alert alert-danger"}
+        "Could not evaluate fetch schedule predicates: "
+        (string/join "; " (map #(str (:schedule %) ": " (:message %)) errors))])
      [:div {:class "row mb-3"}
       (for [[label value cls] summary]
         [:div {:class "col-auto"}
@@ -209,7 +285,13 @@
        (take 10 (sort-by #(or (:start-ts %) (:last-attempt %)) updating)))
       (source-summary-table
        "Stale"
-       (take 10 (sort-by :last-success stale)))]]))
+       (take 10 (sort-by :last-success stale)))
+      (source-summary-table
+       "Never successful / unscheduled"
+       (take 10 (sort-by (juxt #(if (seq (:schedules %)) 1 0)
+                               #(or (some-> (:last-attempt %) time/to-millis-from-epoch)
+                                    Long/MIN_VALUE))
+                         scheduling-issues)))]]))
 
 (defn source-details [src-k]
   (let [k (keyword src-k)
@@ -515,12 +597,6 @@
 (defn metrics-tab []
   [:div
    [:a {:href "/metrics"} "Prometheus Metrics"]])
-
-(defn- datetime-until [ts]
-  (let [raw-duration (time/duration (time/zoned-date-time) ts)
-        duration (-> raw-duration
-                     (.minusNanos (.getNano raw-duration)))]
-    (str "in " (subs (string/lower-case (str duration)) 2))))
 
 (defn schedule-tab []
   (let [schedules (sched/find-schedules)]

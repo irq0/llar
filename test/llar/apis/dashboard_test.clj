@@ -126,6 +126,55 @@
         (is (string/includes? body ":count"))
         (is (string/includes? body "btn-run-schedule"))))))
 
+(deftest source-staleness-follows-the-advertised-schedule-deadline
+  (let [now (time/zoned-date-time 2026 8 8 12 0 0 0 "UTC")
+        expected (time/minus now (time/hours 2))
+        schedule {:sched-name "hourly"
+                  :expected-next-run-at expected
+                  :expected-interval (time/hours 1)}]
+    (testing "a success predating a missed run is stale after one interval of grace"
+      (is (#'uut/source-stale? now {:status :ok
+                                    :last-success (time/minus now (time/hours 3))
+                                    :schedules [schedule]})))
+    (testing "a source updated after that advertised run is still fresh"
+      (is (not (#'uut/source-stale? now {:status :ok
+                                         :last-success (time/minus now (time/minutes 30))
+                                         :schedules [schedule]}))))
+    (testing "failures retain their more specific dashboard classification"
+      (is (not (#'uut/source-stale? now {:status :temp-fail
+                                         :last-success (time/minus now (time/hours 3))
+                                         :schedules [schedule]}))))
+    (testing "the schedule gets a full expected interval of grace"
+      (is (not (#'uut/source-stale? now {:status :ok
+                                         :last-success (time/minus now (time/hours 3))
+                                         :schedules [(assoc schedule
+                                                            :expected-next-run-at
+                                                            (time/minus now (time/minutes 30)))]}))))))
+
+(deftest overview-distinguishes-scheduled-new-and-unscheduled-sources
+  (let [now (time/zoned-date-time 2026 8 8 12 0 0 0 "UTC")
+        schedule (sched/make-schedule
+                  {:sched-name "hourly"
+                   :sched-type :update-feed-by-filter
+                   :source-keys-fn (constantly [:awaiting :also-awaiting])
+                   :run-fn (constantly nil)})]
+    (swap! (:state* schedule) assoc
+           :expected-next-run-at (time/plus now (time/minutes 30))
+           :expected-interval (time/hours 1))
+    (with-redefs [time/zoned-date-time (constantly now)
+                  config/get-sources (constantly {:awaiting {:src :one}
+                                                  :also-awaiting {:src :three}
+                                                  :orphan {:src :two}
+                                                  :also-orphan {:src :four}
+                                                  :bookmark {:tags #{:bookmark}}})
+                  uut/get-state (constantly nil)
+                  sched/find-schedules (constantly [schedule])]
+      (let [body (str (h/html (uut/overview-tab)))]
+        (is (string/includes? body "2 Unscheduled"))
+        (is (string/includes? body "No matching fetch schedule"))
+        (is (string/includes? body "hourly"))
+        (is (string/includes? body "Expected in"))))))
+
 (deftest run-schedule-route-handles-resolution-results
   (testing "unknown schedule"
     (with-redefs [sched/find-schedule (constantly {:error :not-found})]

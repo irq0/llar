@@ -699,20 +699,23 @@
   (let [source-key (gensym "source-key")
         source (gensym "source")]
     `(defstate ~sched-name
-       :start (let [schedule# (sched/make-schedule
+       :start (let [matching-keys# (fn []
+                                     (let [sources# (updateable-sources)]
+                                       (->> sources#
+                                            (filter (fn [[~source-key ~source]]
+                                                      (let [~@(config/source-predicate-let-bindings source-key source)]
+                                                        ~pred)))
+                                            (mapv first))))
+                    schedule# (sched/make-schedule
                                {:key (keyword '~sched-name)
                                 :mount-state ~(str "#'" (ns-name *ns*) "/" sched-name)
                                 :sched-name (str '~sched-name)
                                 :chime-times (when (keyword? ~chime-times) ~chime-times)
                                 :sched-type :update-feed-by-filter
                                 :pred (quote ~pred)
+                                :source-keys-fn matching-keys#
                                 :run-fn (fn []
-                                          (let [sources# (updateable-sources)
-                                                filtered# (filter (fn [[~source-key ~source]]
-                                                                    (let [~@(config/source-predicate-let-bindings source-key source)]
-                                                                      ~pred))
-                                                                  sources#)
-                                                keys# (mapv first filtered#)
+                                          (let [keys# (matching-keys#)
                                                 results# (update-sources! keys#)]
                                             (log/infof "Scheduled feed update %s: %d sources, outcomes %s"
                                                        '~sched-name (count keys#)
