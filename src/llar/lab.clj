@@ -180,11 +180,20 @@
 (defsched update-db-search-indices
   :now-and-early-morning
   (log/info "updating database search indices")
-  (let [index-result (persistency/update-index! backend-db)]
-    (update-saved-clusters!)
-    (let [vibe-result (vibe/build! backend-db)]
-      {:updated-indexes? true
-       :index-result index-result
-       :saved-clusters (saved-cluster-stats)
-       :vibe {:run-id (:run-id vibe-result)
-              :cluster-count (count (:clusters vibe-result))}})))
+  {:updated-indexes? true
+   :index-result (persistency/update-index! backend-db)})
+
+(defsched update-saved-item-clusters
+  :now-and-early-morning
+  (log/info "updating saved item clusters")
+  (update-saved-clusters!)
+  (saved-cluster-stats))
+
+(defsched update-todays-vibe
+  :now-and-early-morning
+  (log/info "updating Today’s Vibe")
+  (let [result (vibe/build! backend-db)]
+    (if-let [error (:error result)]
+      {:error error}
+      {:run-id (:run-id result)
+       :cluster-count (count (:clusters result))})))

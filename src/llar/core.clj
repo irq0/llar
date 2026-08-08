@@ -65,6 +65,8 @@
   [#'config/change-watcher
    #'update/remove-unread-tags
    #'lab/update-db-search-indices
+   #'lab/update-saved-item-clusters
+   #'lab/update-todays-vibe
    #'podcast/podcast-scanner
    #'podcast/podcast-retention-enforcer
    #'digest/digest-scheduler])
