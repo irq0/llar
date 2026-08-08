@@ -18,6 +18,9 @@
   :main llar.core
   :plugins [[dev.weavejester/lein-cljfmt "0.16.0"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]
             [lambdaisland/kaocha "1.91.1392"] [lambdaisland/kaocha-cloverage "1.1.89"]]
+  :aliases {"unit" ["run" "-m" "kaocha.runner" "unit"]
+            "kaocha" ["run" "-m" "kaocha.runner"]
+            "integration" ["run" "-m" "kaocha.runner" "integration"]}
   :license {:name "AGPL-3.0-or-later"
             :url "https://www.gnu.org/licenses/agpl-3.0.en.html"
             :distribution :repo}
