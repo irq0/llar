@@ -791,10 +791,10 @@
 
 (defn reading-checkpoint-tools [{:keys [id checkpoint-selector checkpoint-progress]}]
   (let [active? (some? checkpoint-progress)]
-    [:div {:class "btn-group btn-group-sm reading-checkpoint-tools shadow-sm"
+    [:div {:class "btn-group-vertical btn-group-sm reading-checkpoint-tools shadow-sm"
            :data-id id}
      (when (and active? checkpoint-selector)
-       [:button {:class "btn btn-warning btn-resume-checkpoint"
+       [:button {:class "btn btn-outline-secondary btn-resume-checkpoint"
                  :type "button"
                  :title (format "Resume at %.0f%%" (* 100.0 (double checkpoint-progress)))
                  :aria-label "Scroll to the saved reading position"
@@ -802,11 +802,12 @@
                  :data-progress checkpoint-progress}
         (icon "fas fa-map-marker-alt")])
      [:button {:class (if active?
-                        "btn btn-warning btn-save-checkpoint"
-                        "btn btn-outline-warning btn-save-checkpoint")
+                        "btn btn-secondary btn-save-checkpoint"
+                        "btn btn-outline-secondary btn-save-checkpoint")
                :type "button"
                :title (if active? "Update saved place" "Save this reading position")
-               :aria-label (if active? "Update saved place" "Save this reading position")}
+               :aria-label (if active? "Update saved place" "Save this reading position")
+               :aria-pressed (str active?)}
       (icon "fas fa-map-pin")]
      (when active?
        [:button {:class "btn btn-outline-secondary btn-clear-checkpoint"
@@ -814,6 +815,14 @@
                  :title "Clear saved place"
                  :aria-label "Clear saved place"}
         (icon "fas fa-times")])]))
+
+(defn reading-viewport-overlay [item]
+  [:div {:class "reading-viewport-overlay"}
+   [:div {:class "reading-step-rail" :aria-hidden "true"}
+    [:span {:class "reading-step-indicator reading-step-next"}]
+    [:span {:class "reading-step-indicator reading-step-landing"}]]
+   [:aside {:class "reading-checkpoint-rail" :aria-label "Saved reading position"}
+    (reading-checkpoint-tools item)]])
 
 (defn main-show-item
   "Show Item View"
@@ -906,25 +915,23 @@
         [:small (icon "fas fa-sticky-note") " Notes"]]
        [:div {:class "card-body p-2 notes-list"}]]]
      [:div {:id "item-content-body-container" :class "container-fluid"}
-      (reading-checkpoint-tools item)
-      [:div {:class "row"}
-       [:div {:class "col-11"}
-        [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
-         (cond
-           ;; if the user selected something, give it to them
-           (and (some? selected-data) (some? selected-content-type))
-           (get-html-content item selected-data selected-content-type)
+      [:div {:class "reading-surface"}
+       [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
+        (cond
+          ;; if the user selected something, give it to them
+          (and (some? selected-data) (some? selected-content-type))
+          (get-html-content item selected-data selected-content-type)
 
-           ;; render video content with special first followed by description
-           (video-content? item)
-           [:div
-            (render-special-item-content item #{})
-            [:p {:style "white-space: pre-line"} (get-html-content item :description "text/plain")]]
+          ;; render video content with special first followed by description
+          (video-content? item)
+          [:div
+           (render-special-item-content item #{})
+           [:p {:style "white-space: pre-line"} (get-html-content item :description "text/plain")]]
 
-           :else
-           (if-let [content (get-html-content item selected-data selected-content-type)]
-             content
-             (render-special-item-content item #{})))]]]]
+          :else
+          (if-let [content (get-html-content item selected-data selected-content-type)]
+            content
+            (render-special-item-content item #{})))]]]
      [:div {:id "annotation-bottom-bar"
             :class "fixed-bottom bg-light border-top p-2"
             :style "display:none;"}
@@ -1628,15 +1635,19 @@
   (let [focus? (= :focus-item (:mode params))
         nav-bar (when-not focus? (nav-bar params))
         group-nav (when-not focus? (group-nav params))
-        source-nav (when-not focus? (source-nav params))]
+        source-nav (when-not focus? (source-nav params))
+        reading-overlay (when (#{:show-item :focus-item} (:mode params))
+                          (reading-viewport-overlay (first (:items params))))]
     (html5
      (html-header title (:mode params) (first (:items params)))
-     [:body {:data-group-name (some-> (:group-name params) name)
+     [:body {:class (str "reader-mode-" (name (:mode params)))
+             :data-group-name (some-> (:group-name params) name)
              :data-group-item (some-> (:group-item params) name)
              :data-filter (some-> (:filter params) name)
              :data-view (some-> (:view params) name)}
       (concat
        [nav-bar]
+       [reading-overlay]
        [[:div {:class "container-fluid"}
          [:div {:class "row"}
           group-nav

@@ -563,40 +563,6 @@ div.item-content-body p > code {
   white-space: nowrap;
 }
 
-.viewport-pivot::before {
-  font-family: "IBM Plex Mono", monospace;
-  content: "↲";
-  color: #aaa;
-  position: absolute;
-  left: 1em;
-  font-size: 1.2em;
-}
-
-.viewport-bottom::before {
-  font-family: "IBM Plex Mono", monospace;
-  content: "⇣";
-  color: #aaa;
-  position: absolute;
-  left: 1em;
-  font-size: 1.2em;
-}
-
-.viewport-bottom[view="out"]::before {
-  font-family: "IBM Plex Mono", monospace;
-  content: "⇊";
-  color: #aaa;
-  position: absolute;
-  left: 1em;
-  font-size: 1.2em;
-}
-
-@media (width <= 768px) {
-  .viewport-bottom::before,
-  .viewport-pivot::before {
-    left: 0;
-  }
-}
-
 .icon-is-set {
   color: #f83;
 }
@@ -787,13 +753,113 @@ figure figcaption {
   font-size: 80%;
 }
 
+.reading-surface {
+  position: relative;
+}
+
+.reading-surface > .item-content-body {
+  width: 100%;
+  min-width: 0;
+}
+
+.reading-viewport-overlay {
+  position: fixed;
+  inset: 48px 0 0;
+  z-index: 1010;
+  pointer-events: none;
+}
+
+.reader-mode-focus-item .reading-viewport-overlay {
+  top: 0;
+}
+
+.reading-step-rail,
+.reading-checkpoint-rail {
+  position: absolute;
+  inset-block: 0;
+  width: 3rem;
+}
+
+.reading-step-rail {
+  left: 0;
+  pointer-events: none;
+}
+
+.reading-checkpoint-rail {
+  right: 0;
+}
+
+.reading-step-indicator {
+  position: absolute;
+  left: 0.75rem;
+  z-index: 1010;
+  color: var(--bs-secondary-color);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 1.15rem;
+  line-height: 1;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 140ms ease-out;
+}
+
+.reading-step-next.is-visible {
+  opacity: 0.72;
+}
+
+.reading-step-next::before {
+  content: "↓";
+}
+
+.reading-step-next.is-below::before {
+  content: "⇊";
+}
+
+.reading-step-next.is-horizontal::before {
+  content: "→";
+}
+
+.reading-step-landing::before {
+  content: "↳";
+}
+
+.reading-step-landing.is-visible {
+  opacity: 0.6;
+}
+
 .reading-checkpoint-tools {
-  position: sticky;
-  top: 3.5rem;
+  position: absolute;
+  top: clamp(5rem, 24vh, 14rem);
+  right: 0.75rem;
   z-index: 1020;
-  float: right;
-  margin: 0.5rem 0.25rem 0.5rem 0.75rem;
+  margin: 0;
   background: var(--bs-body-bg);
+  pointer-events: auto;
+}
+
+@media (width <= 768px) {
+  .reading-viewport-overlay {
+    top: 48px;
+  }
+
+  .reader-mode-focus-item .reading-viewport-overlay {
+    top: 0;
+  }
+
+  .reading-step-indicator {
+    left: 0.35rem;
+    font-size: 1rem;
+  }
+
+  .reading-checkpoint-tools {
+    top: clamp(4rem, 24vh, 10rem);
+    right: 0.35rem;
+  }
+
+  .reading-checkpoint-tools > .btn {
+    width: 2.5rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
 }
 
 .checkpoint-resume-target {

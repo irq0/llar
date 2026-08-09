@@ -5,6 +5,7 @@
    [hiccup2.core :as h]
    [java-time.api :as time]
    [llar.apis.reader :as uut]
+   [llar.appconfig :as appconfig]
    [llar.db.search :as db-search]
    [llar.lab :as lab]
    [llar.persistency :as persistency]
@@ -102,6 +103,53 @@
       (is (= :save-checkpoint (:action @command)))
       (is (= 0.25 (:progress @command)))
       (is (= "read" (get-in @command [:selector :quote :exact]))))))
+
+(deftest reader-separates-the-article-from-viewport-reading-controls
+  (with-redefs [appconfig/credentials (constantly nil)
+                rc/rc (constantly nil)
+                uut/nav-bar (constantly nil)
+                uut/group-nav (constantly nil)
+                uut/source-nav (constantly nil)]
+    (let [item {:id 42
+                :url "https://example.com"
+                :data {:description
+                       {"text/html" "<p>One</p><p>Two</p>"}}
+                :entry {:language "en"}
+                :tags []
+                :nwords 2
+                :type :item-type/link
+                :checkpoint-selector {:position {:start 4 :end 8}}
+                :checkpoint-progress 0.25}
+          article (str (h/html (uut/main-show-item
+                                {:uri "/reader/item/by-id/42"
+                                 :items [item]})))
+          overlay (str (h/html (uut/reading-viewport-overlay item)))
+          focus-shell (str (#'uut/render-reader-shell
+                            {:mode :focus-item :items [item]}
+                            [:main "article"]
+                            "Example"))
+          show-shell (str (#'uut/render-reader-shell
+                           {:mode :show-item :items [item]}
+                           [:main "article"]
+                           "Example"))]
+      (is (re-find #"class=\"reading-surface\"" article))
+      (is (not (re-find #"reading-(?:step|checkpoint)-rail" article)))
+      (is (re-find #"class=\"reading-viewport-overlay\"" overlay))
+      (is (re-find #"class=\"reading-step-rail\"" overlay))
+      (is (re-find #"class=\"reading-checkpoint-rail\"" overlay))
+      (is (re-find #"btn-group-vertical[^\"]*reading-checkpoint-tools"
+                   overlay))
+      (is (not (re-find #"(?:btn|outline)-warning" overlay)))
+      (is (re-find #"<body class=\"reader-mode-focus-item\"" focus-shell))
+      (is (re-find #"class=\"reading-viewport-overlay\"" focus-shell))
+      (is (re-find #"<body class=\"reader-mode-show-item\"" show-shell))
+      (is (re-find #"class=\"reading-viewport-overlay\"" show-shell)))))
+
+(deftest reading-navigation-has-one-mode-aware-forward-path
+  (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (re-find #"function advanceReadingBlock\(\)" javascript))
+    (is (re-find #"function readingUsesHorizontalColumns" javascript))
+    (is (not (re-find #"viewport-(?:bottom|pivot)" javascript)))))
 
 (deftest item-view-tag-buttons-are-icon-only-with-tooltip-labels
   (let [button (uut/tag-button 42 {:tag :saved

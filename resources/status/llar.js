@@ -2,10 +2,26 @@
 // utilities
 //
 
-function get_scroll_to_items() {
-  return $("#item-content-body").find(
-    "h1, h2, h3, h4, h5, h6, h7, p, pre, li, blockquote, img, iframe, div:not(:has(*))",
-  );
+function getReadingBlocks(container) {
+  if (!container) return [];
+  var candidates = Array.from(
+    container.querySelectorAll(
+      "h1, h2, h3, h4, h5, h6, p, pre, li, blockquote, img, iframe, div",
+    ),
+  ).filter(function (element) {
+    return (
+      element.getClientRects().length > 0 &&
+      (element.tagName !== "DIV" || element.childElementCount === 0)
+    );
+  });
+
+  // Prefer the most specific readable block. For example, a paragraph inside
+  // a list item is one landing target rather than two nested targets.
+  return candidates.filter(function (element) {
+    return !candidates.some(function (other) {
+      return other !== element && element.contains(other);
+    });
+  });
 }
 
 function stateValueForTag(state, tag) {
@@ -115,162 +131,301 @@ function show_bookmark_add_result(title, message) {
   console.log(message);
 }
 
-// document structure aware page forward scrolling
-$(".item-content-body").ready(function () {
-  //    var main_top = $("main").offset().top;
-  if ($("#item-content-body").length) {
-    var main_top = $("#item-content-body").offset().top;
-    var main_bottom = window.innerHeight;
-    var items = get_scroll_to_items();
-    items.each(function () {
-      var this_top = $(this)[0].getBoundingClientRect().top;
-      var this_bottom = this_top + $(this).height();
-      if (this_top >= main_top && this_bottom < main_bottom) {
-        $(this).attr("view", "full");
-      } else if (this_top < main_top && this_bottom < main_bottom) {
-        $(this).attr("view", "partial-top");
-      } else if (
-        this_top >= main_top &&
-        this_bottom >= main_bottom &&
-        this_top + 20 < main_bottom
-      ) {
-        $(this).attr("view", "partial-bottom");
-      } else {
-        $(this).attr("view", "out");
-      }
-    });
-    items.each(function () {
-      $(this).removeClass("viewport-bottom");
-    });
-    var scroll_to = items.last();
-    var candidate = items.filter('[view="out"]');
-    if (candidate.length > 0) {
-      scroll_to = candidate.first();
-    }
-    candidate = items.filter('[view="partial-bottom"]');
-    if (candidate.length > 0) {
-      scroll_to = candidate.first();
-    }
-    scroll_to.addClass("viewport-bottom");
-  }
-});
+// Document-structure-aware reading navigation. Space and touch gestures share
+// this model, while saving a cross-device checkpoint remains explicit.
+var readingNavigation = {
+  container: null,
+  blocks: [],
+  target: null,
+  frame: null,
+  landingBlock: null,
+  landingTimer: null,
+};
 
-$(window).scroll(function () {
-  var content_body = $("#item-content-body");
-  if (content_body.length) {
-    var main_top = content_body.offset().top;
-    // var main_top = $("main").offset().top;
-    var main_bottom = window.innerHeight;
-    var items = get_scroll_to_items();
-    items.each(function () {
-      var this_top = $(this)[0].getBoundingClientRect().top + 10;
-      var this_bottom = this_top + $(this).height();
-      if (this_top >= main_top && this_bottom < main_bottom) {
-        $(this).attr("view", "full");
-      } else if (this_top < main_top && this_bottom < main_bottom) {
-        $(this).attr("view", "partial-top");
-      } else if (
-        this_top >= main_top &&
-        this_bottom >= main_bottom &&
-        this_top + 20 < main_bottom
-      ) {
-        $(this).attr("view", "partial-bottom");
-      } else {
-        $(this).attr("view", "out");
-      }
-    });
-    items.each(function () {
-      $(this).removeClass("viewport-bottom");
-    });
-    var scroll_to = items.last();
-    var candidate = items.filter('[view="out"]');
-    if (candidate.length > 0) {
-      scroll_to = candidate.first();
-    }
-    candidate = items.filter('[view="partial-bottom"]');
-    if (candidate.length > 0) {
-      scroll_to = candidate.first();
-    }
-    scroll_to.addClass("viewport-bottom");
-  }
-});
+function readingViewport(container) {
+  var topNav = document.getElementById("top-nav");
+  var containerRect = container.getBoundingClientRect();
+  var top = Math.max(
+    0,
+    containerRect.top,
+    topNav ? topNav.getBoundingClientRect().bottom : 0,
+  );
+  return {
+    top: top,
+    bottom: Math.min(window.innerHeight, Math.max(top, containerRect.bottom)),
+  };
+}
 
-// keyboard navigation
-$("body").keypress(function (event) {
-  if ($("body").hasClass("modal-open")) {
+function readingUsesHorizontalColumns(container) {
+  var style = window.getComputedStyle(container);
+  return (
+    style.columnWidth !== "auto" &&
+    container.scrollWidth > container.clientWidth + 1
+  );
+}
+
+function readableClientRects(block) {
+  return Array.from(block.getClientRects()).filter(function (rect) {
+    return rect.width > 0 && rect.height > 0;
+  });
+}
+
+function nextVerticalReadingTarget(container, blocks) {
+  var viewport = readingViewport(container);
+  for (var block of blocks) {
+    for (var rect of readableClientRects(block)) {
+      if (rect.bottom <= viewport.top + 2) continue;
+      if (rect.top <= viewport.top + 2 && rect.bottom > viewport.bottom + 2) {
+        return {
+          axis: "vertical",
+          block: null,
+          rect: { top: viewport.bottom },
+          beyondViewport: true,
+          fallback: true,
+        };
+      }
+      var startsBelow = rect.top >= viewport.bottom - 2;
+      var crossesBottom =
+        rect.top >= viewport.top + 2 &&
+        rect.top < viewport.bottom - 2 &&
+        rect.bottom > viewport.bottom + 2;
+      if (startsBelow || crossesBottom) {
+        return {
+          axis: "vertical",
+          block: block,
+          rect: rect,
+          beyondViewport: startsBelow,
+        };
+      }
+    }
+  }
+
+  if (
+    window.scrollY + window.innerHeight <
+    document.documentElement.scrollHeight - 2
+  ) {
+    return {
+      axis: "vertical",
+      block: null,
+      rect: { top: viewport.bottom },
+      beyondViewport: true,
+      fallback: true,
+    };
+  }
+  return null;
+}
+
+function nextHorizontalReadingTarget(container, blocks) {
+  var containerRect = container.getBoundingClientRect();
+  for (var block of blocks) {
+    for (var rect of readableClientRects(block)) {
+      if (rect.right <= containerRect.left + 2) continue;
+      var startsBeyond = rect.left >= containerRect.right - 2;
+      var crossesEdge =
+        rect.left >= containerRect.left + 2 &&
+        rect.left < containerRect.right - 2 &&
+        rect.right > containerRect.right + 2;
+      if (startsBeyond || crossesEdge) {
+        return {
+          axis: "horizontal",
+          block: block,
+          rect: rect,
+          beyondViewport: startsBeyond,
+        };
+      }
+    }
+  }
+
+  if (
+    container.scrollLeft <
+    container.scrollWidth - container.clientWidth - 2
+  ) {
+    return {
+      axis: "horizontal",
+      block: null,
+      rect: {
+        left: containerRect.right,
+        top: containerRect.top,
+      },
+      beyondViewport: true,
+      fallback: true,
+    };
+  }
+  return null;
+}
+
+function nextReadingTarget() {
+  var container = readingNavigation.container;
+  if (!container) return null;
+  if (readingUsesHorizontalColumns(container)) {
+    return nextHorizontalReadingTarget(container, readingNavigation.blocks);
+  }
+  return nextVerticalReadingTarget(container, readingNavigation.blocks);
+}
+
+function positionReadingStepMarker(marker, viewportY) {
+  var rail = marker && marker.parentElement;
+  var container = readingNavigation.container;
+  if (!rail || !container) return;
+  var viewport = readingViewport(container);
+  var clampedY = Math.min(
+    viewport.bottom - 14,
+    Math.max(viewport.top + 14, viewportY),
+  );
+  marker.style.top = clampedY - rail.getBoundingClientRect().top + "px";
+}
+
+function updateReadingLandingMarker() {
+  var marker = document.querySelector(".reading-step-landing");
+  var block = readingNavigation.landingBlock;
+  var container = readingNavigation.container;
+  if (!marker || !container || !marker.classList.contains("is-visible")) {
     return;
   }
-  if ($(event.target).is("input, textarea, select, [contenteditable]")) {
+  if (!block) {
+    positionReadingStepMarker(marker, readingViewport(container).top + 14);
     return;
   }
-  if ($("#item-content-body").length > 0) {
-    var main_top = $("#item-content-body").offset().top;
-    var main_bottom = window.innerHeight;
-    var next_url = null;
-    var scroll_to = null;
-    var candidate = null;
-    if (event.key == "n") {
-      next_url = $("#btn-next-item").attr("href");
-      if (next_url) {
-        window.location.href = next_url;
-      }
-    } else if (event.key == "p") {
-      window.history.back();
-    } else if (event.key == "N") {
-      $("#btn-tag-unread").trigger("click");
-      next_url = $("#btn-next-item").attr("href");
-      if (next_url) {
-        window.location.href = next_url;
-      }
-    } else if (event.key == "P") {
-      $("#btn-tag-unread").trigger("click");
-      window.history.back();
-    } else if (event.key == "a") {
-      event.preventDefault();
-      toggleAnnotationMode();
-    } else if (event.which == 32) {
-      // space
-      event.preventDefault();
-      var items = get_scroll_to_items();
-      items.each(function () {
-        var this_top = $(this)[0].getBoundingClientRect().top;
-        var this_bottom = this_top + $(this).height();
-        if (this_top >= main_top && this_bottom < main_bottom) {
-          $(this).attr("view", "full");
-        } else if (this_top < main_top && this_bottom < main_bottom) {
-          $(this).attr("view", "partial-top");
-        } else if (
-          this_top >= main_top &&
-          this_bottom >= main_bottom &&
-          this_top < main_bottom
-        ) {
-          $(this).attr("view", "partial-bottom");
-        } else {
-          $(this).attr("view", "out");
-        }
-      });
-      scroll_to = items.last();
-      candidate = items.filter('[view="out"]');
-      if (candidate.length > 0) {
-        scroll_to = candidate.first();
-      }
-      candidate = items.filter('[view="partial-bottom"]');
-      if (candidate.length > 0) {
-        scroll_to = candidate.first();
-      }
-      event.preventDefault();
-      scroll_to.addClass("viewport-pivot");
-      $("body,html").animate({
-        scrollTop: scroll_to.offset().top - main_top - 5,
-      });
-    }
+  var viewport = readingViewport(container);
+  var containerRect = container.getBoundingClientRect();
+  var horizontal = readingUsesHorizontalColumns(container);
+  var rect = readableClientRects(block).find(function (candidate) {
+    var verticallyVisible =
+      candidate.bottom > viewport.top && candidate.top < viewport.bottom;
+    var horizontallyVisible =
+      !horizontal ||
+      (candidate.right > containerRect.left &&
+        candidate.left < containerRect.right);
+    return verticallyVisible && horizontallyVisible;
+  });
+  positionReadingStepMarker(marker, rect ? rect.top : viewport.top + 14);
+}
+
+function updateReadingNavigation() {
+  readingNavigation.frame = null;
+  var marker = document.querySelector(".reading-step-next");
+  if (!marker || !readingNavigation.container) return;
+
+  var target = nextReadingTarget();
+  readingNavigation.target = target;
+  marker.classList.toggle("is-visible", !!target);
+  marker.classList.toggle(
+    "is-below",
+    !!target && target.axis === "vertical" && target.beyondViewport,
+  );
+  marker.classList.toggle(
+    "is-horizontal",
+    !!target && target.axis === "horizontal",
+  );
+  if (target) positionReadingStepMarker(marker, target.rect.top);
+  updateReadingLandingMarker();
+}
+
+function requestReadingNavigationUpdate() {
+  if (readingNavigation.frame !== null) return;
+  readingNavigation.frame = window.requestAnimationFrame(
+    updateReadingNavigation,
+  );
+}
+
+function refreshReadingBlocks() {
+  if (!readingNavigation.container) return;
+  readingNavigation.blocks = getReadingBlocks(readingNavigation.container);
+  requestReadingNavigationUpdate();
+}
+
+function showReadingLanding(block) {
+  var marker = document.querySelector(".reading-step-landing");
+  if (!marker) return;
+  readingNavigation.landingBlock = block;
+  marker.classList.add("is-visible");
+  clearTimeout(readingNavigation.landingTimer);
+  readingNavigation.landingTimer = setTimeout(function () {
+    marker.classList.remove("is-visible");
+    readingNavigation.landingBlock = null;
+  }, 1500);
+  requestReadingNavigationUpdate();
+}
+
+function advanceReadingBlock() {
+  var container = readingNavigation.container;
+  if (!container) return false;
+  var target = nextReadingTarget();
+  if (!target) return false;
+
+  if (target.axis === "horizontal") {
+    var containerRect = container.getBoundingClientRect();
+    var horizontalDelta = target.fallback
+      ? container.clientWidth * 0.9
+      : target.rect.left - containerRect.left;
+    container.scrollTo({
+      left: Math.min(
+        container.scrollWidth - container.clientWidth,
+        container.scrollLeft + Math.max(1, horizontalDelta),
+      ),
+      behavior: "smooth",
+    });
+  } else {
+    var viewport = readingViewport(container);
+    var verticalDelta = target.fallback
+      ? (viewport.bottom - viewport.top) * 0.85
+      : target.rect.top - viewport.top;
+    window.scrollTo({
+      top: window.scrollY + Math.max(1, verticalDelta),
+      behavior: "smooth",
+    });
+  }
+
+  showReadingLanding(target.block);
+  setTimeout(requestReadingNavigationUpdate, 350);
+  return true;
+}
+
+$(function () {
+  var container = document.getElementById("item-content-body");
+  if (!container) return;
+  readingNavigation.container = container;
+  refreshReadingBlocks();
+  $(window).on("scroll.reading-navigation", requestReadingNavigationUpdate);
+  $(window).on("resize.reading-navigation", refreshReadingBlocks);
+  $(window).on("load.reading-navigation", refreshReadingBlocks);
+  $(container).on("scroll.reading-navigation", requestReadingNavigationUpdate);
+});
+
+// Keyboard navigation
+$("body").on("keydown", function (event) {
+  if ($("body").hasClass("modal-open")) return;
+  if ($(event.target).is("input, textarea, select, [contenteditable]")) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (!readingNavigation.container) return;
+
+  var nextUrl = null;
+  if (event.key === "n") {
+    nextUrl = $("#btn-next-item").attr("href");
+    if (nextUrl) window.location.href = nextUrl;
+  } else if (event.key === "p") {
+    window.history.back();
+  } else if (event.key === "N") {
+    $("#btn-tag-unread").trigger("click");
+    nextUrl = $("#btn-next-item").attr("href");
+    if (nextUrl) window.location.href = nextUrl;
+  } else if (event.key === "P") {
+    $("#btn-tag-unread").trigger("click");
+    window.history.back();
+  } else if (event.key === "a") {
+    event.preventDefault();
+    toggleAnnotationMode();
+  } else if (event.key === " " && !event.shiftKey) {
+    event.preventDefault();
+    advanceReadingBlock();
   }
 });
 
-// Swipe left to advance through long content. Pointer Events cover touch and pen
-// input without requiring a gesture library.
-var main = document.querySelector("main");
-if (main) {
+// Swipe left uses the same forward movement as Space. Pointer Events cover
+// touch and pen input without requiring a gesture library.
+$(function () {
+  var main = document.querySelector("main");
+  if (!main) return;
   var swipeStart = null;
 
   main.addEventListener("pointerdown", function (event) {
@@ -292,51 +447,15 @@ if (main) {
     var deltaX = event.clientX - swipeStart.x;
     var deltaY = event.clientY - swipeStart.y;
     swipeStart = null;
-
-    if (deltaX > -50 || Math.abs(deltaX) <= Math.abs(deltaY)) {
-      return;
+    if (
+      deltaX <= -50 &&
+      Math.abs(deltaX) > Math.abs(deltaY) &&
+      !$("body").hasClass("modal-open")
+    ) {
+      advanceReadingBlock();
     }
-
-    var main_top = $("main").offset().top;
-    var main_bottom = window.innerHeight;
-
-    if ($("body").hasClass("modal-open")) {
-      return;
-    }
-
-    var items = get_scroll_to_items();
-    items.each(function () {
-      var this_top = $(this)[0].getBoundingClientRect().top;
-      var this_bottom = this_top + $(this).height();
-      if (this_top >= main_top && this_bottom < main_bottom) {
-        $(this).attr("view", "full");
-      } else if (this_top < main_top && this_bottom < main_bottom) {
-        $(this).attr("view", "partial-top");
-      } else if (
-        this_top >= main_top &&
-        this_bottom >= main_bottom &&
-        this_top < main_bottom
-      ) {
-        $(this).attr("view", "partial-bottom");
-      } else {
-        $(this).attr("view", "out");
-      }
-    });
-    var scroll_to = items.last();
-    var candidate = items.filter('[view="out"]');
-    if (candidate.length > 0) {
-      scroll_to = candidate.first();
-    }
-    candidate = items.filter('[view="partial-bottom"]');
-    if (candidate.length > 0) {
-      scroll_to = candidate.first();
-    }
-    scroll_to.addClass("viewport-pivot");
-    $("body,html").animate({
-      scrollTop: scroll_to.offset().top - main_top - 5,
-    });
   });
-}
+});
 
 $(document).ready(function () {
   $(".btn-mark-view-read").on("click", function () {
@@ -740,6 +859,8 @@ function toggleAnnotationMode() {
     $("#item-content-body").off("click.annotation-delete");
     pendingSelector = null;
   }
+  $("body").toggleClass("reading-annotation-mode", annotationModeActive);
+  setTimeout(refreshReadingBlocks, 0);
 }
 
 function loadAnnotations() {
@@ -994,12 +1115,17 @@ function findByQuoteSelector(container, quote) {
 }
 
 function firstVisibleTextOffset(container) {
-  var topNav = document.getElementById("top-nav");
-  var topBoundary = Math.max(
-    0,
-    container.getBoundingClientRect().top,
-    topNav ? topNav.getBoundingClientRect().bottom : 0,
-  );
+  var viewport = readingViewport(container);
+  var containerRect = container.getBoundingClientRect();
+  var horizontal = readingUsesHorizontalColumns(container);
+  var rectIsVisible = function (rect) {
+    return (
+      rect.bottom >= viewport.top &&
+      rect.top <= viewport.bottom &&
+      (!horizontal ||
+        (rect.right >= containerRect.left && rect.left <= containerRect.right))
+    );
+  };
   var walker = document.createTreeWalker(
     container,
     NodeFilter.SHOW_TEXT,
@@ -1014,8 +1140,22 @@ function firstVisibleTextOffset(container) {
     if (text.trim().length > 0) {
       var nodeRange = document.createRange();
       nodeRange.selectNodeContents(node);
-      var rect = nodeRange.getBoundingClientRect();
-      if (rect.bottom >= topBoundary && rect.top <= window.innerHeight) {
+      if (Array.from(nodeRange.getClientRects()).some(rectIsVisible)) {
+        if (horizontal) {
+          for (var i = 0; i < text.length; i++) {
+            if (/\s/.test(text.charAt(i))) continue;
+            var visibleCharRange = document.createRange();
+            visibleCharRange.setStart(node, i);
+            visibleCharRange.setEnd(node, Math.min(i + 1, text.length));
+            if (
+              Array.from(visibleCharRange.getClientRects()).some(rectIsVisible)
+            ) {
+              return globalOffset + i;
+            }
+          }
+          globalOffset += text.length;
+          continue;
+        }
         var low = 0;
         var high = text.length - 1;
         while (low < high) {
@@ -1023,7 +1163,7 @@ function firstVisibleTextOffset(container) {
           var charRange = document.createRange();
           charRange.setStart(node, mid);
           charRange.setEnd(node, Math.min(mid + 1, text.length));
-          if (charRange.getBoundingClientRect().bottom >= topBoundary) {
+          if (charRange.getBoundingClientRect().bottom >= viewport.top) {
             high = mid;
           } else {
             low = mid + 1;
@@ -1069,8 +1209,9 @@ function updateCheckpointControls(state) {
   controls.find(".btn-resume-checkpoint,.btn-clear-checkpoint").remove();
   var save = controls.find(".btn-save-checkpoint");
   save
-    .toggleClass("btn-warning", !!checkpoint)
-    .toggleClass("btn-outline-warning", !checkpoint)
+    .toggleClass("btn-secondary", !!checkpoint)
+    .toggleClass("btn-outline-secondary", !checkpoint)
+    .attr("aria-pressed", checkpoint ? "true" : "false")
     .attr(
       "title",
       checkpoint ? "Update saved place" : "Save this reading position",
@@ -1083,7 +1224,7 @@ function updateCheckpointControls(state) {
   if (!checkpoint) return;
   if (checkpoint.selector) {
     var resume = $("<button>")
-      .addClass("btn btn-warning btn-resume-checkpoint")
+      .addClass("btn btn-outline-secondary btn-resume-checkpoint")
       .attr("type", "button")
       .attr("title", "Resume at " + Math.round(checkpoint.progress * 100) + "%")
       .attr("aria-label", "Scroll to the saved reading position")
@@ -1174,10 +1315,18 @@ function resumeReadingCheckpoint(event) {
   if (!range) return;
 
   var rect = range.getBoundingClientRect();
-  window.scrollTo({
-    top: window.scrollY + rect.top - 80,
-    behavior: "smooth",
-  });
+  if (readingUsesHorizontalColumns(container)) {
+    var containerRect = container.getBoundingClientRect();
+    container.scrollTo({
+      left: Math.max(0, container.scrollLeft + rect.left - containerRect.left),
+      behavior: "smooth",
+    });
+  } else {
+    window.scrollTo({
+      top: window.scrollY + rect.top - readingViewport(container).top,
+      behavior: "smooth",
+    });
+  }
   var target = $(range.startContainer).closest("p,li,pre,blockquote,div");
   target.addClass("checkpoint-resume-target");
   setTimeout(function () {
