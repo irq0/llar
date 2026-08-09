@@ -87,7 +87,7 @@
 (defn- preview-url? [url]
   (and (string? url)
        (not (string/blank? url))
-       (not (#{"self" "default"} url))))
+       (not (#{"self" "default" "image"} url))))
 
 (defn- blobify-preview-url [url]
   (if (preview-url? url)

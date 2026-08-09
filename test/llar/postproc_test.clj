@@ -141,12 +141,14 @@
     (testing "leaves sentinel preview values unchanged"
       (with-redefs [http/try-blobify-url! (fn [url] (str "/blob/" url))]
         (let [item (assoc base-item :entry {:url "https://example.com/article"
-                                            :thumbnail "self"
-                                            :lead-image-url "default"
+                                            :thumbnail "nsfw"
+                                            :lead-image-url "spoiler"
+                                            :entities {:photos ["image"]}
                                             :contents {}})
               result (uut/all-items-process-first item example-src state)]
-          (is (= "self" (get-in result [:entry :thumbnail])))
-          (is (= "default" (get-in result [:entry :lead-image-url]))))))
+          (is (= "nsfw" (get-in result [:entry :thumbnail])))
+          (is (= "spoiler" (get-in result [:entry :lead-image-url])))
+          (is (= ["image"] (get-in result [:entry :entities :photos]))))))
 
     (testing "keeps original preview URL on blobification failure"
       (with-redefs [http/try-blobify-url! (fn [_] (throw (ex-info "download failed" {})))]

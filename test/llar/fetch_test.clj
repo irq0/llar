@@ -11,6 +11,7 @@
    [llar.fetch.http]
    [llar.fetch.imap]
    [llar.fetch.readability :as readability]
+   [llar.fetchutils :as fetchutils]
    [llar.converter :as converter]
    [hickory.select :as S]
    [llar.fetch.reddit :as reddit]
@@ -182,6 +183,63 @@
           (is (= n-items (count fetched)))
           (is (every? #(= (get-in % [:meta :source]) src) fetched))
           (log/info "Test item:" item))))))
+
+(deftest readability-http-failure-keeps-original-item
+  (let [item {:entry {:url (http/absolutify-url "https://example.com/article")
+                      :contents {"text/html" "<p>original</p>"
+                                 "text/plain" "original"}}}]
+    (with-redefs [uut/fetch-source (fn [& _]
+                                     (throw+ {:type :llar.http/request-error
+                                              :code 403}))]
+      (is (= item ((fetchutils/readability-contents) item))))))
+
+(deftest selector-feed-isolates-child-failures-and-falls-back-title
+  (let [source (src/selector-feed "https://example.com/index.html"
+                                  {:urls (S/tag :a)} {} {})
+        ts (time/zoned-date-time)
+        outer-hickory {:type :document
+                       :content [{:type :element
+                                  :tag :html
+                                  :attrs nil
+                                  :content [{:type :element
+                                             :tag :body
+                                             :attrs nil
+                                             :content [{:type :element :tag :a
+                                                        :attrs {:href "/good"}
+                                                        :content ["good"]}
+                                                       {:type :element :tag :a
+                                                        :attrs {:href "/missing"}
+                                                        :content ["missing"]}]}]}]}
+        child-hickory {:type :document
+                       :content [{:type :element
+                                  :tag :html
+                                  :attrs nil
+                                  :content [{:type :element
+                                             :tag :body
+                                             :attrs nil
+                                             :content [{:type :element :tag :p
+                                                        :attrs nil
+                                                        :content ["body"]}]}]}]}]
+    (with-redefs [http/fetch (fn [url & _]
+                               (case (str url)
+                                 "https://example.com/index.html"
+                                 {:summary {:ts ts :title nil}
+                                  :hickory outer-hickory}
+
+                                 "https://example.com/good"
+                                 {:summary {:ts ts :title "Good item"}
+                                  :hickory child-hickory}
+
+                                 "https://example.com/missing"
+                                 (throw+ {:type :llar.http/request-error
+                                          :code 404
+                                          :url url})))
+                  commands/html2text identity]
+      (let [items (uut/fetch-source source {})]
+        (is (= 1 (count items)))
+        (is (= "Good item" (get-in (first items) [:summary :title])))
+        (is (= "https://example.com/index.html"
+               (get-in (first items) [:feed :title])))))))
 
 (deftest titleless-rss-feed-test
   (let [url "https://bsky.app/profile/alexmillerdb.bsky.social/rss"

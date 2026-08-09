@@ -217,15 +217,33 @@
 
 (defn parse-img-srcset [str]
   (when (and (string? str) (not (string/blank? str)))
-    (map (fn [src]
-           (let [pair (string/split src #"\s")]
-             (if (= (count pair) 2)
-               pair
-               [(first pair) "1x"])))
-
-         (string/split
-          (java.net.URLDecoder/decode str "UTF-8")
-          #"(?<=\d+[wx]|),\s*"))))
+    ;; A comma is valid inside a URL (Cloudinary transformation URLs and data URLs
+    ;; use it routinely), so splitting on every comma corrupts otherwise valid
+    ;; images. A descriptor terminates a srcset candidate unambiguously. Keep the
+    ;; attribute encoded: URLDecoder also incorrectly turns '+' into a space.
+    (let [descriptor-pattern #"\s+(\d+(?:\.\d+)?x|\d+w)\s*(?:,\s*|$)"
+          matcher (re-matcher descriptor-pattern str)
+          parsed (loop [start 0
+                        candidates []]
+                   (if (.find matcher)
+                     (let [url (string/trim (subs str start (.start matcher)))
+                           descriptor (.group matcher 1)]
+                       (recur (.end matcher)
+                              (cond-> candidates
+                                (not (string/blank? url))
+                                (conj [url descriptor]))))
+                     (let [url (string/trim (subs str start))]
+                       (cond-> candidates
+                         (not (string/blank? url))
+                         (conj [url "1x"])))))]
+      ;; Descriptor-less candidates are uncommon but valid. In that case a comma
+      ;; followed by whitespace is the least surprising separator while still
+      ;; preserving commas embedded in URLs.
+      (if (and (nil? (re-find descriptor-pattern str))
+               (string/includes? str ","))
+        (mapv #(vector (string/trim %) "1x")
+              (remove string/blank? (string/split str #",\s+")))
+        parsed))))
 
 (defn unparse-img-srcset [parsed]
   (when (coll? parsed)
@@ -237,6 +255,15 @@
              " "
              descr)))
      (string/join ", "))))
+
+(defn- absolutify-srcset-url [raw-url base-url]
+  ;; Srcset URLs frequently contain signed or transformation parameters. Resolve
+  ;; their encoded representation directly instead of using parse-href's legacy
+  ;; quirks-mode form decoding.
+  (let [url (uri/uri raw-url)]
+    (if (uri/absolute? url)
+      url
+      (uri/resolve-uri base-url raw-url))))
 
 (defn edit-img-tag [base-url loc]
   (zip/edit loc update-in [:attrs]
@@ -254,7 +281,7 @@
                          (some->> parsed-srcset
                                   (map (fn [[url descr]]
                                          [(privacy/strip-tracking-params
-                                           (str (absolutify-url url base-url)))
+                                           (str (absolutify-srcset-url url base-url)))
                                           descr]))
                                   unparse-img-srcset)))))))
 
@@ -530,7 +557,8 @@
                        context)))
       (#{408 429} status)
       (do
-        (log/warnf "client Error (overloaded?) (%s): %s" status reason-phrase)
+        (log/warnf "client Error (overloaded?) (%s): %s context:%s"
+                   status reason-phrase context)
         (throw+ (merge {:type ::client-error-retry-later
                         :code status
                         :reason-class (if (= 429 status) :rate-limited :timeout)
@@ -560,6 +588,12 @@
        (throw+ (merge {:type ::server-error-retry-later
                        :reason-class :ssl
                        :message (str "SSL Handshake failed: " (ex-message e#))}
+                      ~throw-extra)))
+
+     (catch java.security.cert.CertPathBuilderException e#
+       (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :ssl
+                       :message (str "Certificate path validation failed: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch java.net.ConnectException e#

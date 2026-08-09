@@ -187,6 +187,37 @@
     (is (= "https://example.com/small.png?w=1 1x, https://example.com/big.png?w=2 2x"
            (:srcset img)))))
 
+(deftest parse-img-srcset-preserves-commas-and-encoding
+  (let [srcset (str "https://cdn.example/w_424,c_limit,f_auto,q_auto/image.jpg?sig=a+b%2Cc 424w, "
+                    "https://cdn.example/w_848,c_limit,f_auto,q_auto/image.jpg?sig=d+e%2Cf 848w")]
+    (is (= [["https://cdn.example/w_424,c_limit,f_auto,q_auto/image.jpg?sig=a+b%2Cc" "424w"]
+            ["https://cdn.example/w_848,c_limit,f_auto,q_auto/image.jpg?sig=d+e%2Cf" "848w"]]
+           (uut/parse-img-srcset srcset)))
+    (is (= srcset (uut/unparse-img-srcset (uut/parse-img-srcset srcset))))
+    (let [doc {:type :document
+               :content [{:type :element
+                          :tag :img
+                          :attrs {:srcset srcset}
+                          :content []}]}
+          rewritten (uut/absolutify-links-in-hick
+                     doc
+                     (#'uut/parse-url "https://example.com/base/"))]
+      (is (= srcset (-> rewritten :content first :attrs :srcset))))))
+
+(deftest parse-img-srcset-supports-descriptorless-candidates
+  (is (= [["small.jpg" "1x"] ["large.jpg" "1x"]]
+         (uut/parse-img-srcset "small.jpg, large.jpg"))))
+
+(deftest certificate-path-failure-is-retryable-ssl
+  (try
+    (uut/with-http-exception-handler {:url "https://expired.example"}
+      (throw (java.security.cert.CertPathBuilderException. "unable to find valid path")))
+    (is false "expected certificate validation to throw")
+    (catch clojure.lang.ExceptionInfo ex
+      (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
+      (is (= :ssl (:reason-class (ex-data ex))))
+      (is (= "https://expired.example" (:url (ex-data ex)))))))
+
 (deftest sanitize-css
   (let [sanitized (uut/sanitize hick :remove-css? true)
         style-attrs (remove nil?

@@ -149,6 +149,18 @@
          (replace-contents-with-readability item keep-orig?)
          (catch [:type :llar.fetch.readability/not-parsable] _
            (log/error (str item) "Readability Error. Not replacing content with readability version")
+           item)
+         (catch [:type :llar.http/request-error] failure
+           (log/warnf "Readability request failed for %s (%s); keeping original content"
+                      (get-in item [:entry :url]) (:code failure))
+           item)
+         (catch [:type :llar.http/server-error-retry-later] failure
+           (log/warnf "Readability server request failed for %s (%s); keeping original content"
+                      (get-in item [:entry :url]) (:reason-class failure))
+           item)
+         (catch [:type :llar.http/client-error-retry-later] failure
+           (log/warnf "Readability throttled/timed out for %s (%s); keeping original content"
+                      (get-in item [:entry :url]) (:reason-class failure))
            item))))))
 
 (defn make-category-filter-deny [denylist]

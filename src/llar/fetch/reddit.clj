@@ -232,6 +232,14 @@
                                               :irq0-src-reddit/selftext]
                                      :opt-un [:irq0-src-reddit/thumbnail]))
 
+(defn- normalize-reddit-item [item]
+  ;; Reddit legitimately omits selftext for link/crossposts and uses relative URLs
+  ;; for gallery/self posts. Normalize those API variants before validating the
+  ;; internal, stricter item shape.
+  (cond-> (update item :selftext #(or % ""))
+    (string? (:url item))
+    (update :url #(str (llar-http/absolutify-url % "https://www.reddit.com")))))
+
 (extend-protocol fetch/FetchSource
   llar.src.Reddit
   (fetch-source [src _conditional-tokens]
@@ -240,13 +248,14 @@
       (swap! last-listing-scores assoc src (into [] (keep :score) children))
       ;; keep, not for/if: an item failing the spec must be dropped, not turned
       ;; into a nil that flows on into postprocessing and the store
-      (keep (fn [item]
-              (if (s/invalid? (s/conform :irq0-src-reddit/item item))
-                (log/warn "invalid reddit item:"
-                          (s/explain-str :irq0-src-reddit/item item))
-                (make-reddit-item
-                 (fetch/make-meta src)
-                 {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}
-                 (fetch/make-item-hash (str (:id item)))
-                 (make-reddit-entry item))))
+      (keep (fn [raw-item]
+              (let [item (normalize-reddit-item raw-item)]
+                (if (s/invalid? (s/conform :irq0-src-reddit/item item))
+                  (log/warn "invalid reddit item:"
+                            (s/explain-str :irq0-src-reddit/item item))
+                  (make-reddit-item
+                   (fetch/make-meta src)
+                   {:ts (reddit-ts-to-zoned-date-time (:created_utc item)) :title (:title item)}
+                   (fetch/make-item-hash (str (:id item)))
+                   (make-reddit-entry item)))))
             children))))

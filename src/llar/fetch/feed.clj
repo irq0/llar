@@ -94,12 +94,13 @@
       (some-> e :updated-date feed-date-to-zoned-date-time)
       (get-in http [:summary :ts])))
 
-(defn- rome-parse-http-response [resp]
+(defn- rome-parse-http-response [url resp]
   (try+
    (-> resp :raw :body rome/build-feed)
    (catch Object _
-     (log/error (:throwable &throw-context) "rome parse failed" (:summary resp))
+     (log/error (:throwable &throw-context) "rome parse failed" url (:summary resp))
      (throw+ {:type ::rome-failure
+              :url url
               :http-item (-> resp
                              (assoc-in [:raw :body] :removed)
                              (assoc-in [:hickory] :removed)
@@ -167,7 +168,7 @@
       (if (= :not-modified (:status http-response))
         (with-meta []
           {:conditional-tokens (:conditional-tokens http-response)})
-        (let [res (rome-parse-http-response http-response)
+        (let [res (rome-parse-http-response url http-response)
               feed (make-rome-feed url res)]
           (with-meta
             (doall
@@ -238,7 +239,7 @@
           base-url (get-base-url-with-path (uri/uri url))
 
           meta (make-meta src)
-          feed {:title (:title summary)
+          feed {:title (or (:title summary) (str url))
                 :url url
                 :feed-type "selector-feed"}
           item-extractor (or (:urls extractors)
@@ -255,51 +256,54 @@
                    :urls item-urls
                    :selector (:urls selectors)})))
       (doall
-       (for [raw-item-url item-urls
-             :let [base-url (get-base-url-with-path raw-item-url)
-                   item-url (absolutify-url raw-item-url base-url)
-                   item (fetch item-url :user-agent user-agent)
-                   {:keys [hickory summary]} item]]
+       (keep
+        (fn [raw-item-url]
+          (try
+            (let [base-url (get-base-url-with-path raw-item-url)
+                  item-url (absolutify-url raw-item-url base-url)
+                  item (fetch item-url :user-agent user-agent)
+                  {:keys [hickory summary]} item]
+              (log/debug (str src) " fetching: " {:base-url base-url
+                                                  :item-url item-url})
+              (let [author (hick-select-extract-with-source src :author hickory nil)
+                    title (hick-select-extract-with-source src :title hickory (:title summary))
+                    pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
+                    description (hick-select-extract-with-source src :description hickory nil)
+                    sanitized (fetchutils/process-html-contents base-url hickory)
+                    content (if (some? (:content selectors))
+                              (first (hick-s/select (:content selectors) sanitized))
+                              (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
+                    content-html (hick-r/hickory-to-html content)]
 
-         (try
-           (log/debug (str src) " fetching: " {:base-url base-url
-                                               :item-url item-url})
-           (let [author (hick-select-extract-with-source src :author hickory nil)
-                 title (hick-select-extract-with-source src :title hickory (:title summary))
-                 pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
-                 description (hick-select-extract-with-source src :description hickory nil)
-                 sanitized (fetchutils/process-html-contents base-url hickory)
-                 content (if (some? (:content selectors))
-                           (first (hick-s/select (:content selectors) sanitized))
-                           (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
-                 content-html (hick-r/hickory-to-html content)]
+                ;; todo match selected+extracted data to some schema
+                (when-not (string? title)
+                  (throw+ {:type ::selector-or-extractor-broken
+                           :item "title"
+                           :value title}))
 
-             ;; todo match selected+extracted data to some schema
-             (when-not (string? title)
-               (throw+ {:type ::selector-or-extractor-broken
-                        :item "title"
-                        :value title}))
-
-             (make-feed-item
-              meta
-              {:title title
-               :ts pub-ts}
-              (make-item-hash title (str item-url) content-html)
-              {:pub-ts pub-ts
-               :url item-url
-               :title title
-               :authors author
-               :descriptions {"text/plain" description}
-               :contents {"text/html" content-html
-                          "text/plain" (html2text content-html)}}
-              nil
-              feed))
-           (catch clojure.lang.ExceptionInfo ex
-             (log/warnf "SelectorFeed processing failed: raw-url:%s url:%s data:%s"
-                        raw-item-url item-url (ex-data ex)))
-           (catch Throwable th
-             (log/warnf th "SelectorFeed processing failed raw-url:%s url:%s with exception"
-                        raw-item-url item-url))))))))
+                (make-feed-item
+                 meta
+                 {:title title
+                  :ts pub-ts}
+                 (make-item-hash title (str item-url) content-html)
+                 {:pub-ts pub-ts
+                  :url item-url
+                  :title title
+                  :authors author
+                  :descriptions {"text/plain" description}
+                  :contents {"text/html" content-html
+                             "text/plain" (html2text content-html)}}
+                 nil
+                 feed)))
+            (catch clojure.lang.ExceptionInfo ex
+              (log/warnf "SelectorFeed item failed: raw-url:%s data:%s"
+                         raw-item-url (ex-data ex))
+              nil)
+            (catch Throwable th
+              (log/warnf th "SelectorFeed item failed: raw-url:%s"
+                         raw-item-url)
+              nil)))
+        item-urls)))))
 
 (defn- get-posts-url [json]
   (let [field (get-in json [:routes (keyword "/wp/v2/posts") :_links :self])]

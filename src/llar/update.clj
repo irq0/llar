@@ -162,7 +162,7 @@
   (let [feed (config/get-source k)
         state (get @state k)
         {:keys [src]} feed
-        retry-count (or (get-in feed [:state :retry-count]) 0)]
+        retry-count (or (:retry-count state) 0)]
     (try+
      (let [fetched (fetch/fetch feed (:fetch-meta state))
            processed (try
@@ -717,9 +717,10 @@
                                 :run-fn (fn []
                                           (let [keys# (matching-keys#)
                                                 results# (update-sources! keys#)]
-                                            (log/infof "Scheduled feed update %s: %d sources, outcomes %s"
+                                            (log/infof "Scheduled feed update %s: %d sources, outcomes %s, statuses %s"
                                                        '~sched-name (count keys#)
-                                                       (frequencies (map :outcome results#)))
+                                                       (frequencies (map :outcome results#))
+                                                       (frequencies (map :status results#)))
                                             {:keys keys#
                                              :results results#
                                              :count (count keys#)}))})

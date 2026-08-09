@@ -6,6 +6,7 @@
    [llar.fetch.feed]
    [llar.http :as http]
    [llar.pool :as pool]
+   [llar.rc :as rc]
    [llar.src :as src]
    [llar.update :as uut]
    [llar.work :as work]
@@ -65,11 +66,14 @@
                              :fetch-meta {:conditional-tokens conditional-tokens}})]
     (with-redefs [uut/state (atom {source-key source-state})
                   config/get-source (constantly {:src source})
+                  rc/rc (constantly 5)
                   http/fetch (fn [& _]
                                (throw+ {:type :llar.http/server-error-retry-later
                                         :reason-class :timeout}))]
       (is (= :temp-fail (uut/update! source-key :skip-proc true :skip-store true)))
-      (is (= 1 (get-in @uut/state [source-key :retry-count])))
+      (is (= :temp-fail (uut/update! source-key :skip-proc true :skip-store true)))
+      (is (= 2 (get-in @uut/state [source-key :retry-count]))
+          "transient retry count must accumulate from source state")
       (is (= {:conditional-tokens conditional-tokens}
              (get-in @uut/state [source-key :fetch-meta])))
       (is (= :timeout

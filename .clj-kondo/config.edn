@@ -8,4 +8,7 @@
                         llar.config/defconfig-symbol hooks.defconfig-symbol/defconfig-symbol}}
  :linters {:unresolved-symbol {:exclude [thrown+? (llar.config/fetch [$item $entry $key $title $authors $tags $raw $url $html $text $options])
                                          (llar.sched/defsched-feed-by-filter [$TAGS $SRC $KEY])]}
-           :unresolved-var {:exclude [digest opennlp.tools.filters/nouns twitter.api.restful/search-tweets]}}}
+           :unresolved-var {:exclude [digest
+                                      opennlp.tools.filters/nouns
+                                      twitter.api.restful/search-tweets
+                                      twitter.api.restful/statuses-home-timeline]}}}

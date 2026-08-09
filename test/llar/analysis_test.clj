@@ -9,6 +9,9 @@
 
 (def +short-text+ "Hello world.")
 
+(deftest find-names-empty-input-test
+  (is (= [] (uut/find-names :en []))))
+
 (deftest detect-language-test
   (doseq [[lang text] +texts+]
     (testing (str "detects " lang)

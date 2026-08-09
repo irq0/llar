@@ -42,7 +42,9 @@
 (defn find-names [lang tokens]
   (if (seq tokens)
     (try+
-     (mapcat (fn [finder] (finder tokens)) (get name-find lang))
+     ;; Realize inside the handler: mapcat is lazy, so otherwise OpenNLP failures
+     ;; escape after this function has returned.
+     (vec (mapcat (fn [finder] (finder tokens)) (get name-find lang)))
      (catch Object _
        (log/warn (:throwable &throw-context) "Open NLP Name finder failed. Returning empty set")
        []))

@@ -220,7 +220,7 @@
 
 ;; ------------------------------------------------------------------ fetching
 
-(deftest fetch-source-drops-invalid-items-test
+(deftest fetch-source-normalizes-api-variants-and-drops-invalid-items-test
   (start-appconfig!)
   (let [children [valid-child
                   ;; thumbnail is absent on some posts
@@ -228,12 +228,14 @@
                   ;; selftext is absent on crossposts
                   (dissoc valid-child :selftext)
                   ;; gallery and self posts can carry a non-absolute url
-                  (assoc valid-child :url "/r/clojure/comments/xyz/")]]
+                  (assoc valid-child :url "/r/clojure/comments/xyz/")
+                  ;; genuinely malformed data is still rejected
+                  (dissoc valid-child :title)]]
     (with-redefs [uut/access-token (constantly "tok")
                   http-client/get (fn [_url _opts] (listing-response children))]
       (let [items (fetch/fetch-source (src/reddit "clojure" :top) {})]
         (testing "spec violations are dropped, not passed on as nil"
-          (is (= 2 (count items)))
+          (is (= 4 (count items)))
           (is (every? some? items) "a nil here would reach postprocessing and the store"))
         (testing "valid items are mapped as before"
           (let [entry (:entry (first items))]
@@ -242,7 +244,11 @@
             (is (= ["someone"] (:authors entry)))
             (is (= "the body" (get-in entry [:contents "text/plain"]))))
           (is (nil? (get-in (second items) [:entry :thumbnail]))
-              "Reddit legitimately omits thumbnails from some posts"))))))
+              "Reddit legitimately omits thumbnails from some posts"))
+        (testing "missing selftext and relative post URLs are normalized"
+          (is (= "" (get-in (nth items 2) [:entry :contents "text/plain"])))
+          (is (= "https://www.reddit.com/r/clojure/comments/xyz/"
+                 (str (get-in (nth items 3) [:entry :url])))))))))
 
 (deftest fetch-source-records-scores-test
   (start-appconfig!)
