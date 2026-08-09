@@ -173,7 +173,10 @@
         (is (string/includes? body "2 Unscheduled"))
         (is (string/includes? body "No matching fetch schedule"))
         (is (string/includes? body "hourly"))
-        (is (string/includes? body "Expected in"))))))
+        (is (string/includes? body "Expected in"))
+        (is (string/includes? body "list-unstyled d-flex flex-wrap"))
+        (is (string/includes? body "dashboard-overview-grid"))
+        (is (string/includes? body "table-responsive dashboard-overview-table"))))))
 
 (deftest run-schedule-route-handles-resolution-results
   (testing "unknown schedule"

@@ -223,23 +223,28 @@
             "")]])
 
 (defn- source-summary-table [title rows]
-  [:div {:class "col-lg-4 mb-3"}
-   [:h5 title]
-   (if (seq rows)
-     [:table {:class "table table-sm"}
-      [:thead
-       [:tr
-        [:th "Source"]
-        [:th "Status"]
-        [:th "Retries"]
-        [:th "Last Success"]
-        [:th "Last Attempt"]
-        [:th "Scheduling"]
-        [:th "Reason"]]]
-      [:tbody
-       (for [row rows]
-         (source-summary-row row))]]
-     [:p {:class "text-muted"} "None"])])
+  [:div {:class "col-12 col-xxl-6 d-flex"}
+   [:section {:class "card dashboard-overview-card w-100"}
+    [:div {:class "card-header d-flex align-items-center justify-content-between"}
+     [:h5 {:class "mb-0"} title]
+     [:span {:class "badge rounded-pill text-bg-secondary"} (count rows)]]
+    [:div {:class "card-body p-0"}
+     (if (seq rows)
+       [:div {:class "table-responsive dashboard-overview-table"}
+        [:table {:class "table table-sm table-hover align-middle mb-0"}
+         [:thead
+          [:tr
+           [:th "Source"]
+           [:th "Status"]
+           [:th "Retries"]
+           [:th "Last Success"]
+           [:th "Last Attempt"]
+           [:th "Scheduling"]
+           [:th "Reason"]]]
+         [:tbody
+          (for [row rows]
+            (source-summary-row row))]]]
+       [:p {:class "text-muted mb-0 p-3"} "None"])]]])
 
 (defn overview-tab []
   (let [now (time/zoned-date-time)
@@ -267,16 +272,16 @@
                  ["Perm Fail" (get counts :perm-fail 0) "text-danger"]
                  ["Bug" (get counts :bug 0) "text-dark"]
                  ["Unscheduled" (count unscheduled) (if (seq unscheduled) "text-danger" "text-success")]]]
-    [:div
+    [:div {:class "dashboard-overview"}
      (when (seq errors)
        [:div {:class "alert alert-danger"}
         "Could not evaluate fetch schedule predicates: "
         (string/join "; " (map #(str (:schedule %) ": " (:message %)) errors))])
-     [:div {:class "row mb-3"}
+     [:ul {:class "list-unstyled d-flex flex-wrap gap-2 gap-sm-3 small mb-3 dashboard-overview-stats"
+           :aria-label "Source status summary"}
       (for [[label value cls] summary]
-        [:div {:class "col-auto"}
-         [:h4 {:class cls} value " " label]])]
-     [:div {:class "row"}
+        [:li {:class (str cls " fw-semibold")} value " " label])]
+     [:div {:class "row g-3 dashboard-overview-grid"}
       (source-summary-table
        "Failures"
        (take 10 (sort-by (juxt :status #(or (:retry-count %) 0)) failures)))

@@ -234,6 +234,38 @@ div.item-content-body a:visited {
   color: #aaa;
 }
 
+/* Keep the overview's wide state tables inside their responsive grid cells. */
+.dashboard-overview-grid > * {
+  min-width: 0;
+}
+
+.dashboard-overview-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dashboard-overview-card .card-header {
+  background-color: #f8f9fa;
+}
+
+.dashboard-overview-table {
+  overscroll-behavior-inline: contain;
+}
+
+.dashboard-overview-table table {
+  min-width: 48rem;
+  font-size: 0.875rem;
+}
+
+.dashboard-overview-table th {
+  white-space: nowrap;
+}
+
+.dashboard-overview-table td {
+  max-width: 14rem;
+  overflow-wrap: anywhere;
+}
+
 div.item-content-body table {
   font-size: 0.9rem;
 }
