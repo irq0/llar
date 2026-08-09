@@ -22,7 +22,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [java-time.api :as time])
   (:import
-   [java.io InputStream]
+   [java.io InputStream InputStreamReader Reader]
    [java.nio.charset Charset StandardCharsets]))
 
 ;; 🖖 HTTP Fetch utility
@@ -539,8 +539,67 @@
                   loc))))
             (recur (zip/next loc))))))))
 
-(defn- normalize-http-error-body [body]
-  (let [raw-body (if (nil? body) "" (str body))
+(defn- read-error-body-prefix!
+  "Read at most one character beyond the diagnostic conversion limit. The extra
+  character distinguishes a complete body from a truncated prefix without draining
+  an unbounded error response. Closing the reader also closes a wrapped input stream."
+  [^Reader reader]
+  (with-open [reader reader]
+    (let [limit (inc +http-error-body-conversion-chars+)
+          buffer (char-array (min 1024 limit))
+          result (StringBuilder.)]
+      (loop []
+        (let [remaining (- limit (.length result))]
+          (when (pos? remaining)
+            (let [read-count (.read reader buffer 0 (min remaining (alength buffer)))]
+              (when (pos? read-count)
+                (.append result buffer 0 read-count)
+                (recur))))))
+      (let [observed (.length result)
+            complete? (<= observed +http-error-body-conversion-chars+)]
+        {:raw-body (if complete?
+                     (str result)
+                     (.substring result 0 +http-error-body-conversion-chars+))
+         :body-characters observed
+         :body-size-complete? complete?}))))
+
+(defn- materialize-http-error-body [{:keys [body] :as response}]
+  (try
+    (cond
+      (nil? body)
+      {:raw-body "" :body-characters 0 :body-size-complete? true}
+
+      (string? body)
+      {:raw-body body :body-characters (count body) :body-size-complete? true}
+
+      (instance? Reader body)
+      (read-error-body-prefix! body)
+
+      (instance? InputStream body)
+      (read-error-body-prefix!
+       (InputStreamReader. ^InputStream body (response-charset response)))
+
+      (bytes? body)
+      (let [raw-body (String. ^bytes body (response-charset response))]
+        {:raw-body raw-body :body-characters (count raw-body) :body-size-complete? true})
+
+      :else
+      (let [raw-body (if (or (map? body) (sequential? body) (set? body))
+                       (pr-str body)
+                       (str body))]
+        {:raw-body raw-body :body-characters (count raw-body) :body-size-complete? true}))
+    (catch Exception e
+      ;; Error diagnostics must not hide the original HTTP status if consuming or
+      ;; closing its body fails.
+      (log/debug e "failed to materialize HTTP error response body")
+      {:raw-body ""
+       :body-characters 0
+       :body-size-complete? false
+       :body-read-error (.getName (class e))})))
+
+(defn- normalize-http-error-body [response]
+  (let [{:keys [raw-body body-characters body-size-complete? body-read-error]}
+        (materialize-http-error-body response)
         conversion-input (subs raw-body 0 (min (count raw-body)
                                                +http-error-body-conversion-chars+))
         message (try
@@ -550,22 +609,30 @@
         message (-> (or message "")
                     (string/replace #"\s+" " ")
                     string/trim)
-        truncated? (or (> (count raw-body) +http-error-body-conversion-chars+)
+        truncated? (or (not body-size-complete?)
+                       (> (count raw-body) +http-error-body-conversion-chars+)
                        (> (count message) +http-error-body-preview-chars+))
-        preview (cond-> (subs message 0 (min (count message)
-                                             +http-error-body-preview-chars+))
-                  truncated? (str "…"))]
-    {:body-preview preview
-     :body-characters (count raw-body)
-     :body-sha256 (digest/sha-256 raw-body)
-     :body-truncated? truncated?}))
+        preview (subs message 0 (min (count message)
+                                     +http-error-body-preview-chars+))
+        preview (cond-> preview
+                  (and truncated? (not-empty preview)) (str "…"))]
+    (cond-> {:body-preview preview
+             :body-characters body-characters
+             :body-size-complete? body-size-complete?
+             :body-sha256 (digest/sha-256 raw-body)
+             :body-sha256-scope (if body-size-complete? :complete :prefix)
+             :body-truncated? truncated?}
+      body-read-error (assoc :body-read-error body-read-error))))
 
 (defn- log-http-response-error! [status reason-class retryable? reason-phrase context summary]
   (log/warnf
    (str "HTTP response error status=%s class=%s retryable=%s url=%s request=%s "
-        "reason=%s body-characters=%d body-sha256=%s body-preview=%s")
+        "reason=%s body-characters=%s body-sha256=%s body-sha256-scope=%s body-preview=%s")
    status reason-class retryable? (:url context) (:request context)
-   reason-phrase (:body-characters summary) (:body-sha256 summary)
+   reason-phrase
+   (cond->> (:body-characters summary)
+     (not (:body-size-complete? summary)) (str ">="))
+   (:body-sha256 summary) (:body-sha256-scope summary)
    (pr-str (:body-preview summary))))
 
 (defn logged-error? [throwable]
@@ -575,10 +642,10 @@
           (recur (.getCause ^Throwable throwable))))))
 
 (defn http-resp-throw [ex context]
-  (let [{:keys [body status reason-phrase]} ex]
+  (let [{:keys [status reason-phrase]} ex]
     (cond
       (#{400 401 402 403 404 405 406 410} status)
-      (let [summary (normalize-http-error-body body)]
+      (let [summary (normalize-http-error-body ex)]
         (log-http-response-error! status :http-4xx false reason-phrase context summary)
         (throw+ (merge {:type ::request-error
                         :code status
@@ -588,7 +655,7 @@
                        summary
                        context)))
       (#{500 501 502 503 504} status)
-      (let [summary (normalize-http-error-body body)]
+      (let [summary (normalize-http-error-body ex)]
         (log-http-response-error! status :http-5xx true reason-phrase context summary)
         (throw+ (merge {:type ::server-error-retry-later
                         :code status
@@ -599,7 +666,7 @@
                        context)))
       (#{408 429} status)
       (let [reason-class (if (= 429 status) :rate-limited :timeout)
-            summary (normalize-http-error-body body)]
+            summary (normalize-http-error-body ex)]
         (log-http-response-error! status reason-class true reason-phrase context summary)
         (throw+ (merge {:type ::client-error-retry-later
                         :code status

@@ -10,7 +10,9 @@
    [clj-http.client]
    [llar.appconfig :as appconfig]
    [llar.commands :as commands]
-   [llar.http :as uut]))
+   [llar.http :as uut])
+  (:import
+   [java.io ByteArrayInputStream StringReader]))
 
 (def hick
   {:type :document,
@@ -244,6 +246,55 @@
             (is (= (:body-preview data) (:message data)))
             (is (not (string/includes? (:message data) body)))
             (is (uut/logged-error? ex))))))))
+
+(deftest http-response-errors-read-and-close-reader-bodies
+  (let [body (apply str (repeat 600 "reader response body "))
+        closed? (atom false)
+        reader (proxy [StringReader] [body]
+                 (close []
+                   (reset! closed? true)
+                   (proxy-super close)))
+        converted-characters (atom nil)]
+    (with-redefs [commands/html2text (fn [value & _]
+                                       (reset! converted-characters (count value))
+                                       value)]
+      (try
+        (uut/http-resp-throw {:status 503
+                              :reason-phrase "Unavailable"
+                              :body reader}
+                             {:url "https://example.com/reader"})
+        (is false "expected the response to throw")
+        (catch clojure.lang.ExceptionInfo ex
+          (let [data (ex-data ex)]
+            (is @closed?)
+            (is (= 4096 @converted-characters))
+            (is (= 4097 (:body-characters data)))
+            (is (false? (:body-size-complete? data)))
+            (is (= :prefix (:body-sha256-scope data)))
+            (is (string/starts-with? (:body-preview data) "reader response body"))))))))
+
+(deftest http-response-errors-decode-and-close-stream-bodies
+  (let [body (.getBytes "Grüße vom Server" "ISO-8859-1")
+        closed? (atom false)
+        stream (proxy [ByteArrayInputStream] [body]
+                 (close []
+                   (reset! closed? true)
+                   (proxy-super close)))]
+    (with-redefs [commands/html2text (fn [value & _] value)]
+      (try
+        (uut/http-resp-throw {:status 404
+                              :reason-phrase "Not Found"
+                              :headers {"Content-Type" "text/plain; charset=ISO-8859-1"}
+                              :body stream}
+                             {:url "https://example.com/stream"})
+        (is false "expected the response to throw")
+        (catch clojure.lang.ExceptionInfo ex
+          (let [data (ex-data ex)]
+            (is @closed?)
+            (is (= "Grüße vom Server" (:body-preview data)))
+            (is (= (count "Grüße vom Server") (:body-characters data)))
+            (is (:body-size-complete? data))
+            (is (= :complete (:body-sha256-scope data)))))))))
 
 (deftest sanitize-css
   (let [sanitized (uut/sanitize hick :remove-css? true)
