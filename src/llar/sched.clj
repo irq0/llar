@@ -198,7 +198,8 @@
                         :every-4-hours
                         :now-and-every-4-hours
                         :now-and-every-15-minutes
-                        :now-and-every-5-minutes]
+                        :now-and-every-5-minutes
+                        :now-and-every-minute]
         rank (zipmap schedule-order (range))]
     (sorted-map-by
      (fn [left right]
@@ -334,6 +335,16 @@
                            (ZonedDateTime/of (-> (java.time.LocalDate/now) (.atTime 0 0))
                                              (ZoneId/systemDefault))
                            (Duration/ofMinutes 5))
+                          (chime/without-past-times))))}
+
+     :now-and-every-minute
+     {:description "Once within the next 0-120 seconds, then every minute."
+      :schedule-times (fn []
+                        (now-and-schedule-times
+                         (->>
+                          (chime/periodic-seq
+                           (time/zoned-date-time)
+                           (Duration/ofMinutes 1))
                           (chime/without-past-times))))})))
 
 (defn canned-schedule-metadata

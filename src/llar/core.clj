@@ -8,6 +8,7 @@
    [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [llar.metrics]
+   [llar.metrics.bookmark-capture]
    [llar.store :as store]
    [llar.apis.reader :as reader]
    [llar.webapp :as webapp]
@@ -25,6 +26,7 @@
    [llar.docs.config :as docs.config]
    [llar.lab :as lab]
    [llar.podcast :as podcast]
+   [llar.bookmark-capture :as bookmark-capture]
    [llar.digest :as digest]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
@@ -58,6 +60,7 @@
 
    #'webapp/dashboard
    #'webapp/reader
+   #'webapp/capture
    #'webapp/podcast
    #'webapp/fever])
 
@@ -69,6 +72,7 @@
    #'lab/update-todays-vibe
    #'podcast/podcast-scanner
    #'podcast/podcast-retention-enforcer
+   #'bookmark-capture/bookmark-capture-scheduler
    #'digest/digest-scheduler])
 
 (defn write-docs! [docs-dir]

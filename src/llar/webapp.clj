@@ -3,6 +3,8 @@
    [mount.core :refer [defstate]]
    [clojure.tools.logging :as log]
    [llar.metrics :as metrics]
+   [llar.store :as store]
+   [llar.apis.capture :as capture]
    [llar.apis.dashboard :as dashboard]
    [llar.apis.fever :as fever]
    [llar.apis.podcast :as podcast]
@@ -89,7 +91,10 @@
    [#"^/api/update/[^/]+$" "/api/update/:source-key"]
    [#"^/source-details/[^/]+$" "/source-details/:key"]
    [#"^/api/podcast/retry/[^/]+$" "/api/podcast/retry/:item-id"]
-   [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]])
+   [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]
+   [#"^/api/bookmark-captures/[^/]+/(?:retry|dismiss)$"
+    "/api/bookmark-captures/:capture-id/:action"]
+   [#"^/api/v1/captures/?$" "/api/v1/captures"]])
 
 (defn- abstract-reader-group-path [uri]
   (when-let [[_ group-name group-item source-key endpoint]
@@ -161,6 +166,19 @@
     "form-action 'self'"
     "frame-ancestors 'none'"]))
 
+(def ^:private capture-content-security-policy
+  (string/join
+   "; "
+   ["default-src 'self'"
+    "script-src 'self'"
+    "style-src 'self'"
+    "connect-src 'self'"
+    "img-src 'none'"
+    "object-src 'none'"
+    "base-uri 'none'"
+    "form-action 'none'"
+    "frame-ancestors 'none'"]))
+
 (defn wrap-security-headers [handler & {:keys [content-security-policy]}]
   (fn [request]
     (let [response (handler request)]
@@ -199,6 +217,20 @@
    (wrap-security-headers :content-security-policy reader-content-security-policy)
    (wrap-instrumentation prom-registry {:path-fn prom-path-fn})))
 
+(defn capture-app [db credentials]
+  (->
+   (capture/handler db)
+   ring.middleware.keyword-params/wrap-keyword-params
+   ring.middleware.params/wrap-params
+   ring.middleware.json/wrap-json-params
+   (capture/wrap-token-auth credentials)
+   ring.middleware.json/wrap-json-response
+   ring.middleware.gzip/wrap-gzip
+   wrap-exception
+   (wrap-security-headers :content-security-policy capture-content-security-policy)
+   (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})
+   ring.middleware.lint/wrap-lint))
+
 (defn try-start-jetty [app port]
   (try+
    (run-jetty app {:port port :join? false})
@@ -224,6 +256,18 @@
              server)
            (log/info "reader disabled in appconfig"))
   :stop (try-stop-app reader))
+
+(defstate ^{:depends-on [metrics/prom-registry store/backend-db]} capture
+  :start (if-let [port (appconfig/capture :port)]
+           (let [credential-name (appconfig/capture :credentials)
+                 credentials (appconfig/credentials credential-name)
+                 server (try-start-jetty
+                         (capture-app store/backend-db credentials)
+                         port)]
+             (log/infof "bookmark capture API started on port %d" port)
+             server)
+           (log/info "bookmark capture API disabled in appconfig"))
+  :stop (try-stop-app capture))
 
 (defn podcast-app []
   (->

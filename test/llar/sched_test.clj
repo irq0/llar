@@ -117,7 +117,8 @@
             :every-4-hours
             :now-and-every-4-hours
             :now-and-every-15-minutes
-            :now-and-every-5-minutes]
+            :now-and-every-5-minutes
+            :now-and-every-minute]
            (keys metadata)))
     (is (= (keys uut/canned-schedules) (keys metadata)))
     (is (every? fn? (map :schedule-times (vals uut/canned-schedules))))
@@ -140,7 +141,8 @@
                         :now-and-hourly
                         :now-and-every-4-hours
                         :now-and-every-15-minutes
-                        :now-and-every-5-minutes]
+                        :now-and-every-5-minutes
+                        :now-and-every-minute]
           :let [times (take 5 (uut/resolve-chime-times schedule-key))]]
     (is (apply <= (map #(time/to-millis-from-epoch %) times))
         (str schedule-key " should return ascending times"))))
@@ -150,7 +152,8 @@
         four-hour-times (take 12 (uut/resolve-chime-times :every-4-hours))
         now-and-noon-times (take 3 (uut/resolve-chime-times :now-and-noon))
         now-and-four-hour-times (take 8 (uut/resolve-chime-times :now-and-every-4-hours))
-        now-and-quarter-hour-times (take 8 (uut/resolve-chime-times :now-and-every-15-minutes))]
+        now-and-quarter-hour-times (take 8 (uut/resolve-chime-times :now-and-every-15-minutes))
+        now-and-minute-times (take 8 (uut/resolve-chime-times :now-and-every-minute))]
     (is (every? #(and (= 12 (.getHour %))
                       (zero? (.getMinute %)))
                 noon-times))
@@ -164,12 +167,18 @@
                       (zero? (.getMinute %)))
                 (rest now-and-four-hour-times)))
     (is (every? #(zero? (mod (.getMinute %) 15))
-                (rest now-and-quarter-hour-times)))))
+                (rest now-and-quarter-hour-times)))
+    (is (every? true?
+                (map #(= 60000 (- (time/to-millis-from-epoch %2)
+                                  (time/to-millis-from-epoch %1)))
+                     (rest now-and-minute-times)
+                     (drop 2 now-and-minute-times))))))
 
 (deftest new-now-and-schedules-start-within-120-seconds
   (doseq [schedule-key [:now-and-noon
                         :now-and-every-4-hours
-                        :now-and-every-15-minutes]]
+                        :now-and-every-15-minutes
+                        :now-and-every-minute]]
     (let [before (time/zoned-date-time)
           startup (first (uut/resolve-chime-times schedule-key))
           after (time/plus (time/zoned-date-time) (time/seconds 120))]

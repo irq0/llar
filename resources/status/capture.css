@@ -1,0 +1,39 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  display: grid;
+  min-height: 100vh;
+  margin: 0;
+  place-items: center;
+}
+
+main {
+  box-sizing: border-box;
+  width: min(32rem, 100%);
+  padding: 2rem;
+  text-align: center;
+}
+
+#capture-status {
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+#capture-detail {
+  opacity: 0.75;
+}
+
+.success #capture-status {
+  color: #22863a;
+}
+
+.failure #capture-status {
+  color: #cb2431;
+}
+
+button {
+  padding: 0.55rem 1rem;
+}

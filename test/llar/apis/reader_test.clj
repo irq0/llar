@@ -1,16 +1,33 @@
 (ns llar.apis.reader-test
   (:require
    [clojure.java.io :as io]
+   [clojure.string :as string]
    [clojure.test :refer [deftest is]]
    [hiccup2.core :as h]
    [java-time.api :as time]
    [llar.apis.reader :as uut]
    [llar.appconfig :as appconfig]
+   [llar.bookmark-capture :as bookmark-capture]
    [llar.db.search :as db-search]
    [llar.lab :as lab]
    [llar.persistency :as persistency]
    [llar.rc :as rc]
    [llar.vibe :as vibe]))
+
+(deftest reader-bookmark-form-uses-the-durable-capture-queue
+  (let [call (atom nil)]
+    (with-redefs [bookmark-capture/enqueue!
+                  (fn [db url title submitted-by]
+                    (reset! call [db url title submitted-by])
+                    {:id 7 :status :pending :inserted true})]
+      (let [response (uut/app {:request-method :post
+                               :uri "/reader/bookmark/add"
+                               :params {:url "https://example.com/story"
+                                        :type "readability-bookmark"}})]
+        (is (= 201 (:status response)))
+        (is (= :queued (get-in response [:body :result])))
+        (is (= "https://example.com/story" (second @call)))
+        (is (= "reader" (nth @call 3)))))))
 
 (deftest list-style-uses-rc-defaults
   (with-redefs [rc/rc (fn [path]
@@ -261,10 +278,7 @@
          (#'uut/queue-item-reasons {:tags []
                                     :checkpoint-progress 0.0
                                     :type :item-type/link})))
-  (is (= [:unread-bookmark]
-         (#'uut/queue-item-reasons {:tags ["unread"]
-                                    :type :item-type/bookmark})))
-  (is (= [:saved :unread-bookmark]
+  (is (= [:saved]
          (#'uut/queue-item-reasons {:tags ["saved" "unread"]
                                     :type :item-type/bookmark})))
   (is (= []
@@ -278,7 +292,7 @@
                 persistency/get-reading-queue-items (fn [_ _] [])]
     (let [rendered (pr-str (uut/tools-view-handler
                             {:view :saved-overview :request-params {}}))]
-      (is (re-find #"No saved, partially read" rendered))
+      (is (re-find #"No saved or partially read" rendered))
       (is (re-find #"not yet" rendered))))
   (with-redefs [lab/current-clustered-saved-items
                 (atom {:clusters {{:id 1 :words ["Distributed" "Systems"]}
@@ -305,18 +319,18 @@
 (deftest reading-queue-filters
   (let [saved {:tags ["saved"] :type :item-type/link}
         in-progress {:tags [] :checkpoint-progress 0.0 :type :item-type/link}
-        unread-bookmark {:tags ["unread"] :type :item-type/bookmark}
-        read-bookmark {:tags [] :type :item-type/bookmark}
+        unread-saved {:tags ["saved" "unread"] :type :item-type/bookmark}
+        read-unsaved {:tags [] :type :item-type/bookmark}
         highlighted {:tags ["highlight"] :type :item-type/link}]
-    (is (= [true false true true false false]
+    (is (= [true false true true false true]
            (mapv (fn [[filter item]]
                    (#'uut/queue-item-matches-filter? filter item))
                  [[nil saved]
                   [nil highlighted]
                   [:continue-reading in-progress]
-                  [:unread-bookmarks unread-bookmark]
-                  [:unread-bookmarks read-bookmark]
-                  [:saved unread-bookmark]])))))
+                  [:unread unread-saved]
+                  [:unread read-unsaved]
+                  [:saved unread-saved]])))))
 
 (deftest reading-queue-time-filter-buckets
   (is (= [:under-5 :5-15 :15-30 :30-60 :60-plus nil]
@@ -332,19 +346,19 @@
   (let [saved-short (queue-item-with-reading-minutes 4)
         in-progress-short (assoc saved-short :tags [] :checkpoint-progress 0.0)
         saved-long (queue-item-with-reading-minutes 60)
-        unread-bookmark (assoc saved-short :tags ["unread"] :type :item-type/bookmark)]
+        unread-bookmark (assoc saved-short :tags ["saved" "unread"] :type :item-type/bookmark)]
     (is (#'uut/queue-item-matches-filters? :saved :under-5 saved-short))
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 in-progress-short)))
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 saved-long)))
-    (is (#'uut/queue-item-matches-filters? :unread-bookmarks :under-5 unread-bookmark))))
+    (is (#'uut/queue-item-matches-filters? :unread :under-5 unread-bookmark))))
 
 (deftest reading-queue-semantics-have-one-sql-definition
-  (let [migration (slurp (io/resource "migrations/20260809000001-reading-progress.up.sql"))
+  (let [migration (slurp (io/resource "migrations/20260809000002-bookmark-state.up.sql"))
         fever (slurp (io/resource "sql/fever.sql"))]
     (is (re-find #"CREATE VIEW reading_queue_items" migration))
-    (is (re-find #"tagi @@ '1'" migration))
+    (is (re-find #"tag = 'saved'" migration))
     (is (re-find #"reading_progress IS NOT NULL" migration))
-    (is (re-find #"type = 'bookmark' AND tagi @@ '0'" migration))
+    (is (not (re-find #"type = 'bookmark'.*tagi" (last (string/split migration #"CREATE VIEW")))))
     (is (re-find #"reading_queue_items" fever))))
 
 (deftest search-syntax-normalization

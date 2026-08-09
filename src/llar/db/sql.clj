@@ -76,7 +76,21 @@
  create-item-event
  get-item-event
  get-item-events
- record-impression-for-offer)
+ record-impression-for-offer
+ insert-bookmark-capture
+ get-bookmark-capture-by-fingerprint
+ get-bookmark-capture
+ claim-next-bookmark-capture
+ set-bookmark-capture-item
+ complete-bookmark-capture
+ reschedule-bookmark-capture
+ fail-bookmark-capture
+ retry-bookmark-capture
+ dismiss-bookmark-capture
+ list-bookmark-captures
+ bookmark-capture-operational-counts
+ bookmark-capture-oldest-ready
+ bookmark-capture-dashboard-counts)
 
 (hugsql/def-db-fns (io/resource "sql/items.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/sources.sql") {:quoting :ansi})
@@ -89,4 +103,5 @@
 (hugsql/def-db-fns (io/resource "sql/fever.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/item_state.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/events.sql") {:quoting :ansi})
+(hugsql/def-db-fns (io/resource "sql/bookmark_capture.sql") {:quoting :ansi})
 (hugsql/def-sqlvec-fns (io/resource "sql/ranking.sql") {:quoting :ansi})

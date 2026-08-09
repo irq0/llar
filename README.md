@@ -70,6 +70,7 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
 - Reader UI
 - Dashboard UI
 - Fever-compatible mobile sync for feed-reader clients
+- Durable save-for-later capture API for bookmarklets and iOS/macOS Shortcuts
 
 ## UI
 
@@ -114,10 +115,35 @@ Add the password to the configured credentials file:
 {:mobile-sync {:password "use-a-dedicated-password"}}
 ```
 
-Sources tagged `:mobile` are exposed as regular Fever feeds. Saved items,
-active reading checkpoints, and unread bookmarks from all sources are available in
+Sources tagged `:mobile` are exposed as regular Fever feeds. Saved items and
+active reading checkpoints from all sources are available in
 the Reading Queue. Point the client at the Fever port through an HTTPS
 reverse proxy and use the configured username and password.
+
+### Save for later
+
+LLAR can accept URLs independently of the Reader UI through a durable capture
+queue. Configure a dedicated HTTPS service and a named credentials entry:
+
+```clojure
+;; system config, inside :api
+:capture {:port 8026
+          :base-url "https://save.example.org"
+          :credentials :bookmark-capture
+          :schedule :now-and-every-minute}
+
+;; credentials.edn; generate each value with: openssl rand -hex 32
+{:bookmark-capture
+ {:tokens {:iphone "replace-with-64-hex-characters"
+           :firefox "replace-with-64-hex-characters"}}}
+```
+
+The API is `POST /api/v1/captures` with JSON `{"url":"https://..."}` and
+`Authorization: Bearer <token>`. Each token is named and independently
+revocable. Captures receive immediate feedback only after their queue row is
+committed; extraction happens asynchronously. Setup instructions for Firefox,
+Chrome, iOS Shortcuts, macOS Shortcuts, queue recovery, and alerts are in the
+Dashboard's Docs tab.
 
 ## Concept
 
@@ -142,7 +168,8 @@ The workflow tags are *unread*, *saved*, and *archive*. They are exposed as
 semantic actions and states rather than independent tag: saved is independent of
 unread, archive is seen and no longer saved, and Done clears saved plus any
 active reading checkpoint. *Continue Reading* is a cross-device checkpoint,
-not a tag. Unread bookmarks are implicitly in the Reading Queue until read.
+not a tag. Captured bookmarks start both saved and unread, and then follow the
+same Reading Queue rules as every other item.
 
 ## Configuration
 

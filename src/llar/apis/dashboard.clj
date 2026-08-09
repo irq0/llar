@@ -18,6 +18,7 @@
    [llar.appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.converter]
+   [llar.db.bookmark-capture :as capture-db]
    [llar.docs.config :as docs.config]
    [llar.human :as human]
    [llar.metrics :as metrics]
@@ -26,6 +27,7 @@
    [llar.podcast :as podcast]
    [llar.rc :as rc]
    [llar.sched :as sched]
+   [llar.store :as store]
    [llar.update :as update]
    [llar.work :as work])
   (:import
@@ -927,9 +929,94 @@
 (defn docs-tab []
   (docs.config/docs-fragment))
 
+(defn- capture-operational-state [{:keys [status next-attempt-ts lease-expires-ts]}]
+  (let [now (time/zoned-date-time)]
+    (case status
+      :pending (if (and next-attempt-ts (time/after? next-attempt-ts now))
+                 :retry-wait
+                 :ready)
+      :processing (if (and lease-expires-ts (time/before? lease-expires-ts now))
+                    :ready
+                    :processing)
+      status)))
+
+(defn- capture-status-badge [capture]
+  (let [status (capture-operational-state capture)
+        cls (case status
+              :complete "bg-success"
+              :processing "bg-primary"
+              :ready "bg-warning text-dark"
+              :retry-wait "bg-secondary"
+              :failed "bg-danger"
+              :dismissed "bg-light text-dark"
+              "bg-secondary")]
+    [:span {:class (str "badge " cls)} (name status)]))
+
+(defn- capture-row
+  [{:keys [id url title submitted-by attempt-count last-attempt-ts
+           last-error failure-class item-id]
+    :as capture}]
+  [:tr
+   [:td (capture-status-badge capture)]
+   [:td
+    (when title [:div [:strong title]])
+    [:a {:href url :target "_blank" :rel "noreferrer"}
+     (human/truncate-ellipsis url 90)]
+    (when item-id
+      [:div [:small {:class "text-muted font-monospace"} "item " item-id]])]
+   [:td [:small submitted-by]]
+   [:td attempt-count]
+   [:td (when last-attempt-ts (human/datetime-ago last-attempt-ts))]
+   [:td
+    (when last-error
+      [:details
+       [:summary [:small {:class "text-danger"} (or failure-class "failure")]]
+       [:pre {:class "text-danger small mt-1"} last-error]])]
+   [:td
+    (when (#{:failed :dismissed} (:status capture))
+      [:button {:class "btn btn-sm btn-outline-warning me-1"
+                :onclick (str "fetch('/api/bookmark-captures/" id
+                              "/retry', {method:'POST'}).then(()=>location.reload())")}
+       "Retry"])
+    (when (#{:pending :failed} (:status capture))
+      [:button {:class "btn btn-sm btn-outline-secondary"
+                :onclick (str "fetch('/api/bookmark-captures/" id
+                              "/dismiss', {method:'POST'}).then(()=>location.reload())")}
+       "Dismiss"])]])
+
+(defn bookmarks-tab []
+  (let [counts (capture-db/dashboard-counts store/backend-db)
+        captures (capture-db/list-captures store/backend-db 100)]
+    [:div
+     [:div {:class "row mb-3"}
+      (for [[label key cls]
+            [["Ready" :ready "text-warning"]
+             ["Processing" :processing "text-primary"]
+             ["Retry wait" :retry-wait "text-secondary"]
+             ["Failed" :failed "text-danger"]
+             ["Complete" :complete "text-success"]]]
+        [:div {:class "col-auto"}
+         [:h4 {:class cls} (or (get counts key) 0) " " label]])]
+     [:p {:class "text-muted"}
+      "Captures are acknowledged only after a durable queue commit. Retry and Dismiss are manual recovery actions; recapturing a failed URL does not change it."]
+     (if (empty? captures)
+       [:p {:class "text-muted"} "No bookmark captures yet."]
+       [:table {:class "table table-sm"}
+        [:thead
+         [:tr
+          [:th "Status"]
+          [:th "URL / title"]
+          [:th "Submitted"]
+          [:th "Attempts"]
+          [:th "Last attempt"]
+          [:th "Error"]
+          [:th "Actions"]]]
+        [:tbody (map capture-row captures)]])]))
+
 (def tabs
   {:overview #'overview-tab
    :sources #'source-tab
+   :bookmarks #'bookmarks-tab
    :podcast #'podcast-tab
    :ranking #'ranking-tab
    :memory #'memory-tab
@@ -1087,6 +1174,20 @@
       {:status 404
        :body {:item-id str-id :error :not-found}})))
 
+(defn bookmark-capture-retry [str-id]
+  (if-let [id (parse-long str-id)]
+    (if-let [capture (capture-db/retry! store/backend-db id)]
+      {:status 200 :body {:capture-id id :status (:status capture)}}
+      {:status 409 :body {:capture-id id :error :not-retryable}})
+    {:status 400 :body {:capture-id str-id :error :invalid-id}}))
+
+(defn bookmark-capture-dismiss [str-id]
+  (if-let [id (parse-long str-id)]
+    (if-let [capture (capture-db/dismiss! store/backend-db id)]
+      {:status 200 :body {:capture-id id :status (:status capture)}}
+      {:status 409 :body {:capture-id id :error :not-dismissible}})
+    {:status 400 :body {:capture-id str-id :error :invalid-id}}))
+
 (defn podcast-delete [str-id]
   (let [item-id (parse-long str-id)]
     (if-let [info (get @podcast/download-state item-id)]
@@ -1156,6 +1257,12 @@
 
      (POST "/podcast/retry/:item-id" [item-id]
        (podcast-retry item-id))
+
+     (POST "/bookmark-captures/:capture-id/retry" [capture-id]
+       (bookmark-capture-retry capture-id))
+
+     (POST "/bookmark-captures/:capture-id/dismiss" [capture-id]
+       (bookmark-capture-dismiss capture-id))
 
      (DELETE "/podcast/:item-id" [item-id]
        (podcast-delete item-id))

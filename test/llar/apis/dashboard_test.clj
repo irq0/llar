@@ -7,6 +7,7 @@
    [llar.appconfig :as appconfig]
    [llar.apis.podcast :as podcast-api]
    [llar.config :as config]
+   [llar.db.bookmark-capture :as capture-db]
    [llar.persistency :as persistency]
    [llar.podcast :as podcast]
    [llar.rc :as rc]
@@ -15,6 +16,38 @@
    [llar.metrics.resources :as resources]
    [llar.work :as work]
    [llar.apis.dashboard :as uut]))
+
+(deftest bookmarks-tab-shows-queue-health-and-recovery-actions
+  (with-redefs [capture-db/dashboard-counts
+                (constantly {:ready 1 :processing 0 :retry-wait 2 :failed 1 :complete 3})
+                capture-db/list-captures
+                (constantly [{:id 42
+                              :url "https://example.com/failed"
+                              :title "Failed capture"
+                              :status :failed
+                              :attempt-count 5
+                              :submitted-by "iphone"
+                              :failure-class "fetch"
+                              :last-error "network failed"}])]
+    (let [body (str (h/html (uut/bookmarks-tab)))]
+      (is (string/includes? body "1 Ready"))
+      (is (string/includes? body "Failed capture"))
+      (is (string/includes? body "network failed"))
+      (is (string/includes? body "/api/bookmark-captures/42/retry"))
+      (is (string/includes? body "/api/bookmark-captures/42/dismiss")))))
+
+(deftest bookmark-recovery-routes-use-explicit-state-transitions
+  (with-redefs [capture-db/retry! (fn [_ id] {:id id :status :pending})
+                capture-db/dismiss! (fn [_ id] {:id id :status :dismissed})]
+    (let [retry-response (uut/app {:request-method :post
+                                   :uri "/api/bookmark-captures/42/retry"})
+          dismiss-response (uut/app {:request-method :post
+                                     :uri "/api/bookmark-captures/42/dismiss"})]
+      (is (= 200 (:status retry-response)))
+      (is (= {:capture-id 42 :status :pending} (:body retry-response)))
+      (is (= 200 (:status dismiss-response)))
+      (is (= {:capture-id 42 :status :dismissed} (:body dismiss-response)))))
+  (is (= 400 (:status (uut/bookmark-capture-retry "not-an-id")))))
 
 (deftest status-index-renders-non-source-tabs-lazily
   (testing "initial dashboard render does not execute heavy hidden tabs"

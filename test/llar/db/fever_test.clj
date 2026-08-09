@@ -65,7 +65,7 @@
                                    :src-name "bookmarks"
                                    :hash "global-bookmark"
                                    :type :item-type/bookmark
-                                   :tags #{:unread})
+                                   :tags #{:saved :unread})
         read-bookmark (create-test-item *test-db*
                                         :src-name "bookmarks"
                                         :hash "read-bookmark"
