@@ -559,11 +559,21 @@
 
 (defn handle-scheduler-config-form! [form]
   (try
-    (log/debugf "loading scheduler \"%s\": %s" (second form) form)
-    (let [sched (eval form)]
-      (log/debug "creating scheduler: " sched)
-      (swap! fetch-scheds assoc (keyword (second form)) sched)
-      (mount/start (vals @fetch-scheds)))
+    (let [sched-key (keyword (second form))]
+      (log/debugf "loading scheduler \"%s\": %s" (second form) form)
+      ;; A config file can be loaded again at runtime. Stop the old state before
+      ;; evaluating its replacement: defstate reuses the same Var, so after eval
+      ;; there is no reliable handle left for the old schedule's closeable.
+      (when-let [old-sched (get @fetch-scheds sched-key)]
+        (log/debugf "stopping scheduler before replacement: %s" sched-key)
+        (mount/stop old-sched)
+        (swap! fetch-scheds dissoc sched-key))
+      (let [sched (eval form)]
+        (log/debug "creating scheduler: " sched)
+        (swap! fetch-scheds assoc sched-key sched)
+        ;; Starting the complete registry here restarted every preceding schedule
+        ;; once per definition. Start only the state produced by this form.
+        (mount/start sched)))
     (catch Exception e
       (log/error e "failed to load scheduler def" (second form)))))
 

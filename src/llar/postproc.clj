@@ -87,7 +87,7 @@
 (defn- preview-url? [url]
   (and (string? url)
        (not (string/blank? url))
-       (not (#{"self" "default" "image"} url))))
+       (not (#{"self" "default" "image" "nsfw" "spoiler"} url))))
 
 (defn- blobify-preview-url [url]
   (if (preview-url? url)
@@ -205,9 +205,13 @@
        (log/debugf "proc %s: (%s %s)" (str item) func (count args))
        new)
      (catch Object e
-       (observe-degraded-item-exception! item hint (:throwable &throw-context))
-       (log/warnf (:throwable &throw-context) "proc %s: (%s %s %s) FAILED: %s %s"
-                  (str item) func (count args) hint e (ex-message e))
+       (let [throwable (:throwable &throw-context)]
+         (observe-degraded-item-exception! item hint throwable)
+         (if (http/logged-error? throwable)
+           (log/debugf "proc %s: (%s %s %s) stopped after logged HTTP error"
+                       (str item) func (count args) hint)
+           (log/warnf throwable "proc %s: (%s %s %s) FAILED: %s %s"
+                      (str item) func (count args) hint e (ex-message e))))
        nil))))
 
 (defn- apply-filter [item f]
@@ -346,7 +350,9 @@
                 :error ex}))
      (catch Object _
        (let [cause (:throwable &throw-context)]
-         (log/warn cause "postprocessing failed during parallel item proc: " (str src)
-                   feed state items)
+         (if (http/logged-error? cause)
+           (log/debugf "postprocessing stopped after logged HTTP error: %s" (str src))
+           (log/warn cause "postprocessing failed during parallel item proc: " (str src)
+                     feed state items))
          (throw+ {:type ::postproc-fail :itemsc (count items) :feed feed
                   :error (ex-message cause)} "postprocessing failed" cause))))))

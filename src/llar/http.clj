@@ -5,6 +5,7 @@
    [llar.io :as llar-io]
    [llar.converter :as converter]
    [llar.commands :refer [html2text] :as commands]
+   [digest :as digest]
    [llar.privacy :as privacy]
    [llar.regex :as regex-collection]
    [slingshot.slingshot :refer [throw+ try+]]
@@ -27,6 +28,9 @@
 ;; 🖖 HTTP Fetch utility
 
 (defonce ^:dynamic *domain-blocklist* (atom #{}))
+
+(def ^:private +http-error-body-preview-chars+ 512)
+(def ^:private +http-error-body-conversion-chars+ 4096)
 
 (defn +http-user-agent+ []
   {:bot "Mozilla/5.0 (compatible); Googlebot/2.1; +http://www.google.com/bot.html)"
@@ -535,35 +539,75 @@
                   loc))))
             (recur (zip/next loc))))))))
 
+(defn- normalize-http-error-body [body]
+  (let [raw-body (if (nil? body) "" (str body))
+        conversion-input (subs raw-body 0 (min (count raw-body)
+                                               +http-error-body-conversion-chars+))
+        message (try
+                  (html2text conversion-input :tool :for-exceptions)
+                  (catch Throwable _
+                    conversion-input))
+        message (-> (or message "")
+                    (string/replace #"\s+" " ")
+                    string/trim)
+        truncated? (or (> (count raw-body) +http-error-body-conversion-chars+)
+                       (> (count message) +http-error-body-preview-chars+))
+        preview (cond-> (subs message 0 (min (count message)
+                                             +http-error-body-preview-chars+))
+                  truncated? (str "…"))]
+    {:body-preview preview
+     :body-characters (count raw-body)
+     :body-sha256 (digest/sha-256 raw-body)
+     :body-truncated? truncated?}))
+
+(defn- log-http-response-error! [status reason-class retryable? reason-phrase context summary]
+  (log/warnf
+   (str "HTTP response error status=%s class=%s retryable=%s url=%s request=%s "
+        "reason=%s body-characters=%d body-sha256=%s body-preview=%s")
+   status reason-class retryable? (:url context) (:request context)
+   reason-phrase (:body-characters summary) (:body-sha256 summary)
+   (pr-str (:body-preview summary))))
+
+(defn logged-error? [throwable]
+  (loop [throwable throwable]
+    (when throwable
+      (or (true? (::logged? (ex-data throwable)))
+          (recur (.getCause ^Throwable throwable))))))
+
 (defn http-resp-throw [ex context]
-  (let [{:keys [body headers status reason-phrase]} ex]
+  (let [{:keys [body status reason-phrase]} ex]
     (cond
       (#{400 401 402 403 404 405 406 410} status)
-      (let [message (html2text body :tool :for-exceptions)]
-        (log/warnf "client error probably due to broken request (%s): body:%s context:%s"
-                   status message context)
+      (let [summary (normalize-http-error-body body)]
+        (log-http-response-error! status :http-4xx false reason-phrase context summary)
         (throw+ (merge {:type ::request-error
                         :code status
                         :reason-class :http-4xx
-                        :message (or message reason-phrase)}
+                        :message (or (not-empty (:body-preview summary)) reason-phrase)
+                        ::logged? true}
+                       summary
                        context)))
       (#{500 501 502 503 504} status)
-      (let [message (html2text body  :tool :for-exceptions)]
-        (log/warnf "server Error (%s): %s %s" status headers body)
+      (let [summary (normalize-http-error-body body)]
+        (log-http-response-error! status :http-5xx true reason-phrase context summary)
         (throw+ (merge {:type ::server-error-retry-later
                         :code status
                         :reason-class :http-5xx
-                        :message (or message reason-phrase)}
+                        :message (or (not-empty (:body-preview summary)) reason-phrase)
+                        ::logged? true}
+                       summary
                        context)))
       (#{408 429} status)
-      (do
-        (log/warnf "client Error (overloaded?) (%s): %s context:%s"
-                   status reason-phrase context)
+      (let [reason-class (if (= 429 status) :rate-limited :timeout)
+            summary (normalize-http-error-body body)]
+        (log-http-response-error! status reason-class true reason-phrase context summary)
         (throw+ (merge {:type ::client-error-retry-later
                         :code status
-                        :reason-class (if (= 429 status) :rate-limited :timeout)
+                        :reason-class reason-class
                         :reason (:reason-phrase ex)
-                        :message (html2text body :tool :html2text)}
+                        :message (or (not-empty (:body-preview summary)) reason-phrase)
+                        ::logged? true}
+                       summary
                        context))))))
 
 (defmacro with-http-exception-handler [throw-extra & body]

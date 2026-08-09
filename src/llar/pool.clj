@@ -15,10 +15,12 @@
    [llar.rc :as rc]
    [mount.core :refer [defstate]])
   (:import
+   [java.util ArrayList]
    [java.util.concurrent Callable ExecutionException ExecutorService Future
     LinkedBlockingQueue ThreadFactory ThreadPoolExecutor TimeUnit]))
 
-(def ^:private +shutdown-grace-seconds+ 30)
+(def ^:private +shutdown-grace-millis+ 2000)
+(def ^:private +interrupt-settle-millis+ 250)
 
 (defrecord Pool [name ^ThreadPoolExecutor executor])
 
@@ -76,18 +78,41 @@
   (rc/on-change! name #(resize! pool (rc/rc path)))
   pool)
 
+(defn- cancel-tasks! [tasks may-interrupt?]
+  (run! (fn [task]
+          (when (instance? Future task)
+            (.cancel ^Future task may-interrupt?)))
+        tasks)
+  (count tasks))
+
+(defn- cancel-queued! [^ThreadPoolExecutor executor]
+  (let [queued (ArrayList.)]
+    (.drainTo (.getQueue executor) queued)
+    (cancel-tasks! queued false)))
+
 (defn shutdown!
-  "Stop accepting work, drain for a grace period, then interrupt what is left.
-  Returns true when the pool terminated cleanly."
-  [{:keys [name ^ThreadPoolExecutor executor]}]
-  (rc/remove-on-change! name)
-  (resources/unregister! resources/resources name)
-  (.shutdown executor)
-  (or (.awaitTermination executor +shutdown-grace-seconds+ TimeUnit/SECONDS)
-      (do (log/warnf "pool %s did not drain in %ds, interrupting"
-                     name +shutdown-grace-seconds+)
-          (.shutdownNow executor)
-          false)))
+  "Stop accepting work and cancel queued tasks immediately. Already-running tasks get
+  a short grace period before they are interrupted. Returns true when active work
+  terminated within the grace period."
+  ([pool]
+   (shutdown! pool +shutdown-grace-millis+))
+  ([{:keys [name ^ThreadPoolExecutor executor]} grace-millis]
+   (rc/remove-on-change! name)
+   (resources/unregister! resources/resources name)
+   (.shutdown executor)
+   (let [cancelled (cancel-queued! executor)]
+     ;; Removing tasks directly from the queue does not itself wake the executor's
+     ;; termination check on every JDK. purge triggers that check after the drain.
+     (.purge executor)
+     (when (pos? cancelled)
+       (log/infof "pool %s cancelled %d queued tasks during shutdown" name cancelled))
+     (or (.awaitTermination executor grace-millis TimeUnit/MILLISECONDS)
+         (do
+           (log/warnf "pool %s still has %d active tasks after %dms, interrupting"
+                      name (.getActiveCount executor) grace-millis)
+           (cancel-tasks! (.shutdownNow executor) true)
+           (.awaitTermination executor +interrupt-settle-millis+ TimeUnit/MILLISECONDS)
+           false)))))
 
 (defn- submit-all
   "Submit every element up front so workers pull independently. `bound-fn*` keeps

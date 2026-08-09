@@ -9,6 +9,7 @@
    [hickory.select :as s]
    [clj-http.client]
    [llar.appconfig :as appconfig]
+   [llar.commands :as commands]
    [llar.http :as uut]))
 
 (def hick
@@ -217,6 +218,32 @@
       (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
       (is (= :ssl (:reason-class (ex-data ex))))
       (is (= "https://expired.example" (:url (ex-data ex)))))))
+
+(deftest http-response-errors-carry-a-bounded-fingerprinted-preview
+  (let [body (apply str (repeat 600 "large response body "))
+        converted-characters (atom nil)]
+    (with-redefs [commands/html2text (fn [value & _]
+                                       (reset! converted-characters (count value))
+                                       value)]
+      (try
+        (uut/http-resp-throw {:status 404
+                              :reason-phrase "Not Found"
+                              :body body}
+                             {:url "https://example.com/missing"
+                              :request :feed})
+        (is false "expected the response to throw")
+        (catch clojure.lang.ExceptionInfo ex
+          (let [data (ex-data ex)]
+            (is (= :llar.http/request-error (:type data)))
+            (is (= 404 (:code data)))
+            (is (= (count body) (:body-characters data)))
+            (is (= 4096 @converted-characters))
+            (is (= 64 (count (:body-sha256 data))))
+            (is (:body-truncated? data))
+            (is (<= (count (:body-preview data)) 513))
+            (is (= (:body-preview data) (:message data)))
+            (is (not (string/includes? (:message data) body)))
+            (is (uut/logged-error? ex))))))))
 
 (deftest sanitize-css
   (let [sanitized (uut/sanitize hick :remove-css? true)

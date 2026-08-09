@@ -208,6 +208,12 @@
                                                         :attrs {:href "/good"}
                                                         :content ["good"]}
                                                        {:type :element :tag :a
+                                                        :attrs {:href "/heading"}
+                                                        :content ["heading"]}
+                                                       {:type :element :tag :a
+                                                        :attrs {:href "/untitled"}
+                                                        :content ["untitled"]}
+                                                       {:type :element :tag :a
                                                         :attrs {:href "/missing"}
                                                         :content ["missing"]}]}]}]}
         child-hickory {:type :document
@@ -219,7 +225,17 @@
                                              :attrs nil
                                              :content [{:type :element :tag :p
                                                         :attrs nil
-                                                        :content ["body"]}]}]}]}]
+                                                        :content ["body"]}]}]}]}
+        heading-hickory {:type :document
+                         :content [{:type :element
+                                    :tag :html
+                                    :attrs nil
+                                    :content [{:type :element
+                                               :tag :body
+                                               :attrs nil
+                                               :content [{:type :element :tag :h1
+                                                          :attrs nil
+                                                          :content ["  Heading   fallback  "]}]}]}]}]
     (with-redefs [http/fetch (fn [url & _]
                                (case (str url)
                                  "https://example.com/index.html"
@@ -230,14 +246,25 @@
                                  {:summary {:ts ts :title "Good item"}
                                   :hickory child-hickory}
 
+                                 "https://example.com/heading"
+                                 {:summary {:ts ts :title nil}
+                                  :hickory heading-hickory}
+
+                                 "https://example.com/untitled"
+                                 {:summary {:ts ts :title nil}
+                                  :hickory child-hickory}
+
                                  "https://example.com/missing"
                                  (throw+ {:type :llar.http/request-error
                                           :code 404
                                           :url url})))
                   commands/html2text identity]
       (let [items (uut/fetch-source source {})]
-        (is (= 1 (count items)))
-        (is (= "Good item" (get-in (first items) [:summary :title])))
+        (is (= 3 (count items)))
+        (is (= ["Good item"
+                "Heading fallback"
+                "https://example.com/untitled"]
+               (mapv #(get-in % [:summary :title]) items)))
         (is (= "https://example.com/index.html"
                (get-in (first items) [:feed :title])))))))
 

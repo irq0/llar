@@ -6,7 +6,7 @@
    [llar.rc :as rc]
    [slingshot.slingshot :refer [throw+ try+]])
   (:import
-   [java.util.concurrent CountDownLatch ExecutionException ExecutorService TimeUnit]))
+   [java.util.concurrent Callable CountDownLatch ExecutionException ExecutorService TimeUnit]))
 
 (def ^:dynamic *conveyed* :unbound)
 
@@ -186,6 +186,35 @@
     (is (true? (uut/shutdown! pool)))
     (is (.isTerminated ^ExecutorService (:executor pool)))
     (is (not (contains? @resources/resources :registry-test)))))
+
+(deftest shutdown-cancels-the-queue-and-only-waits-for-active-work
+  (let [pool (uut/make-pool :fast-shutdown-test 1)
+        executor ^ExecutorService (:executor pool)
+        entered (CountDownLatch. 1)
+        interrupted (CountDownLatch. 1)
+        queued-ran? (atom false)
+        active (.submit executor
+                        ^Callable
+                        (reify Callable
+                          (call [_]
+                            (.countDown entered)
+                            (try
+                              (Thread/sleep 30000)
+                              (catch InterruptedException _
+                                (.countDown interrupted))))))
+        queued (.submit executor
+                        ^Callable
+                        (reify Callable
+                          (call [_]
+                            (reset! queued-ran? true))))]
+    (is (.await entered 10 TimeUnit/SECONDS))
+    (let [started (System/nanoTime)]
+      (is (false? (uut/shutdown! pool 50)))
+      (is (< (/ (- (System/nanoTime) started) 1000000.0) 1000)))
+    (is (.await interrupted 10 TimeUnit/SECONDS))
+    (is (.isDone active))
+    (is (.isCancelled queued))
+    (is (false? @queued-ran?))))
 
 (deftest resize-applies-in-both-directions
   (let [pool (uut/make-pool :resize-test 2)]

@@ -5,6 +5,7 @@
                                 make-meta
                                 make-item-hash]]
             [llar.fetchutils :as fetchutils]
+            [clojure.string :as string]
             [clojure.spec.alpha :as s]
             [llar.src]
             [llar.postproc :refer [ItemProcessor]]
@@ -15,6 +16,7 @@
                                get-base-url
                                get-base-url-with-path
                                blobify
+                               logged-error?
                                sanitize
                                resolve-user-agent
                                with-http-exception-handler]]
@@ -230,6 +232,32 @@
                  :selector sel
                  :extractor ext})))))
 
+(defn- hickory-node-text [node]
+  (cond
+    (string? node) node
+    (map? node) (string/join " " (map hickory-node-text (:content node)))
+    (sequential? node) (string/join " " (map hickory-node-text node))
+    :else ""))
+
+(defn- usable-title [value]
+  (when (string? value)
+    (let [title (-> value
+                    (string/replace #"\s+" " ")
+                    string/trim)]
+      (when-not (string/blank? title)
+        title))))
+
+(defn- selector-item-title [selected summary hickory item-url]
+  (or (usable-title selected)
+      (usable-title (:title summary))
+      (some-> (or (first (hick-s/select (hick-s/tag :h1) hickory))
+                  (first (hick-s/select (hick-s/tag :h2) hickory)))
+              hickory-node-text
+              usable-title)
+      ;; A valid URL is stable and preferable to dropping the item altogether when
+      ;; an old page has neither title metadata nor a usable heading.
+      (str item-url)))
+
 (extend-protocol FetchSource
   llar.src.SelectorFeed
   (fetch-source [src _conditional-tokens]
@@ -266,7 +294,8 @@
               (log/debug (str src) " fetching: " {:base-url base-url
                                                   :item-url item-url})
               (let [author (hick-select-extract-with-source src :author hickory nil)
-                    title (hick-select-extract-with-source src :title hickory (:title summary))
+                    selected-title (hick-select-extract-with-source src :title hickory nil)
+                    title (selector-item-title selected-title summary hickory item-url)
                     pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
                     description (hick-select-extract-with-source src :description hickory nil)
                     sanitized (fetchutils/process-html-contents base-url hickory)
@@ -274,12 +303,6 @@
                               (first (hick-s/select (:content selectors) sanitized))
                               (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
                     content-html (hick-r/hickory-to-html content)]
-
-                ;; todo match selected+extracted data to some schema
-                (when-not (string? title)
-                  (throw+ {:type ::selector-or-extractor-broken
-                           :item "title"
-                           :value title}))
 
                 (make-feed-item
                  meta
@@ -296,8 +319,11 @@
                  nil
                  feed)))
             (catch clojure.lang.ExceptionInfo ex
-              (log/warnf "SelectorFeed item failed: raw-url:%s data:%s"
-                         raw-item-url (ex-data ex))
+              (if (logged-error? ex)
+                (log/debugf "SelectorFeed item skipped after logged HTTP error: raw-url:%s"
+                            raw-item-url)
+                (log/warnf "SelectorFeed item failed: raw-url:%s data:%s"
+                           raw-item-url (ex-data ex)))
               nil)
             (catch Throwable th
               (log/warnf th "SelectorFeed item failed: raw-url:%s"
