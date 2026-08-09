@@ -79,6 +79,11 @@
            ["/reader/tools/todays-vibe" "/reader/tools/todays-vibe"]
            ["/reader/tools/search" "/reader/tools/search"]
            ["/reader/tools/future-view" "/reader/tools/:view"]
+           ["/api/v1/captures" "/api/v1/captures"]
+           ["/api/bookmark-captures/42/retry"
+            "/api/bookmark-captures/:capture-id/:action"]
+           ["/api/bookmark-captures/42/dismiss"
+            "/api/bookmark-captures/:capture-id/:action"]
            ["/blob/abcdef" "/blob/:hash"]
            ["/static/llar.js" "/static"]
            ["/static-assets" "/static-assets"]]]

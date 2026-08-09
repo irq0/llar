@@ -91,7 +91,10 @@
    [#"^/api/update/[^/]+$" "/api/update/:source-key"]
    [#"^/source-details/[^/]+$" "/source-details/:key"]
    [#"^/api/podcast/retry/[^/]+$" "/api/podcast/retry/:item-id"]
-   [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]])
+   [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]
+   [#"^/api/bookmark-captures/[^/]+/(?:retry|dismiss)$"
+    "/api/bookmark-captures/:capture-id/:action"]
+   [#"^/api/v1/captures/?$" "/api/v1/captures"]])
 
 (defn- abstract-reader-group-path [uri]
   (when-let [[_ group-name group-item source-key endpoint]
