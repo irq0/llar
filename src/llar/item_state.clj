@@ -40,7 +40,7 @@
    :checkpoint (checkpoint item)})
 
 (defn queue-reasons [item]
-  (let [{:keys [tags checkpoint] :as item} (state item)]
+  (let [{:keys [tags checkpoint]} (state item)]
     (if (contains? tags :archive)
       []
       (cond-> []

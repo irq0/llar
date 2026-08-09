@@ -1,6 +1,6 @@
 (ns llar.bookmark-capture-test
   (:require
-   [clojure.test :refer [deftest is testing]]
+   [clojure.test :refer [deftest is]]
    [java-time.api :as time]
    [llar.appconfig :as appconfig]
    [llar.bookmark-capture :as uut]
