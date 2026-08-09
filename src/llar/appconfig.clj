@@ -26,6 +26,7 @@
 (s/def :irq0-appconfig/base-url string?)
 (s/def :irq0-appconfig/username string?)
 (s/def :irq0-appconfig/credentials keyword?)
+(s/def :irq0-appconfig/schedule keyword?)
 (s/def :irq0-appconfig/source-tag keyword?)
 (s/def :irq0-appconfig/initial-days pos-int?)
 (s/def :irq0-appconfig/recent-read-days pos-int?)
@@ -59,6 +60,11 @@
 (s/def :irq0-appconfig/reader
   (s/keys :req-un [:irq0-appconfig/port]
           :opt-un [:irq0-appconfig/base-url]))
+(s/def :irq0-appconfig/capture
+  (s/keys :req-un [:irq0-appconfig/port
+                   :irq0-appconfig/base-url
+                   :irq0-appconfig/credentials]
+          :opt-un [:irq0-appconfig/schedule]))
 (s/def :irq0-appconfig/fever
   (s/keys :req-un [:irq0-appconfig/port
                    :irq0-appconfig/username
@@ -72,7 +78,6 @@
 ;; Uses the general top-level :mail config for sending.
 (s/def :irq0-appconfig/to string?)
 (s/def :irq0-appconfig/from string?)
-(s/def :irq0-appconfig/schedule keyword?)
 (s/def :irq0-appconfig/inline-images? boolean?)
 (s/def :irq0-appconfig/keep-unread-issues nat-int?)
 (s/def :irq0-appconfig/digest
@@ -99,6 +104,7 @@
                                             :irq0-appconfig/dashboard
                                             :irq0-appconfig/podcast
                                             :irq0-appconfig/fever
+                                            :irq0-appconfig/capture
                                             :irq0-appconfig/digest]))
 
 ;; General outgoing mail config. Optional, top-level. :from is the default From
@@ -319,6 +325,10 @@
 (defn reader
   ([] (get-in appconfig [:api :reader]))
   ([key] (get-in appconfig [:api :reader key])))
+
+(defn capture
+  ([] (get-in appconfig [:api :capture]))
+  ([key] (get-in appconfig [:api :capture key])))
 
 (defn fever
   ([] (get-in appconfig [:api :fever]))
