@@ -16,8 +16,9 @@
    [mount.core :refer [defstate]])
   (:import
    [java.util ArrayList]
-   [java.util.concurrent Callable ExecutionException ExecutorService Future
-    LinkedBlockingQueue ThreadFactory ThreadPoolExecutor TimeUnit]))
+   [java.util.concurrent Callable CancellationException ExecutionException
+    ExecutorService Future LinkedBlockingQueue ThreadFactory ThreadPoolExecutor
+    TimeUnit]))
 
 (def ^:private +shutdown-grace-millis+ 2000)
 (def ^:private +interrupt-settle-millis+ 250)
@@ -137,6 +138,15 @@
   (.interrupt (Thread/currentThread))
   (throw e))
 
+(defn- abandon-cancelled!
+  "A queued future is cancelled when its pool shuts down. Present that to callers as
+  teardown interruption, rather than leaking the executor's unchecked implementation
+  exception through update and scheduler layers."
+  [futures ^CancellationException cause]
+  (let [interrupted (InterruptedException. "pool task was cancelled during shutdown")]
+    (.initCause interrupted cause)
+    (abandon! futures interrupted)))
+
 (defn call-on
   "Run `f` on `pool` and wait for its value, rethrowing the original cause on failure.
 
@@ -147,7 +157,11 @@
     (try
       (.get fut)
       (catch ExecutionException e
-        (throw (unwrap e))))))
+        (throw (unwrap e)))
+      (catch InterruptedException e
+        (abandon! [fut] e))
+      (catch CancellationException e
+        (abandon-cancelled! [fut] e)))))
 
 (defn pmap-failfast
   "Map `f` over `coll` on `pool`, returning results in input order.
@@ -163,7 +177,9 @@
         (cancel-all! futures)
         (throw (unwrap e)))
       (catch InterruptedException e
-        (abandon! futures e)))))
+        (abandon! futures e))
+      (catch CancellationException e
+        (abandon-cancelled! futures e)))))
 
 (defn pmap-isolated
   "Map `f` over `coll` on `pool`, returning one outcome per element in input order:
@@ -182,7 +198,9 @@
                   {:ok? false :error (unwrap e)})))
             futures)
       (catch InterruptedException e
-        (abandon! futures e)))))
+        (abandon! futures e))
+      (catch CancellationException e
+        (abandon-cancelled! futures e)))))
 
 (def ^:private +source-size-path+ [:throttle :source-update-max-concurrent])
 (def ^:private +item-size-path+ [:throttle :item-postproc-max-concurrent])

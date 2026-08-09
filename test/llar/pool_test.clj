@@ -6,9 +6,19 @@
    [llar.rc :as rc]
    [slingshot.slingshot :refer [throw+ try+]])
   (:import
-   [java.util.concurrent Callable CountDownLatch ExecutionException ExecutorService TimeUnit]))
+   [java.util.concurrent Callable CancellationException CountDownLatch
+    ExecutionException ExecutorService TimeUnit]))
 
 (def ^:dynamic *conveyed* :unbound)
+
+(defn- wait-until
+  "Poll pred for up to ~2s. Returns its last value for assertions."
+  [pred]
+  (loop [n 0]
+    (let [value (pred)]
+      (if (or value (> n 100))
+        value
+        (do (Thread/sleep 20) (recur (inc n)))))))
 
 (deftest slow-element-does-not-starve-the-pool
   ;; The defect this whole change exists to fix. clojure.core/pmap advances its
@@ -215,6 +225,50 @@
     (is (.isDone active))
     (is (.isCancelled queued))
     (is (false? @queued-ran?))))
+
+(deftest shutdown-cancellation-propagates-as-interruption-to-waiting-callers
+  (doseq [[label invoke]
+          [[:call-on (fn [pool] (uut/call-on pool (constantly :never)))]
+           [:failfast (fn [pool] (uut/pmap-failfast pool identity [:never]))]
+           [:isolated (fn [pool] (uut/pmap-isolated pool identity [:never]))]]]
+    (let [pool (uut/make-pool (keyword (str "shutdown-" (name label))) 1)
+          executor ^ExecutorService (:executor pool)
+          entered (CountDownLatch. 1)
+          release (CountDownLatch. 1)
+          shutdown? (atom false)
+          caller-interrupted? (promise)]
+      (.submit executor
+               ^Callable
+               (reify Callable
+                 (call [_]
+                   (.countDown entered)
+                   (try
+                     (.await release 30 TimeUnit/SECONDS)
+                     (catch InterruptedException _)))))
+      (try
+        (is (.await entered 10 TimeUnit/SECONDS) (name label))
+        (let [result (future
+                       (try
+                         (invoke pool)
+                         (finally
+                           (deliver caller-interrupted?
+                                    (.isInterrupted (Thread/currentThread))))))]
+          (is (wait-until #(= 1 (:queued (uut/sample pool)))) (name label))
+          (uut/shutdown! pool 50)
+          (reset! shutdown? true)
+          (let [thrown (try
+                         (deref result 10000 ::timeout)
+                         nil
+                         (catch ExecutionException e e))
+                interruption (some-> thrown .getCause)]
+            (is (instance? InterruptedException interruption) (name label))
+            (is (instance? CancellationException (some-> interruption .getCause))
+                (name label))
+            (is (true? (deref caller-interrupted? 10000 ::timeout)) (name label))))
+        (finally
+          (.countDown release)
+          (when-not @shutdown?
+            (uut/shutdown! pool)))))))
 
 (deftest resize-applies-in-both-directions
   (let [pool (uut/make-pool :resize-test 2)]
