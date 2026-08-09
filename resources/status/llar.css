@@ -725,6 +725,17 @@ table tr.shown td.details-control::before {
   color: black;
 }
 
+.thread-top-frame {
+  max-width: 40rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.thread-top-frame-code {
+  color: inherit;
+  white-space: normal;
+}
+
 .clj-pprint {
   background: #666;
 }

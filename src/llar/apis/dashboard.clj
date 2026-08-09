@@ -569,8 +569,8 @@
                [:td {:class "col-xs-1"} bucket]
                [:th {:class "col-xs-1"} name]
                [:td {:class "col-xs-1"} [:pre state]]
-               [:td {:class "col-xs-4"} [:span {:title top}
-                                         (human/truncate-ellipsis (str top) 20)]]]))))
+               [:td {:class "col-xs-4 thread-top-frame"}
+                [:code {:class "thread-top-frame-code"} (str top)]]]))))
 
 (defn- thread-census-section []
   (let [stack-traces (Thread/getAllStackTraces)]

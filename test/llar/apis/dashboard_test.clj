@@ -332,6 +332,15 @@
   (is (= "Database" (#'uut/thread-bucket "HikariPool-1 housekeeper")))
   (is (= "JVM & other" (#'uut/thread-bucket "Reference Handler"))))
 
+(deftest thread-rows-show-the-complete-top-frame
+  (let [frame (StackTraceElement. "sun.nio.ch.Net" "poll" "Net.java" -2)
+        stack (into-array StackTraceElement [frame])
+        html (str (h/html (#'uut/thread-rows {(Thread/currentThread) stack})))]
+    (is (string/includes? html "thread-top-frame"))
+    (is (string/includes? html "thread-top-frame-code"))
+    (is (string/includes? html "sun.nio.ch.Net.poll(Native Method)"))
+    (is (not (string/includes? html "sun.nio.ch.Net.poll…")))))
+
 (deftest activity-tab-renders-saturation-inflight-and-census
   (let [work-id (work/register! {:kind :source :source :a-stuck-feed
                                  :stage :store :waiting-on :av-download})]
