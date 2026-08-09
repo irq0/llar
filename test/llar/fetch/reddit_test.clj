@@ -233,14 +233,16 @@
                   http-client/get (fn [_url _opts] (listing-response children))]
       (let [items (fetch/fetch-source (src/reddit "clojure" :top) {})]
         (testing "spec violations are dropped, not passed on as nil"
-          (is (= 1 (count items)))
+          (is (= 2 (count items)))
           (is (every? some? items) "a nil here would reach postprocessing and the store"))
-        (testing "the surviving item is mapped as before"
+        (testing "valid items are mapped as before"
           (let [entry (:entry (first items))]
             (is (= "An article" (:title entry)))
             (is (= 42 (:score entry)))
             (is (= ["someone"] (:authors entry)))
-            (is (= "the body" (get-in entry [:contents "text/plain"])))))))))
+            (is (= "the body" (get-in entry [:contents "text/plain"]))))
+          (is (nil? (get-in (second items) [:entry :thumbnail]))
+              "Reddit legitimately omits thumbnails from some posts"))))))
 
 (deftest fetch-source-records-scores-test
   (start-appconfig!)

@@ -226,11 +226,11 @@
                                               :irq0-src-reddit/created_utc
                                               :irq0-src-reddit/url
                                               :irq0-src-reddit/permalink
-                                              :irq0-src-reddit/thumbnail
                                               :irq0-src-reddit/author
                                               :irq0-src-reddit/id
                                               :irq0-src-reddit/score
-                                              :irq0-src-reddit/selftext]))
+                                              :irq0-src-reddit/selftext]
+                                     :opt-un [:irq0-src-reddit/thumbnail]))
 
 (extend-protocol fetch/FetchSource
   llar.src.Reddit
