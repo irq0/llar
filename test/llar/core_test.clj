@@ -7,6 +7,8 @@
    [llar.docs.config :as docs.config]
    [llar.fetch.streaming :as streaming]
    [llar.pool :as pool]
+   [llar.store :as store]
+   [mount.core :as mount]
    [migratus.core :as migratus]))
 
 (deftest fetch-concurrency-resources-are-part-of-dry-startup
@@ -16,6 +18,20 @@
                  #'pool/source-pool
                  #'pool/item-pool]]
     (is (some #{state} uut/dry-states))))
+
+(deftest runtime-migrates-before-starting-query-serving-states
+  (let [events (atom [])
+        application-states [:reader :scheduler]]
+    (with-redefs [mount/start (fn [states]
+                                (swap! events conj [:start states]))
+                  uut/migrate-db! (fn [_]
+                                    (swap! events conj [:migrate]))]
+      (uut/start-runtime! application-states))
+    (is (= [[:start #'store/backend-db]
+            [:migrate]
+            [:start application-states]]
+           @events))
+    (is (not-any? #{#'store/backend-db} uut/dry-states))))
 
 (deftest write-docs-option-parses-output-directory
   (let [{:keys [options errors]} (parse-opts ["--write-docs" "/tmp/llar-docs"]

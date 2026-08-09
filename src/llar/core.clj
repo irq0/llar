@@ -37,6 +37,7 @@
 
 (def cli-options
   [[nil "--init-db" "Initialize new database and exit"]
+   [nil "--rollback-db" "Rollback the last applied database migration and exit"]
    [nil "--dry" "Start without live, schedulers, etc"]
    [nil "--nrepl" "Start nrepl server"]
    [nil "--write-docs DIR" "Write static documentation to DIR and exit"]
@@ -46,8 +47,7 @@
   [#'appconfig/appconfig])
 
 (def dry-states
-  [#'store/backend-db
-   #'reader/frontend-db
+  [#'reader/frontend-db
    #'blobstore/locks
    #'commands/command-throttle
    #'commands/av-download-throttle
@@ -74,6 +74,34 @@
 (defn write-docs! [docs-dir]
   (doseq [path (docs.config/write-static! docs-dir)]
     (log/info "wrote documentation file" (str path))))
+
+(defn db-migration-config [db]
+  {:store :database
+   :db db
+   :migration-dir "migrations/"
+   :command-separator "--;;"})
+
+(defn init-db! [db]
+  (let [config (assoc (db-migration-config db) :init-script "init.sql")]
+    (log/info "initializing database" config)
+    (log/info (migratus/init config))
+    (log/info (migratus/migrate config))))
+
+(defn rollback-db! [db]
+  (let [config (db-migration-config db)]
+    (log/warn "rolling back the last applied database migration")
+    (migratus/rollback config)))
+
+(defn migrate-db! [db]
+  (let [result (migratus/migrate (db-migration-config db))]
+    (log/info "database migrations: " (if (nil? result) "ok" result))))
+
+(defn start-runtime! [states]
+  ;; No state that can issue application queries may start until migrations
+  ;; have completed. In particular, Jetty and scheduled jobs are in `states`.
+  (mount/start #'store/backend-db)
+  (migrate-db! store/backend-db)
+  (mount/start states))
 
 (defn -main [& args]
   ;; otherwise date time parsers will fail!
@@ -104,20 +132,7 @@
      (mount/swap {#'appconfig/appconfig (appconfig/read-config-or-die)})
      (mount/start))
 
-    (when (:nrepl options)
-      (mount/start #'repl/nrepl-server))
-
     (s/check-asserts true)
-
-    (cond
-      (:init-db options)
-      (mount/start #'store/backend-db)
-
-      (:dry options)
-      (mount/start dry-states)
-
-      :else
-      (mount/start (concat dry-states wet-states)))
 
     (.addShutdownHook
      (Runtime/getRuntime)
@@ -128,28 +143,36 @@
 
     (cond
       (:init-db options)
+      (mount/start #'store/backend-db)
+
+      (:rollback-db options)
+      (mount/start #'store/backend-db)
+
+      (:dry options)
+      (start-runtime! dry-states)
+
+      :else
+      (start-runtime! (concat dry-states wet-states)))
+
+    (when (:nrepl options)
+      (mount/start #'repl/nrepl-server))
+
+    (cond
+      (:init-db options)
       (do
-        (let [config {:store :database
-                      :db store/backend-db
-                      :migration-dir "migrations/"
-                      :command-separator "--;;"
-                      :init-script "init.sql"}]
-          (log/info "initializing database" config)
-          (log/info (migratus/init config))
-          (log/info (migratus/migrate config)))
+        (init-db! store/backend-db)
         (log/info "finished DB migrations. exiting")
+        (System/exit 0))
+
+      (:rollback-db options)
+      (do
+        (rollback-db! store/backend-db)
+        (log/info "finished rolling back the last DB migration. exiting")
         (System/exit 0))
 
       (not (:dry options))
       (log/info "smoke testing database: backend"
                 (vec (persistency/get-table-row-counts store/backend-db))))
-
-    (let [config {:store :database
-                  :db store/backend-db
-                  :migration-dir "migrations/"
-                  :command-separator "--;;"}
-          result (migratus/migrate config)]
-      (log/info "database migrations: " (if (nil? result) "ok" result)))
 
     (when-not (:dry options)
       (http/update-domain-blocklist!)
