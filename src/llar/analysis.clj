@@ -40,11 +40,13 @@
    :de (nlp/make-pos-tagger (io/resource "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin"))})
 
 (defn find-names [lang tokens]
-  (try+
-   (mapcat (fn [finder] (finder tokens)) (get name-find lang))
-   (catch Object _
-     (log/warn (:throwable &throw-context) "Open NLP Name finder failed. Returning empty set")
-     [])))
+  (if (seq tokens)
+    (try+
+     (mapcat (fn [finder] (finder tokens)) (get name-find lang))
+     (catch Object _
+       (log/warn (:throwable &throw-context) "Open NLP Name finder failed. Returning empty set")
+       []))
+    []))
 
 (def url-regex #"https?://(?:[\w_-]+(?:(?:\.[\w_-]+)+))(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?")
 
