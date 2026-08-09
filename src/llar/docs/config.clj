@@ -201,6 +201,49 @@
     "The browser-based reader. It starts when :port is present; :base-url is used when LLAR builds absolute reader links."
     ":reader {:port 8023\n         :base-url \"https://reader.example.org\"}")
    (service-card
+    "Bookmark capture" [:api :capture]
+    "A reader-independent, durable save-for-later API for browser bookmarklets and iOS/macOS Shortcuts. It starts when :port is present."
+    ":capture {:port 8026\n          :base-url \"https://save.example.org\"\n          :credentials :bookmark-capture\n          :schedule :now-and-every-minute}\n\n;; credentials.edn\n{:bookmark-capture\n {:tokens {:iphone \"<64 hex characters>\"\n           :macbook \"<64 hex characters>\"\n           :firefox \"<64 hex characters>\"}}}"
+    [:span
+     "Expose the service through HTTPS and have the reverse proxy preserve the "
+     (code "Authorization") " header. The write endpoint is "
+     (code "POST <base-url>/api/v1/captures")
+     " with a JSON body containing " (code "url") " and optional " (code "title") ". The feedback assets and API use relative URLs, so :base-url may include a reverse-proxy path; keep its trailing slash in the bookmarklet. The service intentionally has no CORS support, cookies, or token-management UI."]
+    [:div
+     [:strong "Tokens. "]
+     "Generate a separate revocable token for each client with "
+     (code "openssl rand -hex 32") ", store only the values in "
+     (code "credentials.edn") ", restrict that file to the LLAR account (for example "
+     (code "chmod 600 credentials.edn") "), and restart LLAR after changing them. Tokens must have at least 32 base64url-safe characters. A malformed or missing credential entry prevents the capture service from starting."]
+    [:div
+     [:strong "Firefox/Chrome bookmarklet. "]
+     "Create a bookmark whose URL is the following one-line script, replacing the public base URL and the token belonging to that browser:"
+     (code-block "javascript:location.href='https://save.example.org/#REPLACE_WITH_TOKEN:'+location.href")
+     "The current tab navigates to LLAR's feedback page. LLAR removes the secret fragment before making the authenticated request and reports success only after the database commit; use Back to return to the page. Keeping the token out of query parameters prevents it from entering proxy access logs."]
+    [:div
+     "Treat the bookmark itself as a credential: browser bookmark sync may copy its token to other signed-in devices. Use a token dedicated to that browser profile and revoke it from "
+     (code "credentials.edn") " if the profile or synced account is compromised."]
+    [:div
+     [:strong "iOS/macOS Shortcut. "]
+     "Create a Shortcut that accepts URLs from the Share Sheet, uses Get Contents of URL on "
+     (code "https://save.example.org/api/v1/captures")
+     " with method POST, JSON body " (code "{\"url\": <Shortcut Input>}")
+     ", and header " (code "Authorization: Bearer <iphone token>")
+     ". Finish with Show Result using the response's " (code "message")
+     ". Treat a non-2xx response as not saved; HTTP 409 means the existing failed capture needs Retry or Dismiss in the dashboard."]
+    [:div
+     [:strong "Queue operations. "]
+     "The dashboard's Bookmarks tab shows ready, processing, retry-wait, failed, and complete captures plus Retry/Dismiss recovery actions. The scheduler claims at most one leased capture per run. Set "
+     (code ":schedule") " to a canned schedule keyword; it defaults to "
+     (code ":now-and-every-minute") ". A duplicate pending capture returns already queued, a complete one returns already saved, and failed or dismissed captures are never implicitly recaptured."]
+    [:div
+     [:strong "Minimal alerts. "]
+     "Alert on a capture delayed more than 15 minutes with "
+     (code "llar_bookmark_queue_items{state=\"ready\"} > 0 and on() (time() - llar_bookmark_queue_oldest_ready_unixtime > 900)")
+     ", and on manual intervention with "
+     (code "llar_bookmark_queue_items{state=\"failed\"} > 0")
+     ". The first means the capture latency objective is breached (stalled worker or sustained backlog); inspect the Bookmarks tab, the generic schedule metrics, and source/item-pool saturation. The second is resolved by Retry after correcting the cause, or Dismiss when the URL should be abandoned."])
+   (service-card
     "Podcast" [:api :podcast]
     "HTTP service for downloaded podcast and video media. It starts when :port is present."
     ":podcast {:port 8024\n          :base-url \"https://media.example.org\"\n          :retention {:default-episode-limit 25}}")

@@ -54,6 +54,11 @@
     (is (string/includes? html "github.com/tomekw/hikari-cp#configuration-options"))
     (is (string/includes? html "jdbc.postgresql.org/documentation/datasource/"))
     (is (string/includes? html "Services and APIs"))
+    (is (string/includes? html "Bookmark capture"))
+    (is (string/includes? html "POST &lt;base-url&gt;/api/v1/captures"))
+    (is (string/includes? html "llar_bookmark_queue_oldest_ready_unixtime"))
+    (is (= :irq0-appconfig/capture
+           (get-in by-path [[:api :capture] :spec])))
     (is (string/includes? html "Fever-compatible sync"))
     (is (string/includes? html "Overrides are shallow"))
     (is (string/includes? html "[:api :podcast :retention :default-episode-limit]"))
