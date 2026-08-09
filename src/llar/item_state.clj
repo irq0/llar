@@ -114,10 +114,15 @@
         reasons (queue-reasons item)]
     {:id id
      :type type
+     :read (not (contains? tags :unread))
      :unread (contains? tags :unread)
      :saved (contains? tags :saved)
      :archived (contains? tags :archive)
      :checkpoint checkpoint
      :queued (boolean (seq reasons))
      :queue-reasons reasons
-     :tags (->> tags (map name) sort vec)}))
+     :tags (->> tags (map name) sort vec)
+     :item-tags (->> (set/difference tags workflow-tags)
+                     (map name)
+                     sort
+                     vec)}))

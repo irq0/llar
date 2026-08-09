@@ -91,6 +91,17 @@
             :checkpoint-changed? false}
            (state/differences base after)))))
 
+(deftest canonical-state-separates-workflow-state-from-item-tags
+  (is (= {:unread true
+          :read false
+          :saved true
+          :archived false
+          :tags ["research" "saved" "unread"]
+          :item-tags ["research"]}
+         (select-keys
+          (state/canonical (assoc base :tags #{:unread :saved :research}))
+          [:unread :read :saved :archived :tags :item-tags]))))
+
 (deftest invalid-actions-are-rejected-in-the-domain
   (testing "SQL never decides what an unknown action means"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo

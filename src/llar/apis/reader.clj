@@ -159,27 +159,28 @@
   "Do not display in group list on the left side"
   #{"unread" "in-progress"})
 
-(def +tag-buttons+
-  "First-class tags show up in the tag bar"
+(def +state-buttons+
+  "First-class item state controls shown in Reader action bars."
   [{:tag :saved
-    :state? true
+    :state :saved
     :action-set :save
     :action-unset :unsave
+    :label-set "Remove from saved"
+    :label-unset "Save for later"
     :icon-set "fas fa-star icon-is-set"
     :icon-unset "far fa-star"}
-   {:tag :unread
-    :state? true
-    :action-set :mark-unread
-    :action-unset :seen
-    :icon-unset "far fa-check-square icon-is-set"
-    :icon-set "far fa-square"}
    {:tag :archive
-    :state? true
+    :state :archived
     :action-set :archive
     :action-unset :unarchive
+    :label-set "Remove from archive"
+    :label-unset "Archive"
     :icon-set "fas fa-archive icon-is-set"
-    :icon-unset "fas fa-archive"}
-   {:tag :podcast
+    :icon-unset "fas fa-archive"}])
+
+(def +tag-buttons+
+  "First-class item tags shown in Reader action bars."
+  [{:tag :podcast
     :icon-set "fas fa-tv icon-is-set"
     :icon-unset "fas fa-tv"}])
 
@@ -190,15 +191,11 @@
    :icon-unset "fas fa-book-reader"})
 
 (defn tag-buttons
-  "First-class tag buttons, including feature-gated ones. The :digest button is
+  "First-class item-tag buttons, including feature-gated ones. The :digest button is
   only offered when the digest feature is configured."
   []
   (cond-> +tag-buttons+
     (rc/rc [:digest :enabled?]) (conj +digest-tag-button+)))
-
-(def +headline-view-tag-buttons+
-  "Select from +tag-buttons+"
-  #{:interesting :saved :archive :unread})
 
 (defn icon [ico & args]
   [:i (assoc (apply hash-map args) :class ico) "\u2009"])
@@ -271,51 +268,77 @@
    [:script {:src "/static/llar.js"}]])
 
 (def ^:private tag-action-labels
-  {:saved {:set "Remove from saved"
-           :unset "Save for later"}
-   :archive {:set "Remove from archive"
-             :unset "Archive"}
-   :unread {:set "Mark seen"
-            :unset "Mark unread"}
-   :podcast "Toggle podcast"
+  {:podcast "Toggle podcast"
    :digest {:set "Remove from next digest"
             :unset "Include in next digest"}})
 
-(defn tag-button [id {:keys [tag is-set? icon-set icon-unset state?
-                             action-set action-unset]}]
+(defn state-button
+  [id {:keys [state is-set? icon-set icon-unset action-set action-unset
+              label-set label-unset]}]
+  (let [label (if is-set? label-set label-unset)]
+    [:a {:class (str "btn state-toggle btn-state-" (name state))
+         :href "#"
+         :title label
+         :aria-label label
+         :data-id id
+         :data-state (name state)
+         :data-icon-set icon-set
+         :data-icon-unset icon-unset
+         :data-label-set label-set
+         :data-label-unset label-unset
+         :data-action-set (name action-set)
+         :data-action-unset (name action-unset)
+         :data-is-set (str (boolean is-set?))}
+     (icon (if is-set? icon-set icon-unset))]))
+
+(defn tag-button [id {:keys [tag is-set? icon-set icon-unset]}]
   (let [configured-label (get tag-action-labels tag)
         label (if (map? configured-label)
                 (get configured-label (if is-set? :set :unset))
                 (or configured-label (str "Toggle tag " (name tag))))]
-    [:a (cond-> {:class (str "btn " (if state? "state-toggle " "ajax-toggle ")
-                             "btn-tag-" (name tag))
-                 :title label
-                 :aria-label label
-                 :data-id id
-                 :data-icon-set icon-set
-                 :data-icon-unset icon-unset
-                 :data-tag (name tag)
-                 :data-label-set (if (map? configured-label)
-                                   (:set configured-label)
-                                   label)
-                 :data-label-unset (if (map? configured-label)
-                                     (:unset configured-label)
-                                     label)
-                 :data-is-set (str (boolean is-set?))}
-          state? (assoc :data-action-set (name action-set)
-                        :data-action-unset (name action-unset)))
+    [:a {:class "btn item-tag-toggle"
+         :href "#"
+         :title label
+         :aria-label label
+         :data-id id
+         :data-icon-set icon-set
+         :data-icon-unset icon-unset
+         :data-tag (name tag)
+         :data-label-set (if (map? configured-label)
+                           (:set configured-label)
+                           label)
+         :data-label-unset (if (map? configured-label)
+                             (:unset configured-label)
+                             label)
+         :data-is-set (str (boolean is-set?))}
      (if is-set?
        (icon icon-set)
        (icon icon-unset))]))
 
+(defn state-buttons [id tags]
+  (for [{:keys [tag] :as btn} +state-buttons+]
+    (state-button id (assoc btn :is-set? (some #(= % (name tag)) tags)))))
+
+(defn item-tag-buttons [id tags]
+  (for [{:keys [tag] :as btn} (tag-buttons)]
+    (tag-button id (assoc btn :is-set? (some #(= % (name tag)) tags)))))
+
 (defn done-button [item]
-  (icon-button {:class "btn state-action btn-item-done"
-                :title "Done reading"
-                :aria-label "Done reading"
-                :data-id (:id item)
-                :data-action "done"
-                :href "#"}
-               "fas fa-check-circle"))
+  (let [read? (not (contains? (item-state/tag-set item) :unread))]
+    (icon-button {:class "btn state-toggle btn-item-done"
+                  :title (if read? "Mark unread" "Done reading")
+                  :aria-label (if read? "Mark unread" "Done reading")
+                  :data-id (:id item)
+                  :data-state "read"
+                  :data-action-set "done"
+                  :data-action-unset "mark-unread"
+                  :data-icon-set "fas fa-check-circle icon-is-set"
+                  :data-icon-unset "fas fa-check-circle"
+                  :data-label-set "Mark unread"
+                  :data-label-unset "Done reading"
+                  :data-is-set (str read?)
+                  :href "#"}
+                 (str "fas fa-check-circle" (when read? " icon-is-set")))))
 
 (defn nav-bar
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
@@ -457,9 +480,8 @@
 
            (= mode :show-item)
            [:div {:class "col-xs-8 col-ld-12"}
-            (for [btn (tag-buttons)]
-              (tag-button id (assoc btn
-                                    :is-set? (some #(= % (name (:tag btn))) tags))))
+            (state-buttons id tags)
+            (item-tag-buttons id tags)
             (done-button current-item)
             next-item-button])])]]))
 
@@ -489,7 +511,7 @@
   (let [active-group (:group-name x)
         active-key (name (:group-item x))
         icons (merge
-               (into {} (for [{:keys [tag icon-set]} (tag-buttons)]
+               (into {} (for [{:keys [tag icon-set]} (concat +state-buttons+ (tag-buttons))]
                           [tag (string/replace icon-set #"icon-is-set" "")]))
                +tag-icons-without-buttons+)]
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-left" " mode-" (name (:mode x)))
@@ -672,17 +694,16 @@
                 :data-bs-dismiss "modal"}
        [:span "&times;"]]]
      [:div {:class "modal-body"}
-      [:ul {:class "list-group list-group-flush"}
+      [:ul {:class "list-group list-group-flush item-tag-list"}
        (for [tag tags
-             :when (not= "in-progress" tag)
-             :let [semantic-button (some #(when (= (name (:tag %)) tag) %)
-                                         (tag-buttons))]]
-         [:li {:class "list-group-item"}
-          (tag-button item-id (merge {:tag (keyword tag)
-                                      :icon-set "fas fa-check-circle icon-is-set"
-                                      :icon-unset "far fa-circle"
-                                      :is-set? true}
-                                     semantic-button))
+             :when (not (contains? item-state/workflow-tags (keyword tag)))]
+         [:li {:class "list-group-item item-tag-row"
+               :data-id item-id
+               :data-tag tag}
+          (tag-button item-id {:tag (keyword tag)
+                               :icon-set "fas fa-check-circle icon-is-set"
+                               :icon-unset "far fa-circle"
+                               :is-set? true})
           "\u00a0"
           tag])]
       [:form {:class "add-custom-tag" :data-id item-id}
@@ -693,11 +714,14 @@
         [:button {:class "btn btn-primary" :data-bs-modal (str "#add-custom-tag-" item-id) :type "submit"} "Add"]]]]]]])
 
 (defn tags-button-group [item-id tags]
-  [:div {:class "btn-group btn-group-sm"}
-   [:a {:class "btn"
-        :data-bs-toggle "modal"
-        :data-bs-target (str "#add-custom-tag-" item-id)}
-    "\u00a0" (icon "fas fa-tag") (string/join ", " tags)]])
+  (let [tags (remove #(contains? item-state/workflow-tags (keyword %)) tags)]
+    [:div {:class "btn-group btn-group-sm"}
+     [:a {:class "btn"
+          :data-bs-toggle "modal"
+          :data-bs-target (str "#add-custom-tag-" item-id)}
+      "\u00a0" (icon "fas fa-tag")
+      [:span {:class "item-tags-summary" :data-id item-id}
+       (string/join ", " tags)]]]))
 
 (defn video-content? [item]
   (let [{:keys [_entry url]} item
@@ -1103,13 +1127,6 @@
 ;; todo - add number of images
 ;; add number of nouns
 
-(defn- show-button-in-this-view? [x btn]
-  (if (= (:tag btn) :unread)
-    (or
-     (not= (:group-name x) :item-tags)
-     (not= (:group-item x) :saved))
-    true))
-
 (defn main-list-item
   "Main Item List - Word Cloud Style"
   [x link-prefix item]
@@ -1132,7 +1149,7 @@
         max-freq (second (first words))]
     [:div {:id (str "item-" id)
            :data-id id
-           :data-item-root "true"
+           :data-unread (str (boolean (some #(= % "unread") tags)))
            :class (str "feed-item "
                        (string/join " "
                                     (map #(str "option-" (name %)) options)))}
@@ -1232,10 +1249,9 @@
        (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
                                                                                   :content-type "text/html"} x))]
 
-      [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
-       (for [btn (tag-buttons)
-             :when (show-button-in-this-view? x btn)]
-         (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+      [:div {:class "item-action-buttons btn-group btn-group-sm mr-2" :role "group"}
+       (state-buttons id tags)
+       (item-tag-buttons id tags)
        (done-button item)]]]))
 
 (defn headlines-list-items
@@ -1252,7 +1268,7 @@
                                        (name source-key))
                    {:keys [id source-key title ts tags url]} item
                    source (get sources (keyword source-key))]]
-         [:tr {:data-id id :data-item-root "true"}
+         [:tr {:data-id id}
           [:th {:class "title"}
            [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                       (cond-> {:mark :read}
@@ -1281,13 +1297,6 @@
            [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
 
           [:td {:class "toolbox"}
-           (tag-button id {:tag :unread
-                           :is-set? (some #(= % "unread") tags)
-                           :icon-unset "far fa-check-square icon-is-set"
-                           :icon-set "far fa-square"
-                           :state? true
-                           :action-set :mark-unread
-                           :action-unset :seen})
            (done-button item)
            [:span {:class "dropstart position-static"}
             [:a {:type "button" :class "btn btn-link" :data-bs-toggle "dropdown"} (icon "fa fa-ellipsis-v fa-lg")]
@@ -1298,11 +1307,8 @@
               (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
                                                                                    :content-type "text/html"} x))]
              [:li
-              (for [btn (tag-buttons)
-                    :when (and (not= :unread (:tag btn))
-                               (show-button-in-this-view? x btn))]
-                (tag-button id
-                            (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]]])]]]))
+              (state-buttons id tags)
+              (item-tag-buttons id tags)]]]]])]]]))
 
 (defn gallery-list-item
   [x link-prefix item]
@@ -1311,7 +1317,7 @@
                (first (get-in entry [:entities :photos]))
                (:thumbnail entry)
                (:lead-image-url entry))]
-    [:div {:class "col" :data-id id :data-item-root "true"}
+    [:div {:class "col" :data-id id}
      [:div {:class "card"}
       [:div {:class "card-header"} source-key]
       [:a {:type "button"
@@ -1337,10 +1343,8 @@
       [:div {:class "card-footer toolbox"}
        (external-link-button url)
        (related-button id)
-       (for [btn (tag-buttons)
-             :when (show-button-in-this-view? x btn)]
-         (tag-button id
-                     (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+       (state-buttons id tags)
+       (item-tag-buttons id tags)
        (done-button item)]]]))
 
 (defn gallery-list-items
@@ -1640,11 +1644,7 @@
                           (reading-viewport-overlay (first (:items params))))]
     (html5
      (html-header title (:mode params) (first (:items params)))
-     [:body {:class (str "reader-mode-" (name (:mode params)))
-             :data-group-name (some-> (:group-name params) name)
-             :data-group-item (some-> (:group-item params) name)
-             :data-filter (some-> (:filter params) name)
-             :data-view (some-> (:view params) name)}
+     [:body {:class (str "reader-mode-" (name (:mode params)))}
       (concat
        [nav-bar]
        [reading-overlay]
@@ -1875,8 +1875,7 @@
   [x {:keys [id title source-key author ts tags nwords entry url] :as item}]
   [:div {:id (str "item-" id)
          :class "feed-item"
-         :data-id id
-         :data-item-root "true"}
+         :data-id id}
    [:h4 {:class "h4"}
     [:a {:href (queue-item-href x item)}
      (if (string/blank? title) "(no title)" title)]]
@@ -1933,10 +1932,9 @@
       (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"]
                       {:data "content" :content-type "text/html"}
                       x))]
-    [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
-     (for [btn (tag-buttons)
-           :when (show-button-in-this-view? x btn)]
-       (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+    [:div {:class "item-action-buttons btn-group btn-group-sm mr-2" :role "group"}
+     (state-buttons id tags)
+     (item-tag-buttons id tags)
      (done-button item)]]])
 
 (defn- queue-pagination [x offset page-size has-more?]
@@ -2439,8 +2437,7 @@
          html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                 (html5
                  (html-header title (:mode params) (some-> params :items first))
-                 [:body {:data-view (some-> (:view params) name)
-                         :data-queue-filter (get-in params [:request-params :queue-filter])}
+                 [:body
                   (concat
                    [nav-bar]
                    [[:div {:class "container-fluid"}
@@ -2487,31 +2484,6 @@
      (log/warn e "add-url failed: " feed)
      {:status 500
       :body {:error (str e)}})))
-
-(defn reader-item-modify
-  "Compatibility entry point for custom tags and older Reader clients.
-  Reserved workflow tags are translated to semantic state operations."
-  [id action tag]
-  (log/debug "reader item mod: " id action tag)
-  (let [semantic-action (get {[:set :unread] :mark-unread
-                              [:del :unread] :seen
-                              [:set :saved] :save
-                              [:del :saved] :unsave
-                              [:set :archive] :archive
-                              [:del :archive] :unarchive}
-                             [action tag])
-        command (cond
-                  semantic-action semantic-action
-                  (= tag :in-progress) (if (= action :set)
-                                         {:action :save-checkpoint
-                                          :selector nil
-                                          :progress 0.0}
-                                         :clear-checkpoint)
-                  (= action :set) {:action :add-tag :tag tag}
-                  (= action :del) {:action :remove-tag :tag tag})
-        row (when command
-              (persistency/transition-item-state! frontend-db id command))]
-    (when row (item-state/canonical row))))
 
 (defn- valid-checkpoint-selector? [selector]
   (and (map? selector)
@@ -2626,12 +2598,6 @@
    (context
      "/reader"
      [:as req]
-
-     (POST "/item/by-id/:item-id"
-       [item-id :<< as-int
-        action :<< as-keyword
-        tag :<< as-keyword]
-       (reader-item-modify item-id action tag))
 
      (POST "/item/by-id/:item-id/state"
        [item-id :<< as-int]

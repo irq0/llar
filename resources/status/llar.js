@@ -24,11 +24,6 @@ function getReadingBlocks(container) {
   });
 }
 
-function stateValueForTag(state, tag) {
-  if (tag === "archive") return !!state.archived;
-  return !!state[tag];
-}
-
 function updateStateButton(button, isSet) {
   var icon = button.find("i");
   var label = isSet ? button.data("label-set") : button.data("label-unset");
@@ -42,22 +37,37 @@ function updateStateButton(button, isSet) {
   );
 }
 
-function itemNoLongerMatchesView(state) {
-  var body = $("body");
-  var view = body.data("view");
-  var groupName = body.data("group-name");
-  var groupItem = body.data("group-item");
-  var filter = body.data("filter");
+function addItemTagRow(id, tag) {
+  var list = $("#add-custom-tag-" + id + " .item-tag-list");
+  if (!list.length) return;
+  var exists = list.find(".item-tag-row").filter(function () {
+    return String($(this).data("tag")) === String(tag);
+  }).length;
+  if (exists) return;
 
-  if (view === "saved-overview" && !state.queued) return true;
-  if (view === "continue-reading" && !state.checkpoint) return true;
-  if (filter === "unread" && !state.unread) return true;
-  if (groupName === "item-tags") {
-    if (groupItem === "saved" && !state.saved) return true;
-    if (groupItem === "archive" && !state.archived) return true;
-    if (groupItem === "unread" && !state.unread) return true;
-  }
-  return false;
+  var label = "Toggle tag " + tag;
+  var button = $("<a>")
+    .addClass("btn item-tag-toggle")
+    .attr({
+      href: "#",
+      title: label,
+      "aria-label": label,
+      "data-id": id,
+      "data-icon-set": "fas fa-check-circle icon-is-set",
+      "data-icon-unset": "far fa-circle",
+      "data-tag": tag,
+      "data-label-set": label,
+      "data-label-unset": label,
+      "data-is-set": "true",
+    })
+    .data("is-set", true)
+    .append($("<i>").addClass("fas fa-check-circle icon-is-set"));
+  $("<li>")
+    .addClass("list-group-item item-tag-row")
+    .attr({ "data-id": id, "data-tag": tag })
+    .data({ id: id, tag: tag })
+    .append(button, document.createTextNode("\u00a0" + tag))
+    .appendTo(list);
 }
 
 function applyItemState(state) {
@@ -65,24 +75,36 @@ function applyItemState(state) {
   $(".state-toggle").each(function () {
     var button = $(this);
     if (String(button.data("id")) === String(id)) {
-      updateStateButton(
-        button,
-        stateValueForTag(state, String(button.data("tag"))),
-      );
+      updateStateButton(button, !!state[String(button.data("state"))]);
     }
   });
 
+  var itemTags = state["item-tags"] || [];
+  $(".item-tag-toggle").each(function () {
+    var button = $(this);
+    if (String(button.data("id")) === String(id)) {
+      updateStateButton(button, itemTags.includes(String(button.data("tag"))));
+    }
+  });
+  $(".item-tags-summary").each(function () {
+    if (String($(this).data("id")) === String(id)) {
+      $(this).text(itemTags.join(", "));
+    }
+  });
+  $(".item-tag-row").each(function () {
+    var row = $(this);
+    if (
+      String(row.data("id")) === String(id) &&
+      !itemTags.includes(String(row.data("tag")))
+    ) {
+      row.remove();
+    }
+  });
+  itemTags.forEach(function (tag) {
+    addItemTagRow(id, tag);
+  });
+  $("#item-" + id).data("unread", !!state.unread);
   updateCheckpointControls(state);
-
-  if (itemNoLongerMatchesView(state)) {
-    $("[data-item-root][data-id]").each(function () {
-      if (String($(this).data("id")) === String(id)) {
-        $(this).fadeOut(150, function () {
-          $(this).remove();
-        });
-      }
-    });
-  }
 }
 
 function requestItemState(id, action, data) {
@@ -392,6 +414,15 @@ $(function () {
   $(container).on("scroll.reading-navigation", requestReadingNavigationUpdate);
 });
 
+function keepCurrentItemUnread(onComplete) {
+  var id = $('meta[name="llar-id"]').attr("content");
+  if (!id) {
+    onComplete();
+    return;
+  }
+  requestItemState(id, "mark-unread").always(onComplete);
+}
+
 // Keyboard navigation
 $("body").on("keydown", function (event) {
   if ($("body").hasClass("modal-open")) return;
@@ -406,12 +437,18 @@ $("body").on("keydown", function (event) {
   } else if (event.key === "p") {
     window.history.back();
   } else if (event.key === "N") {
-    $("#btn-tag-unread").trigger("click");
+    event.preventDefault();
     nextUrl = $("#btn-next-item").attr("href");
-    if (nextUrl) window.location.href = nextUrl;
+    if (nextUrl) {
+      keepCurrentItemUnread(function () {
+        window.location.href = nextUrl;
+      });
+    }
   } else if (event.key === "P") {
-    $("#btn-tag-unread").trigger("click");
-    window.history.back();
+    event.preventDefault();
+    keepCurrentItemUnread(function () {
+      window.history.back();
+    });
   } else if (event.key === "a") {
     event.preventDefault();
     toggleAnnotationMode();
@@ -552,20 +589,22 @@ $(document).ready(function () {
     );
   });
 
-  // main list: mark on view, toggle read
+  // Main list: mark items read after their lower edge has remained visible.
   var markReadOnViewDwellMs = 1000;
   var markReadOnViewTimers = new Map();
   var markReadObserver = null;
 
   function markReadOnView(element) {
-    $(element).removeClass("option-mark-read-on-view");
-
-    var x = $("#" + element.id + " .direct-tag-buttons .btn-tag-unread");
-    if (!x.length || x.data("is-set") === false) {
+    var item = $(element);
+    item.removeClass("option-mark-read-on-view");
+    if (item.data("unread") !== true) {
       return;
     }
 
-    requestItemState(x.data("id"), "seen");
+    item.data("unread", false);
+    requestItemState(item.data("id"), "seen").fail(function () {
+      item.data("unread", true);
+    });
   }
 
   function cancelMarkReadOnView(target) {
@@ -676,29 +715,20 @@ $(document).ready(function () {
     });
   });
 
-  // tag toggle buttons
-  $(".ajax-toggle").on("click", function () {
-    var x = $(this);
-    var showing_list = $("#item-content-body").length == 0;
-    var action = "set";
-    if (x.data("is-set")) {
-      action = "del";
-    }
-    var id = x.data("id");
-    var tag = x.data("tag");
-    $.post("/reader/item/by-id/" + id, { action: action, tag: tag }, () => {
-      var icon = x.find("i");
-      if (x.data("is-set")) {
-        x.data("is-set", false);
-        icon.attr("class", x.data("icon-unset"));
-      } else {
-        x.data("is-set", true);
-        icon.attr("class", x.data("icon-set"));
-      }
-      if (!showing_list) {
-        window.location.replace(window.location.href.replace(/mark=read/, ""));
-      }
-    });
+  // Item tags use the same state endpoint as semantic workflow actions.
+  $(document).on("click", ".item-tag-toggle", function (event) {
+    event.preventDefault();
+    var button = $(this);
+    if (button.data("state-request-pending")) return;
+    var action = button.data("is-set") ? "remove-tag" : "add-tag";
+    button.data("state-request-pending", true).addClass("disabled");
+    requestItemState(button.data("id"), action, { tag: button.data("tag") })
+      .fail(function (xhr) {
+        console.error("[item-tag] transition failed:", xhr.status);
+      })
+      .always(function () {
+        button.data("state-request-pending", false).removeClass("disabled");
+      });
   });
 
   $(".state-toggle").on("click", function (event) {
@@ -786,17 +816,17 @@ $(document).ready(function () {
   // custom tag modal form
   $("form.add-custom-tag").on("submit", function (event) {
     event.preventDefault();
-    var action = "set";
-    var tag = $(this).find("input:first").val();
-    var id = $(this).data("id");
-    $.post(
-      "/reader/item/by-id/" + id,
-      {
-        action: action,
-        tag: tag,
-      },
-      () => location.reload(),
-    );
+    var form = $(this);
+    var input = form.find("input:first");
+    var tag = input.val().trim();
+    if (!tag) return;
+    requestItemState(form.data("id"), "add-tag", { tag: tag })
+      .done(function () {
+        input.val("");
+      })
+      .fail(function (xhr) {
+        console.error("[item-tag] add failed:", xhr.status);
+      });
   });
 
   // annotation mode

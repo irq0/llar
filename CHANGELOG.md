@@ -59,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reader: Keep list layout stable after state changes. Actions now update their
+  controls in place; list membership is reconciled on deliberate navigation or
+  refresh instead of removing rows underneath the reader.
+- Reader: Separate semantic saved/archive/Done controls from actual item-tag
+  controls, and remove the redundant unread quick action beside Done.
 - Reader: Move reading aids to neutral controls on the browser's outer rails.
   The left rail marks the next paragraph or column and briefly marks the landing
   point after moving forward; the right rail contains the checkpoint controls.
@@ -126,6 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reader: Prevent mark-read-on-view from cascading through an unread list as
+  each removed row pulled the next item into the viewport.
 - Commands: Fall back to a concurrency limit of 2 when `:throttle
   :command-max-concurrent` or `:throttle :av-downloader-max-concurrent` is absent
   from the configuration, instead of failing to construct the semaphore. Resolve

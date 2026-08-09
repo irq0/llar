@@ -114,8 +114,8 @@ Add the password to the configured credentials file:
 {:mobile-sync {:password "use-a-dedicated-password"}}
 ```
 
-Sources tagged `:mobile` are exposed as regular Fever feeds. Saved and
-in-progress items plus unread bookmarks from all sources are available in
+Sources tagged `:mobile` are exposed as regular Fever feeds. Saved items,
+active reading checkpoints, and unread bookmarks from all sources are available in
 the Reading Queue. Point the client at the Fever port through an HTTPS
 reverse proxy and use the configured username and password.
 

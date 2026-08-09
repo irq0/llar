@@ -35,19 +35,19 @@
     (is (re-find #"youtube-nocookie\.com/embed/" javascript))
     (is (re-find #"referrerpolicy=\"strict-origin-when-cross-origin\"" javascript))))
 
-(deftest intentional-reader-tags-use-explicit-transitions
+(deftest item-tags-use-the-state-endpoint
   (let [calls (atom [])]
     (with-redefs [uut/frontend-db :db
                   persistency/transition-item-state!
                   (fn [_ id command]
                     (swap! calls conj [id command])
                     {:id id :type :item-type/link :tags []})]
-      (uut/reader-item-modify 42 :set :archive)
-      (uut/reader-item-modify 42 :set :research)
-      (uut/reader-item-modify 42 :set :in-progress)
-      (is (= [[42 :archive]
-              [42 {:action :add-tag :tag :research}]
-              [42 {:action :save-checkpoint :selector nil :progress 0.0}]]
+      (is (= 200 (:status (uut/reader-item-state
+                           42 :add-tag :research nil nil))))
+      (is (= 200 (:status (uut/reader-item-state
+                           42 :remove-tag :research nil nil))))
+      (is (= [[42 {:action :add-tag :tag :research}]
+              [42 {:action :remove-tag :tag :research}]]
              @calls)))))
 
 (deftest done-control-is-available-in-headline-view
@@ -65,7 +65,20 @@
                                          :nwords 100
                                          :url "https://example.com"}]})))]
     (is (re-find #"btn-item-done" rendered))
-    (is (re-find #"data-action=\"done\"" rendered))))
+    (is (re-find #"data-action-set=\"done\"" rendered))
+    (is (re-find #"data-action-unset=\"mark-unread\"" rendered))
+    (is (not (re-find #"btn-tag-unread" rendered)))
+    (is (not (re-find #"direct-tag-buttons" rendered)))))
+
+(deftest done-control-shows-confirmed-read-state
+  (let [unread (str (h/html (uut/done-button {:id 41 :tags ["unread"]})))
+        read (str (h/html (uut/done-button {:id 42 :tags []})))]
+    (is (re-find #"data-is-set=\"false\"" unread))
+    (is (re-find #"title=\"Done reading\"" unread))
+    (is (not (re-find #"<i class=\"fas fa-check-circle icon-is-set\"" unread)))
+    (is (re-find #"data-is-set=\"true\"" read))
+    (is (re-find #"title=\"Mark unread\"" read))
+    (is (re-find #"fa-check-circle icon-is-set" read))))
 
 (deftest item-state-endpoint-rejects-non-semantic-actions
   (is (= {:status 400 :body {:error "Invalid item state action"}}
@@ -151,15 +164,21 @@
     (is (re-find #"function readingUsesHorizontalColumns" javascript))
     (is (not (re-find #"viewport-(?:bottom|pivot)" javascript)))))
 
-(deftest item-view-tag-buttons-are-icon-only-with-tooltip-labels
-  (let [button (uut/tag-button 42 {:tag :saved
-                                   :is-set? false
-                                   :icon-set "fas fa-star icon-is-set"
-                                   :icon-unset "far fa-star"})]
+(deftest item-view-state-buttons-are-icon-only-with-tooltip-labels
+  (let [button (uut/state-button 42 (assoc (first uut/+state-buttons+)
+                                           :is-set? false))]
     (is (= {:title "Save for later" :aria-label "Save for later"}
            (select-keys (second button) [:title :aria-label])))
     (is (= [[:i {:class "far fa-star"} "\u2009"]]
            (subvec button 2)))))
+
+(deftest reader-state-updates-do-not-prune-or-reload-lists
+  (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (not (re-find #"itemNoLongerMatchesView|data-item-root" javascript)))
+    (is (not (re-find #"location\\.(?:reload|replace)" javascript)))
+    (is (not (re-find #"direct-tag-buttons|ajax-toggle|btn-tag-unread" javascript)))
+    (is (re-find #"requestItemState\(item\.data\(\"id\"\), \"seen\"\)"
+                 javascript))))
 
 (deftest digest-tag-button-follows-runtime-configuration
   (with-redefs [rc/rc (fn [path] (= path [:digest :enabled?]))]
