@@ -46,7 +46,6 @@
       :favorites [[:all :default]
                   [:saved :item-tags]
                   [:highlight :item-tags]
-                  [:in-progress :item-tags]
                   [:bookmark :type]]}
  ;; Bounds on concurrent work. These are the startup values; every key here can also be
  ;; overridden at runtime from .llar via (rc [:throttle KEY] VALUE), and the running pools

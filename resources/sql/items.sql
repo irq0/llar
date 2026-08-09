@@ -53,6 +53,9 @@ select
   entry,
   tagi @@ '1' as saved,
   tagi @@ '!0' as read,
+--~ (when (:with-reading-progress? params) "  reading_selector as \"checkpoint-selector\",")
+--~ (when (:with-reading-progress? params) "  reading_progress as \"checkpoint-progress\",")
+--~ (when (:with-reading-progress? params) "  reading_updated_ts as \"checkpoint-updated-ts\",")
   (select array_agg(tag) from unnest(tagi) as tag_id inner join tags on tag_id = id) as tags,
   ts,
   nlp_names as names,
@@ -74,6 +77,9 @@ select
   entry,
   tagi @@ '1' as saved,
   tagi @@ '!0' as read,
+--~ (when (:with-reading-progress? params) "  reading_selector as \"checkpoint-selector\",")
+--~ (when (:with-reading-progress? params) "  reading_progress as \"checkpoint-progress\",")
+--~ (when (:with-reading-progress? params) "  reading_updated_ts as \"checkpoint-updated-ts\",")
   (select array_agg(tag) from unnest(tagi) as tag_id inner join tags on tag_id = id) as tags,
   ts,
   nlp_names as names,

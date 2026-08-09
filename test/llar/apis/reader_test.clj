@@ -37,14 +37,71 @@
 (deftest intentional-reader-tags-use-explicit-transitions
   (let [calls (atom [])]
     (with-redefs [uut/frontend-db :db
-                  persistency/item-set-tags!
-                  (fn [_ id tags] (swap! calls conj [:set id tags]))
-                  persistency/item-remove-tags!
-                  (fn [_ id tags] (swap! calls conj [:remove id tags]))]
+                  persistency/transition-item-state!
+                  (fn [_ id command]
+                    (swap! calls conj [id command])
+                    {:id id :type :item-type/link :tags []})]
       (uut/reader-item-modify 42 :set :archive)
-      (is (= [[:set 42 [:archive]]
-              [:remove 42 [:saved :in-progress :unread]]]
+      (uut/reader-item-modify 42 :set :research)
+      (uut/reader-item-modify 42 :set :in-progress)
+      (is (= [[42 :archive]
+              [42 {:action :add-tag :tag :research}]
+              [42 {:action :save-checkpoint :selector nil :progress 0.0}]]
              @calls)))))
+
+(deftest done-control-is-available-in-headline-view
+  (let [rendered (str (h/html (uut/headlines-list-items
+                               {:group-name :default
+                                :group-item :none
+                                :source-key :all
+                                :sources {}
+                                :items [{:id 42
+                                         :source-key "feed"
+                                         :title "Queued headline"
+                                         :ts (time/zoned-date-time)
+                                         :tags ["saved"]
+                                         :type :item-type/link
+                                         :nwords 100
+                                         :url "https://example.com"}]})))]
+    (is (re-find #"btn-item-done" rendered))
+    (is (re-find #"data-action=\"done\"" rendered))))
+
+(deftest item-state-endpoint-rejects-non-semantic-actions
+  (is (= {:status 400 :body {:error "Invalid item state action"}}
+         (uut/reader-item-state 42 :add-tag))))
+
+(deftest item-state-route-allows-action-specific-optional-parameters
+  (let [calls (atom [])
+        request (fn [params]
+                  (uut/app {:request-method :post
+                            :uri "/reader/item/by-id/42/state"
+                            :params params}))]
+    (with-redefs [uut/reader-item-state
+                  (fn [& args]
+                    (swap! calls conj args)
+                    {:status 200 :body {}})]
+      (is (= 200 (:status (request {:action "save"}))))
+      (is (= 200 (:status (request {:action "save-checkpoint"
+                                    :selector "selector"
+                                    :progress "0.25"}))))
+      (is (= [[42 :save nil nil nil]
+              [42 :save-checkpoint nil "selector" "0.25"]]
+             @calls)))))
+
+(deftest item-state-endpoint-accepts-reading-checkpoints
+  (let [command (atom nil)
+        selector "{\"position\":{\"type\":\"TextPositionSelector\",\"start\":0,\"end\":4},\"quote\":{\"type\":\"TextQuoteSelector\",\"exact\":\"read\"}}"]
+    (with-redefs [uut/frontend-db :db
+                  persistency/transition-item-state!
+                  (fn [_ id transition]
+                    (reset! command transition)
+                    {:id id :type :item-type/link :tags []
+                     :checkpoint (:selector transition)})]
+      (is (= 200 (:status (uut/reader-item-state
+                           42 :save-checkpoint nil selector "0.25"))))
+      (is (= :save-checkpoint (:action @command)))
+      (is (= 0.25 (:progress @command)))
+      (is (= "read" (get-in @command [:selector :quote :exact]))))))
 
 (deftest item-view-tag-buttons-are-icon-only-with-tooltip-labels
   (let [button (uut/tag-button 42 {:tag :saved
@@ -108,7 +165,7 @@
                             :params params}))]
     (with-redefs [uut/frontend-db :db
                   uut/reader-index (fn [_] {:status 200 :body "item"})
-                  uut/reader-item-modify
+                  uut/reader-item-state
                   (fn [& args]
                     (swap! modifications conj args)
                     "")
@@ -117,7 +174,7 @@
       (is (= 200 (:status (request {:mark "read"}))))
       (is (= 200 (:status (request {:mark "read" :offer "91"}))))
       (is (= [nil 91] (mapv last @opened)))
-      (is (= 2 (count @modifications))))))
+      (is (= [[24292 :seen] [24292 :seen]] @modifications)))))
 
 (deftest ranked-query-args-use-rc-ranking
   (with-redefs [rc/rc (fn [path]
@@ -133,8 +190,9 @@
   (is (= [:saved]
          (#'uut/queue-item-reasons {:tags ["saved"]
                                     :type :item-type/link})))
-  (is (= [:in-progress]
-         (#'uut/queue-item-reasons {:tags ["in-progress"]
+  (is (= [:continue-reading]
+         (#'uut/queue-item-reasons {:tags []
+                                    :checkpoint-progress 0.0
                                     :type :item-type/link})))
   (is (= [:unread-bookmark]
          (#'uut/queue-item-reasons {:tags ["unread"]
@@ -146,23 +204,40 @@
          (#'uut/queue-item-reasons {:tags ["unread" "highlight"]
                                     :type :item-type/link}))))
 
-(deftest reading-queue-distinguishes-not-compiled-from-empty
+(deftest reading-queue-clusters-do-not-affect-continue-reading
   (with-redefs [lab/current-clustered-saved-items
-                (atom lab/+saved-clusters-not-compiled+)]
+                (atom lab/+saved-clusters-not-compiled+)
+                uut/frontend-db :db
+                persistency/get-reading-queue-items (fn [_ _] [])]
     (let [rendered (pr-str (uut/tools-view-handler
                             {:view :saved-overview :request-params {}}))]
-      (is (re-find #"has not been compiled yet" rendered))
-      (is (not (re-find #"No saved" rendered)))))
+      (is (re-find #"No saved, partially read" rendered))
+      (is (re-find #"not yet" rendered))))
   (with-redefs [lab/current-clustered-saved-items
-                (atom {:clusters {} :last-update nil})]
+                (atom {:clusters {{:id 1 :words ["Distributed" "Systems"]}
+                                  [{:id 7}]}
+                       :last-update (time/zoned-date-time)})
+                uut/frontend-db :db
+                persistency/get-reading-queue-items
+                (fn [_ _]
+                  [{:id 7 :title "A queue item" :tags ["saved"]
+                    :type :item-type/link :ts (time/zoned-date-time)
+                    :nwords 100 :source-key "feed"
+                    :url "https://example.com/item"}])]
     (let [rendered (pr-str (uut/tools-view-handler
                             {:view :saved-overview :request-params {}}))]
-      (is (re-find #"No saved, in-progress" rendered))
-      (is (not (re-find #"has not been compiled yet" rendered))))))
+      (is (re-find #"Distributed" rendered))
+      (is (re-find #"A queue item" rendered))))
+  (with-redefs [uut/frontend-db :db
+                persistency/get-reading-progress-items (fn [_ _] [])]
+    (let [rendered (pr-str (uut/tools-view-handler
+                            {:view :continue-reading :request-params {}}))]
+      (is (re-find #"Nothing is in progress" rendered))
+      (is (not (re-find #"cluster" rendered))))))
 
 (deftest reading-queue-filters
   (let [saved {:tags ["saved"] :type :item-type/link}
-        in-progress {:tags ["in-progress"] :type :item-type/link}
+        in-progress {:tags [] :checkpoint-progress 0.0 :type :item-type/link}
         unread-bookmark {:tags ["unread"] :type :item-type/bookmark}
         read-bookmark {:tags [] :type :item-type/bookmark}
         highlighted {:tags ["highlight"] :type :item-type/link}]
@@ -171,7 +246,7 @@
                    (#'uut/queue-item-matches-filter? filter item))
                  [[nil saved]
                   [nil highlighted]
-                  [:in-progress in-progress]
+                  [:continue-reading in-progress]
                   [:unread-bookmarks unread-bookmark]
                   [:unread-bookmarks read-bookmark]
                   [:saved unread-bookmark]])))))
@@ -188,7 +263,7 @@
 
 (deftest reading-queue-combined-filters
   (let [saved-short (queue-item-with-reading-minutes 4)
-        in-progress-short (assoc saved-short :tags ["in-progress"])
+        in-progress-short (assoc saved-short :tags [] :checkpoint-progress 0.0)
         saved-long (queue-item-with-reading-minutes 60)
         unread-bookmark (assoc saved-short :tags ["unread"] :type :item-type/bookmark)]
     (is (#'uut/queue-item-matches-filters? :saved :under-5 saved-short))
@@ -196,11 +271,14 @@
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 saved-long)))
     (is (#'uut/queue-item-matches-filters? :unread-bookmarks :under-5 unread-bookmark))))
 
-(deftest reading-queue-sql-sources-saved-in-progress-and-unread-bookmarks
-  (let [sql (slurp (io/resource "sql/search.sql"))]
-    (is (re-find #"tagi @@ '1'" sql))
-    (is (re-find #"tagi @@ '2'" sql))
-    (is (re-find #"items\.type = 'bookmark' and tagi @@ '0'" sql))))
+(deftest reading-queue-semantics-have-one-sql-definition
+  (let [migration (slurp (io/resource "migrations/20260809000001-reading-progress.up.sql"))
+        fever (slurp (io/resource "sql/fever.sql"))]
+    (is (re-find #"CREATE VIEW reading_queue_items" migration))
+    (is (re-find #"tagi @@ '1'" migration))
+    (is (re-find #"reading_progress IS NOT NULL" migration))
+    (is (re-find #"type = 'bookmark' AND tagi @@ '0'" migration))
+    (is (re-find #"reading_queue_items" fever))))
 
 (deftest search-syntax-normalization
   (is (= [:web :web :plain :phrase :advanced]

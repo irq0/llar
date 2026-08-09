@@ -786,3 +786,17 @@ table.exception-chain tr {
 figure figcaption {
   font-size: 80%;
 }
+
+.reading-checkpoint-tools {
+  position: sticky;
+  top: 3.5rem;
+  z-index: 1020;
+  float: right;
+  margin: 0.5rem 0.25rem 0.5rem 0.75rem;
+  background: var(--bs-body-bg);
+}
+
+.checkpoint-resume-target {
+  background-color: rgb(255 193 7 / 28%);
+  transition: background-color 1.8s ease-out;
+}

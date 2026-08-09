@@ -2,11 +2,13 @@
   (:require
    [clojure.test :refer [deftest is use-fixtures]]
    [java-time.api :as time]
+   [llar.db.modify]
    [llar.db.sql :as sql]
    [llar.db.test-fixtures :refer [*test-db* create-test-item
                                   create-test-item-data
                                   with-clean-db-fixture
-                                  with-test-db-fixture]]))
+                                  with-test-db-fixture]]
+   [llar.persistency :as persistency]))
 
 (use-fixtures :once with-test-db-fixture)
 (use-fixtures :each with-clean-db-fixture)
@@ -58,8 +60,7 @@
                                 :tags #{:saved})
         in-progress (create-test-item *test-db*
                                       :src-name "other"
-                                      :hash "global-progress"
-                                      :tags #{:in-progress})
+                                      :hash "global-progress")
         bookmark (create-test-item *test-db*
                                    :src-name "bookmarks"
                                    :hash "global-bookmark"
@@ -73,6 +74,9 @@
                                     :src-name "other"
                                     :hash "unrelated"
                                     :tags #{:unread})
+        _ (persistency/transition-item-state!
+           *test-db* (:id in-progress)
+           {:action :save-checkpoint :selector nil :progress 0.0})
         mobile-source-id (:id (first (filter #(= "test-mobile" (:key %))
                                              (sql/fever-sources *test-db*))))
         bounds {:source-ids [mobile-source-id]

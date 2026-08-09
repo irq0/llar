@@ -5,7 +5,7 @@
    [clojure.string :as string]
    [clojure.tools.logging :as log]
    [compojure.coercions :refer [as-int]]
-   [compojure.core :refer [context GET POST DELETE routes]]
+   [compojure.core :refer [context DELETE GET POST routes]]
    [compojure.route :as route]
    [hiccup.page :refer [html5]]
    [hiccup2.core :as h :refer [html]]
@@ -24,6 +24,7 @@
    [llar.fetch.bookmark :as bookmark]
    [llar.human :as human]
    [llar.item :as item]
+   [llar.item-state :as item-state]
    [llar.lab :refer [+current-fetch-preview+
                      +saved-clusters-not-compiled+
                      current-clustered-saved-items]]
@@ -156,25 +157,31 @@
 
 (def +tags-skip-group-list+
   "Do not display in group list on the left side"
-  #{"unread"})
+  #{"unread" "in-progress"})
 
 (def +tag-buttons+
   "First-class tags show up in the tag bar"
   [{:tag :saved
+    :state? true
+    :action-set :save
+    :action-unset :unsave
     :icon-set "fas fa-star icon-is-set"
     :icon-unset "far fa-star"}
    {:tag :unread
+    :state? true
+    :action-set :mark-unread
+    :action-unset :seen
     :icon-unset "far fa-check-square icon-is-set"
     :icon-set "far fa-square"}
    {:tag :archive
+    :state? true
+    :action-set :archive
+    :action-unset :unarchive
     :icon-set "fas fa-archive icon-is-set"
     :icon-unset "fas fa-archive"}
    {:tag :podcast
     :icon-set "fas fa-tv icon-is-set"
-    :icon-unset "fas fa-tv"}
-   {:tag :in-progress
-    :icon-set "fas fa-cog icon-is-set"
-    :icon-unset "fas fa-cog"}])
+    :icon-unset "fas fa-tv"}])
 
 (def +digest-tag-button+
   "Shown only when digest delivery is enabled in the effective runtime config."
@@ -264,37 +271,58 @@
    [:script {:src "/static/llar.js"}]])
 
 (def ^:private tag-action-labels
-  {:saved "Save for later"
-   :in-progress "Continue reading"
-   :archive "Keep in archive"
-   :unread "Mark unread"
+  {:saved {:set "Remove from saved"
+           :unset "Save for later"}
+   :archive {:set "Remove from archive"
+             :unset "Archive"}
+   :unread {:set "Mark seen"
+            :unset "Mark unread"}
    :podcast "Toggle podcast"
    :digest {:set "Remove from next digest"
             :unset "Include in next digest"}})
 
-(defn tag-button [id {:keys [tag is-set? icon-set icon-unset]}]
+(defn tag-button [id {:keys [tag is-set? icon-set icon-unset state?
+                             action-set action-unset]}]
   (let [configured-label (get tag-action-labels tag)
         label (if (map? configured-label)
                 (get configured-label (if is-set? :set :unset))
                 (or configured-label (str "Toggle tag " (name tag))))]
-    [:a {:class (str "btn ajax-toggle " "btn-tag-" (name tag))
-         :title label
-         :aria-label label
-         :data-id id
-         :data-icon-set icon-set
-         :data-icon-unset icon-unset
-         :data-tag (name tag)
-         :data-is-set (str (boolean is-set?))}
+    [:a (cond-> {:class (str "btn " (if state? "state-toggle " "ajax-toggle ")
+                             "btn-tag-" (name tag))
+                 :title label
+                 :aria-label label
+                 :data-id id
+                 :data-icon-set icon-set
+                 :data-icon-unset icon-unset
+                 :data-tag (name tag)
+                 :data-label-set (if (map? configured-label)
+                                   (:set configured-label)
+                                   label)
+                 :data-label-unset (if (map? configured-label)
+                                     (:unset configured-label)
+                                     label)
+                 :data-is-set (str (boolean is-set?))}
+          state? (assoc :data-action-set (name action-set)
+                        :data-action-unset (name action-unset)))
      (if is-set?
        (icon icon-set)
        (icon icon-unset))]))
+
+(defn done-button [item]
+  (icon-button {:class "btn state-action btn-item-done"
+                :title "Done reading"
+                :aria-label "Done reading"
+                :data-id (:id item)
+                :data-action "done"
+                :href "#"}
+               "fas fa-check-circle"))
 
 (defn nav-bar
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
   [x]
   (let [{:keys [group-name group-item source-key mode
                 selected-sources items]} x
-        {:keys [id tags]} (first items)
+        {:keys [id tags] :as current-item} (first items)
 
         active-group (:group-name x)
         active-key (:group-item x)
@@ -432,6 +460,7 @@
             (for [btn (tag-buttons)]
               (tag-button id (assoc btn
                                     :is-set? (some #(= % (name (:tag btn))) tags))))
+            (done-button current-item)
             next-item-button])])]]))
 
 (defn group-list
@@ -498,7 +527,8 @@
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Favorites"]]
       [:ul {:class "nav flex-column"}
-       (for [[key group] (rc/rc [:reader :favorites])]
+       (for [[key group] (rc/rc [:reader :favorites])
+             :when (not= [key group] [:in-progress :item-tags])]
          [:li {:class "nav-item"}
           [:a {:class (str "nav-link" (when (and
                                              (= active-group group)
@@ -518,6 +548,11 @@
         [:a {:class (str "nav-link" (when (= (:view x) :saved-overview) " active"))
              :href (make-site-href ["/reader/tools/saved-overview"] x)}
          (icon "fas fa-project-diagram") "\u00a0" "Reading Queue"]]]
+      [:ul {:class "nav flex-column"}
+       [:li {:class "nav-item"}
+        [:a {:class (str "nav-link" (when (= (:view x) :continue-reading) " active"))
+             :href (make-site-href ["/reader/tools/continue-reading"] x)}
+         (icon "fas fa-map-marker-alt") "\u00a0" "Continue Reading"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :todays-vibe) " active"))
@@ -638,12 +673,16 @@
        [:span "&times;"]]]
      [:div {:class "modal-body"}
       [:ul {:class "list-group list-group-flush"}
-       (for [tag tags]
+       (for [tag tags
+             :when (not= "in-progress" tag)
+             :let [semantic-button (some #(when (= (name (:tag %)) tag) %)
+                                         (tag-buttons))]]
          [:li {:class "list-group-item"}
-          (tag-button item-id {:tag tag
-                               :icon-set "fas fa-check-circle icon-is-set"
-                               :icon-unset "far fa-circle"
-                               :is-set? true})
+          (tag-button item-id (merge {:tag (keyword tag)
+                                      :icon-set "fas fa-check-circle icon-is-set"
+                                      :icon-unset "far fa-circle"
+                                      :is-set? true}
+                                     semantic-button))
           "\u00a0"
           tag])]
       [:form {:class "add-custom-tag" :data-id item-id}
@@ -750,6 +789,32 @@
                 :aria-label "Annotation Mode (a)"}
                "fas fa-pen-fancy"))
 
+(defn reading-checkpoint-tools [{:keys [id checkpoint-selector checkpoint-progress]}]
+  (let [active? (some? checkpoint-progress)]
+    [:div {:class "btn-group btn-group-sm reading-checkpoint-tools shadow-sm"
+           :data-id id}
+     (when (and active? checkpoint-selector)
+       [:button {:class "btn btn-warning btn-resume-checkpoint"
+                 :type "button"
+                 :title (format "Resume at %.0f%%" (* 100.0 (double checkpoint-progress)))
+                 :aria-label "Scroll to the saved reading position"
+                 :data-selector (cheshire/generate-string checkpoint-selector)
+                 :data-progress checkpoint-progress}
+        (icon "fas fa-map-marker-alt")])
+     [:button {:class (if active?
+                        "btn btn-warning btn-save-checkpoint"
+                        "btn btn-outline-warning btn-save-checkpoint")
+               :type "button"
+               :title (if active? "Update saved place" "Save this reading position")
+               :aria-label (if active? "Update saved place" "Save this reading position")}
+      (icon "fas fa-map-pin")]
+     (when active?
+       [:button {:class "btn btn-outline-secondary btn-clear-checkpoint"
+                 :type "button"
+                 :title "Clear saved place"
+                 :aria-label "Clear saved place"}
+        (icon "fas fa-times")])]))
+
 (defn main-show-item
   "Show Item View"
   [x]
@@ -774,7 +839,8 @@
         (:estimate reading-estimate) "m"
         "&nbsp;&nbsp;"
         nwords "&nbsp;words"]
-       (tags-button-group id tags)]
+       (tags-button-group id tags)
+       (done-button item)]
       (when (some? ts)
         [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
          [:a {:class "btn"}
@@ -840,6 +906,7 @@
         [:small (icon "fas fa-sticky-note") " Notes"]]
        [:div {:class "card-body p-2 notes-list"}]]]
      [:div {:id "item-content-body-container" :class "container-fluid"}
+      (reading-checkpoint-tools item)
       [:div {:class "row"}
        [:div {:class "col-11"}
         [:div {:id "item-content-body" :class "item-content-body hyphenate" :lang lang}
@@ -1021,6 +1088,7 @@
       (= mode :tools)
       (case view
         :saved-overview "Reading Queue"
+        :continue-reading "Continue Reading"
         :todays-vibe "Today’s Vibe"
         :search "Search"
         "Reader Tools"))))
@@ -1056,6 +1124,8 @@
         min-freq (second (last words))
         max-freq (second (first words))]
     [:div {:id (str "item-" id)
+           :data-id id
+           :data-item-root "true"
            :class (str "feed-item "
                        (string/join " "
                                     (map #(str "option-" (name %)) options)))}
@@ -1158,7 +1228,8 @@
       [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
        (for [btn (tag-buttons)
              :when (show-button-in-this-view? x btn)]
-         (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]))
+         (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+       (done-button item)]]]))
 
 (defn headlines-list-items
   "Main Item List - Headlines Style"
@@ -1174,7 +1245,7 @@
                                        (name source-key))
                    {:keys [id source-key title ts tags url]} item
                    source (get sources (keyword source-key))]]
-         [:tr {:data-id id}
+         [:tr {:data-id id :data-item-root "true"}
           [:th {:class "title"}
            [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                       (cond-> {:mark :read}
@@ -1206,7 +1277,11 @@
            (tag-button id {:tag :unread
                            :is-set? (some #(= % "unread") tags)
                            :icon-unset "far fa-check-square icon-is-set"
-                           :icon-set "far fa-square"})
+                           :icon-set "far fa-square"
+                           :state? true
+                           :action-set :mark-unread
+                           :action-unset :seen})
+           (done-button item)
            [:span {:class "dropstart position-static"}
             [:a {:type "button" :class "btn btn-link" :data-bs-toggle "dropdown"} (icon "fa fa-ellipsis-v fa-lg")]
             [:ul {:class "dropdown-menu position-absolute"}
@@ -1217,58 +1292,61 @@
                                                                                    :content-type "text/html"} x))]
              [:li
               (for [btn (tag-buttons)
-                    :when (show-button-in-this-view? x btn)]
+                    :when (and (not= :unread (:tag btn))
+                               (show-button-in-this-view? x btn))]
                 (tag-button id
                             (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]]]])]]]))
+
+(defn gallery-list-item
+  [x link-prefix item]
+  (let [{:keys [id source-key title ts tags entry url]} item
+        image (or
+               (first (get-in entry [:entities :photos]))
+               (:thumbnail entry)
+               (:lead-image-url entry))]
+    [:div {:class "col" :data-id id :data-item-root "true"}
+     [:div {:class "card"}
+      [:div {:class "card-header"} source-key]
+      [:a {:type "button"
+           :data-bs-target (str "#full-img-" id)
+           :data-bs-toggle "modal"}
+       [:img {:src image :class "card-img-top"}]]
+      [:div {:class "modal " :id (str "full-img-" id) :tabindex "-1" :role "dialog"}
+       [:div {:class "modal-dialog modal-dialog-centered modal-lg"}
+        [:div {:class "modal-content"}
+         [:img {:src image :class "card-img-top"
+                :data-bs-dismiss "modal"}]]]]
+      [:div {:class "card-body"}
+       [:p {:class "card-title"}
+        [:a {:href (make-site-href [link-prefix "item/by-id" id]
+                                   (cond-> {:mark :read}
+                                     (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                   x)}
+         (if (string/blank? title)
+           "(no title)"
+           title)]]
+       [:p {:class "card-text"}
+        [:small {:class "text-muted"} (human/datetime-ago ts)]]]
+      [:div {:class "card-footer toolbox"}
+       (external-link-button url)
+       (related-button id)
+       (for [btn (tag-buttons)
+             :when (show-button-in-this-view? x btn)]
+         (tag-button id
+                     (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+       (done-button item)]]]))
 
 (defn gallery-list-items
   "Main Item List - Gallery Style"
   [x]
-  (let [{:keys [group-name group-item source-key items]} x]
+  (let [{:keys [group-name group-item source-key items]} x
+        link-prefix (format "/reader/group/%s/%s/source/%s"
+                            (name group-name)
+                            (name group-item)
+                            (name source-key))]
     [:div {:class "row row-cols-1 row-cols-md-2 g-4" :id "gallery"}
-     (for [item items
-           :let [link-prefix (format "/reader/group/%s/%s/source/%s"
-                                     (name group-name)
-                                     (name group-item)
-                                     (name source-key))
-                 {:keys [id source-key title  ts tags entry url]} item]]
-       [:div {:class "col"}
-        (let [image (or
-                     (first (get-in entry [:entities :photos]))
-                     (:thumbnail entry)
-                     (:lead-image-url entry))]
-          [:div {:class "card"}
-           [:div {:class "card-header"} source-key]
-           [:a {:type "button"
-                :data-bs-target (str "#full-img-" id)
-                :data-bs-toggle "modal"}
-            [:img {:src image :class "card-img-top"}]]
-
-           [:div {:class "modal " :id (str "full-img-" id) :tabindex "-1" :role "dialog"}
-            [:div {:class "modal-dialog modal-dialog-centered modal-lg"}
-             [:div {:class "modal-content"}
-              [:img {:src image :class "card-img-top"
-                     :data-bs-dismiss "modal"}]]]]
-
-           [:div {:class "card-body"}
-            [:p {:class "card-title"}
-             [:a {:href (make-site-href [link-prefix "item/by-id" id]
-                                        (cond-> {:mark :read}
-                                          (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
-                                        x)}
-              (if (string/blank? title)
-                "(no title)"
-                title)]]
-            [:p {:class "card-text"}
-             [:small {:class "text-muted"} (human/datetime-ago ts)]]]
-           [:div {:class "card-footer toolbox"}
-            (concat
-             [(external-link-button url)
-              (related-button id)]
-             (for [btn (tag-buttons)
-                   :when (show-button-in-this-view? x btn)]
-               (tag-button id
-                           (assoc btn :is-set? (some #(= % (name (:tag btn))) tags)))))]])])]))
+     (for [item items]
+       (gallery-list-item x link-prefix item))]))
 
 (defn main-list-items
   "Generate Mail Item List"
@@ -1553,7 +1631,10 @@
         source-nav (when-not focus? (source-nav params))]
     (html5
      (html-header title (:mode params) (first (:items params)))
-     [:body
+     [:body {:data-group-name (some-> (:group-name params) name)
+             :data-group-item (some-> (:group-item params) name)
+             :data-filter (some-> (:filter params) name)
+             :data-view (some-> (:view params) name)}
       (concat
        [nav-bar]
        [[:div {:class "container-fluid"}
@@ -1630,28 +1711,24 @@
   (= (:type item) :item-type/bookmark))
 
 (defn- queue-item-reasons [item]
-  (cond-> []
-    (item-has-tag? item :saved)
-    (conj :saved)
-
-    (item-has-tag? item :in-progress)
-    (conj :in-progress)
-
-    (and (bookmark-item? item)
-         (item-has-tag? item :unread))
-    (conj :unread-bookmark)))
+  (item-state/queue-reasons item))
 
 (defn- queue-item? [item]
-  (seq (queue-item-reasons item)))
+  (item-state/queued? item))
+
+(defn- normalize-queue-filter [queue-filter]
+  (case queue-filter
+    :in-progress :continue-reading
+    queue-filter))
 
 (defn- queue-item-matches-filter? [queue-filter item]
-  (case queue-filter
+  (case (normalize-queue-filter queue-filter)
     :saved (item-has-tag? item :saved)
-    :in-progress (item-has-tag? item :in-progress)
+    :continue-reading (some? (item-state/checkpoint item))
     :unread-bookmarks (and (bookmark-item? item)
                            (item-has-tag? item :unread))
     :unread (item-has-tag? item :unread)
-    (boolean (queue-item? item))))
+    (queue-item? item)))
 
 (def ^:private +queue-time-filter-keys+
   #{:under-5 :5-15 :15-30 :30-60 :60-plus})
@@ -1688,7 +1765,7 @@
   (let [items (filter queue-item? items)]
     {:total (count items)
      :saved (count (filter #(item-has-tag? % :saved) items))
-     :in-progress (count (filter #(item-has-tag? % :in-progress) items))
+     :continue-reading (count (filter #(some? (item-state/checkpoint %)) items))
      :unread-bookmarks (count (filter #(and (bookmark-item? %)
                                             (item-has-tag? % :unread))
                                       items))
@@ -1709,14 +1786,14 @@
 (defn- queue-reason-label [reason]
   (case reason
     :saved ["Saved" "text-bg-warning"]
-    :in-progress ["In Progress" "text-bg-info"]
+    :continue-reading ["Continue Reading" "text-bg-info"]
     :unread-bookmark ["Unread Bookmark" "text-bg-primary"]
     [(name reason) "text-bg-secondary"]))
 
 (defn- queue-filter-label [queue-filter]
-  (case queue-filter
+  (case (normalize-queue-filter queue-filter)
     :saved "Saved"
-    :in-progress "In Progress"
+    :continue-reading "Continue Reading"
     :unread-bookmarks "Unread Bookmarks"
     :unread "Unread"
     "All"))
@@ -1736,19 +1813,19 @@
         group (cond
                 (bookmark-item? item) [:type :bookmark]
                 (item-has-tag? item :saved) [:item-tags :saved]
-                (item-has-tag? item :in-progress) [:item-tags :in-progress]
                 :else [:default :none])]
     (make-site-href [(format "/reader/group/%s/%s/source/%s/item/by-id"
                              (name (first group))
                              (name (second group))
                              source-key)
                      id]
+                    {:mark :read}
                     x)))
 
 (defn- queue-filter-nav [x active-filter stats]
   (let [filters [[nil "All" (:total stats)]
                  [:saved "Saved" (:saved stats)]
-                 [:in-progress "In Progress" (:in-progress stats)]
+                 [:continue-reading "Continue Reading" (:continue-reading stats)]
                  [:unread-bookmarks "Unread Bookmarks" (:unread-bookmarks stats)]
                  [:unread "Unread" (:unread stats)]]]
     [:div {:class "btn-group btn-group-sm mb-2 me-2" :role "group"}
@@ -1783,125 +1860,200 @@
         label
         [:span {:class "badge text-bg-light ms-1"} n]])]))
 
-(defn- render-compiled-reading-queue [x {:keys [clusters last-update]}]
-  (let [all-items (vec (mapcat second clusters))
-        queue-filter (some-> (get-in x [:request-params :queue-filter]) keyword)
+(defn- render-reading-queue-item
+  [x {:keys [id title source-key author ts tags nwords entry url] :as item}]
+  [:div {:id (str "item-" id)
+         :class "feed-item"
+         :data-id id
+         :data-item-root "true"}
+   [:h4 {:class "h4"}
+    [:a {:href (queue-item-href x item)}
+     (if (string/blank? title) "(no title)" title)]]
+   [:ul {:class "list-inline"}
+    (for [reason (queue-item-reasons item)
+          :let [[label badge-class] (queue-reason-label reason)]]
+      [:li {:class "list-inline-item"}
+       [:span {:class (str "badge " badge-class)} label]])
+    (when (item-has-tag? item :unread)
+      [:li {:class "list-inline-item"}
+       [:span {:class "badge text-bg-light"} "Unread"]])
+    (when-let [checkpoint (item-state/checkpoint item)]
+      [:li {:class "list-inline-item"}
+       [:span {:class "badge text-bg-info"}
+        (format "Saved place %.0f%%" (* 100.0 (:progress checkpoint)))]])
+    [:li {:class "list-inline-item"}
+     (icon "far fa-calendar") "\u00a0"
+     [:span {:class "timestamp"}
+      (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
+     [:span " - "]
+     [:span {:class "timestamp"} (human/datetime-ago ts)]]
+    (when (>= nwords 0)
+      [:li {:class "list-inline-item"}
+       [:a {:class "btn"}
+        "\u00a0" (icon "far fa-file-word") "\u00a0"
+        (:estimate (item/reading-time-estimate item)) "\u2009min"]])
+    (when (string? source-key)
+      [:li {:class "list-inline-item"}
+       "\u00a0" (icon "fas fa-rss") source-key
+       (when (= (:type item) :item-type/link)
+         [:span "\u00a0"
+          (when-let [comments-url (:comments-url entry)]
+            [:a {:href comments-url} "(comments)"])
+          " → " (human/host-identifier url)])])
+    (when-not (string/blank? author)
+      [:li {:class "list-inline-item"}
+       "\u00a0" (icon "far fa-user") author])]
+   [:div {:class "clearfix"}
+    (when-let [image-url (or (:thumbnail entry) (:lead-image-url entry))]
+      (when-not (or (string/blank? image-url)
+                    (= image-url "self")
+                    (= image-url "default"))
+        [:figure {:class "figure float-start"}
+         [:img {:src image-url
+                :class "figure-img"
+                :style "max-width: 200px; height: auto;"}]]))
+    [:div {:class "description"}
+     [:p (human/truncate-ellipsis
+          (get-in item [:data :description "text/plain"])
+          1200)]]]
+   [:div {:class "btn-toolbar" :role "toolbar"}
+    [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
+     (focus-button
+      (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"]
+                      {:data "content" :content-type "text/html"}
+                      x))]
+    [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
+     (for [btn (tag-buttons)
+           :when (show-button-in-this-view? x btn)]
+       (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))
+     (done-button item)]]])
+
+(defn- queue-pagination [x offset page-size has-more?]
+  (when (or (pos? offset) has-more?)
+    (let [params {:queue-filter (some-> (get-in x [:request-params :queue-filter]) keyword)
+                  :queue-time-filter (some-> (get-in x [:request-params :queue-time-filter]) keyword)}]
+      [:nav {:class "d-flex gap-2 my-3" :aria-label "Reading queue pages"}
+       (when (pos? offset)
+         [:a {:class "btn btn-outline-secondary btn-sm"
+              :href (make-site-href ["/reader/tools/saved-overview"]
+                                    (assoc params :queue-offset (max 0 (- offset page-size)))
+                                    x)}
+          "Previous"])
+       (when has-more?
+         [:a {:class "btn btn-outline-secondary btn-sm"
+              :href (make-site-href ["/reader/tools/saved-overview"]
+                                    (assoc params :queue-offset (+ offset page-size))
+                                    x)}
+          "Next"])])))
+
+(defn- render-reading-queue
+  [x {:keys [items clusters last-update continue-only? offset page-size has-more?]}]
+  (let [items (if clusters (vec (mapcat second clusters)) items)
+        queue-filter (if continue-only?
+                       :continue-reading
+                       (normalize-queue-filter
+                        (some-> (get-in x [:request-params :queue-filter]) keyword)))
         queue-time-filter (normalize-queue-time-filter
                            (some-> (get-in x [:request-params :queue-time-filter]) keyword))
-        stats (queue-stats all-items)
+        stats (queue-stats items)
         time-stats (queue-time-stats (filter #(queue-item-matches-filter? queue-filter %)
-                                             all-items))]
+                                             items))
+        filtered-items (filter #(queue-item-matches-filters?
+                                 queue-filter queue-time-filter %)
+                               items)]
     [:div
-     [:h2 "Reading Queue"]
-     [:p {:class "text-secondary"} (format "Items: %s Last updated: %s Clusters: %s"
-                                           (:total stats)
-                                           (if (some? last-update)
-                                             (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
-                                             "not yet")
-                                           (count clusters))]
+     [:h2 (if continue-only? "Continue Reading" "Reading Queue")]
      [:p {:class "text-secondary"}
-      (format "Saved: %s · In progress: %s · Unread bookmarks: %s · Unread: %s"
-              (:saved stats)
-              (:in-progress stats)
-              (:unread-bookmarks stats)
-              (:unread stats))]
-     (queue-filter-nav x queue-filter stats)
-     (queue-time-filter-nav x queue-time-filter time-stats)
-     (when (zero? (:total stats))
-       [:p {:class "text-secondary"} "No saved, in-progress, or unread bookmarked items in the queue."])
-     (when (and (pos? (:total stats))
-                (not-any? #(queue-item-matches-filters? queue-filter queue-time-filter %) all-items))
+      (if continue-only?
+        (format "%s active item%s, most recently updated first."
+                (:total stats) (if (= 1 (:total stats)) "" "s"))
+        (format "Showing %s queue item%s in %s cluster%s. Last clustered: %s."
+                (:total stats)
+                (if (= 1 (:total stats)) "" "s")
+                (count clusters)
+                (if (= 1 (count clusters)) "" "s")
+                (if last-update
+                  (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
+                  "not yet")))]
+     (when-not continue-only?
        [:p {:class "text-secondary"}
-        (format "No %s items for %s in the queue."
+        (format "Saved: %s · Continue reading: %s · Unread bookmarks: %s · Unread: %s"
+                (:saved stats)
+                (:continue-reading stats)
+                (:unread-bookmarks stats)
+                (:unread stats))])
+     (when-not continue-only? (queue-filter-nav x queue-filter stats))
+     (when-not continue-only? (queue-time-filter-nav x queue-time-filter time-stats))
+     (when (zero? (:total stats))
+       [:p {:class "text-secondary"}
+        (if continue-only?
+          "Nothing is in progress. Pin your place in an item to put it here."
+          "No saved, partially read, or unread bookmarked items in the queue.")])
+     (when (and (pos? (:total stats)) (empty? filtered-items))
+       [:p {:class "text-secondary"}
+        (format "No %s items for %s on this page."
                 (string/lower-case (queue-filter-label queue-filter))
                 (string/lower-case (queue-time-filter-label queue-time-filter)))])
-     (for [[{:keys [_id words]} items] clusters
-           :let [filtered-items (filter #(queue-item-matches-filters?
-                                          queue-filter
-                                          queue-time-filter
-                                          %)
-                                        items)]
-           :when (seq filtered-items)]
-       [:div
-        [:h2
-         [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
-          [:ol {:class "breadcrumb"}
-           (for [word words] [:li {:class "breadcrumb-item"} word])]]]
+     (if continue-only?
+       (for [item filtered-items]
+         (render-reading-queue-item x item))
+       (for [[{:keys [words]} cluster-items] clusters
+             :let [cluster-items (filter #(queue-item-matches-filters?
+                                           queue-filter queue-time-filter %)
+                                         cluster-items)]
+             :when (seq cluster-items)]
+         [:section
+          [:h2
+           [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
+            [:ol {:class "breadcrumb"}
+             (for [word words]
+               [:li {:class "breadcrumb-item"} word])]]]
+          (for [item cluster-items]
+            (render-reading-queue-item x item))]))
+     (when-not continue-only?
+       (queue-pagination x offset page-size has-more?))]))
 
-        (for [{:keys [id title source-key author ts tags nwords _names entry url]
-               :as item} (sort-by :ts filtered-items)]
+(defn- queue-row->item [{:keys [description-text] :as row}]
+  (cond-> (dissoc row :description-text)
+    description-text (assoc-in [:data :description "text/plain"] description-text)))
 
-          [:div {:id (str "item-" id)
-                 :class "feed-item"}
-           [:h4 {:class "h4"}
-            [:a {:href (queue-item-href x item)}
-             (if (string/blank? title)
-               "(no title)"
-               title)]]
-           [:ul {:class "list-inline"}
-            (for [reason (queue-item-reasons item)
-                  :let [[label badge-class] (queue-reason-label reason)]]
-              [:li {:class "list-inline-item"}
-               [:span {:class (str "badge " badge-class)} label]])
-            (when (item-has-tag? item :unread)
-              [:li {:class "list-inline-item"}
-               [:span {:class "badge text-bg-light"} "Unread"]])
-            [:li {:class "list-inline-item"}
-             (icon "far fa-calendar")
-             "\u00a0"
-             [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
-             [:span " - "]
-             [:span {:class "timestamp"} (human/datetime-ago ts)]]
-            (when (>= nwords 0)
-              (let [estimate (item/reading-time-estimate item)
-                    human-time (:estimate estimate)]
-                [:li {:class "list-inline-item"}
-                 [:a {:class "btn"}
-                  "\u00a0" (icon "far fa-file-word") "\u00a0" human-time "\u2009" "min"]]))
-            (when (string? source-key)
-              [:li {:class "list-inline-item"}
-               "\u00a0"
-               (icon "fas fa-rss") source-key
-               (when (= (:type item) :item-type/link)
-                 [:span "\u00a0"
-                  (when-let [comments-url (:comments-url entry)]
-                    [:a {:href comments-url} "(comments)"])
-                  " → " (human/host-identifier url)])])
-            (when-not (string/blank? author)
-              [:li {:class "list-inline-item"}
-               "\u00a0"
-               (icon "far fa-user") author])]
-           [:div {:class "clearfix"}
+(def ^:private +unclustered-queue+
+  {:id :unclustered :words ["Unclustered"]})
 
-            (when-let [image-url (or (:thumbnail entry) (:lead-image-url entry))]
-              (when (not (or (string/blank? image-url)
-                             (= image-url "self")
-                             (= image-url "default")))
-                [:figure {:class "figure float-start"}
-                 [:img {:src image-url :class "figure-img" :style "max-width: 200px; height: auto;"}]]))
-            [:div {:class "description"}
-             [:p
-              (human/truncate-ellipsis (get-in item [:data :description "text/plain"]) 1200)]]]
-
-           [:div {:class "btn-toolbar" :role "toolbar"}
-            [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
-             (focus-button (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"] {:data "content"
-                                                                                                            :content-type "text/html"} x))]
-            [:div {:class "direct-tag-buttons btn-group btn-group-sm mr-2" :role "group"}
-             (for [btn (tag-buttons)
-                   :when (show-button-in-this-view? x btn)]
-               (tag-button id (assoc btn :is-set? (some #(= % (name (:tag btn))) tags))))]]])])]))
+(defn- live-reading-queue-state [cluster-state rows]
+  (let [{:keys [clusters last-update]}
+        (if (= +saved-clusters-not-compiled+ cluster-state)
+          {:clusters {} :last-update nil}
+          cluster-state)
+        cluster-by-id (into {}
+                            (for [[cluster items] clusters
+                                  item items]
+                              [(:id item) cluster]))
+        items (mapv queue-row->item rows)]
+    {:clusters (group-by #(get cluster-by-id (:id %) +unclustered-queue+) items)
+     :last-update last-update}))
 
 (defmethod tools-view-handler
   :saved-overview
   [x]
-  (let [state @current-clustered-saved-items]
-    (if (= +saved-clusters-not-compiled+ state)
-      [:div
-       [:h2 "Reading Queue"]
-       [:p {:class "text-secondary"}
-        "The Reading Queue has not been compiled yet."]]
-      (render-compiled-reading-queue x state))))
+  (let [page-size 100
+        offset (max 0 (or (some-> (get-in x [:request-params :queue-offset]) parse-long) 0))
+        rows (persistency/get-reading-queue-items
+              frontend-db {:limit (inc page-size) :offset offset})
+        cluster-state (live-reading-queue-state @current-clustered-saved-items
+                                                (take page-size rows))]
+    (render-reading-queue
+     x (assoc cluster-state
+              :offset offset
+              :page-size page-size
+              :has-more? (> (count rows) page-size)))))
+
+(defmethod tools-view-handler
+  :continue-reading
+  [x]
+  (let [items (mapv queue-row->item
+                    (persistency/get-reading-progress-items frontend-db {:limit 100}))]
+    (render-reading-queue x {:items items :continue-only? true})))
 
 (defn- render-search-headline [headline]
   (letfn [(render-parts [s]
@@ -2113,8 +2265,8 @@
   (if (vibe/apply-to-current-cluster!
        run-id cluster-id
        (fn [cluster]
-         (doseq [item-id (map :id (:items cluster))]
-           (persistency/item-remove-tags! frontend-db item-id [:unread]))))
+         (persistency/transition-items-state!
+          frontend-db (mapv :id (:items cluster)) :seen)))
     {:status 303 :headers {"Location" "/reader/tools/todays-vibe"} :body ""}
     {:status 409 :body "This Vibe snapshot is stale; reload and try again."}))
 
@@ -2228,7 +2380,11 @@
        (for [{:keys [title key rank id ts headline]} results]
          [:tr
           [:td
-           [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/none/source/all/item/by-id" id] x)}
+           [:a {:class "link-dark link-offset-1"
+                :href (make-site-href
+                       ["/reader/group/default/none/source/all/item/by-id" id]
+                       {:mark :read}
+                       x)}
             title]
            (when-not (string/blank? headline)
              [:div {:class "text-secondary small search-headline"}
@@ -2272,7 +2428,8 @@
          html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                 (html5
                  (html-header title (:mode params) (some-> params :items first))
-                 [:body
+                 [:body {:data-view (some-> (:view params) name)
+                         :data-queue-filter (get-in params [:request-params :queue-filter])}
                   (concat
                    [nav-bar]
                    [[:div {:class "container-fluid"}
@@ -2321,19 +2478,74 @@
       :body {:error (str e)}})))
 
 (defn reader-item-modify
-  "Item Modification (e.g Set Tag) Entry Point"
+  "Compatibility entry point for custom tags and older Reader clients.
+  Reserved workflow tags are translated to semantic state operations."
   [id action tag]
   (log/debug "reader item mod: " id action tag)
-  (str (case action
-         :set (case tag
-                :in-progress (do
-                               (persistency/item-set-tags! frontend-db id [:in-progress])
-                               (persistency/item-remove-tags! frontend-db id [:saved :unread]))
-                :archive (do
-                           (persistency/item-set-tags! frontend-db id [:archive])
-                           (persistency/item-remove-tags! frontend-db id [:saved :in-progress :unread]))
-                (persistency/item-set-tags! frontend-db id [tag]))
-         :del (persistency/item-remove-tags! frontend-db id [tag]))))
+  (let [semantic-action (get {[:set :unread] :mark-unread
+                              [:del :unread] :seen
+                              [:set :saved] :save
+                              [:del :saved] :unsave
+                              [:set :archive] :archive
+                              [:del :archive] :unarchive}
+                             [action tag])
+        command (cond
+                  semantic-action semantic-action
+                  (= tag :in-progress) (if (= action :set)
+                                         {:action :save-checkpoint
+                                          :selector nil
+                                          :progress 0.0}
+                                         :clear-checkpoint)
+                  (= action :set) {:action :add-tag :tag tag}
+                  (= action :del) {:action :remove-tag :tag tag})
+        row (when command
+              (persistency/transition-item-state! frontend-db id command))]
+    (when row (item-state/canonical row))))
+
+(defn- valid-checkpoint-selector? [selector]
+  (and (map? selector)
+       (let [position (:position selector)
+             quote (:quote selector)]
+         (and (map? position)
+              (= "TextPositionSelector" (:type position))
+              (nat-int? (:start position))
+              (nat-int? (:end position))
+              (<= (:start position) (:end position))
+              (map? quote)
+              (= "TextQuoteSelector" (:type quote))
+              (string? (:exact quote))
+              (not (string/blank? (:exact quote)))
+              (= (- (:end position) (:start position))
+                 (count (:exact quote)))
+              (<= (count (:exact quote)) 256)
+              (<= (count (or (:prefix quote) "")) 64)
+              (<= (count (or (:suffix quote) "")) 64)))))
+
+(defn reader-item-state
+  ([id action]
+   (reader-item-state id action nil nil nil))
+  ([id action tag selector-str progress-str]
+   (try
+     (let [command (case action
+                     :save-checkpoint
+                     (let [selector (cheshire/parse-string selector-str true)
+                           progress (parse-double progress-str)]
+                       (when (and (valid-checkpoint-selector? selector)
+                                  (number? progress)
+                                  (<= 0.0 progress 1.0))
+                         {:action action :selector selector :progress progress}))
+
+                     (:add-tag :remove-tag)
+                     (when (keyword? tag) {:action action :tag tag})
+
+                     (when (contains? item-state/actions action) action))]
+       (if-not command
+         {:status 400 :body {:error "Invalid item state action"}}
+         (if-let [row (persistency/transition-item-state! frontend-db id command)]
+           {:status 200 :body (item-state/canonical row)}
+           {:status 404 :body {:error "Item not found"}})))
+     (catch Exception _
+       {:status 400 :body {:error "Invalid item state action"}}))))
 
 (defn reader-get-annotations [item-id]
   {:status 200
@@ -2409,6 +2621,15 @@
         action :<< as-keyword
         tag :<< as-keyword]
        (reader-item-modify item-id action tag))
+
+     (POST "/item/by-id/:item-id/state"
+       [item-id :<< as-int]
+       (let [{:keys [action tag selector progress]} (:params req)]
+         (reader-item-state item-id
+                            (as-keyword action)
+                            (as-keyword tag)
+                            selector
+                            progress)))
 
      (POST "/events/impression" [offer-ids]
        (reader-record-impressions offer-ids))
@@ -2518,7 +2739,7 @@
                                   :group (name group-name)
                                   :source (name source-key)})]
              (when auto-read?
-               (reader-item-modify item-id :del :unread))
+               (reader-item-state item-id :seen))
              (render-opened-reader-item {:uri (:uri req)
                                          :filter (as-keyword (get-in req [:params :filter]))
                                          :group-name group-name
@@ -2544,7 +2765,7 @@
                                   :group (name group-name)
                                   :source (name source-key)})]
              (when auto-read?
-               (reader-item-modify item-id :del :unread))
+               (reader-item-state item-id :seen))
              (render-opened-reader-item {:uri (:uri req)
                                          :filter (as-keyword (get-in req [:params :filter]))
                                          :group-name group-name

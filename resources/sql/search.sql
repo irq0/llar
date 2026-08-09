@@ -61,17 +61,15 @@ limit 100
 -- :name saved-items-tf-idf :? :raw
 select
   id,
-  json_agg(json_build_array(term_tf->>0 , (term_tf->>1)::float * idf_top_words.ln ))
+  json_agg(json_build_array(term_tf->>0, (term_tf->>1)::float * idf_top_words.ln))
 from
-  ( select id, jsonb_array_elements(nlp_top->'words') as term_tf
-    from items
-    where tagi @@ '1'
-      or tagi @@ '2'
-      or (items.type = 'bookmark' and tagi @@ '0')
-  ) as i
-inner join
-  idf_top_words on (term_tf->0 = idf_top_words.term)
+  (select items.id,
+          jsonb_array_elements(items.nlp_top->'words') as term_tf
+   from items
+   inner join reading_queue_items queue on queue.item_id = items.id) as i
+inner join idf_top_words on term_tf->0 = idf_top_words.term
 group by id
+
 
 -- :name item-tf-idf-terms :? :*
 select term_tf->>0 as term,
@@ -86,24 +84,16 @@ limit 20
 
 
 -- :name saved-items-tf-idf-terms :? :raw
-select
-  array_agg(foo.term)
+select array_agg(foo.term)
 from
-  ( select distinct term_tf->>0 as term, (term_tf->>1)::float * idf_top_words.ln as tf_idf
-    from
-      (
-        select
-	  id,
-	  jsonb_array_elements(nlp_top->'words') as term_tf
-	from items
-        where tagi @@ '1'
-          or tagi @@ '2'
-          or (items.type = 'bookmark' and tagi @@ '0')
-      ) as i
-    inner join
-      idf_top_words on (term_tf->0 = idf_top_words.term)
-    where
-      (term_tf->>1)::float > :min-tf-idf
-      and length(term_tf->>0) > 4
-      and not (term_tf->>0) like '%/%'
-  ) as foo
+  (select distinct term_tf->>0 as term,
+                   (term_tf->>1)::float * idf_top_words.ln as tf_idf
+   from
+     (select items.id,
+             jsonb_array_elements(items.nlp_top->'words') as term_tf
+      from items
+      inner join reading_queue_items queue on queue.item_id = items.id) as i
+   inner join idf_top_words on term_tf->0 = idf_top_words.term
+   where (term_tf->>1)::float > :min-tf-idf
+     and length(term_tf->>0) > 4
+     and not (term_tf->>0) like '%/%') as foo

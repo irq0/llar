@@ -8,6 +8,7 @@
                                   create-test-item create-test-tag create-test-item-data]]
    [llar.db.modify]  ; Load protocol implementations
    [llar.events :as events]
+   [llar.item-state :as item-state]
    [llar.persistency :as persistency]
    [next.jdbc :as jdbc]
    [next.jdbc.result-set :as rs]))
@@ -160,6 +161,40 @@
           remaining-tags (persistency/item-remove-tags! *test-db* item-id [:unread])]
       (is (= 2 (count remaining-tags)) "Should have 2 tags remaining")
       (is (not (some #(= :unread %) remaining-tags)) "unread tag should be removed"))))
+
+(deftest semantic-state-transitions-and-checkpoints-round-trip
+  (let [item-id (:id (create-test-item *test-db*
+                                       :hash "semantic-state"
+                                       :tags #{:unread :saved}))
+        selector {:position {:type "TextPositionSelector" :start 12 :end 21}
+                  :quote {:type "TextQuoteSelector" :exact "a passage"}}
+        started (persistency/transition-item-state!
+                 *test-db* item-id {:action :save-checkpoint
+                                    :selector selector
+                                    :progress 0.25})
+        seen (persistency/transition-item-state! *test-db* item-id :seen)
+        done (persistency/transition-item-state! *test-db* item-id :done)]
+    (is (= #{:saved} (item-state/tag-set started)))
+    (is (= selector (get-in started [:checkpoint :selector])))
+    (is (= 0.25 (get-in started [:checkpoint :progress])))
+    (is (some? (:checkpoint seen)))
+    (is (= #{:saved} (item-state/tag-set seen))
+        "seen preserves saved and the cross-device checkpoint")
+    (is (empty? (item-state/tag-set done)))
+    (is (nil? (:checkpoint done)))
+    (is (empty? (persistency/get-reading-queue-items *test-db* {})))))
+
+(deftest dequeue-removes-the-bookmark-type-queue-reason
+  (let [item-id (:id (create-test-item *test-db*
+                                       :hash "dequeue-bookmark"
+                                       :type :item-type/bookmark
+                                       :tags #{:unread :saved}))]
+    (persistency/transition-item-state!
+     *test-db* item-id {:action :save-checkpoint :selector nil :progress 0.0})
+    (let [dequeued (persistency/transition-item-state! *test-db* item-id :dequeue)]
+      (is (empty? (item-state/tag-set dequeued)))
+      (is (nil? (:checkpoint dequeued)))
+      (is (empty? (persistency/get-reading-queue-items *test-db* {}))))))
 
 (deftest offered-impression-open-provenance-and-delete-lifecycle
   (let [item-id (:id (create-test-item *test-db* :hash "offered-item"))

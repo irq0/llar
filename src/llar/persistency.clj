@@ -24,6 +24,12 @@
   (remove-unread-for-items-of-source-older-then! [this source-keys older-then-ts])
   (remove-unread-for-items-with-tag! [this tag]))
 
+(defprotocol ItemStatePersistency
+  (transition-item-state! [this item-id command])
+  (transition-items-state! [this item-ids command])
+  (get-reading-progress-items [this options])
+  (get-reading-queue-items [this options]))
+
 (defprotocol ItemEventPersistency
   (record-results-offered! [this item-ids context])
   (record-impressions! [this offered-event-ids])

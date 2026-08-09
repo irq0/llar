@@ -8,7 +8,9 @@
    [llar.contentdetect :as contentdetect]
    [llar.db.core]
    [llar.db.sql :as sql]
-   [llar.persistency :refer [ItemEventPersistency ItemPersistency ItemTagsPersistency]]
+   [llar.item-state :as item-state]
+   [llar.persistency
+    :refer [ItemEventPersistency ItemPersistency ItemStatePersistency ItemTagsPersistency]]
    [llar.tags :as tags]
    [next.jdbc :as jdbc])
   (:import
@@ -79,16 +81,26 @@
             :text (when text? data)
             :data (when-not text? (to-byte-buffer data))})))))))
 
+(declare transition-item-state-in-tx!)
+
 (defn store-item-and-data!
   "store-item-and-data! combines store-item! and store-item-data! into one
   transaction. Returns nil if the item already exists in the database or {:item
   {:id .. :hash ..} :data ({:id :mime_type :type :is_binary})"
   [db item args]
-  (jdbc/with-transaction [tx (:datasource db)]
-    (sql/ensure-tags tx {:tags (map vector (tags/normalize-tags (get-in item [:meta :tags])))})
-    (when-let [{:keys [id hash]} (store-item-without-data! tx item args)]
-      {:item {:id id :hash hash}
-       :data (store-item-data! tx id item)})))
+  (let [incoming-tags (set (get-in item [:meta :tags]))
+        legacy-progress? (contains? incoming-tags :in-progress)
+        stored-tags (disj incoming-tags :in-progress)
+        item (assoc-in item [:meta :tags] stored-tags)]
+    (jdbc/with-transaction [tx (:datasource db)]
+      (sql/ensure-tags tx {:tags (map vector (tags/normalize-tags (get-in item [:meta :tags])))})
+      (when-let [{:keys [id hash]} (store-item-without-data! tx item args)]
+        (when legacy-progress?
+          (transition-item-state-in-tx! tx [id] {:action :save-checkpoint
+                                                 :selector nil
+                                                 :progress 0.0}))
+        {:item {:id id :hash hash}
+         :data (store-item-data! tx id item)}))))
 
 (extend-protocol
  ItemPersistency
@@ -157,6 +169,61 @@
                                   ["AND"]
                                   ["tagi @@ '0'"]]})
         []))))
+
+(defn- transition-item-state-in-tx!
+  [tx item-ids command]
+  (let [item-ids (vec (sort (distinct item-ids)))
+        command (if (keyword? command) {:action command} command)
+        rows (when (seq item-ids)
+               (sql/get-items-state-for-update tx {:item-ids item-ids}))
+        transitions (mapv (fn [row]
+                            (let [before (item-state/state row)
+                                  after (item-state/transition before command)]
+                              {:after after
+                               :difference (item-state/differences before after)}))
+                          rows)
+        added-tags (into #{} (mapcat #(get-in % [:difference :add-tags])) transitions)]
+    (when (seq added-tags)
+      (sql/ensure-tags tx {:tags (map vector (map name added-tags))}))
+    (doseq [[[add-tags remove-tags] group]
+            (group-by (juxt #(get-in % [:difference :add-tags])
+                            #(get-in % [:difference :remove-tags]))
+                      transitions)
+            :when (or (seq add-tags) (seq remove-tags))]
+      (sql/apply-items-tag-delta
+       tx {:item-ids (mapv #(get-in % [:after :id]) group)
+           :add-tags (mapv name add-tags)
+           :remove-tags (mapv name remove-tags)}))
+    (doseq [[checkpoint group]
+            (->> transitions
+                 (filter #(get-in % [:difference :checkpoint-changed?]))
+                 (group-by #(get-in % [:after :checkpoint])))]
+      (let [ids (mapv #(get-in % [:after :id]) group)]
+        (if checkpoint
+          (sql/set-items-reading-checkpoint
+           tx {:item-ids ids
+               :selector (:selector checkpoint)
+               :progress (:progress checkpoint)})
+          (sql/clear-items-reading-checkpoint tx {:item-ids ids}))))
+    (mapv :after transitions)))
+
+(extend-protocol
+ ItemStatePersistency
+  PostgresqlDataStore
+
+  (transition-item-state! [this item-id command]
+    (jdbc/with-transaction [tx (:datasource this)]
+      (first (transition-item-state-in-tx! tx [item-id] command))))
+
+  (transition-items-state! [this item-ids command]
+    (jdbc/with-transaction [tx (:datasource this)]
+      (transition-item-state-in-tx! tx item-ids command)))
+
+  (get-reading-progress-items [this {:keys [limit] :or {limit 100}}]
+    (sql/get-reading-progress-items this {:limit limit}))
+
+  (get-reading-queue-items [this {:keys [limit offset] :or {limit 100 offset 0}}]
+    (sql/get-reading-queue-items this {:limit limit :offset offset})))
 
 (extend-protocol
  ItemEventPersistency

@@ -65,8 +65,14 @@
  fever-items
  fever-item-state-ids
  fever-item-selected
- fever-mark-read
+ fever-bulk-item-ids
  fever-total-items
+ get-items-state-for-update
+ apply-items-tag-delta
+ set-items-reading-checkpoint
+ clear-items-reading-checkpoint
+ get-reading-progress-items
+ get-reading-queue-items
  create-item-event
  get-item-event
  get-item-events
@@ -81,5 +87,6 @@
 (hugsql/def-db-fns (io/resource "sql/annotations.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/ranking.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/fever.sql") {:quoting :ansi})
+(hugsql/def-db-fns (io/resource "sql/item_state.sql") {:quoting :ansi})
 (hugsql/def-db-fns (io/resource "sql/events.sql") {:quoting :ansi})
 (hugsql/def-sqlvec-fns (io/resource "sql/ranking.sql") {:quoting :ansi})

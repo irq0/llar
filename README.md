@@ -137,8 +137,12 @@ LLAR knows two kinds of tags.
 Source tags, that are defined as part of a fetch definition.
 They basically group sources and are useful to specify schedules on.
 Item tags, that are attached to an item.
-Predefined tags are *unread*, *saved*, *in-progress*, *archive*, *highlight*.
-Each has its own semantics in the UI. Arbitrary additional tags are supported.
+
+The workflow tags are *unread*, *saved*, and *archive*. They are exposed as
+semantic actions and states rather than independent tag: saved is independent of
+unread, archive is seen and no longer saved, and Done clears saved plus any
+active reading checkpoint. *Continue Reading* is a cross-device checkpoint,
+not a tag. Unread bookmarks are implicitly in the Reading Queue until read.
 
 ## Configuration
 

@@ -217,12 +217,9 @@
     (when-not (:selected item)
       (throw (ex-info "Unknown item" {:type ::bad-request})))
     (case action
-      "read" (persistency/item-remove-tags! db item-id [:unread])
-      "saved" (persistency/item-set-tags! db item-id [:saved])
-      "unsaved" (persistency/item-remove-tags!
-                 db item-id
-                 (cond-> [:saved :in-progress]
-                   (:bookmark item) (conj :unread)))
+      "read" (persistency/transition-item-state! db item-id :seen)
+      "saved" (persistency/transition-item-state! db item-id :save)
+      "unsaved" (persistency/transition-item-state! db item-id :dequeue)
       (throw (ex-info "Unsupported item action" {:type ::bad-request})))))
 
 (defn- before-timestamp [value]
@@ -241,10 +238,13 @@
       "group" (when-not (#{0 flat-group-id} id)
                 (throw (ex-info "Unknown group" {:type ::bad-request})))
       (throw (ex-info "Unsupported bulk action" {:type ::bad-request})))
-    (sql/fever-mark-read (datastore db)
-                         (cond-> {:source-ids (query-source-ids source-ids)
-                                  :before before}
-                           (= mark "feed") (assoc :feed-id id)))))
+    (let [item-ids (mapv :id
+                         (sql/fever-bulk-item-ids
+                          (datastore db)
+                          (cond-> {:source-ids (query-source-ids source-ids)
+                                   :before before}
+                            (= mark "feed") (assoc :feed-id id))))]
+      (persistency/transition-items-state! db item-ids :seen))))
 
 (defn- base-response [sources]
   {:api_version api-version

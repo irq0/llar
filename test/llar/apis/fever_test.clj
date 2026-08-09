@@ -137,9 +137,10 @@
                   sql/fever-sources (constantly [{:id 7 :key "phone"}])
                   sql/fever-item-selected (constantly {:selected true})
                   sql/fever-item-state-ids (constantly [{:id 42}])
-                  persistency/item-set-tags! (fn [_ id tags] (swap! writes conj [id tags]))]
+                  persistency/transition-item-state!
+                  (fn [_ id command] (swap! writes conj [id command]))]
       (let [response (uut/fever-response :db test-config {:params params})]
-        (is (= [[42 [:saved]]] @writes))
+        (is (= [[42 :save]] @writes))
         (is (= "42" (get-in response [:body :saved_item_ids])))))))
 
 (deftest unsaving-a-bookmark-removes-all-queue-reasons
@@ -150,9 +151,10 @@
                   sql/fever-sources (constantly [])
                   sql/fever-item-selected (constantly {:selected true :bookmark true})
                   sql/fever-item-state-ids (constantly [])
-                  persistency/item-remove-tags! (fn [_ id tags] (reset! removed [id tags]))]
+                  persistency/transition-item-state!
+                  (fn [_ id command] (reset! removed [id command]))]
       (uut/fever-response :db test-config {:params params})
-      (is (= [42 [:saved :in-progress :unread]] @removed)))))
+      (is (= [42 :dequeue] @removed)))))
 
 (deftest reading-a-bookmark-refreshes-both-state-lists
   (let [removed (atom nil)
@@ -162,9 +164,10 @@
                   sql/fever-sources (constantly [])
                   sql/fever-item-selected (constantly {:selected true :bookmark true})
                   sql/fever-item-state-ids (constantly [])
-                  persistency/item-remove-tags! (fn [_ id tags] (reset! removed [id tags]))]
+                  persistency/transition-item-state!
+                  (fn [_ id command] (reset! removed [id command]))]
       (let [response (uut/fever-response :db test-config {:params params})]
-        (is (= [42 [:unread]] @removed))
+        (is (= [42 :seen] @removed))
         (is (= "" (get-in response [:body :unread_item_ids])))
         (is (= "" (get-in response [:body :saved_item_ids])))))))
 
@@ -185,7 +188,7 @@
   (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
                 config/get-sources (constantly {})
                 sql/fever-sources (constantly [])
-                sql/fever-mark-read (fn [& _] (throw (ex-info "must not write" {})))]
+                sql/fever-bulk-item-ids (fn [& _] (throw (ex-info "must not query" {})))]
     (let [response ((uut/handler :db test-config)
                     {:request-method :post
                      :uri "/"
@@ -196,6 +199,26 @@
                               "before" "1700000000"}})]
       (is (= 400 (:status response)))
       (is (= "Unknown feed" (get-in response [:body :error]))))))
+
+(deftest bulk-read-selects-ids-then-uses-clojure-transitions
+  (let [transition (atom nil)]
+    (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
+                  config/get-sources (constantly {:phone {:tags #{:mobile}}})
+                  sql/fever-sources (constantly [{:id 7 :key "phone"}])
+                  sql/fever-bulk-item-ids (constantly [{:id 41} {:id 42}])
+                  sql/fever-item-state-ids (constantly [])
+                  persistency/transition-items-state!
+                  (fn [_ ids command] (reset! transition [ids command]))]
+      (let [response ((uut/handler :db test-config)
+                      {:request-method :post
+                       :uri "/"
+                       :params {"api_key" api-key
+                                "mark" "feed"
+                                "as" "read"
+                                "id" "7"
+                                "before" "1700000000"}})]
+        (is (= 200 (:status response)))
+        (is (= [[41 42] :seen] @transition))))))
 
 (deftest logging-summaries-redact-and-bound-data
   (let [request-summary (#'uut/request-summary

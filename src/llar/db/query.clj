@@ -195,7 +195,7 @@
      (sql/get-item-by-id
       this
       {:id id
-       :select (sql/item-select-with-data-snip)
+       :select (sql/item-select-with-data-snip {:with-reading-progress? true})
        :from (sql/item-from-join-with-data-table-snip)
        :group-by-columns ["items.id"]}))))
 

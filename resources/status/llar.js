@@ -8,39 +8,72 @@ function get_scroll_to_items() {
   );
 }
 
-function tag_item_by_id(id, tag, icon_elem, action = "toggle") {
-  var orig_action = action;
-  if (action == "toggle") {
-    action = "set";
-    if (icon_elem.data("is-set")) {
-      action = "del";
-    }
-  }
-  $.post(
-    "/reader/item/by-id/" + id,
-    {
-      action: action,
-      tag: tag,
-    },
-    () => {
-      var icon = icon_elem.find("i");
-      if (orig_action == "toggle") {
-        if (icon_elem.data("is-set")) {
-          icon_elem.data("is-set", false);
-          icon.attr("class", icon_elem.data("icon-unset"));
-        } else {
-          icon_elem.data("is-set", true);
-          icon.attr("class", icon_elem.data("icon-set"));
-        }
-      } else if (orig_action == "del") {
-        icon_elem.data("is-set", false);
-        icon.attr("class", icon_elem.data("icon-unset"));
-      } else if (orig_action == "set") {
-        icon_elem.data("is-set", true);
-        icon.attr("class", icon_elem.data("icon-set"));
-      }
-    },
+function stateValueForTag(state, tag) {
+  if (tag === "archive") return !!state.archived;
+  return !!state[tag];
+}
+
+function updateStateButton(button, isSet) {
+  var icon = button.find("i");
+  var label = isSet ? button.data("label-set") : button.data("label-unset");
+  button.data("is-set", isSet);
+  button.attr("data-is-set", String(isSet));
+  button.attr("title", label);
+  button.attr("aria-label", label);
+  icon.attr(
+    "class",
+    isSet ? button.data("icon-set") : button.data("icon-unset"),
   );
+}
+
+function itemNoLongerMatchesView(state) {
+  var body = $("body");
+  var view = body.data("view");
+  var groupName = body.data("group-name");
+  var groupItem = body.data("group-item");
+  var filter = body.data("filter");
+
+  if (view === "saved-overview" && !state.queued) return true;
+  if (view === "continue-reading" && !state.checkpoint) return true;
+  if (filter === "unread" && !state.unread) return true;
+  if (groupName === "item-tags") {
+    if (groupItem === "saved" && !state.saved) return true;
+    if (groupItem === "archive" && !state.archived) return true;
+    if (groupItem === "unread" && !state.unread) return true;
+  }
+  return false;
+}
+
+function applyItemState(state) {
+  var id = state.id;
+  $(".state-toggle").each(function () {
+    var button = $(this);
+    if (String(button.data("id")) === String(id)) {
+      updateStateButton(
+        button,
+        stateValueForTag(state, String(button.data("tag"))),
+      );
+    }
+  });
+
+  updateCheckpointControls(state);
+
+  if (itemNoLongerMatchesView(state)) {
+    $("[data-item-root][data-id]").each(function () {
+      if (String($(this).data("id")) === String(id)) {
+        $(this).fadeOut(150, function () {
+          $(this).remove();
+        });
+      }
+    });
+  }
+}
+
+function requestItemState(id, action, data) {
+  return $.post(
+    "/reader/item/by-id/" + id + "/state",
+    Object.assign({ action: action }, data || {}),
+  ).done(applyItemState);
 }
 
 function show_update_sources_update_result(title, message) {
@@ -319,15 +352,7 @@ $(document).ready(function () {
     );
     console.log(ids);
     for (var id of ids) {
-      var icon_elem = $(
-        "[data-id=" +
-          id +
-          "].btn-tag-unread, " +
-          "#item-" +
-          id +
-          " .direct-tag-buttons .btn-tag-unread",
-      ).first();
-      tag_item_by_id(id, "unread", icon_elem, "del");
+      requestItemState(id, "seen");
     }
   });
 
@@ -421,18 +446,7 @@ $(document).ready(function () {
       return;
     }
 
-    $.post(
-      "/reader/item/by-id/" + x.data("id"),
-      {
-        action: "del",
-        tag: x.data("tag"),
-      },
-      () => {
-        var icon = x.find("i");
-        x.data("is-set", false);
-        icon.attr("class", x.data("icon-unset"));
-      },
-    );
+    requestItemState(x.data("id"), "seen");
   }
 
   function cancelMarkReadOnView(target) {
@@ -567,6 +581,41 @@ $(document).ready(function () {
       }
     });
   });
+
+  $(".state-toggle").on("click", function (event) {
+    event.preventDefault();
+    var button = $(this);
+    if (button.data("state-request-pending")) return;
+    var action = button.data("is-set")
+      ? button.data("action-unset")
+      : button.data("action-set");
+    button.data("state-request-pending", true).addClass("disabled");
+    requestItemState(button.data("id"), action)
+      .fail(function (xhr) {
+        console.error("[item-state] transition failed:", xhr.status);
+      })
+      .always(function () {
+        button.data("state-request-pending", false).removeClass("disabled");
+      });
+  });
+
+  $(".state-action").on("click", function (event) {
+    event.preventDefault();
+    var button = $(this);
+    if (button.data("state-request-pending")) return;
+    button.data("state-request-pending", true).addClass("disabled");
+    requestItemState(button.data("id"), button.data("action"))
+      .fail(function (xhr) {
+        console.error("[item-state] action failed:", xhr.status);
+      })
+      .always(function () {
+        button.data("state-request-pending", false).removeClass("disabled");
+      });
+  });
+
+  $(".btn-save-checkpoint").on("click", saveReadingCheckpoint);
+  $(".btn-clear-checkpoint").on("click", clearReadingCheckpoint);
+  $(".btn-resume-checkpoint").on("click", resumeReadingCheckpoint);
 
   // Only ranked result cards produce impressions. Generic reader lists do not.
   var offeredResults = document.querySelectorAll(
@@ -896,10 +945,37 @@ function textToFlexibleRegex(text) {
 function findByQuoteSelector(container, quote) {
   var fullText = getContainerText(container);
 
-  // First try exact match
+  // Prefer an exact occurrence whose surrounding text also matches. This
+  // disambiguates repeated phrases when the DOM changed between devices.
   var idx = fullText.indexOf(quote.exact);
-  if (idx !== -1) {
-    return createRangeFromOffsets(container, idx, idx + quote.exact.length);
+  var bestIdx = -1;
+  var bestScore = -1;
+  while (idx !== -1) {
+    var prefix = quote.prefix || "";
+    var suffix = quote.suffix || "";
+    var actualPrefix = fullText.substring(
+      Math.max(0, idx - prefix.length),
+      idx,
+    );
+    var actualSuffix = fullText.substring(
+      idx + quote.exact.length,
+      idx + quote.exact.length + suffix.length,
+    );
+    var score =
+      (prefix && actualPrefix === prefix ? 1 : 0) +
+      (suffix && actualSuffix === suffix ? 1 : 0);
+    if (score > bestScore) {
+      bestIdx = idx;
+      bestScore = score;
+    }
+    idx = fullText.indexOf(quote.exact, idx + 1);
+  }
+  if (bestIdx !== -1) {
+    return createRangeFromOffsets(
+      container,
+      bestIdx,
+      bestIdx + quote.exact.length,
+    );
   }
 
   // Flexible whitespace match: turn the exact text into a regex
@@ -915,6 +991,198 @@ function findByQuoteSelector(container, quote) {
   }
 
   return null;
+}
+
+function firstVisibleTextOffset(container) {
+  var topNav = document.getElementById("top-nav");
+  var topBoundary = Math.max(
+    0,
+    container.getBoundingClientRect().top,
+    topNav ? topNav.getBoundingClientRect().bottom : 0,
+  );
+  var walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  var globalOffset = 0;
+
+  while (walker.nextNode()) {
+    var node = walker.currentNode;
+    var text = node.textContent;
+    if (text.trim().length > 0) {
+      var nodeRange = document.createRange();
+      nodeRange.selectNodeContents(node);
+      var rect = nodeRange.getBoundingClientRect();
+      if (rect.bottom >= topBoundary && rect.top <= window.innerHeight) {
+        var low = 0;
+        var high = text.length - 1;
+        while (low < high) {
+          var mid = Math.floor((low + high) / 2);
+          var charRange = document.createRange();
+          charRange.setStart(node, mid);
+          charRange.setEnd(node, Math.min(mid + 1, text.length));
+          if (charRange.getBoundingClientRect().bottom >= topBoundary) {
+            high = mid;
+          } else {
+            low = mid + 1;
+          }
+        }
+        while (low < text.length && /\s/.test(text.charAt(low))) low++;
+        return Math.min(globalOffset + low, globalOffset + text.length - 1);
+      }
+    }
+    globalOffset += text.length;
+  }
+  return Math.max(0, getContainerText(container).length - 1);
+}
+
+function readingCheckpointSelector(container) {
+  var fullText = getContainerText(container);
+  if (!fullText.length) return null;
+  var start = firstVisibleTextOffset(container);
+  var end = Math.min(fullText.length, start + 96);
+  var prefixStart = Math.max(0, start - 32);
+  var suffixEnd = Math.min(fullText.length, end + 32);
+  return {
+    selector: {
+      position: { type: "TextPositionSelector", start: start, end: end },
+      quote: {
+        type: "TextQuoteSelector",
+        exact: fullText.substring(start, end),
+        prefix: fullText.substring(prefixStart, start),
+        suffix: fullText.substring(end, suffixEnd),
+      },
+    },
+    progress: start / fullText.length,
+  };
+}
+
+function updateCheckpointControls(state) {
+  var controls = $(".reading-checkpoint-tools").filter(function () {
+    return String($(this).data("id")) === String(state.id);
+  });
+  if (!controls.length) return;
+
+  var checkpoint = state.checkpoint;
+  controls.find(".btn-resume-checkpoint,.btn-clear-checkpoint").remove();
+  var save = controls.find(".btn-save-checkpoint");
+  save
+    .toggleClass("btn-warning", !!checkpoint)
+    .toggleClass("btn-outline-warning", !checkpoint)
+    .attr(
+      "title",
+      checkpoint ? "Update saved place" : "Save this reading position",
+    )
+    .attr(
+      "aria-label",
+      checkpoint ? "Update saved place" : "Save this reading position",
+    );
+
+  if (!checkpoint) return;
+  if (checkpoint.selector) {
+    var resume = $("<button>")
+      .addClass("btn btn-warning btn-resume-checkpoint")
+      .attr("type", "button")
+      .attr("title", "Resume at " + Math.round(checkpoint.progress * 100) + "%")
+      .attr("aria-label", "Scroll to the saved reading position")
+      .data("selector", checkpoint.selector)
+      .data("progress", checkpoint.progress)
+      .html('<i class="fas fa-map-marker-alt">\u2009</i>')
+      .on("click", resumeReadingCheckpoint);
+    controls.prepend(resume);
+  }
+  $("<button>")
+    .addClass("btn btn-outline-secondary btn-clear-checkpoint")
+    .attr("type", "button")
+    .attr("title", "Clear the Continue Reading checkpoint")
+    .attr("aria-label", "Clear saved place")
+    .html('<i class="fas fa-times">\u2009</i>')
+    .on("click", clearReadingCheckpoint)
+    .appendTo(controls);
+}
+
+function saveReadingCheckpoint(event) {
+  event.preventDefault();
+  var button = $(event.currentTarget);
+  var container = document.getElementById("item-content-body");
+  var checkpoint = container && readingCheckpointSelector(container);
+  if (!checkpoint) return;
+  var id = button.closest(".reading-checkpoint-tools").data("id");
+  button.prop("disabled", true);
+  requestItemState(id, "save-checkpoint", {
+    selector: JSON.stringify(checkpoint.selector),
+    progress: checkpoint.progress,
+  })
+    .fail(function (xhr) {
+      console.error("[reading-checkpoint] save failed:", xhr.status);
+    })
+    .always(function () {
+      button.prop("disabled", false);
+    });
+}
+
+function clearReadingCheckpoint(event) {
+  event.preventDefault();
+  var button = $(event.currentTarget);
+  var id = button.closest(".reading-checkpoint-tools").data("id");
+  button.prop("disabled", true);
+  requestItemState(id, "clear-checkpoint")
+    .fail(function (xhr) {
+      console.error("[reading-checkpoint] clear failed:", xhr.status);
+    })
+    .always(function () {
+      button.prop("disabled", false);
+    });
+}
+
+function resumeReadingCheckpoint(event) {
+  event.preventDefault();
+  var button = $(event.currentTarget);
+  var selector = button.data("selector");
+  if (typeof selector === "string") selector = JSON.parse(selector);
+  var container = document.getElementById("item-content-body");
+  if (!container || !selector) return;
+
+  var range = null;
+  if (selector.position) {
+    range = createRangeFromOffsets(
+      container,
+      selector.position.start,
+      selector.position.end,
+    );
+    if (
+      range &&
+      selector.quote &&
+      normalizeWS(range.toString()) !== normalizeWS(selector.quote.exact)
+    ) {
+      range = null;
+    }
+  }
+  if (!range && selector.quote) {
+    range = findByQuoteSelector(container, selector.quote);
+  }
+  if (!range) {
+    var fullText = getContainerText(container);
+    var offset = Math.min(
+      Math.max(0, Math.floor((button.data("progress") || 0) * fullText.length)),
+      Math.max(0, fullText.length - 1),
+    );
+    range = createRangeFromOffsets(container, offset, offset + 1);
+  }
+  if (!range) return;
+
+  var rect = range.getBoundingClientRect();
+  window.scrollTo({
+    top: window.scrollY + rect.top - 80,
+    behavior: "smooth",
+  });
+  var target = $(range.startContainer).closest("p,li,pre,blockquote,div");
+  target.addClass("checkpoint-resume-target");
+  setTimeout(function () {
+    target.removeClass("checkpoint-resume-target");
+  }, 1800);
 }
 
 function renderHighlights() {
