@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Reader: Add explicit, cross-device reading checkpoints. **Save Place** records
+  the current reading position; **Resume** returns to it, **Save Place** can
+  update it later, and **Clear** removes it. Active checkpoints appear in a
+  small **Continue Reading** list ordered by most recently updated, making
+  unfinished items easy to find after switching devices.
+- Reader: Add the experimental **Today’s Vibe** view. It clusters recent items
+  from configured source tags into stories, prioritizes stories reported by
+  several sources, shows the matching terms and all reports, and can mark an
+  entire story seen at once. The time window, candidate limit, quality threshold,
+  and cluster budgets are runtime-configurable under `:reader :vibe`.
+- Reader: Add **Related Items** to item actions. The view builds a lexical
+  neighborhood from the search index, shows the words that matched and scores
+  relative to the strongest result, and limits one source from dominating the
+  result list.
+- Reader recommendations: Record local result-offer, qualified
+  viewport-impression, and item-open events. Links from Related Items and
+  Today’s Vibe preserve which offered result led to an opened item.
 - Observability: Export each recurring schedule's next run and the expected
   interval to the following run for cadence-aware Prometheus alerting.
 - Observability: Export standard `hikaricp_*` metrics for the frontend and
@@ -37,13 +54,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration: Add `:throttle` concurrency limits for source updates (default
   4) and item post-processing (default `:auto`, based on available processors),
   alongside the existing command, downloader, and streaming limits.
+- Development: Add `lein unit`, `lein integration`, and `lein kaocha` test
+  aliases, and run the JavaScript metadata-extraction tests in CI.
 
 ### Changed
 
+- Reader: Move reading aids to neutral controls on the browser's outer rails.
+  The left rail marks the next paragraph or column and briefly marks the landing
+  point after moving forward; the right rail contains the checkpoint controls.
+  They overlay the dimmed navigation shoulders in the regular item view and use
+  the true browser edges in focus mode. Space and swipe-left share the same
+  viewport-aware forward movement, including horizontal movement in wide column
+  mode.
+- Reader: Replace the ambiguous `in-progress` tag with a saved reading
+  position system. Existing `in-progress` items migrate to active checkpoints.
+  Saved items, active checkpoints, and unread bookmarks are independent reasons
+  for Reading Queue membership. Marking an item seen only clears unread, and
+  unsaving only clears saved. Archive and Done clear every queue reason and any
+  checkpoint; saving or marking unread restores an archived item.
+- Reader: Read current Reading Queue membership directly from the database and
+  paginate it in pages of 100 items. Scheduled clustering remains a presentation
+  layer, so a newly saved, completed, or archived item no longer waits for the
+  next clustering run before entering or leaving the queue. Continue Reading
+  remains a short, unclustered list ordered by its latest checkpoint update.
+- Fever: Map read/save/unsave and bulk-read writes through the same Clojure
+  transitions used by the Reader; queue state includes saved items, active
+  checkpoints, and unread bookmarks.
 - Dashboard: Make stale-source reporting cadence-aware, show each source's
   matching fetch schedules and expected next run, and flag configured sources
-  that match no fetch schedule.
-
+  that match no fetch schedule. Schedule run durations now use the same compact
+  formatting as the Activity view.
+- Schedules: Refresh search indexes, Reading Queue clusters, and Today’s Vibe in
+  separate scheduled jobs so their status, result, and failures are independent.
 - Readability: Extract passive Open Graph, Twitter Card, canonical, microdata,
   and JSON-LD metadata from the original inert document while keeping rendered
   article HTML on a separate hardened DOMPurify path.
@@ -68,7 +110,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   updates, so overlapping schedules, Reader requests, and Dashboard requests
   cannot fetch and store the same source concurrently.
 - Throttling: Replace command, media-download, and streaming semaphores with
-  managed, observable throttles using the configured capacities.
+  managed, observable throttles. All pool and throttle limits now follow runtime
+  `.llar` changes without a restart; shrinking a limit gates new work without
+  interrupting work already in flight.
 - Reddit: Migrate fetching from the retired unauthenticated `.json` endpoints to
   the OAuth2 Data API, with cached client-credentials tokens, synchronized
   renewal, one retry after a rejected token, and rate-limit logging. Dynamic
@@ -84,17 +128,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Commands: Fall back to a concurrency limit of 2 when `:throttle
   :command-max-concurrent` or `:throttle :av-downloader-max-concurrent` is absent
-  from the configuration, instead of failing to construct the semaphore.
+  from the configuration, instead of failing to construct the semaphore. Resolve
+  the `timeout` wrapper through `PATH` instead of requiring `/bin/timeout`.
 - Blobstore: Tolerate a broken blob properties file whose read error carries no
   content payload, which previously threw while recreating the file.
 - Reader: Fix the lazy YouTube view so the preview thumbnail and the embedded
   player fill their aspect-ratio container.
+- Reader: Accept state requests whose action-specific form fields are absent,
+  instead of returning a route-level `404` before the state handler runs.
+- Database: Start the backend pool, apply migrations, and only then start the web
+  interfaces and schedulers. Migration, initialization, and rollback now all use
+  the explicit multi-statement separator, preventing requests or jobs from
+  racing a partially upgraded schema.
+- Dashboard: Keep wide source-health tables inside their responsive cards, and
+  show the complete top stack frame in the Activity thread census.
+- Readability: Accept published timestamps with compact or extended numeric
+  offsets, optional zone IDs, local date-times, space-separated date-times, and
+  date-only values.
 - Updates: Prevent forced or racing requests from starting duplicate updates for
   one source, and prevent one unexpected source failure from aborting the rest
   of a bulk update result.
+- Updates: Recover sources left with a stale `:updating` status instead of
+  skipping them forever, and cancel queued child work when an update worker is
+  interrupted during shutdown.
+- Dashboard: Format durations consistently under non-US JVM locales instead of
+  emitting locale-dependent decimal separators.
 - Reddit: Drop malformed API entries instead of passing `nil` into
-  post-processing, and correctly combine the configured minimum score with the
-  dynamic top-5-percent cutoff.
+  post-processing, accept otherwise valid entries without thumbnails, and
+  correctly combine the configured minimum score with the dynamic top-5-percent
+  cutoff.
 
 ### Upgrade notes
 
