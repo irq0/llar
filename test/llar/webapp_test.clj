@@ -1,7 +1,26 @@
 (ns llar.webapp-test
   (:require
    [clojure.test :refer [deftest is]]
-   [llar.webapp :as uut]))
+   [llar.webapp :as uut])
+  (:import
+   [java.io ByteArrayInputStream]))
+
+(deftest capture-authentication-precedes-request-parsing
+  (let [body (ByteArrayInputStream. (.getBytes "{"))
+        handler (uut/capture-app
+                 :db
+                 {:tokens {:test "capture-test-token-0123456789abcdef"}})
+        response (handler {:server-port 80
+                           :server-name "localhost"
+                           :remote-addr "127.0.0.1"
+                           :uri "/api/v1/captures"
+                           :scheme :http
+                           :request-method :post
+                           :protocol "HTTP/1.1"
+                           :headers {"content-type" "application/json"}
+                           :body body})]
+    (is (= 401 (:status response)))
+    (is (= 1 (.available body)))))
 
 (deftest security-headers-adds-referrer-policy
   (let [handler (uut/wrap-security-headers (constantly {:status 200

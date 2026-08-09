@@ -59,6 +59,7 @@
 
    #'webapp/dashboard
    #'webapp/reader
+   #'webapp/capture
    #'webapp/podcast
    #'webapp/fever])
 
