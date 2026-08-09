@@ -17,11 +17,10 @@
    [cheshire.core :as cheshire]
    [llar.apis.blob :as blob-api]
    [llar.appconfig :refer [postgresql-config credentials]]
+   [llar.bookmark-capture :as bookmark-capture]
    [llar.config :as config]
    [llar.db.core :as db]
    [llar.events :as events]
-   [llar.fetch :as fetch]
-   [llar.fetch.bookmark :as bookmark]
    [llar.human :as human]
    [llar.item :as item]
    [llar.item-state :as item-state]
@@ -30,9 +29,8 @@
                      current-clustered-saved-items]]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
-   [llar.postproc :as proc]
    [llar.rc :as rc]
-   [llar.store :refer [store-items!]]
+   [llar.store :as store]
    [llar.update :as update]
    [llar.vibe :as vibe]
    [llar.db.annotations]
@@ -2452,25 +2450,27 @@
            (dump-item {:items [item]}))]]]
       (html-footer))]]))
 
-(defn add-thing
-  "Bookmark Add URL Entry Point"
-  [feed key]
-  (log/debug "reader add bookmark: " feed)
-  (try+
-   (let [state (assoc update/src-state-template :key key)
-         items (fetch/fetch feed)
-         processed (proc/process feed state items)
-         dbks (store-items! processed :overwrite? true)
-         item-id (-> dbks first :item :id)
-         item (first processed)]
-     {:status 200
-      :body {:item {:meta (:meta item)
-                    :id item-id
-                    :title (get-in item [:summary :title])}}})
-   (catch Throwable e
-     (log/warn e "add-url failed: " feed)
-     {:status 500
-      :body {:error (str e)}})))
+(defn enqueue-bookmark [url]
+  (try
+    (let [capture (bookmark-capture/enqueue! store/backend-db url nil "reader")
+          outcome (bookmark-capture/enqueue-outcome capture)]
+      {:status (case outcome :queued 201 :needs-attention 409 200)
+       :body {:capture-id (:id capture)
+              :item-id (:item-id capture)
+              :state (:status capture)
+              :result outcome
+              :message (get bookmark-capture/outcome-messages outcome)}})
+    (catch clojure.lang.ExceptionInfo exception
+      (if (#{:llar.bookmark-capture/invalid-url
+             :llar.bookmark-capture/invalid-title}
+           (:type (ex-data exception)))
+        {:status 400 :body {:error (ex-message exception)}}
+        (do
+          (log/error exception "reader bookmark enqueue failed")
+          {:status 503 :body {:error "Llar could not durably queue this capture"}})))
+    (catch Throwable throwable
+      (log/error throwable "reader bookmark enqueue failed")
+      {:status 503 :body {:error "Llar could not durably queue this capture"}})))
 
 (defn- valid-checkpoint-selector? [selector]
   (and (map? selector)
@@ -2624,14 +2624,9 @@
 
      (POST "/bookmark/add"
        [url type :<< as-keyword]
-       (try
-         (case type
-           :readability-bookmark (add-thing
-                                  (bookmark/make-readability-bookmark-feed url)
-                                  :bookmark))
-         (catch java.net.MalformedURLException _
-           {:status 400
-            :body {:error (str "Malformed URL: " url)}})))
+       (if (= type :readability-bookmark)
+         (enqueue-bookmark url)
+         {:status 400 :body {:error "Unsupported bookmark type"}}))
 
      (GET "/tools/:view" [view :<< as-keyword]
        (reader-tools-index {:uri (:uri req)

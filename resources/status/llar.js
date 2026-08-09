@@ -536,23 +536,11 @@ $(document).ready(function () {
         x.removeClass("btn-info");
         $(x.data("url-source")).val("");
         x.addClass("btn-secondary");
-        var item = data["item"];
-        var item_url =
-          "/reader/group/type/bookmark/source" +
-          "/" +
-          item["meta"]["source-key"] +
-          "/item/by-id" +
-          "/" +
-          item["id"];
-        var source_list_url =
-          "/reader/group/type/bookmark/source" +
-          "/" +
-          item["meta"]["source-key"] +
-          "/items";
-        show_bookmark_add_result(
-          "Added: " + item["title"],
-          `<a href="${item_url}">go</a>&nbsp;<a href="${source_list_url}">others</a>`,
-        );
+        var itemId = data["item-id"];
+        var detail = itemId
+          ? `<a href="/reader/item/by-id/${itemId}">open saved item</a>`
+          : "It will appear in the reading queue after processing.";
+        show_bookmark_add_result(data["message"] || "Saved to Llar", detail);
         return false;
       },
     }).fail((data) => {

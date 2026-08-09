@@ -7,11 +7,27 @@
    [java-time.api :as time]
    [llar.apis.reader :as uut]
    [llar.appconfig :as appconfig]
+   [llar.bookmark-capture :as bookmark-capture]
    [llar.db.search :as db-search]
    [llar.lab :as lab]
    [llar.persistency :as persistency]
    [llar.rc :as rc]
    [llar.vibe :as vibe]))
+
+(deftest reader-bookmark-form-uses-the-durable-capture-queue
+  (let [call (atom nil)]
+    (with-redefs [bookmark-capture/enqueue!
+                  (fn [db url title submitted-by]
+                    (reset! call [db url title submitted-by])
+                    {:id 7 :status :pending :inserted true})]
+      (let [response (uut/app {:request-method :post
+                               :uri "/reader/bookmark/add"
+                               :params {:url "https://example.com/story"
+                                        :type "readability-bookmark"}})]
+        (is (= 201 (:status response)))
+        (is (= :queued (get-in response [:body :result])))
+        (is (= "https://example.com/story" (second @call)))
+        (is (= "reader" (nth @call 3)))))))
 
 (deftest list-style-uses-rc-defaults
   (with-redefs [rc/rc (fn [path]
