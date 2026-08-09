@@ -8,6 +8,7 @@
    [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [llar.metrics]
+   [llar.metrics.bookmark-capture]
    [llar.store :as store]
    [llar.apis.reader :as reader]
    [llar.webapp :as webapp]
