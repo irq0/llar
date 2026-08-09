@@ -39,11 +39,13 @@
     (is (= #{:archive :research} (:tags archived)))
     (is (nil? (:checkpoint archived)))))
 
-(deftest unread-bookmark-is-an-implicit-queue-reason
+(deftest bookmarks-use-the-same-queue-rules-as-other-items
   (let [bookmark (assoc base :type :item-type/bookmark)
-        dequeued (state/transition bookmark {:action :dequeue})]
-    (is (= [:unread-bookmark] (state/queue-reasons bookmark)))
-    (is (= #{:research} (:tags dequeued)))
+        saved (state/transition bookmark {:action :save})
+        dequeued (state/transition saved {:action :dequeue})]
+    (is (empty? (state/queue-reasons bookmark)))
+    (is (= [:saved] (state/queue-reasons saved)))
+    (is (= #{:unread :research} (:tags dequeued)))
     (is (empty? (state/queue-reasons dequeued)))))
 
 (deftest archive-dominates-queue-membership

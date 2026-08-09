@@ -143,26 +143,26 @@
         (is (= [[42 :save]] @writes))
         (is (= "42" (get-in response [:body :saved_item_ids])))))))
 
-(deftest unsaving-a-bookmark-removes-all-queue-reasons
+(deftest unsaving-a-queued-item-uses-the-generic-dequeue-transition
   (let [removed (atom nil)
         params {"api_key" api-key "mark" "item" "as" "unsaved" "id" "42"}]
     (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
                   config/get-sources (constantly {})
                   sql/fever-sources (constantly [])
-                  sql/fever-item-selected (constantly {:selected true :bookmark true})
+                  sql/fever-item-selected (constantly {:selected true})
                   sql/fever-item-state-ids (constantly [])
                   persistency/transition-item-state!
                   (fn [_ id command] (reset! removed [id command]))]
       (uut/fever-response :db test-config {:params params})
       (is (= [42 :dequeue] @removed)))))
 
-(deftest reading-a-bookmark-refreshes-both-state-lists
+(deftest reading-a-saved-item-refreshes-both-state-lists
   (let [removed (atom nil)
         params {"api_key" api-key "mark" "item" "as" "read" "id" "42"}]
     (with-redefs [appconfig/credentials (constantly {:password "correct horse"})
                   config/get-sources (constantly {})
                   sql/fever-sources (constantly [])
-                  sql/fever-item-selected (constantly {:selected true :bookmark true})
+                  sql/fever-item-selected (constantly {:selected true})
                   sql/fever-item-state-ids (constantly [])
                   persistency/transition-item-state!
                   (fn [_ id command] (reset! removed [id command]))]

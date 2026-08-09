@@ -22,9 +22,6 @@
                  :else tag)))
         (:tags item)))
 
-(defn bookmark? [item]
-  (= :item-type/bookmark (:type item)))
-
 (defn checkpoint [item]
   (let [nested (:checkpoint item)
         progress (if (contains? item :checkpoint-progress)
@@ -48,9 +45,7 @@
       []
       (cond-> []
         (contains? tags :saved) (conj :saved)
-        checkpoint (conj :continue-reading)
-        (and (bookmark? item) (contains? tags :unread))
-        (conj :unread-bookmark)))))
+        checkpoint (conj :continue-reading)))))
 
 (defn queued? [item]
   (boolean (seq (queue-reasons item))))
@@ -76,7 +71,7 @@
   persistence code only stores the returned tags and checkpoint."
   [item command]
   (let [{:keys [action tag selector progress]} (ensure-command command)
-        {:keys [type tags] :as before} (state item)
+        {:keys [tags] :as before} (state item)
         without #(apply disj tags %)]
     (case action
       :seen (assoc before :tags (disj tags :unread))
@@ -92,8 +87,7 @@
                    (assoc :checkpoint nil))
       :unarchive (assoc before :tags (disj tags :archive))
       :dequeue (-> before
-                   (assoc :tags (cond-> (without [:saved :in-progress])
-                                  (= type :item-type/bookmark) (disj :unread)))
+                   (assoc :tags (without [:saved :in-progress]))
                    (assoc :checkpoint nil))
       :save-checkpoint
       (-> before

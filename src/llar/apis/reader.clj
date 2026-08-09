@@ -1718,9 +1718,6 @@
 (defn- item-has-tag? [item tag]
   (contains? (set (:tags item)) (name tag)))
 
-(defn- bookmark-item? [item]
-  (= (:type item) :item-type/bookmark))
-
 (defn- queue-item-reasons [item]
   (item-state/queue-reasons item))
 
@@ -1736,8 +1733,6 @@
   (case (normalize-queue-filter queue-filter)
     :saved (item-has-tag? item :saved)
     :continue-reading (some? (item-state/checkpoint item))
-    :unread-bookmarks (and (bookmark-item? item)
-                           (item-has-tag? item :unread))
     :unread (item-has-tag? item :unread)
     (queue-item? item)))
 
@@ -1777,9 +1772,6 @@
     {:total (count items)
      :saved (count (filter #(item-has-tag? % :saved) items))
      :continue-reading (count (filter #(some? (item-state/checkpoint %)) items))
-     :unread-bookmarks (count (filter #(and (bookmark-item? %)
-                                            (item-has-tag? % :unread))
-                                      items))
      :unread (count (filter #(item-has-tag? % :unread) items))}))
 
 (defn- queue-time-stats [items]
@@ -1798,14 +1790,12 @@
   (case reason
     :saved ["Saved" "text-bg-warning"]
     :continue-reading ["Continue Reading" "text-bg-info"]
-    :unread-bookmark ["Unread Bookmark" "text-bg-primary"]
     [(name reason) "text-bg-secondary"]))
 
 (defn- queue-filter-label [queue-filter]
   (case (normalize-queue-filter queue-filter)
     :saved "Saved"
     :continue-reading "Continue Reading"
-    :unread-bookmarks "Unread Bookmarks"
     :unread "Unread"
     "All"))
 
@@ -1822,7 +1812,6 @@
   (let [{:keys [id source-key]} item
         source-key (or source-key "all")
         group (cond
-                (bookmark-item? item) [:type :bookmark]
                 (item-has-tag? item :saved) [:item-tags :saved]
                 :else [:default :none])]
     (make-site-href [(format "/reader/group/%s/%s/source/%s/item/by-id"
@@ -1837,7 +1826,6 @@
   (let [filters [[nil "All" (:total stats)]
                  [:saved "Saved" (:saved stats)]
                  [:continue-reading "Continue Reading" (:continue-reading stats)]
-                 [:unread-bookmarks "Unread Bookmarks" (:unread-bookmarks stats)]
                  [:unread "Unread" (:unread stats)]]]
     [:div {:class "btn-group btn-group-sm mb-2 me-2" :role "group"}
      (for [[key label n] filters]
@@ -1986,10 +1974,9 @@
                   "not yet")))]
      (when-not continue-only?
        [:p {:class "text-secondary"}
-        (format "Saved: %s · Continue reading: %s · Unread bookmarks: %s · Unread: %s"
+        (format "Saved: %s · Continue reading: %s · Unread: %s"
                 (:saved stats)
                 (:continue-reading stats)
-                (:unread-bookmarks stats)
                 (:unread stats))])
      (when-not continue-only? (queue-filter-nav x queue-filter stats))
      (when-not continue-only? (queue-time-filter-nav x queue-time-filter time-stats))
@@ -1997,7 +1984,7 @@
        [:p {:class "text-secondary"}
         (if continue-only?
           "Nothing is in progress. Pin your place in an item to put it here."
-          "No saved, partially read, or unread bookmarked items in the queue.")])
+          "No saved or partially read items in the queue.")])
      (when (and (pos? (:total stats)) (empty? filtered-items))
        [:p {:class "text-secondary"}
         (format "No %s items for %s on this page."
