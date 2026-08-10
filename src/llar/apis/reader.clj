@@ -104,7 +104,7 @@
  headlines-list-items)
 
 (def +list-styles+
-  {nil {:name "Default"
+  {nil {:name "Use Configured Default"
         :ico "far fa-circle"}
    :preview {:name "Preview"
              :ico "far fa-newspaper"
@@ -124,7 +124,7 @@
    :oldest {:name "Oldest First"
             :ico "fas fa-sort-amount-up"}})
 
-(declare get-sort-order)
+(declare get-list-style get-sort-order)
 
 (def +filter-overrides+
   {:saved :total})
@@ -229,6 +229,24 @@
   (when (string? url)
     (re-find  #"(youtu\.be\/|youtube\.com\/(watch\?(.*&)?v=|(embed|v)\/))([^\?&\"'>]+)" url)))
 
+(defn- usable-image-url?
+  "True when an extracted image value is suitable for rendering as a URL."
+  [url]
+  (and (string? url)
+       (not (string/blank? url))
+       (not (#{"self" "default"}
+             (string/lower-case (string/trim url))))))
+
+(defn- first-usable-image-url
+  [& candidates]
+  (first (filter usable-image-url? candidates)))
+
+(defn- item-image-alt
+  [{:keys [title]}]
+  (if (string/blank? title)
+    "Item preview"
+    (str "Preview for " title)))
+
 (defn make-site-href
   "Make inner site href"
   ([path x]
@@ -272,13 +290,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=inspector-5"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-f01-4"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js"}]])
+   [:script {:src "/static/llar.js?v=reader-f01-4"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -353,6 +371,24 @@
                   :href "#"}
                  (str "fas fa-check-circle" (when read? " icon-is-set")))))
 
+(defn- tool-view-title [view]
+  (case view
+    :saved-overview "Reading Queue"
+    :continue-reading "Continue Reading"
+    :todays-vibe "Today’s Vibe"
+    :gems "Gems"
+    :search "Search"
+    "Reader Tools"))
+
+(defn- tool-view-icon [view]
+  (case view
+    :saved-overview "fas fa-project-diagram"
+    :continue-reading "fas fa-map-marker-alt"
+    :todays-vibe "fas fa-fire"
+    :gems "fas fa-gem"
+    :search "fas fa-search"
+    "fas fa-tools"))
+
 (defn nav-bar
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
   [x]
@@ -380,8 +416,10 @@
         next-item-button (when (> (count items) 1)
                            [:a {:class "btn btn-secondary"
                                 :id "btn-next-item"
+                                :title "Next item"
+                                :aria-label "Next item"
                                 :href next-item-href}
-                            (icon "arrow-down")])
+                            (icon "fas fa-arrow-down")])
         short-title (when (= mode :show-item)
                       (-> items first :title))]
 
@@ -389,28 +427,43 @@
            :class "navbar navbar-dark navbar-expand-md sticky-top bg-dark flex-md-nowrap p-0"}
      [:div {:class "navbar-toggler"}
       [:a {:class "navbar-toggler"
+           :href "#navbar"
+           :role "button"
            :data-bs-toggle "collapse"
-           :data-bs-target "#navbar"}
+           :data-bs-target "#navbar"
+           :aria-controls "navbar"
+           :aria-expanded "false"
+           :aria-label "Toggle navigation"}
        (icon "fas fa-bars")]
       (cond
         (= mode :list-items)
         [:span
          [:a {:class "navbar-toggler"
+              :title "Back to first item"
+              :aria-label "Back to first item"
               :href (make-site-href [(:uri x)] x)}
           (icon "fas fa-step-backward")]
          [:a {:class "navbar-toggler"
+              :title "Next batch"
+              :aria-label "Next batch"
               :href (if (:page-offset x)
                       (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
                       (make-site-href [(:uri x)] (:range-before x) x))}
           (icon "fas fa-forward")]
          [:a {:class "navbar-toggler btn-mark-view-read"
+              :title "Mark all items in view read"
+              :aria-label "Mark all items in view read"
               :href "#"}
           (icon "fas fa-glasses")]
          [:a {:class "navbar-toggler"
+              :title "Show groups and filters"
+              :aria-label "Show groups and filters"
               :data-bs-toggle "collapse"
               :href "#groupnav"}
           (icon "fas fa-compass")]
          [:a {:class "navbar-toggler"
+              :title "Show sources"
+              :aria-label "Show sources"
               :data-bs-toggle "collapse"
               :href "#sourcenav"}
           (icon "fas fa-list")]]
@@ -418,6 +471,8 @@
         (= mode :show-item)
         [:span
          [:a {:class "navbar-toggler"
+              :title "Back to item list"
+              :aria-label "Back to item list"
               :href (make-site-href
                      [(format "/reader/group/%s/%s/source"
                               (name active-group) (name active-key))
@@ -428,26 +483,35 @@
 
          (when (> (count items) 1)
            [:a {:class "navbar-toggler"
+                :title "Next item"
+                :aria-label "Next item"
                 :href next-item-href}
             (icon "fas fa-arrow-down")])])
 
       [:span {:class "navbar-toggler-title"} short-title]]
      [:div {:class "collapse navbar-collapse"
             :id "navbar"}
-      [:a {:class "navbar-brand d-none align-middle d-md-block col-md-3 col-lg-2 mr-0"
-           :href "#"}
+      [:a {:class "navbar-brand d-none align-middle d-md-block col-md-3 col-lg-2 me-0"
+           :href "/reader"
+           :title "Reader home"
+           :aria-label "Reader home"}
        (icon "far fa-hand-spock")]
 
       ;; previous:
       ;; "(╯°□°）╯︵ ┻━┻"
-      [:ol {:class "col-xs-12 form-control-dark breadcrumb w-100 path flex-nowrap"
+      [:ol {:class "form-control-dark breadcrumb flex-grow-1 path flex-nowrap"
             :style "--bs-breadcrumb-divider-color: #fff;"}
-       (when-let [item group-item]
-         [:li {:class "breadcrumb-item"}
-          (when-let [ico (get +group-icons+ active-group)]
-            (icon ico))
-          [:a {:href (make-site-href ["/reader/group" (name active-group) (name item) "source/all/items"] x)}
-           (name item)]])
+       (if (= mode :tools)
+         [:li {:class "breadcrumb-item active" :aria-current "page"}
+          (icon (tool-view-icon (:view x)))
+          " "
+          (tool-view-title (:view x))]
+         (when-let [item group-item]
+           [:li {:class "breadcrumb-item"}
+            (when-let [ico (get +group-icons+ active-group)]
+              (icon ico))
+            [:a {:href (make-site-href ["/reader/group" (name active-group) (name item) "source/all/items"] x)}
+             (name item)]]))
        (when-not (= source-key :all)
          [:li {:class "breadcrumb-item"}
           [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
@@ -463,10 +527,10 @@
             [:a {:href (show-item-href x item)} (:title item)]]))]
 
       (when-not (= mode :tools)
-        [:div {:class "navbar-list row justify-content-between col-xs-12 col-md-3 col-lg-2"}
+        [:div {:class "navbar-list row justify-content-between col-12 col-md-3 col-lg-2"}
          (cond
            (= mode :list-items)
-           [:div {:class "col-xs-8 col-ld-12"}
+           [:div {:class "col-12"}
             [:a {:class "btn btn-secondary"
                  :title "Back to first item"
                  :href (make-site-href [(:uri x)] x)}
@@ -492,7 +556,7 @@
              (icon "fas fa-download")]]
 
            (= mode :show-item)
-           [:div {:class "col-xs-8 col-ld-12"}
+           [:div {:class "col-12"}
             (state-buttons id tags)
             (item-tag-buttons id tags)
             (done-button current-item)
@@ -534,19 +598,20 @@
               :id "add-thing"}
        [:div {:class "input-group mb-1"}
         [:input {:type "text"
-                 :class "form-control form-control-sm w-80"
+                 :class "form-control form-control-sm"
                  :id "add-url-1"
+                 :aria-label "Bookmark URL"
                  :placeholder "http://"}]
-        [:div {:class "input-group-append"}
-         [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
-                   :type "submit"
-                   :title "Add bookmark with readability engine"
-                   :data-bs-title "Add Bookmark with readability engine"
-                   :data-url-source "#add-url-1"
-                   :data-bs-success "#add-url-1-status"
-                   :data-type "readability-bookmark"}
+        [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
+                  :type "submit"
+                  :title "Add bookmark with readability engine"
+                  :aria-label "Add bookmark with readability engine"
+                  :data-bs-title "Add Bookmark with readability engine"
+                  :data-url-source "#add-url-1"
+                  :data-bs-success "#add-url-1-status"
+                  :data-type "readability-bookmark"}
 
-          (icon "fas fa-newspaper")]]]]
+         (icon "fas fa-newspaper")]]]
 
       [:ul {:class "nav flex-column"}
        (for [[k [name ico]] +exposed-simple-filter+]
@@ -582,37 +647,40 @@
        [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :saved-overview) " active"))
              :href (make-site-href ["/reader/tools/saved-overview"] x)}
-         (icon "fas fa-project-diagram") "\u00a0" "Reading Queue"]]]
+         (icon (tool-view-icon :saved-overview)) "\u00a0" "Reading Queue"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :continue-reading) " active"))
              :href (make-site-href ["/reader/tools/continue-reading"] x)}
-         (icon "fas fa-map-marker-alt") "\u00a0" "Continue Reading"]]]
+         (icon (tool-view-icon :continue-reading)) "\u00a0" "Continue Reading"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :todays-vibe) " active"))
              :href (make-site-href ["/reader/tools/todays-vibe"] x)}
-         (icon "fas fa-fire") "\u00a0" "Today’s Vibe"]]]
+         (icon (tool-view-icon :todays-vibe)) "\u00a0" "Today’s Vibe"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :gems) " active"))
              :href (make-site-href ["/reader/tools/gems"] x)}
-         (icon "fas fa-gem") "\u00a0" "Gems"]]]
+         (icon (tool-view-icon :gems)) "\u00a0" "Gems"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :search) " active"))
              :href (make-site-href ["/reader/tools/search"] x)}
-         (icon "fas fa-search") "\u00a0" "Search"]]]
+         (icon (tool-view-icon :search)) "\u00a0" "Search"]]]
 
       ;; list style
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "List Style"]]
       [:ul {:class "nav flex-column" :id "view-style-select"}
-       (for [[key {:keys [name ico]}] +list-styles+]
-         [:li {:class "nav-item"}
-          [:a {:class "nav-link" :href (make-site-href [(:uri x)] {:list-style key} x)}
-           (icon ico) "\u00a0" name]])]
+       (let [active-style (get-list-style x)]
+         (for [[key {:keys [name ico]}] +list-styles+]
+           [:li {:class "nav-item"}
+            [:a (cond-> {:class (str "nav-link" (when (= key active-style) " active"))
+                         :href (make-site-href [(:uri x)] {:list-style key} x)}
+                  (= key active-style) (assoc :aria-current "page"))
+             (icon ico) "\u00a0" name]]))]
 
       ;; sort order
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
@@ -660,7 +728,7 @@
         fltr (or (:filter x) :total)
         nitems (or (get item-tags (:group-item x)) (get item-tags fltr) 0)
         grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))
-        pill [:span {:class "badge bg-light text-dark float-right"}
+        pill [:span {:class "badge bg-light text-dark float-end"}
               (when (pos? nitems) nitems)]]
 
     [:li {:class "nav-item"}
@@ -682,7 +750,7 @@
          pill
          [:span {:class "sidebar-heading-2"} key]
          [:br]
-         [:span {:class "font-weight-italic"} (human/truncate-ellipsis title 30)]])]]))
+         [:span {:class "fst-italic"} (human/truncate-ellipsis title 30)]])]]))
 
 (defn source-nav
   "Source Navigation: List Sources having the selected tag"
@@ -703,38 +771,51 @@
           active-source))]]]))
 
 (defn tags-button-modal [item-id tags]
-  [:div {:class "modal" :id (str "add-custom-tag-" item-id) :tabindex "-1"}
-   [:div {:class "modal-dialog"}
-    [:div {:class "modal-content"}
-     [:div {:class "modal-header"}
-      [:h5 "Edit Tags"]
-      [:button {:type "button" :class "close"
-                :data-bs-dismiss "modal"}
-       [:span "×"]]]
-     [:div {:class "modal-body"}
-      [:ul {:class "list-group list-group-flush item-tag-list"}
-       (for [tag tags
-             :when (not (contains? item-state/workflow-tags (keyword tag)))]
-         [:li {:class "list-group-item item-tag-row"
-               :data-id item-id
-               :data-tag tag}
-          (tag-button item-id {:tag (keyword tag)
-                               :icon-set "fas fa-check-circle icon-is-set"
-                               :icon-unset "far fa-circle"
-                               :is-set? true})
-          "\u00a0"
-          tag])]
-      [:form {:class "add-custom-tag" :data-id item-id}
-       [:div {:class "input-group mb-3"}
-        [:div {:class "form-floating"}
-         [:input {:class "form-control" :id (str "add-tag-" item-id)}]
-         [:label {:for (str "add-tag-" item-id)} "Custom Tag"]]
-        [:button {:class "btn btn-primary" :data-bs-modal (str "#add-custom-tag-" item-id) :type "submit"} "Add"]]]]]]])
+  (let [modal-id (str "add-custom-tag-" item-id)
+        title-id (str modal-id "-title")]
+    [:div {:class "modal"
+           :id modal-id
+           :tabindex "-1"
+           :aria-labelledby title-id
+           :aria-hidden "true"}
+     [:div {:class "modal-dialog"}
+      [:div {:class "modal-content"}
+       [:div {:class "modal-header"}
+        [:h5 {:class "modal-title" :id title-id} "Edit Tags"]
+        [:button {:type "button"
+                  :class "btn-close"
+                  :data-bs-dismiss "modal"
+                  :aria-label "Close"}]]
+       [:div {:class "modal-body"}
+        [:ul {:class "list-group list-group-flush item-tag-list"}
+         (for [tag tags
+               :when (not (contains? item-state/workflow-tags (keyword tag)))]
+           [:li {:class "list-group-item item-tag-row"
+                 :data-id item-id
+                 :data-tag tag}
+            (tag-button item-id {:tag (keyword tag)
+                                 :icon-set "fas fa-check-circle icon-is-set"
+                                 :icon-unset "far fa-circle"
+                                 :is-set? true})
+            "\u00a0"
+            tag])]
+        [:form {:class "add-custom-tag" :data-id item-id}
+         [:div {:class "input-group mb-3"}
+          [:div {:class "form-floating"}
+           [:input {:class "form-control"
+                    :id (str "add-tag-" item-id)
+                    :autocomplete "off"}]
+           [:label {:for (str "add-tag-" item-id)} "Custom Tag"]]
+          [:button {:class "btn btn-primary" :type "submit"} "Add"]]]]]]]))
 
 (defn tags-button-group [item-id tags]
   (let [tags (remove #(contains? item-state/workflow-tags (keyword %)) tags)]
     [:div {:class "btn-group btn-group-sm"}
      [:a {:class "btn"
+          :href "#"
+          :role "button"
+          :title "Edit tags"
+          :aria-label "Edit tags"
           :data-bs-toggle "modal"
           :data-bs-target (str "#add-custom-tag-" item-id)}
       "\u00a0" (icon "fas fa-tag")
@@ -755,7 +836,7 @@
     (html
      (when-let [vid youtube-url]
        (when (some? vid)
-         (when-let [thumb (:thumbnail entry)]
+         (when-let [thumb (first-usable-image-url (:thumbnail entry))]
            [:div {:class "ratio ratio-16x9"}
             [:div {:id (str "youtube-container-" (last vid))
                    :class "youtube-preview-container"}
@@ -763,21 +844,34 @@
                     :data-vid (last vid)
                     :data-target (str "youtube-container-" (last vid))
                     :alt "Play video on YouTube"
+                    :loading "lazy"
+                    :decoding "async"
                     :src thumb}]]])))
 
-     (when-let [twit-pic (first (get-in entry [:entities :photos]))]
-       [:div {:class "item-preview"} [:img {:src twit-pic}]])
+     (when-let [twit-pic (first-usable-image-url
+                          (first (get-in entry [:entities :photos])))]
+       [:div {:class "item-preview reader-image-container"}
+        [:img {:src twit-pic
+               :class "reader-defensive-image"
+               :data-error-remove ".reader-image-container"
+               :alt (item-image-alt item)
+               :loading "lazy"
+               :decoding "async"}]])
 
-     (when-let [image-url (and (not youtube-url) (or (:thumbnail entry) (:lead-image-url entry)))]
-       (when (not (or (string/blank? image-url)
-                      (= image-url "self")
-                      (= image-url "default")))
-         [:div {:class (str "item-preview-small float-end"
-                            (when (every? options [:main-list-use-description
-                                                   :short-word-cloud])
-                              " float-md-end"))
-                :style "width: 200px; height: auto;"}
-          [:img {:src image-url}]])))))
+     (when-let [image-url (and (not youtube-url)
+                               (first-usable-image-url (:thumbnail entry)
+                                                       (:lead-image-url entry)))]
+       [:div {:class (str "item-preview-small float-end reader-image-container"
+                          (when (every? options [:main-list-use-description
+                                                 :short-word-cloud])
+                            " float-md-end"))
+              :style "width: 200px; height: auto;"}
+        [:img {:src image-url
+               :class "reader-defensive-image"
+               :data-error-remove ".reader-image-container"
+               :alt (item-image-alt item)
+               :loading "lazy"
+               :decoding "async"}]]))))
 
 (defn get-html-content
   "Show Item Helper: Get best content to display in full"
@@ -981,7 +1075,7 @@
        [:div {:id "annotation-highlight-list" :class "mb-1 small" :style "display:none;"}]
        [:div {:class "d-flex align-items-center gap-2"}
         [:div {:id "annotation-selection-actions" :style "display:none;"}
-         [:button {:class "btn btn-warning btn-sm" :id "btn-highlight-selection"}
+         [:button {:class "btn btn-primary btn-sm" :id "btn-highlight-selection"}
           (icon "fas fa-highlighter") " Highlight"]]
         [:div {:class "flex-grow-1"}
          [:div {:class "input-group input-group-sm"}
@@ -1093,13 +1187,7 @@
               (name group-item) (name source-key))
 
       (= mode :tools)
-      (case view
-        :saved-overview "Reading Queue"
-        :continue-reading "Continue Reading"
-        :todays-vibe "Today’s Vibe"
-        :gems "Gems"
-        :search "Search"
-        "Reader Tools"))))
+      (tool-view-title view))))
 
 ;; todo - add number of images
 ;; add number of nouns
@@ -1146,7 +1234,7 @@
        [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
        [:span " - "]
        [:span {:class "timestamp"} (human/datetime-ago ts)]]
-      (when (>= nwords 0)
+      (when (and (number? nwords) (not (neg? nwords)))
         (let [estimate (item/reading-time-estimate item)
               human-time (:estimate estimate)]
           [:li {:class "list-inline-item"}
@@ -1215,7 +1303,7 @@
                       (string/join ", " (:matches highlight)))]))
 
      [:div {:class "btn-toolbar justify-content-between" :role "toolbar"}
-      [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
+      [:div {:class "btn-group btn-group-sm me-2" :role "group"}
        (tags-button-group id tags)
        (tags-button-modal id tags)
        (external-link-button url)
@@ -1226,7 +1314,7 @@
        (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
                                                                                   :content-type "text/html"} x))]
 
-      [:div {:class "item-action-buttons btn-group btn-group-sm mr-2" :role "group"}
+      [:div {:class "item-action-buttons btn-group btn-group-sm me-2" :role "group"}
        (state-buttons id tags)
        (item-tag-buttons id tags)
        (done-button item)]]]))
@@ -1290,31 +1378,54 @@
 (defn gallery-list-item
   [x link-prefix item]
   (let [{:keys [id source-key title ts tags entry url]} item
-        image (or
+        display-title (if (string/blank? title) "(no title)" title)
+        image (first-usable-image-url
                (first (get-in entry [:entities :photos]))
                (:thumbnail entry)
-               (:lead-image-url entry))]
+               (:lead-image-url entry))
+        modal-id (str "full-img-" id)
+        modal-title-id (str modal-id "-title")]
     [:div {:class "col" :data-id id}
      [:div {:class "card"}
       [:div {:class "card-header"} source-key]
-      [:a {:type "button"
-           :data-bs-target (str "#full-img-" id)
-           :data-bs-toggle "modal"}
-       [:img {:src image :class "card-img-top"}]]
-      [:div {:class "modal " :id (str "full-img-" id) :tabindex "-1" :role "dialog"}
-       [:div {:class "modal-dialog modal-dialog-centered modal-lg"}
-        [:div {:class "modal-content"}
-         [:img {:src image :class "card-img-top"
-                :data-bs-dismiss "modal"}]]]]
+      (when image
+        [:button {:type "button"
+                  :class "gallery-image-trigger p-0 border-0 bg-transparent w-100"
+                  :data-bs-target (str "#" modal-id)
+                  :data-bs-toggle "modal"
+                  :aria-label (str "View full image for " display-title)}
+         [:img {:src image
+                :class "card-img-top gallery-card-image reader-defensive-image"
+                :data-error-remove ".gallery-image-trigger"
+                :alt (item-image-alt item)
+                :loading "lazy"
+                :decoding "async"}]])
+      (when image
+        [:div {:class "modal"
+               :id modal-id
+               :tabindex "-1"
+               :role "dialog"
+               :aria-modal "true"
+               :aria-labelledby modal-title-id
+               :aria-hidden "true"}
+         [:div {:class "modal-dialog modal-dialog-centered modal-lg"}
+          [:div {:class "modal-content"}
+           [:h2 {:class "visually-hidden" :id modal-title-id} display-title]
+           [:button {:type "button"
+                     :class "btn-close position-absolute top-0 end-0 m-2"
+                     :data-bs-dismiss "modal"
+                     :aria-label "Close"}]
+           [:img {:src image
+                  :class "gallery-full-image reader-defensive-image"
+                  :alt (item-image-alt item)
+                  :decoding "async"}]]]])
       [:div {:class "card-body"}
        [:p {:class "card-title"}
         [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                    (cond-> {:mark :read}
                                      (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
                                    x)}
-         (if (string/blank? title)
-           "(no title)"
-           title)]]
+         display-title]]
        [:p {:class "card-text"}
         [:small {:class "text-muted"} (human/datetime-ago ts)]]]
       [:div {:class "card-footer toolbox"}
@@ -1388,8 +1499,8 @@
   [x]
   (let [{:keys [mode]} x]
     [:main {:role "main"
-            :class (if (= mode :focus-item) "" "col-xs-12 col-md-6 col-lg-8")}
-     [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+            :class (if (= mode :focus-item) "" "col-12 col-md-6 col-lg-8")}
+     [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
       (case (:mode x)
         :show-item (main-show-item x)
         :dump-item (dump-item x)
@@ -1621,7 +1732,7 @@
                           (reading-viewport-overlay (first (:items params))))]
     (html5
      (html-header title (:mode params) (first (:items params)))
-     [:body {:class (str "reader-mode-" (name (:mode params)))}
+     [:body {:class (str "llar-reader reader-mode-" (name (:mode params)))}
       (concat
        [nav-bar]
        [reading-overlay]
@@ -1765,8 +1876,8 @@
 
 (defn- queue-reason-label [reason]
   (case reason
-    :saved ["Saved" "text-bg-warning"]
-    :continue-reading ["Continue Reading" "text-bg-info"]
+    :saved ["Saved" "text-bg-primary"]
+    :continue-reading ["Continue Reading" "text-bg-primary"]
     [(name reason) "text-bg-secondary"]))
 
 (defn- queue-filter-label [queue-filter]
@@ -1854,7 +1965,7 @@
        [:span {:class "badge text-bg-light"} "Unread"]])
     (when-let [checkpoint (item-state/checkpoint item)]
       [:li {:class "list-inline-item"}
-       [:span {:class "badge text-bg-info"}
+       [:span {:class "badge text-bg-primary"}
         (format "Saved place %.0f%%" (* 100.0 (:progress checkpoint)))]])
     [:li {:class "list-inline-item"}
      (icon "far fa-calendar") "\u00a0"
@@ -1862,7 +1973,7 @@
       (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
      [:span " - "]
      [:span {:class "timestamp"} (human/datetime-ago ts)]]
-    (when (>= nwords 0)
+    (when (and (number? nwords) (not (neg? nwords)))
       [:li {:class "list-inline-item"}
        [:a {:class "btn"}
         "\u00a0" (icon "far fa-file-word") "\u00a0"
@@ -1879,25 +1990,26 @@
       [:li {:class "list-inline-item"}
        "\u00a0" (icon "far fa-user") author])]
    [:div {:class "clearfix"}
-    (when-let [image-url (or (:thumbnail entry) (:lead-image-url entry))]
-      (when-not (or (string/blank? image-url)
-                    (= image-url "self")
-                    (= image-url "default"))
-        [:figure {:class "figure float-start"}
-         [:img {:src image-url
-                :class "figure-img"
-                :style "max-width: 200px; height: auto;"}]]))
+    (when-let [image-url (first-usable-image-url (:thumbnail entry)
+                                                 (:lead-image-url entry))]
+      [:figure {:class "figure float-start me-3 reader-queue-thumbnail reader-image-container"}
+       [:img {:src image-url
+              :class "figure-img reader-defensive-image"
+              :data-error-remove ".reader-image-container"
+              :alt ""
+              :loading "lazy"
+              :decoding "async"}]])
     [:div {:class "description"}
      [:p (human/truncate-ellipsis
           (get-in item [:data :description "text/plain"])
           1200)]]]
    [:div {:class "btn-toolbar" :role "toolbar"}
-    [:div {:class "btn-group btn-group-sm mr-2" :role "group"}
+    [:div {:class "btn-group btn-group-sm me-2" :role "group"}
      (focus-button
       (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"]
                       {:data "content" :content-type "text/html"}
                       x))]
-    [:div {:class "item-action-buttons btn-group btn-group-sm mr-2" :role "group"}
+    [:div {:class "item-action-buttons btn-group btn-group-sm me-2" :role "group"}
      (state-buttons id tags)
      (item-tag-buttons id tags)
      (done-button item)]]])
@@ -1936,7 +2048,10 @@
                                  queue-filter queue-time-filter %)
                                items)]
     [:div
-     [:h2 (if continue-only? "Continue Reading" "Reading Queue")]
+     [:h2
+      (icon (tool-view-icon (if continue-only? :continue-reading :saved-overview)))
+      " "
+      (if continue-only? "Continue Reading" "Reading Queue")]
      [:p {:class "text-secondary"}
       (if continue-only?
         (format "%s active item%s, most recently updated first."
@@ -2271,7 +2386,7 @@
     [:div {:class "gems-view px-2"}
      [:div {:class "d-flex justify-content-between align-items-start gap-3 mb-2"}
       [:div
-       [:h2 {:class "mb-1"} (icon "fas fa-gem") " Gems"]
+       [:h2 {:class "mb-1"} (icon (tool-view-icon :gems)) " Gems"]
        [:p {:class "text-secondary"}
         "Find something you kept, browse the collection, or rediscover a forgotten gem."]]
       [:div {:class "text-end text-secondary small"}
@@ -2371,8 +2486,8 @@
                    :source-key :all
                    :item-id item-id
                    :mode :show-item})
-          view [:main {:role "main" :class "col-xs-12 col-md-6 col-lg-8"}
-                [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+          view [:main {:role "main" :class "col-12 col-md-6 col-lg-8"}
+                [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
                  [:h2 "Related to “" (:title item) "”"]
                  [:p {:class "text-secondary"}
                   "Ranked by lexical overlap. Titles count most; names and nouns count next; "
@@ -2483,7 +2598,7 @@
   (let [snapshot @vibe/current-vibe]
     (if (= vibe/not-compiled snapshot)
       [:div
-       [:h2 "Today’s Vibe"]
+       [:h2 (icon (tool-view-icon :todays-vibe)) " Today’s Vibe"]
        [:p {:class "text-secondary"}
         "The first clustering run has not completed yet."]]
       (let [clusters (if include-seen?
@@ -2511,7 +2626,7 @@
             offer-map (into {} (map (fn [[cluster offers]] [(:id cluster) offers])
                                     offers-by-cluster))]
         [:div
-         [:h2 "Today’s Vibe"]
+         [:h2 (icon (tool-view-icon :todays-vibe)) " Today’s Vibe"]
          [:p {:class "text-secondary"} "Generated "
           [:span {:class "timestamp" :title (:generated-at snapshot)}
            (human/datetime-ago-short (:generated-at snapshot))]
@@ -2581,7 +2696,7 @@
         error (:error search-result)]
 
     [:div {:class "px-3"}
-     [:h3 "Search"]
+     [:h3 (icon (tool-view-icon :search)) " Search"]
      [:form {:action "/reader/tools/search" :method "get"}
       [:div {:class "row mb-3"}
        [:label {:for "query" :class "col-sm-4 col-form-label"}
@@ -2616,7 +2731,7 @@
                            :name "days-ago"
                            :id (str "days-ago-" name)
                            :value days}
-                          :checked (= days-ago days))]
+                          :checked (= (or days-ago "") days))]
            [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]]
       [:div {:class "row mb-3"}
        [:label {:class "col-sm-4 col-form-label"} "Actions"]
@@ -2627,7 +2742,7 @@
         (format "Search failed: %s" error)])
 
      [:h3 "Results"]
-     [:p "Found: " [:td (count results)]]
+     [:p "Found: " (count results)]
 
      [:p {:class "word-cloud"}
       (let [freqs (->> (map :key results)
@@ -2656,9 +2771,9 @@
      [:table {:class "table table-borderless"}
       [:thead
        [:tr
-        [:td "Title"]
-        [:td "Source"]
-        [:td "Fetched"]]]
+        [:th {:scope "col"} "Title"]
+        [:th {:scope "col"} "Source"]
+        [:th {:scope "col"} "Fetched"]]]
       [:tbody
        (for [{:keys [title key rank id ts headline]} results]
          [:tr
@@ -2711,15 +2826,15 @@
          html (prometheus/with-duration (metrics/prom-registry :llar-ui/render-html)
                 (html5
                  (html-header title (:mode params) (some-> params :items first))
-                 [:body
+                 [:body {:class "llar-reader reader-mode-tools"}
                   (concat
                    [nav-bar]
                    [[:div {:class "container-fluid"}
                      [:div {:class "row"}
                       group-nav
                       [:main {:role "main"
-                              :class "col-xs-12 col-md-8 col-lg-9"}
-                       [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+                              :class "col-12 col-md-8 col-lg-9"}
+                       [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
                         view]]]]]
                    (html-footer))]))]
      html)))
@@ -2730,11 +2845,11 @@
   (html5
    [:html {:lang "en"}
     (html-header "preview" "preview" nil)
-    [:body
+    [:body {:class "llar-reader reader-mode-preview"}
      (concat
       [[:main {:role "main"
-               :class "col-xs-12 col-md-6 col-lg-8"}
-        [:div {:class "justify-content-between flex-wrap flex-md-no align-items-center pb-2 mb-3"}
+               :class "col-12 col-md-6 col-lg-8"}
+        [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
          (for [item @+current-fetch-preview+]
            (dump-item {:items [item]}))]]]
       (html-footer))]]))

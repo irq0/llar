@@ -37,6 +37,41 @@
     (is (= :gallery (uut/get-list-style {:group-item :blog
                                          :list-style :gallery})))))
 
+(deftest list-style-navigation-shows-the-effective-view
+  (with-redefs [rc/rc (fn [path]
+                        (when (= [:reader :default-list-view :blog] path)
+                          :headlines))]
+    (let [rendered (str (h/html (uut/group-nav
+                                 {:mode :list-items
+                                  :uri "/reader/group/default/blog/source/all/items"
+                                  :group-name :default
+                                  :group-item :blog
+                                  :sources {}
+                                  :item-tags []})))]
+      (is (re-find #"Use Configured Default" rendered))
+      (is (re-find #"(?s)id=\"view-style-select\".*?nav-link active.*?list-style=headlines.*?Headlines"
+                   rendered)))))
+
+(deftest feed-images-are-defensive-and-gallery-placeholders-stay-quiet
+  (is (false? (#'uut/usable-image-url? " SELF ")))
+  (is (false? (#'uut/usable-image-url? "default")))
+  (is (true? (#'uut/usable-image-url? "https://example.com/image.jpg")))
+  (let [base-item {:id 42
+                   :source-key "feed"
+                   :title "A picture"
+                   :ts (time/zoned-date-time)
+                   :tags []
+                   :url "https://example.com/story"}
+        without-image (str (h/html (uut/gallery-list-item
+                                    {} "/reader/source/feed" base-item)))
+        with-image (str (h/html (uut/gallery-list-item
+                                 {} "/reader/source/feed"
+                                 (assoc base-item :entry
+                                        {:thumbnail "https://example.com/image.jpg"}))))]
+    (is (not (re-find #"gallery-image-trigger|<img" without-image)))
+    (is (re-find #"gallery-card-image reader-defensive-image" with-image))
+    (is (re-find #"alt=\"Preview for A picture\"" with-image))))
+
 (deftest youtube-preview-fills-ratio-container
   (let [rendered (str (uut/render-special-item-content
                        {:url "https://www.youtube.com/watch?v=abc123"
@@ -46,6 +81,51 @@
     (is (re-find #"class=\"lazy-youtube\"" rendered))
     (is (re-find #"data-vid=\"abc123\"" rendered))
     (is (re-find #"alt=\"Play video on YouTube\"" rendered))))
+
+(deftest list-navbar-keeps-the-read-and-update-toolbar-visible
+  (with-redefs [rc/rc (constantly nil)]
+    (let [rendered (str (h/html (uut/nav-bar
+                                 {:mode :list-items
+                                  :uri "/reader/group/default/none/source/all/items"
+                                  :group-name :default
+                                  :group-item :none
+                                  :source-key :all
+                                  :sources []
+                                  :selected-sources []
+                                  :items [{:id 42 :title "An item" :tags []}]})))]
+      (is (re-find #"breadcrumb flex-grow-1 path" rendered))
+      (is (not (re-find #"col-12 form-control-dark breadcrumb" rendered)))
+      (is (re-find #"btn-mark-view-read" rendered))
+      (is (re-find #"btn-update-sources-in-view" rendered)))))
+
+(deftest tool-breadcrumb-names-the-current-tool-instead-of-all
+  (with-redefs [rc/rc (constantly nil)]
+    (doseq [[view title icon-class] [[:saved-overview "Reading Queue" "fas fa-project-diagram"]
+                                     [:continue-reading "Continue Reading" "fas fa-map-marker-alt"]
+                                     [:todays-vibe "Today’s Vibe" "fas fa-fire"]
+                                     [:gems "Gems" "fas fa-gem"]
+                                     [:search "Search" "fas fa-search"]]]
+      (let [rendered (str (h/html (uut/nav-bar
+                                   {:mode :tools
+                                    :view view
+                                    :uri (str "/reader/tools/" (name view))
+                                    :group-name :default
+                                    :group-item :all
+                                    :source-key :all
+                                    :items []})))]
+        (is (string/includes? rendered title))
+        (is (string/includes? rendered icon-class))
+        (is (re-find #"breadcrumb-item active" rendered))
+        (is (not (re-find #">all</a>" rendered)))))))
+
+(deftest reader-bootstrap-primary-is-the-llar-orange
+  (let [css (slurp (io/resource "status/llar.css"))]
+    (is (re-find #"--llar-primary: #f2711c" css))
+    (is (re-find #"--llar-primary-control: #ff9a57" css))
+    (is (re-find #"\.reading-checkpoint-control\.is-active \{[^}]*var\(--bs-primary\)"
+                 css))
+    (is (re-find #"\.checkpoint-resume-target \{[^}]*var\(--llar-primary-rgb\)"
+                 css))))
 
 (deftest youtube-player-sends-origin-referrer
   (let [javascript (slurp (io/resource "status/llar.js"))]
@@ -173,9 +253,9 @@
                    overlay))
       (is (not (re-find #"btn-outline-secondary|btn-secondary" overlay)))
       (is (not (re-find #"(?:btn|outline)-warning" overlay)))
-      (is (re-find #"<body class=\"reader-mode-focus-item\"" focus-shell))
+      (is (re-find #"<body class=\"llar-reader reader-mode-focus-item\"" focus-shell))
       (is (re-find #"class=\"reading-viewport-overlay\"" focus-shell))
-      (is (re-find #"<body class=\"reader-mode-show-item\"" show-shell))
+      (is (re-find #"<body class=\"llar-reader reader-mode-show-item\"" show-shell))
       (is (re-find #"class=\"reading-viewport-overlay\"" show-shell)))))
 
 (deftest reader-shell-escapes-content-derived-html
@@ -191,7 +271,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f01-4\"></script></body></html>$"
                    shell)))))
 
 (deftest reading-navigation-has-one-mode-aware-forward-path
@@ -465,3 +545,19 @@
          (#'uut/render-search-headline "foo [[[bar]]] baz")))
   (is (= [:span [:mark "foo"] " and " [:mark "bar"]]
          (#'uut/render-search-headline "[[[foo]]] and [[[bar]]]"))))
+
+(deftest search-defaults-to-any-time-and-renders-valid-result-markup
+  (with-redefs [uut/frontend-db :db
+                persistency/search (fn [& _] [])]
+    (let [view (uut/tools-view-handler {:view :search :request-params {}})
+          any-radio (some (fn [node]
+                            (when (and (vector? node)
+                                       (= :input (first node))
+                                       (= "days-ago-any" (:id (second node))))
+                              node))
+                          (tree-seq coll? seq view))
+          rendered (str (h/html view))]
+      (is (true? (:checked (second any-radio))))
+      (is (re-find #"<p>Found: 0</p>" rendered))
+      (is (re-find #"<th scope=\"col\">Title</th>" rendered))
+      (is (not (re-find #"<p>Found: <td" rendered))))))

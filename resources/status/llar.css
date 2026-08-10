@@ -3,6 +3,68 @@ body {
   font-weight: 400;
 }
 
+/*
+ * Reader color semantics
+ *
+ * Orange is LLAR's primary accent: current position, selected state, and the
+ * main action. Bootstrap's success, warning, and danger colors keep their
+ * conventional meanings; info remains available for genuinely informational
+ * data rather than acting as a second primary color.
+ */
+.llar-reader {
+  --llar-primary: #f2711c;
+  --llar-primary-rgb: 242, 113, 28;
+  --llar-primary-control: #ff9a57;
+  --llar-primary-control-hover: #f98537;
+  --llar-primary-subtle: #feeadc;
+  --bs-primary: var(--llar-primary);
+  --bs-primary-rgb: var(--llar-primary-rgb);
+  --bs-primary-text-emphasis: #6d2f07;
+  --bs-primary-bg-subtle: var(--llar-primary-subtle);
+  --bs-primary-border-subtle: #fac09a;
+  --bs-focus-ring-color: rgb(var(--llar-primary-rgb) / 25%);
+}
+
+.llar-reader .btn-primary {
+  --bs-btn-color: #212529;
+  --bs-btn-bg: var(--llar-primary-control);
+  --bs-btn-border-color: var(--llar-primary-control);
+  --bs-btn-hover-color: #212529;
+  --bs-btn-hover-bg: var(--llar-primary-control-hover);
+  --bs-btn-hover-border-color: var(--llar-primary-control-hover);
+  --bs-btn-focus-shadow-rgb: var(--llar-primary-rgb);
+  --bs-btn-active-color: #212529;
+  --bs-btn-active-bg: var(--llar-primary-control-hover);
+  --bs-btn-active-border-color: var(--llar-primary-control-hover);
+  --bs-btn-disabled-color: #212529;
+  --bs-btn-disabled-bg: var(--llar-primary-control);
+  --bs-btn-disabled-border-color: var(--llar-primary-control);
+}
+
+.llar-reader .badge.bg-primary,
+.llar-reader .text-bg-primary {
+  color: #212529 !important;
+  background-color: var(--llar-primary-control) !important;
+}
+
+.llar-reader .btn-outline-secondary.active {
+  color: #212529;
+  background-color: var(--llar-primary-control);
+  border-color: var(--llar-primary-control);
+}
+
+.llar-reader .form-check-input:checked {
+  background-color: var(--llar-primary);
+  border-color: var(--llar-primary);
+}
+
+.llar-reader .form-control:focus,
+.llar-reader .form-select:focus,
+.llar-reader .form-check-input:focus {
+  border-color: #f8ae7d;
+  box-shadow: 0 0 0 0.25rem rgb(var(--llar-primary-rgb) / 25%);
+}
+
 code,
 kbd,
 samp,
@@ -664,7 +726,7 @@ div.item-content-body a::after {
   margin-left: 0.1em;
   font-size: 80%;
   top: -0.5em;
-  color: #f83;
+  color: var(--llar-primary);
   font-feature-settings: "caps" 1;
 }
 
@@ -884,11 +946,11 @@ div.item-content-body p > code {
 }
 
 .sidebar .nav-link.active {
-  color: #f2711c;
+  color: var(--llar-primary);
 }
 
 .sidebar .nav-link-secondary.active {
-  color: #f2711c;
+  color: var(--llar-primary);
 }
 
 .sidebar .nav-link:hover .feather,
@@ -910,6 +972,7 @@ div.item-content-body p > code {
 
 #navbar .path {
   margin: 0;
+  min-width: 0;
   font-size: 0.8em;
   background-color: rgb(0 0 0 / 0%);
   white-space: nowrap;
@@ -969,8 +1032,8 @@ div.item-content-body p > code {
 }
 
 .word-cloud .name {
-  background-color: #f2711c;
-  color: #fff;
+  background-color: var(--llar-primary-control);
+  color: #212529;
 }
 
 .word-cloud .url {
@@ -1008,12 +1071,12 @@ div.item-content-body p > code {
 }
 
 .icon-is-set {
-  color: #f83;
+  color: var(--llar-primary);
 }
 
 /* Annotation highlights (CSS Custom Highlight API) */
 ::highlight(llar-annotation) {
-  background-color: #e67e22;
+  background-color: var(--llar-primary);
   color: inherit;
 }
 
@@ -1022,7 +1085,7 @@ div.item-content-body p > code {
 }
 
 #btn-annotation-mode.active {
-  color: #e67e22;
+  color: var(--llar-primary);
 }
 
 .annotation-mode-active {
@@ -1070,6 +1133,39 @@ div.item-content-body p > code {
 #gallery a:hover {
   color: #000;
   text-decoration: none;
+}
+
+.gallery-image-trigger {
+  cursor: zoom-in;
+}
+
+.gallery-card-image {
+  display: block;
+  width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+}
+
+.gallery-full-image {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 2rem);
+  object-fit: contain;
+}
+
+.reader-queue-thumbnail {
+  width: 200px;
+  max-width: 35%;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.reader-queue-thumbnail > .reader-defensive-image {
+  display: block;
+  width: 100%;
+  max-height: 12rem;
+  margin: 0;
+  object-fit: contain;
 }
 
 #gallery .toolbox a {
@@ -1347,6 +1443,6 @@ figure figcaption {
 }
 
 .checkpoint-resume-target {
-  background-color: rgb(255 193 7 / 28%);
+  background-color: rgb(var(--llar-primary-rgb) / 22%);
   transition: background-color 1.8s ease-out;
 }

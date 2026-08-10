@@ -2,6 +2,26 @@
 // utilities
 //
 
+// Images come from feeds and remote metadata, so a broken URL should remove
+// only its preview rather than leave a broken-image control in the interface.
+document.addEventListener(
+  "error",
+  function (event) {
+    var image = event.target;
+    if (
+      !(image instanceof HTMLImageElement) ||
+      !image.classList.contains("reader-defensive-image")
+    ) {
+      return;
+    }
+
+    var selector = image.getAttribute("data-error-remove");
+    var target = selector ? image.closest(selector) : image;
+    if (target) target.remove();
+  },
+  true,
+);
+
 function getReadingBlocks(container) {
   if (!container) return [];
   var candidates = Array.from(
@@ -495,7 +515,8 @@ $(function () {
 });
 
 $(document).ready(function () {
-  $(".btn-mark-view-read").on("click", function () {
+  $(".btn-mark-view-read").on("click", function (event) {
+    event.preventDefault();
     var ids = Array.from(
       new Set(
         $("main")
@@ -526,14 +547,14 @@ $(document).ready(function () {
     var x = $(this);
     x.removeClass("btn-warning");
     x.removeClass("btn-secondary");
-    x.addClass("btn-info");
+    x.addClass("btn-primary");
     $.post({
       url: "/reader/bookmark/add",
       data: { url: $(x.data("url-source")).val(), type: x.data("type") },
       dataType: "json",
       success: (data) => {
         x.removeClass("btn-warning");
-        x.removeClass("btn-info");
+        x.removeClass("btn-primary");
         $(x.data("url-source")).val("");
         x.addClass("btn-secondary");
         var itemId = data["item-id"];
@@ -546,7 +567,7 @@ $(document).ready(function () {
     }).fail((data) => {
       x.addClass("btn-warning");
       x.removeClass("btn-secondary");
-      x.removeClass("btn-info");
+      x.removeClass("btn-primary");
       show_bookmark_add_result("Fail", data.responseText);
     });
     return false;
