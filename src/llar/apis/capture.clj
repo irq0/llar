@@ -39,32 +39,34 @@
 
 (defn validate-tokens!
   "Return a vector of named bearer tokens, or fail service startup."
-  [credentials]
-  (let [tokens (:tokens credentials)]
-    (when-not (and (map? tokens) (seq tokens))
-      (throw (ex-info "Bookmark capture credentials need a non-empty :tokens map"
-                      {:type ::invalid-credentials})))
-    (let [tokens (mapv (fn [[token-name token]]
-                         (let [normalized-name (when (or (keyword? token-name)
-                                                         (string? token-name))
-                                                 (name token-name))]
-                           (when-not (and (some? normalized-name)
-                                          (re-matches #"[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
-                                                      normalized-name)
-                                          (string? token)
-                                          (re-matches #"[A-Za-z0-9_-]{32,}" token))
-                             (throw (ex-info "Bookmark capture tokens need names and at least 32 base64url-safe characters"
-                                             {:type ::invalid-credentials
-                                              :token-name token-name})))
-                           {:name normalized-name :token token}))
-                       tokens)]
-      (when-not (= (count tokens) (count (set (map :name tokens))))
-        (throw (ex-info "Bookmark capture token names must be unique"
-                        {:type ::invalid-credentials})))
-      (when-not (= (count tokens) (count (set (map :token tokens))))
-        (throw (ex-info "Bookmark capture token values must be unique"
-                        {:type ::invalid-credentials})))
-      tokens)))
+  ([credentials]
+   (validate-tokens! credentials "Bookmark capture"))
+  ([credentials service-name]
+   (let [tokens (:tokens credentials)]
+     (when-not (and (map? tokens) (seq tokens))
+       (throw (ex-info (str service-name " credentials need a non-empty :tokens map")
+                       {:type ::invalid-credentials})))
+     (let [tokens (mapv (fn [[token-name token]]
+                          (let [normalized-name (when (or (keyword? token-name)
+                                                          (string? token-name))
+                                                  (name token-name))]
+                            (when-not (and (some? normalized-name)
+                                           (re-matches #"[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+                                                       normalized-name)
+                                           (string? token)
+                                           (re-matches #"[A-Za-z0-9_-]{32,}" token))
+                              (throw (ex-info (str service-name " tokens need names and at least 32 base64url-safe characters")
+                                              {:type ::invalid-credentials
+                                               :token-name token-name})))
+                            {:name normalized-name :token token}))
+                        tokens)]
+       (when-not (= (count tokens) (count (set (map :name tokens))))
+         (throw (ex-info (str service-name " token names must be unique")
+                         {:type ::invalid-credentials})))
+       (when-not (= (count tokens) (count (set (map :token tokens))))
+         (throw (ex-info (str service-name " token values must be unique")
+                         {:type ::invalid-credentials})))
+       tokens))))
 
 (defn- constant-time= [left right]
   (MessageDigest/isEqual
@@ -76,7 +78,7 @@
            (re-matches #"(?i)^Bearer[ ]+([^ ]+)$")
            second))
 
-(defn- token-owner [tokens provided]
+(defn token-owner [tokens provided]
   (when provided
     (->> tokens
          (map (fn [{:keys [name token]}]
