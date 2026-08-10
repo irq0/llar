@@ -258,66 +258,151 @@
       ;; an old page has neither title metadata nor a usable heading.
       (str item-url)))
 
+(defn fetch-selector-index
+  "Fetch and select the index page of a SelectorFeed. This is also the shared
+  diagnostic boundary used by Config Lab, so production and the lab see exactly
+  the same sanitized Hickory tree."
+  [src & {:keys [trace?] :or {trace? false}}]
+  (let [{:keys [url selectors extractors args]} src
+        user-agent (:user-agent args)
+        http (fetch url :user-agent user-agent :trace? trace?)
+        {:keys [summary hickory]} http
+        base-url (get-base-url-with-path (uri/uri url))
+        matches (vec (hick-s/select (:urls selectors) hickory))
+        item-extractor (or (:urls extractors)
+                           (fn [nodes]
+                             (map (fn [node]
+                                    (absolutify-url (-> node :attrs :href) base-url))
+                                  nodes)))
+        item-urls (vec (item-extractor matches))]
+    (log/debug (str src) " parsed URLs: " {:base-url base-url
+                                           :urls item-urls})
+    (let [conform (s/conform (s/coll-of :irq0/url) item-urls)]
+      (when (s/invalid? conform)
+        (throw+ {:type ::selector-found-shit
+                 :spec-explain (s/explain-str (s/coll-of :irq0/url) item-urls)
+                 :extractor item-extractor
+                 :urls item-urls
+                 :selector (:urls selectors)})))
+    {:http http
+     :trace? trace?
+     :base-url base-url
+     :matches matches
+     :item-urls item-urls
+     :meta (make-meta src)
+     :feed {:title (or (:title summary) (str url))
+            :url url
+            :feed-type "selector-feed"}}))
+
+(defn fetch-selector-item
+  "Fetch one URL selected from a SelectorFeed index."
+  [src raw-item-url & {:keys [trace?] :or {trace? false}}]
+  (let [base-url (get-base-url-with-path raw-item-url)
+        item-url (absolutify-url raw-item-url base-url)]
+    (log/debug (str src) " fetching: " {:base-url base-url
+                                        :item-url item-url})
+    {:base-url base-url
+     :item-url item-url
+     :http (fetch item-url
+                  :user-agent (get-in src [:args :user-agent])
+                  :trace? trace?)}))
+
+(defn- hickory-preview [match]
+  (let [rendered (if (or (map? match) (sequential? match))
+                   (hick-r/hickory-to-html match)
+                   (str match))]
+    (if (> (count rendered) 2000)
+      (str (subs rendered 0 2000) "…")
+      rendered)))
+
+(defn- selector-field-trace [src k hickory fallback trace?]
+  (let [value (hick-select-extract-with-source src k hickory fallback)]
+    (if trace?
+      (let [selector (get-in src [:selectors k])
+            matches (if selector (vec (hick-s/select selector hickory)) [])]
+        {:selector (some-> selector str)
+         :match-count (count matches)
+         :matches (mapv hickory-preview (take 20 matches))
+         :selected-hickory (vec (take 20 matches))
+         :selected-hickory-truncated? (> (count matches) 20)
+         :value value})
+      {:value value})))
+
+(defn extract-selector-item
+  "Extract one fetched SelectorFeed item. Returns both the production item and a
+  compact field trace suitable for diagnostics. With :allow-invalid? true,
+  return the field traces and validation errors without constructing an item."
+  [src feed-context {:keys [base-url item-url http]}
+   & {:keys [allow-invalid?] :or {allow-invalid? false}}]
+  (let [{:keys [hickory summary]} http
+        trace? (:trace? feed-context)
+        author-trace (selector-field-trace src :author hickory nil trace?)
+        title-trace (selector-field-trace src :title hickory nil trace?)
+        title (selector-item-title (:value title-trace) summary hickory item-url)
+        ts-trace (selector-field-trace src :ts hickory (:ts summary) trace?)
+        description-trace (selector-field-trace src :description hickory nil trace?)
+        pub-ts (:value ts-trace)
+        valid-ts? (s/valid? :irq0-fetch-item/ts pub-ts)
+        ts-error (when-not valid-ts?
+                   {:field :ts
+                    :message "SelectorFeed :ts must produce a java.time.ZonedDateTime"
+                    :expected "java.time.ZonedDateTime"
+                    :actual-type (or (some-> pub-ts type str) "nil")})
+        sanitized (fetchutils/process-html-contents base-url hickory)
+        content-selector (get-in src [:selectors :content])
+        content-matches (if content-selector
+                          (vec (hick-s/select content-selector sanitized))
+                          (vec (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
+        content (first content-matches)
+        content-html (if content (hick-r/hickory-to-html content) "")
+        fields {:author author-trace
+                :title (assoc title-trace :value title)
+                :ts (cond-> (assoc ts-trace :valid? valid-ts?)
+                      ts-error (assoc :validation-error (:message ts-error)
+                                      :expected (:expected ts-error)
+                                      :actual-type (:actual-type ts-error)))
+                :description description-trace
+                :content (cond-> {:selector (some-> content-selector str)
+                                  :match-count (count content-matches)
+                                  :value content-html}
+                           trace? (assoc :matches (mapv hickory-preview
+                                                        (take 20 content-matches))
+                                         :selected-hickory (vec (take 20 content-matches))
+                                         :selected-hickory-truncated? (> (count content-matches)
+                                                                         20)))}
+        errors (cond-> [] ts-error (conj ts-error))
+        _ (when (and (seq errors) (not allow-invalid?))
+            (throw (ex-info (:message ts-error)
+                            (assoc ts-error :type ::invalid-selector-value))))
+        item (when (empty? errors)
+               (make-feed-item
+                (:meta feed-context)
+                {:title title :ts pub-ts}
+                (make-item-hash title (str item-url) content-html)
+                {:pub-ts pub-ts
+                 :url item-url
+                 :title title
+                 :authors (:value author-trace)
+                 :descriptions {"text/plain" (:value description-trace)}
+                 :contents {"text/html" content-html
+                            "text/plain" (html2text content-html)}}
+                nil
+                (:feed feed-context)))]
+    {:item item
+     :valid? (empty? errors)
+     :errors errors
+     :fields fields}))
+
 (extend-protocol FetchSource
   llar.src.SelectorFeed
   (fetch-source [src _conditional-tokens]
-    (let [{:keys [url selectors extractors args]} src
-          user-agent (:user-agent args)
-          {:keys [summary hickory]} (fetch url :user-agent user-agent)
-          base-url (get-base-url-with-path (uri/uri url))
-
-          meta (make-meta src)
-          feed {:title (or (:title summary) (str url))
-                :url url
-                :feed-type "selector-feed"}
-          item-extractor (or (:urls extractors)
-                             (fn [l] (map (fn [x] (absolutify-url (-> x :attrs :href) base-url)) l)))
-          item-urls (item-extractor (hick-s/select (:urls selectors) hickory))]
-
-      (log/debug (str src) " parsed URLs: " {:base-url base-url
-                                             :urls item-urls})
-      (let [conform (s/conform (s/coll-of :irq0/url) item-urls)]
-        (when (s/invalid? conform)
-          (throw+ {:type ::selector-found-shit
-                   :spec-explain (s/explain-str (s/coll-of :irq0/url) item-urls)
-                   :extractor item-extractor
-                   :urls item-urls
-                   :selector (:urls selectors)})))
+    (let [index (fetch-selector-index src)]
       (doall
        (keep
         (fn [raw-item-url]
           (try
-            (let [base-url (get-base-url-with-path raw-item-url)
-                  item-url (absolutify-url raw-item-url base-url)
-                  item (fetch item-url :user-agent user-agent)
-                  {:keys [hickory summary]} item]
-              (log/debug (str src) " fetching: " {:base-url base-url
-                                                  :item-url item-url})
-              (let [author (hick-select-extract-with-source src :author hickory nil)
-                    selected-title (hick-select-extract-with-source src :title hickory nil)
-                    title (selector-item-title selected-title summary hickory item-url)
-                    pub-ts (hick-select-extract-with-source src :ts hickory (:ts summary))
-                    description (hick-select-extract-with-source src :description hickory nil)
-                    sanitized (fetchutils/process-html-contents base-url hickory)
-                    content (if (some? (:content selectors))
-                              (first (hick-s/select (:content selectors) sanitized))
-                              (first (hick-s/select (hick-s/child (hick-s/tag :body)) sanitized)))
-                    content-html (hick-r/hickory-to-html content)]
-
-                (make-feed-item
-                 meta
-                 {:title title
-                  :ts pub-ts}
-                 (make-item-hash title (str item-url) content-html)
-                 {:pub-ts pub-ts
-                  :url item-url
-                  :title title
-                  :authors author
-                  :descriptions {"text/plain" description}
-                  :contents {"text/html" content-html
-                             "text/plain" (html2text content-html)}}
-                 nil
-                 feed)))
+            (:item (extract-selector-item src index
+                                          (fetch-selector-item src raw-item-url)))
             (catch clojure.lang.ExceptionInfo ex
               (if (logged-error? ex)
                 (log/debugf "SelectorFeed item skipped after logged HTTP error: raw-url:%s"
@@ -329,7 +414,7 @@
               (log/warnf th "SelectorFeed item failed: raw-url:%s"
                          raw-item-url)
               nil)))
-        item-urls)))))
+        (:item-urls index))))))
 
 (defn- get-posts-url [json]
   (let [field (get-in json [:routes (keyword "/wp/v2/posts") :_links :self])]

@@ -7,7 +7,7 @@
    [llar.store :as store]
    [llar.fetch :as uut]
    [llar.fetch.custom]
-   [llar.fetch.feed]
+   [llar.fetch.feed :as feed]
    [llar.fetch.http]
    [llar.fetch.imap]
    [llar.fetch.readability :as readability]
@@ -207,6 +207,44 @@
                                               :code 403}))]
       (is (= item ((fetchutils/readability-contents) item))))))
 
+(deftest selector-feed-index-stage-exposes-selector-matches
+  (let [html "<html><body><a data-k5a-url='/storage/article' href='/storage/article'>Story</a></body></html>"
+        hickory (-> html hick/parse hick/as-hickory)
+        source (src/selector-feed
+                "https://www.theregister.com/storage/"
+                {:urls (S/and (S/tag :a)
+                              (S/attr :data-k5a-url #(re-find #"/storage/" %)))}
+                {}
+                {})]
+    (with-redefs [http/fetch (fn [& _]
+                               {:summary {:title "Storage"}
+                                :hickory hickory
+                                :trace {:raw-html html
+                                        :dompurify-html html
+                                        :final-html html}})]
+      (let [index (feed/fetch-selector-index source :trace? true)]
+        (is (= 1 (count (:matches index))))
+        (is (= ["https://www.theregister.com/storage/article"]
+               (mapv str (:item-urls index))))
+        (is (= html (get-in index [:http :trace :dompurify-html])))))))
+
+(deftest selector-field-trace-exposes-the-hickory-given-to-the-extractor
+  (let [selected-node {:type :element
+                       :tag :h1
+                       :attrs {:class "title"}
+                       :content ["Selected title"]}
+        hickory {:type :document :content [selected-node]}
+        source (src/selector-feed
+                "https://example.com/"
+                {:urls (S/tag :a)
+                 :title (S/tag :h1)}
+                {}
+                {})
+        trace (#'feed/selector-field-trace source :title hickory nil true)]
+    (is (= [selected-node] (:selected-hickory trace)))
+    (is (false? (:selected-hickory-truncated? trace)))
+    (is (= "Selected title" (:value trace)))))
+
 (deftest selector-feed-isolates-child-failures-and-falls-back-title
   (let [source (src/selector-feed "https://example.com/index.html"
                                   {:urls (S/tag :a)} {} {})
@@ -281,6 +319,50 @@
                (mapv #(get-in % [:summary :title]) items)))
         (is (= "https://example.com/index.html"
                (get-in (first items) [:feed :title])))))))
+
+(deftest selector-feed-reports-an-invalid-timestamp-extractor
+  (let [source (src/selector-feed
+                "https://example.com/index.html"
+                {:urls (S/tag :a)
+                 :ts (S/tag :time)}
+                {}
+                {})
+        ts (time/zoned-date-time)
+        index-hickory {:type :document
+                       :content [{:type :element
+                                  :tag :a
+                                  :attrs {:href "/item"}
+                                  :content ["item"]}]}
+        item-hickory {:type :document
+                      :content [{:type :element
+                                 :tag :body
+                                 :attrs nil
+                                 :content [{:type :element
+                                            :tag :time
+                                            :attrs nil
+                                            :content ["not a parsed timestamp"]}]}]}]
+    (with-redefs [http/fetch (fn [url & _]
+                               (if (= "https://example.com/index.html" (str url))
+                                 {:summary {:ts ts :title "Index"}
+                                  :hickory index-hickory}
+                                 {:summary {:ts ts :title "Item"}
+                                  :hickory item-hickory}))]
+      (let [index (feed/fetch-selector-index source :trace? true)
+            fetched (feed/fetch-selector-item source (first (:item-urls index)) :trace? true)]
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"SelectorFeed :ts must produce a java.time.ZonedDateTime"
+             (feed/extract-selector-item source index fetched)))
+        (let [diagnostic (feed/extract-selector-item source index fetched
+                                                     :allow-invalid? true)]
+          (is (false? (:valid? diagnostic)))
+          (is (nil? (:item diagnostic)))
+          (is (= "not a parsed timestamp"
+                 (get-in diagnostic [:fields :ts :value])))
+          (is (= "java.time.ZonedDateTime"
+                 (get-in diagnostic [:fields :ts :expected])))
+          (is (= [(get-in item-hickory [:content 0 :content 0])]
+                 (get-in diagnostic [:fields :ts :selected-hickory]))))))))
 
 (deftest titleless-rss-feed-test
   (let [url "https://bsky.app/profile/alexmillerdb.bsky.social/rss"
