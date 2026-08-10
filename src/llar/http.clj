@@ -23,11 +23,18 @@
    [java-time.api :as time])
   (:import
    [java.io InputStream InputStreamReader Reader]
+   [java.net InetAddress]
    [java.nio.charset Charset StandardCharsets]))
 
 ;; 🖖 HTTP Fetch utility
 
 (defonce ^:dynamic *domain-blocklist* (atom #{}))
+
+;; Config Lab binds this guard for every request made through the normal LLAR
+;; fetcher. Redirects are followed explicitly while it is bound so every target
+;; is checked instead of trusting clj-http's implicit redirect handling.
+(def ^:dynamic *url-guard* nil)
+(def ^:dynamic *request-timeouts-override* nil)
 
 (def ^:private +http-error-body-preview-chars+ 512)
 (def ^:private +http-error-body-conversion-chars+ 4096)
@@ -683,6 +690,9 @@
      (do ~@body)
      (catch clojure.lang.ExceptionInfo e#
        (cond
+         (::preserve? (ex-data e#))
+         (throw e#)
+
          (= (:type (ex-data e#)) :clj-http.client/unexceptional-status)
          (http-resp-throw (ex-data e#) (merge ~throw-extra))
          :else
@@ -763,54 +773,88 @@
                        :reason-class :unexpected}
                       ~throw-extra)))))
 
+(defn get-with-redirect-guard
+  "Run a GET request while honoring the dynamically bound Config Lab URL guard.
+  Every redirect is revalidated and each request is pinned to the addresses
+  returned by the guard, preventing DNS changes between validation and connect."
+  [url request-options]
+  (letfn [(request [target redirects-left]
+            (let [resolved-addresses (when *url-guard*
+                                       (*url-guard* (str target)))
+                  dns-resolver (when (seq resolved-addresses)
+                                 (reify org.apache.http.conn.DnsResolver
+                                   (resolve [_ _host]
+                                     (into-array InetAddress resolved-addresses))))
+                  options (merge request-options (or *request-timeouts-override* {}))
+                  response (http/get (str target)
+                                     (cond-> options
+                                       *url-guard* (assoc :redirect-strategy :none)
+                                       dns-resolver (assoc :dns-resolver dns-resolver)))
+                  location (get-in response [:headers :location])]
+              (if (and *url-guard*
+                       (#{301 302 303 307 308} (:status response))
+                       location)
+                (if (pos? redirects-left)
+                  (request (absolutify-url location target) (dec redirects-left))
+                  (throw+ {:type ::too-many-redirects :url target}))
+                response)))]
+    (request url 5)))
+
 (defn fetch
   "Generic HTTP fetcher"
-  [url & {:keys [user-agent conditionals sanitize? remove-css? simplify? blobify? absolutify-urls?]
+  [url & {:keys [user-agent conditionals sanitize? remove-css? simplify? blobify? absolutify-urls? trace?]
           :or {user-agent :default
                conditionals {}
                sanitize? true
                blobify? true
                remove-css? false
                absolutify-urls? true
+               trace? false
                simplify? false}}]
   (let [url (parse-url url)
         headers (cond-> {:user-agent (resolve-user-agent user-agent)}
                   (:etag conditionals) (assoc :if-none-match (:etag conditionals))
                   (:last-modified conditionals) (assoc :if-modified-since (:last-modified conditionals)))
         base-url (get-base-url-with-path url)
+        request-options (merge
+                         (or *request-timeouts-override*
+                             (llar.appconfig/http-request-timeouts))
+                         {:headers headers
+                          :as :stream
+                          :throw-exceptions false
+                          :decode-cookies false
+                          :cookie-policy :none})
         response (-> (with-http-exception-handler {:headers headers :url url}
-                       (http/get (str url)
-                                 (merge
-                                  (llar.appconfig/http-request-timeouts)
-                                  {:headers headers
-                                   :as :stream
-                                   :throw-exceptions false
-                                   :decode-cookies false
-                                   :cookie-policy :none})))
+                       (get-with-redirect-guard url request-options))
                      (materialize-bounded-body url))
         response (if (http/unexceptional-status? (:status response))
                    response
                    (http-resp-throw response {:headers headers :url url}))
 
-        html (when (and (#{200 206} (:status response))
-                        (some? (:body response)))
-               (if sanitize? (raw-sanitize (:body response))
-                   (:body response)))
-        parsed-html (when (some? html) (cond-> (-> html
-                                                   hick/parse hick/as-hickory)
-                                         absolutify-urls? (absolutify-links-in-hick base-url)
-                                         sanitize? (sanitize :remove-css? remove-css?)
-                                         simplify? (simplify)
-                                         blobify? (blobify)))]
+        sanitized-html (when (and (#{200 206} (:status response))
+                                  (some? (:body response)))
+                         (if sanitize? (raw-sanitize (:body response))
+                             (:body response)))
+        parsed-html (when (some? sanitized-html) (cond-> (-> sanitized-html
+                                                             hick/parse hick/as-hickory)
+                                                   absolutify-urls? (absolutify-links-in-hick base-url)
+                                                   sanitize? (sanitize :remove-css? remove-css?)
+                                                   simplify? (simplify)
+                                                   blobify? (blobify)))]
     (log/debugf "HTTP GET: %s req-headers:%s status:%s body:%sB cond:%s" url headers (:status response) (count (get response :body)) (select-keys (:headers response) [:etag :last-modified]))
     (if (= 304 (:status response))
       {:raw response
        :status :not-modified
        :conditional-tokens conditionals}
-      {:raw response
-       :status :ok
-       :body (when parsed-html (hick-r/hickory-to-html parsed-html))
-       :conditional-tokens (select-keys (:headers response) [:etag :last-modified])
-       :summary {:ts (extract-http-timestamp response)
-                 :title (extract-http-title parsed-html)}
-       :hickory parsed-html})))
+      (let [final-html (when parsed-html (hick-r/hickory-to-html parsed-html))]
+        (cond->
+         {:raw response
+          :status :ok
+          :body final-html
+          :conditional-tokens (select-keys (:headers response) [:etag :last-modified])
+          :summary {:ts (extract-http-timestamp response)
+                    :title (extract-http-title parsed-html)}
+          :hickory parsed-html}
+          trace? (assoc :trace {:raw-html (:body response)
+                                :dompurify-html sanitized-html
+                                :final-html final-html}))))))

@@ -21,6 +21,10 @@
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
 
+;; Config Lab replaces this with llar.http/get-with-redirect-guard so images
+;; downloaded while sanitizing a preview inherit its SSRF and DNS protections.
+(def ^:dynamic *http-get* http2/get)
+
 (defn- blob-file
   "Return filename for blob hash"
   [base-dir hash]
@@ -176,10 +180,10 @@
   "Download, hash, add to primary index - create secondary index entry"
   [url]
   (try+
-   (let [response (http2/get (str url)
-                             {:as :stream
-                              :socket-timeout 10000
-                              :connection-timeout 5000})
+   (let [response (*http-get* (str url)
+                              {:as :stream
+                               :socket-timeout 10000
+                               :connection-timeout 5000})
 
          body (with-open [input ^InputStream (:body response)]
                 (enforce-blob-body-size! url (response-content-length response))

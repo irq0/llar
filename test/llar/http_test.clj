@@ -13,7 +13,8 @@
    [llar.commands :as commands]
    [llar.http :as uut])
   (:import
-   [java.io ByteArrayInputStream StringReader]))
+   [java.io ByteArrayInputStream StringReader]
+   [java.net InetAddress]))
 
 (deftest http-timestamp-falls-back-when-response-has-no-date-headers
   (is (instance? java.time.ZonedDateTime
@@ -394,6 +395,51 @@
       (catch clojure.lang.ExceptionInfo ex
         (is (= :llar.http/request-error (:type (ex-data ex))))
         (is (= :body-too-large (:reason-class (ex-data ex))))))))
+
+(deftest fetch-trace-keeps-raw-dompurify-and-final-stages
+  (let [raw "<html><head><title>Raw</title></head><body><p>raw</p></body></html>"
+        cleaned "<html><head><title>Clean</title></head><body><p>clean</p></body></html>"]
+    (with-redefs [appconfig/appconfig {:http {:max-body-bytes 4096}}
+                  clj-http.client/get (fn [& _]
+                                        {:status 200 :headers {} :body raw})
+                  uut/raw-sanitize (constantly cleaned)]
+      (let [result (uut/fetch "https://example.com"
+                              :trace? true
+                              :blobify? false)]
+        (is (= raw (get-in result [:trace :raw-html])))
+        (is (= cleaned (get-in result [:trace :dompurify-html])))
+        (is (string/includes? (get-in result [:trace :final-html]) "clean"))))))
+
+(deftest guarded-fetch-validates-redirect-targets
+  (let [seen (atom [])]
+    (with-redefs [appconfig/appconfig {:http {:max-body-bytes 4096}}
+                  clj-http.client/get (fn [& _]
+                                        {:status 302
+                                         :headers {:location "http://127.0.0.1/private"}
+                                         :body ""})]
+      (binding [uut/*url-guard* (fn [url]
+                                  (swap! seen conj url)
+                                  (when (string/includes? url "127.0.0.1")
+                                    (throw (ex-info "blocked" {:llar.http/preserve? true}))))]
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"blocked"
+                              (uut/fetch "https://example.com"
+                                         :sanitize? false
+                                         :blobify? false)))
+        (is (= ["https://example.com" "http://127.0.0.1/private"] @seen))))))
+
+(deftest guarded-fetch-pins-validated-dns-answer
+  (let [request-options (atom nil)
+        pinned (InetAddress/getByAddress (byte-array [(byte 93) (unchecked-byte 184)
+                                                      (unchecked-byte 216) (byte 34)]))]
+    (with-redefs [appconfig/appconfig {:http {:max-body-bytes 4096}}
+                  clj-http.client/get (fn [_url options]
+                                        (reset! request-options options)
+                                        {:status 200 :headers {} :body "ok"})]
+      (binding [uut/*url-guard* (constantly [pinned])]
+        (uut/fetch "https://example.com" :sanitize? false :blobify? false))
+      (let [resolver (:dns-resolver @request-options)]
+        (is resolver)
+        (is (= [pinned] (vec (.resolve resolver "example.com"))))))))
 
 (deftest fetch-bounds-streams-without-content-length
   (with-redefs [appconfig/appconfig {:http {:max-body-bytes 4}}
