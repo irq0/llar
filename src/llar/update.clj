@@ -9,6 +9,7 @@
    [llar.converter :as converter]
    [iapetos.core :as prometheus]
    [llar.fetch :as fetch]
+   [llar.human :as human]
    [llar.pool :as pool]
    [llar.postproc :as proc]
    [llar.rc :as rc]
@@ -192,16 +193,19 @@
                             :fetched fetched
                             :processed processed
                             :update-step :store
-                            :skip skip-store})))]
+                            :skip skip-store})))
+           next-state (make-next-state state :ok
+                                       {:stats {:fetched (count fetched)
+                                                :processed (count processed)
+                                                :db (count dbks)}
+                                        :fetch-meta (meta fetched)})]
 
-       (log/infof "update %s: fetched: %d, after processing: %d, new in db: %d (skip-proc: %s, skip-store: %s, fetch-meta: %s)"
+       (log/infof "update %s: fetched: %d, after processing: %d, new in db: %d, duration: %s (skip-proc: %s, skip-store: %s, fetch-meta: %s)"
                   (str src) (count fetched) (count processed) (count dbks)
-                  skip-proc skip-store  (meta fetched))
+                  (human/format-duration (:last-duration next-state))
+                  skip-proc skip-store (meta fetched))
 
-       (make-next-state state :ok {:stats {:fetched (count fetched)
-                                           :processed (count processed)
-                                           :db (count dbks)}
-                                   :fetch-meta (meta fetched)}))
+       next-state)
 
      (catch [:type :llar.http/server-error-retry-later] _
        (make-next-state state :temp-fail (inc retry-count) &throw-context))
