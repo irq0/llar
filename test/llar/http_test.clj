@@ -8,6 +8,7 @@
    [clojure.test.check.properties :as prop]
    [hickory.select :as s]
    [clj-http.client]
+   [clojure.tools.logging :as log]
    [llar.appconfig :as appconfig]
    [llar.commands :as commands]
    [llar.http :as uut])
@@ -220,6 +221,40 @@
       (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
       (is (= :ssl (:reason-class (ex-data ex))))
       (is (= "https://expired.example" (:url (ex-data ex)))))))
+
+(deftest host-resolution-failure-logs-without-a-stack-trace
+  (let [logged (atom nil)]
+    (with-redefs [log/log* (fn [& args] (reset! logged args))]
+      (try
+        (uut/with-http-exception-handler {:url "https://missing.example"}
+          (throw (java.net.UnknownHostException. "missing.example")))
+        (is false "expected host resolution failure to throw")
+        (catch clojure.lang.ExceptionInfo ex
+          (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
+          (is (= :dns (:reason-class (ex-data ex))))
+          (is (= "https://missing.example" (:url (ex-data ex)))))))
+    (is (not-any? #(instance? Throwable %) @logged)
+        "the logger must not receive a throwable for expected DNS failures")
+    (is (string/includes? (str (last @logged)) "missing.example")
+        "the concise log message retains the failed hostname")))
+
+(deftest circular-redirect-logs-without-a-stack-trace
+  (let [logged (atom nil)]
+    (with-redefs [log/log* (fn [& args] (reset! logged args))]
+      (try
+        (uut/with-http-exception-handler {:url "https://redirect.example"}
+          (throw (org.apache.http.client.CircularRedirectException.
+                  "redirect loop detected")))
+        (is false "expected circular redirect failure to throw")
+        (catch clojure.lang.ExceptionInfo ex
+          (is (= :llar.http/server-error-retry-later (:type (ex-data ex))))
+          (is (= :redirect (:reason-class (ex-data ex))))
+          (is (= "Circular redirect: redirect loop detected" (:message (ex-data ex))))
+          (is (= "https://redirect.example" (:url (ex-data ex)))))))
+    (is (not-any? #(instance? Throwable %) @logged)
+        "the logger must not receive a throwable for circular redirects")
+    (is (string/includes? (str (last @logged)) "redirect loop detected")
+        "the concise log message retains the redirect summary")))
 
 (deftest http-response-errors-carry-a-bounded-fingerprinted-preview
   (let [body (apply str (repeat 600 "large response body "))

@@ -690,9 +690,16 @@
                         ~throw-extra))))
 
      (catch java.net.UnknownHostException e#
-       (log/error e# "host resolution error" ~throw-extra)
+       (log/errorf "host resolution error %s: %s" ~throw-extra (ex-message e#))
        (throw+ (merge {:type ::server-error-retry-later
                        :reason-class :dns}
+                      ~throw-extra)))
+
+     (catch org.apache.http.client.CircularRedirectException e#
+       (log/errorf "circular redirect %s: %s" ~throw-extra (ex-message e#))
+       (throw+ (merge {:type ::server-error-retry-later
+                       :reason-class :redirect
+                       :message (str "Circular redirect: " (ex-message e#))}
                       ~throw-extra)))
 
      (catch javax.net.ssl.SSLHandshakeException e#
