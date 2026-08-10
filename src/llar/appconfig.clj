@@ -56,7 +56,18 @@
                    :irq0-appconfig/max-single-source-clusters]))
 (s/def :irq0-appconfig/jetty-config
   (s/keys :req-un [:irq0-appconfig/port]))
-(s/def :irq0-appconfig/dashboard :irq0-appconfig/jetty-config)
+(s/def :irq0-appconfig/max-concurrent-runs pos-int?)
+(s/def :irq0-appconfig/run-timeout-ms pos-int?)
+(s/def :irq0-appconfig/session-ttl-minutes pos-int?)
+(s/def :irq0-appconfig/config-lab
+  (s/keys :req-un [:irq0-appconfig/enabled?]
+          :opt-un [:irq0-appconfig/credentials
+                   :irq0-appconfig/max-concurrent-runs
+                   :irq0-appconfig/run-timeout-ms
+                   :irq0-appconfig/session-ttl-minutes]))
+(s/def :irq0-appconfig/dashboard
+  (s/keys :req-un [:irq0-appconfig/port]
+          :opt-un [:irq0-appconfig/config-lab]))
 (s/def :irq0-appconfig/reader
   (s/keys :req-un [:irq0-appconfig/port]
           :opt-un [:irq0-appconfig/base-url]))
@@ -293,14 +304,16 @@
 (defn postgresql-config [pool]
   (get-in appconfig [:postgresql pool]))
 
+(def ^:dynamic *blob-store-dir-override* nil)
+
 (defn blob-store-dir []
-  (get appconfig :blob-store-dir))
+  (or *blob-store-dir-override* (get appconfig :blob-store-dir)))
 
 (defn blob-store-url-index-dir []
-  (str (get appconfig :blob-store-dir) "/url-index"))
+  (str (blob-store-dir) "/url-index"))
 
 (defn blob-store-dupes-dir []
-  (str (get appconfig :blob-store-dir) "/url-dupe-content-index"))
+  (str (blob-store-dir) "/url-dupe-content-index"))
 
 (defn command [name]
   (let [cmd (get-in appconfig [:commands name])]
@@ -329,6 +342,10 @@
 (defn capture
   ([] (get-in appconfig [:api :capture]))
   ([key] (get-in appconfig [:api :capture key])))
+
+(defn config-lab
+  ([] (get-in appconfig [:api :dashboard :config-lab]))
+  ([key] (get-in appconfig [:api :dashboard :config-lab key])))
 
 (defn fever
   ([] (get-in appconfig [:api :fever]))

@@ -1,7 +1,17 @@
 {:update-max-retry 5
  :credentials-file "/var/lib/llar/credentials.edn"
  :runtime-config-dir "/var/lib/llar/config"
- :api {:dashboard {:port 9999}
+ :api {:dashboard {:port 9999
+                   ;; Opt-in, ephemeral source and processor workbench. The tab
+                   ;; is absent unless enabled. Its dedicated token is exchanged
+                   ;; for a short-lived browser session and is never stored in
+                   ;; LLAR's runtime configuration.
+                   ;; :config-lab {:enabled? true
+                   ;;              :credentials :config-lab
+                   ;;              :max-concurrent-runs 2
+                   ;;              :run-timeout-ms 20000
+                   ;;              :session-ttl-minutes 30}
+                   }
        ;; :base-url lets features (e.g. epaper digests) build absolute links back
        ;; into the reader. Set it to how the reader is reached from outside.
        :reader {:port 8023 :base-url "http://localhost:8023"}

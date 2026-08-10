@@ -66,6 +66,7 @@
                  [org.clojure/test.check "1.1.3"]
                  [org.clojure/tools.cli "1.4.256"]
                  [org.clojure/tools.reader "1.6.0"]
+                 [org.babashka/sci "0.13.53"]
                  [dev.weavejester/medley "1.10.0"]
                  [com.fasterxml.jackson.core/jackson-databind "2.22.1"]
                  [org.jsoup/jsoup "1.23.1"]
