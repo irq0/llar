@@ -1227,8 +1227,7 @@ function updateCheckpointControls(state) {
   controls.find(".btn-resume-checkpoint,.btn-clear-checkpoint").remove();
   var save = controls.find(".btn-save-checkpoint");
   save
-    .toggleClass("btn-secondary", !!checkpoint)
-    .toggleClass("btn-outline-secondary", !checkpoint)
+    .toggleClass("is-active", !!checkpoint)
     .attr("aria-pressed", checkpoint ? "true" : "false")
     .attr(
       "title",
@@ -1242,7 +1241,9 @@ function updateCheckpointControls(state) {
   if (!checkpoint) return;
   if (checkpoint.selector) {
     var resume = $("<button>")
-      .addClass("btn btn-outline-secondary btn-resume-checkpoint")
+      .addClass(
+        "reading-checkpoint-control reading-checkpoint-resume btn-resume-checkpoint",
+      )
       .attr("type", "button")
       .attr("title", "Resume at " + Math.round(checkpoint.progress * 100) + "%")
       .attr("aria-label", "Scroll to the saved reading position")
@@ -1253,7 +1254,9 @@ function updateCheckpointControls(state) {
     controls.prepend(resume);
   }
   $("<button>")
-    .addClass("btn btn-outline-secondary btn-clear-checkpoint")
+    .addClass(
+      "reading-checkpoint-control reading-checkpoint-clear btn-clear-checkpoint",
+    )
     .attr("type", "button")
     .attr("title", "Clear the Continue Reading checkpoint")
     .attr("aria-label", "Clear saved place")
@@ -1274,12 +1277,53 @@ function saveReadingCheckpoint(event) {
     selector: JSON.stringify(checkpoint.selector),
     progress: checkpoint.progress,
   })
+    .done(function () {
+      flashReadingLocation(container, checkpoint.selector);
+    })
     .fail(function (xhr) {
       console.error("[reading-checkpoint] save failed:", xhr.status);
     })
     .always(function () {
       button.prop("disabled", false);
     });
+}
+
+function checkpointRange(container, selector) {
+  if (!container || !selector) return null;
+  var range = null;
+  if (selector.position) {
+    range = createRangeFromOffsets(
+      container,
+      selector.position.start,
+      selector.position.end,
+    );
+    if (
+      range &&
+      selector.quote &&
+      normalizeWS(range.toString()) !== normalizeWS(selector.quote.exact)
+    ) {
+      range = null;
+    }
+  }
+  if (!range && selector.quote) {
+    range = findByQuoteSelector(container, selector.quote);
+  }
+  return range;
+}
+
+function flashReadingLocation(container, selector) {
+  var range = checkpointRange(container, selector);
+  flashReadingRange(range);
+}
+
+function flashReadingRange(range) {
+  if (!range) return;
+  var target = $(range.startContainer).closest("p,li,pre,blockquote,div");
+  if (!target.length) target = $(range.startContainer.parentElement);
+  target.addClass("checkpoint-resume-target");
+  setTimeout(function () {
+    target.removeClass("checkpoint-resume-target");
+  }, 1800);
 }
 
 function clearReadingCheckpoint(event) {
@@ -1304,24 +1348,7 @@ function resumeReadingCheckpoint(event) {
   var container = document.getElementById("item-content-body");
   if (!container || !selector) return;
 
-  var range = null;
-  if (selector.position) {
-    range = createRangeFromOffsets(
-      container,
-      selector.position.start,
-      selector.position.end,
-    );
-    if (
-      range &&
-      selector.quote &&
-      normalizeWS(range.toString()) !== normalizeWS(selector.quote.exact)
-    ) {
-      range = null;
-    }
-  }
-  if (!range && selector.quote) {
-    range = findByQuoteSelector(container, selector.quote);
-  }
+  var range = checkpointRange(container, selector);
   if (!range) {
     var fullText = getContainerText(container);
     var offset = Math.min(
@@ -1345,11 +1372,7 @@ function resumeReadingCheckpoint(event) {
       behavior: "smooth",
     });
   }
-  var target = $(range.startContainer).closest("p,li,pre,blockquote,div");
-  target.addClass("checkpoint-resume-target");
-  setTimeout(function () {
-    target.removeClass("checkpoint-resume-target");
-  }, 1800);
+  flashReadingRange(range);
 }
 
 function renderHighlights() {

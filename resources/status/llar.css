@@ -1246,12 +1246,53 @@ figure figcaption {
 
 .reading-checkpoint-tools {
   position: absolute;
-  top: clamp(5rem, 24vh, 14rem);
   right: 0.75rem;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
   z-index: 1020;
-  margin: 0;
-  background: var(--bs-body-bg);
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
   pointer-events: auto;
+}
+
+.reading-checkpoint-control {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--bs-secondary-color);
+  background: transparent;
+  opacity: 0.72;
+  transition:
+    color 140ms ease-out,
+    background-color 140ms ease-out,
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.reading-checkpoint-control:hover {
+  color: var(--bs-body-color);
+  background: rgb(128 128 128 / 12%);
+  background: color-mix(in srgb, var(--bs-secondary-bg) 75%, transparent);
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.reading-checkpoint-control:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+.reading-checkpoint-control.is-active {
+  color: var(--bs-primary);
+  opacity: 0.9;
+}
+
+.reading-checkpoint-control:disabled {
+  opacity: 0.4;
+  transform: none;
 }
 
 @media (width <= 768px) {
@@ -1269,14 +1310,13 @@ figure figcaption {
   }
 
   .reading-checkpoint-tools {
-    top: clamp(4rem, 24vh, 10rem);
     right: 0.35rem;
+    bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
 
-  .reading-checkpoint-tools > .btn {
+  .reading-checkpoint-control {
     width: 2.5rem;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    height: 2.5rem;
   }
 }
 

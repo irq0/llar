@@ -167,8 +167,11 @@
       (is (re-find #"class=\"reading-viewport-overlay\"" overlay))
       (is (re-find #"class=\"reading-step-rail\"" overlay))
       (is (re-find #"class=\"reading-checkpoint-rail\"" overlay))
-      (is (re-find #"btn-group-vertical[^\"]*reading-checkpoint-tools"
+      (is (re-find #"class=\"reading-checkpoint-tools\""
                    overlay))
+      (is (re-find #"reading-checkpoint-control reading-checkpoint-save"
+                   overlay))
+      (is (not (re-find #"btn-outline-secondary|btn-secondary" overlay)))
       (is (not (re-find #"(?:btn|outline)-warning" overlay)))
       (is (re-find #"<body class=\"reader-mode-focus-item\"" focus-shell))
       (is (re-find #"class=\"reading-viewport-overlay\"" focus-shell))
@@ -196,6 +199,17 @@
     (is (re-find #"function advanceReadingBlock\(\)" javascript))
     (is (re-find #"function readingUsesHorizontalColumns" javascript))
     (is (not (re-find #"viewport-(?:bottom|pivot)" javascript)))))
+
+(deftest reading-checkpoint-controls-flash-and-use-the-bottom-icon-hud
+  (let [javascript (slurp (io/resource "status/llar.js"))
+        css (slurp (io/resource "status/llar.css"))]
+    (is (re-find #"flashReadingLocation\(container, checkpoint\.selector\)"
+                 javascript))
+    (is (re-find #"function checkpointRange\(container, selector\)" javascript))
+    (is (re-find #"bottom: calc\(0\.75rem \+ env\(safe-area-inset-bottom\)\)"
+                 css))
+    (is (re-find #"\.reading-checkpoint-control \{[^}]*border: 0;"
+                 css))))
 
 (deftest item-view-state-buttons-are-icon-only-with-tooltip-labels
   (let [button (uut/state-button 42 (assoc (first uut/+state-buttons+)

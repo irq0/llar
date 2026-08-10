@@ -827,10 +827,10 @@
 
 (defn reading-checkpoint-tools [{:keys [id checkpoint-selector checkpoint-progress]}]
   (let [active? (some? checkpoint-progress)]
-    [:div {:class "btn-group-vertical btn-group-sm reading-checkpoint-tools shadow-sm"
+    [:div {:class "reading-checkpoint-tools"
            :data-id id}
      (when (and active? checkpoint-selector)
-       [:button {:class "btn btn-outline-secondary btn-resume-checkpoint"
+       [:button {:class "reading-checkpoint-control reading-checkpoint-resume btn-resume-checkpoint"
                  :type "button"
                  :title (format "Resume at %.0f%%" (* 100.0 (double checkpoint-progress)))
                  :aria-label "Scroll to the saved reading position"
@@ -838,15 +838,15 @@
                  :data-progress checkpoint-progress}
         (icon "fas fa-map-marker-alt")])
      [:button {:class (if active?
-                        "btn btn-secondary btn-save-checkpoint"
-                        "btn btn-outline-secondary btn-save-checkpoint")
+                        "reading-checkpoint-control reading-checkpoint-save is-active btn-save-checkpoint"
+                        "reading-checkpoint-control reading-checkpoint-save btn-save-checkpoint")
                :type "button"
                :title (if active? "Update saved place" "Save this reading position")
                :aria-label (if active? "Update saved place" "Save this reading position")
                :aria-pressed (str active?)}
       (icon "fas fa-map-pin")]
      (when active?
-       [:button {:class "btn btn-outline-secondary btn-clear-checkpoint"
+       [:button {:class "reading-checkpoint-control reading-checkpoint-clear btn-clear-checkpoint"
                  :type "button"
                  :title "Clear saved place"
                  :aria-label "Clear saved place"}
