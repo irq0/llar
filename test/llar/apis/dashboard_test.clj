@@ -7,6 +7,7 @@
    [llar.appconfig :as appconfig]
    [llar.apis.podcast :as podcast-api]
    [llar.config :as config]
+   [llar.config-lab :as config-lab]
    [llar.db.bookmark-capture :as capture-db]
    [llar.persistency :as persistency]
    [llar.podcast :as podcast]
@@ -93,6 +94,22 @@
                              :uri "/tab/memory"})]
       (is (= 200 (:status response)))
       (is (string/includes? (:body response) "memory tab")))))
+
+(deftest config-lab-tab-is-opt-in
+  (with-redefs [config-lab/enabled? (constantly false)]
+    (is (= 404 (:status (uut/dashboard-tab "config-lab")))))
+  (with-redefs [config-lab/enabled? (constantly true)]
+    (let [response (uut/dashboard-tab "config-lab")]
+      (is (= 200 (:status response)))
+      (is (string/includes? (:body response) "Ephemeral lab"))
+      (is (string/includes? (:body response) "config-lab-run"))
+      (is (string/includes? (:body response) "Run a source to begin"))
+      (is (string/includes? (:body response) "config-lab-preview-frame"))
+      (is (string/includes? (:body response) "Export configuration"))
+      (is (string/includes? (:body response) "Extraction"))
+      (is (string/includes? (:body response) "config-lab-data-tree"))
+      (is (string/includes? (:body response) "Keys and values use EDN notation"))
+      (is (not (string/includes? (:body response) "Copy JSON"))))))
 
 (deftest docs-tab-renders-config-docs
   (let [response (uut/dashboard-tab "docs")]

@@ -13,10 +13,12 @@
    [puget.printer :as puget]
    [clojure.string :as string]
    [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
+   [llar.apis.config-lab :as config-lab-api]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
    [llar.appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
+   [llar.config-lab :as config-lab]
    [llar.converter]
    [llar.db.bookmark-capture :as capture-db]
    [llar.docs.config :as docs.config]
@@ -58,7 +60,7 @@
    [:script {:src "/static/datatables/dataTables.min.js"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js"}]
    [:script {:src "/static/chartjs/chart.umd.min.js"}]
-   [:script {:src "/static/llar-status.js?v=dashboard-lazy-tabs-1"}]])
+   [:script {:src "/static/llar-status.js?v=config-lab-2"}]])
 
 (defn wrap-body [body]
   (str
@@ -1028,6 +1030,11 @@
    :docs #'docs-tab
    :config #'config-tab})
 
+(defn- active-tabs []
+  (cond-> tabs
+    (config-lab/enabled?)
+    (assoc :config-lab #'config-lab-api/tab)))
+
 (defn- tab-pane-body [k func]
   (if (= :overview k)
     (func)
@@ -1040,7 +1047,7 @@
    [:div {:class "container-fluid mt-3"}
     [:h1 "LLAR Live Long and Read 🖖 Dashboard"]
     [:ul {:class "nav nav-underline"}
-     (for [[k _] tabs
+     (for [[k _] (active-tabs)
            :let [tab-name (name k)
                  tab-id (str tab-name "-tab")
                  tab-href (str "#" tab-name)]]
@@ -1058,7 +1065,7 @@
       "Reload current tab"]]
     [:div {:class "tab-content"
            :id "nav-tab-content"}
-     (for [[k func] tabs
+     (for [[k func] (active-tabs)
            :let [tab-name (name k)
                  cont-id tab-name]]
        [:div {:class (str "tab-pane pt-2  " (when (= k :overview) " fade show active"))
@@ -1069,7 +1076,7 @@
 
 (defn dashboard-tab [tab-name]
   (let [k (keyword tab-name)]
-    (if-let [func (get tabs k)]
+    (if-let [func (get (active-tabs) k)]
       {:status 200
        :headers {"Content-Type" "text/html; charset=utf-8"}
        :body (str (h/html (func)))}
@@ -1242,6 +1249,45 @@
    (GET "/" [] (status-index))
 
    (context "/api" []
+     (POST "/config-lab/login" request
+       (config-lab-api/login-response request))
+
+     (POST "/config-lab/logout" request
+       (config-lab-api/logout-response request))
+
+     (GET "/config-lab/status" request
+       (config-lab-api/status-response request))
+
+     (POST "/config-lab/sessions" request
+       (config-lab-api/create-session-response request))
+
+     (GET "/config-lab/sessions/:session-id" [session-id :as request]
+       (config-lab-api/session-response request session-id))
+
+     (DELETE "/config-lab/sessions/:session-id" [session-id :as request]
+       (config-lab-api/delete-session-response request session-id))
+
+     (POST "/config-lab/sessions/:session-id/compile" [session-id :as request]
+       (config-lab-api/compile-response request session-id))
+
+     (POST "/config-lab/sessions/:session-id/fetch" [session-id :as request]
+       (config-lab-api/fetch-response request session-id))
+
+     (POST "/config-lab/sessions/:session-id/selector-item" [session-id :as request]
+       (config-lab-api/selector-item-response request session-id))
+
+     (POST "/config-lab/sessions/:session-id/process" [session-id :as request]
+       (config-lab-api/process-response request session-id))
+
+     (GET "/config-lab/sessions/:session-id/export" [session-id :as request]
+       (config-lab-api/export-response request session-id))
+
+     (POST "/config-lab/sessions/:session-id/export" [session-id :as request]
+       (config-lab-api/export-response request session-id))
+
+     (GET "/config-lab/sessions/:session-id/blobs/:hash" [session-id hash :as request]
+       (config-lab-api/blob-response request session-id hash))
+
      (POST "/update/:source-key" req
        (let [{:keys [source-key overwrite]} (:params req)]
          (update-source source-key (boolean ((fnil parse-boolean "") overwrite)))))

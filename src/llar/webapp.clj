@@ -5,6 +5,7 @@
    [llar.metrics :as metrics]
    [llar.store :as store]
    [llar.apis.capture :as capture]
+   [llar.apis.config-lab :as config-lab]
    [llar.apis.dashboard :as dashboard]
    [llar.apis.fever :as fever]
    [llar.apis.podcast :as podcast]
@@ -17,7 +18,7 @@
    [clojure.string :as string]
    [hiccup2.core :as h]
    [iapetos.collector.ring :refer [wrap-instrumentation]]
-   [ring.middleware params gzip keyword-params json stacktrace lint not-modified]))
+   [ring.middleware params gzip keyword-params json stacktrace lint not-modified cookies]))
 
 (defn- error-page-head []
   [:head
@@ -94,6 +95,8 @@
    [#"^/api/podcast/[^/]+$" "/api/podcast/:item-id"]
    [#"^/api/bookmark-captures/[^/]+/(?:retry|dismiss)$"
     "/api/bookmark-captures/:capture-id/:action"]
+   [#"^/api/config-lab/sessions/[^/]+/blobs/[^/]+$"
+    "/api/config-lab/sessions/:session-id/blobs/:hash"]
    [#"^/api/v1/captures/?$" "/api/v1/captures"]])
 
 (defn- abstract-reader-group-path [uri]
@@ -192,6 +195,8 @@
 (defn dashboard-app []
   (->
    dashboard/app
+   config-lab/wrap-auth
+   ring.middleware.cookies/wrap-cookies
    ring.middleware.json/wrap-json-body
    ring.middleware.json/wrap-json-response
    ring.middleware.keyword-params/wrap-keyword-params
