@@ -14,6 +14,192 @@ textarea {
   font-weight: 400;
 }
 
+.config-lab-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 62vh;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: white;
+}
+
+.config-lab-preview-frame-small {
+  min-height: 28rem;
+}
+
+.config-lab-scroll-pane {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.config-lab-code {
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+
+.config-lab-data-tree {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.config-lab-selector-data > summary,
+.config-lab-index-selector > summary {
+  cursor: pointer;
+}
+
+.config-lab-data-tree details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.config-lab-data-tree details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-lab-tree-entry {
+  min-width: 0;
+}
+
+.config-lab-tree-line {
+  display: grid;
+  grid-template-columns: 0.8rem minmax(8rem, 15rem) minmax(0, 1fr);
+  column-gap: 0.55rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.22rem 0;
+}
+
+details > summary > .config-lab-tree-line > .config-lab-tree-marker::before {
+  content: "▸";
+  color: var(--bs-secondary-color);
+}
+
+details[open]
+  > summary
+  > .config-lab-tree-line
+  > .config-lab-tree-marker::before {
+  content: "▾";
+}
+
+.config-lab-tree-children {
+  margin-left: 0.38rem;
+  padding-left: 0.78rem;
+  border-left: 1px solid
+    color-mix(in srgb, var(--bs-primary) 30%, var(--bs-border-color));
+}
+
+.config-lab-tree-root > summary > .config-lab-tree-line {
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+}
+
+.config-lab-tree-key {
+  color: var(--bs-primary);
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.config-lab-tree-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.config-lab-tree-root > summary > .config-lab-tree-line > .config-lab-tree-key {
+  display: none;
+}
+
+.config-lab-tree-root
+  > summary
+  > .config-lab-tree-line
+  > .config-lab-tree-value {
+  grid-column: 2;
+}
+
+.config-lab-tree-shape,
+.config-lab-tree-size {
+  color: var(--bs-secondary-color);
+  font-size: 0.76rem;
+}
+
+.config-lab-tree-leaf code,
+.config-lab-tree-long-value code {
+  color: inherit;
+  font-family: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.config-lab-tree-string {
+  color: #146c43;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.config-lab-tree-number,
+.config-lab-tree-boolean {
+  color: #6f42c1;
+}
+
+.config-lab-tree-nil {
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
+
+.config-lab-tree-full-value {
+  max-height: 24rem;
+  margin: 0.35rem 0 0 1.2rem;
+  padding: 0.65rem;
+  overflow: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.config-lab-selector-data-tree {
+  max-height: 32rem;
+  padding: 0.35rem 0.5rem;
+  overflow: auto;
+  background: var(--bs-tertiary-bg);
+}
+
+.config-lab-field-output {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+
+.config-lab-field-card .config-lab-selector-data-tree {
+  max-height: 24rem;
+}
+
+.config-lab-article.active .text-muted {
+  color: rgb(255 255 255 / 75%) !important;
+}
+
+@media (width <= 768px) {
+  .config-lab-preview-frame {
+    min-height: 70vh;
+  }
+
+  .config-lab-tree-line {
+    grid-template-columns: 0.7rem minmax(5rem, 8rem) minmax(0, 1fr);
+    column-gap: 0.35rem;
+  }
+
+  .config-lab-tree-root > summary > .config-lab-tree-line {
+    grid-template-columns: 0.7rem minmax(0, 1fr);
+  }
+}
+
 #headlines .source,
 .nwords,
 .ts {
