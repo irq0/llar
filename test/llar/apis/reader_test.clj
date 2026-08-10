@@ -175,6 +175,22 @@
       (is (re-find #"<body class=\"reader-mode-show-item\"" show-shell))
       (is (re-find #"class=\"reading-viewport-overlay\"" show-shell)))))
 
+(deftest reader-shell-escapes-content-derived-html
+  (with-redefs [uut/nav-bar (constantly nil)
+                uut/group-nav (constantly nil)
+                uut/source-nav (constantly nil)]
+    (let [title "<template>: The Content Template element"
+          shell (#'uut/render-reader-shell
+                 {:mode :list-items :items [{:id 42 :title title}]}
+                 [:main [:h4 title]]
+                 title)]
+      (is (string/starts-with? shell "<!DOCTYPE html>"))
+      (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
+                   shell))
+      (is (not (string/includes? shell "<template>")))
+      (is (re-find #"<script src=\"/static/llar.js\"></script></body></html>$"
+                   shell)))))
+
 (deftest reading-navigation-has-one-mode-aware-forward-path
   (let [javascript (slurp (io/resource "status/llar.js"))]
     (is (re-find #"function advanceReadingBlock\(\)" javascript))

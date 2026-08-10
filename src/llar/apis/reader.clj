@@ -7,7 +7,6 @@
    [compojure.coercions :refer [as-int]]
    [compojure.core :refer [context DELETE GET POST routes]]
    [compojure.route :as route]
-   [hiccup.page :refer [html5]]
    [hiccup2.core :as h :refer [html]]
    [java-time.api :as time]
    [iapetos.core :as prometheus]
@@ -36,9 +35,22 @@
    [llar.db.annotations]
    [llar.db.search :as db-search]
    [llar.export.zotero :as zotero]
-   [llar.export.url-handler :as url-handler])
-  (:import
-   [org.apache.commons.text StringEscapeUtils]))
+   [llar.export.url-handler :as url-handler]))
+
+(defn- html5
+  "Render a complete HTML5 document with Hiccup 2 escaping semantics.
+
+  hiccup.page/html5 is a Hiccup 1 compatibility renderer.  Mixing it with the
+  Hiccup 2 nodes used in this namespace leaves ordinary strings unescaped; an
+  item title such as `<template>: ...` can consequently swallow the rest of the
+  reader document, including its navigation and scripts."
+  [& content]
+  (let [document (if (and (= 1 (count content))
+                          (vector? (first content))
+                          (= :html (ffirst content)))
+                   (first content)
+                   (into [:html] content))]
+    (str (h/html (h/raw "<!DOCTYPE html>\n") document))))
 
 ;; NEXT
 ;; set read, saved
@@ -690,7 +702,7 @@
       [:h5 "Edit Tags"]
       [:button {:type "button" :class "close"
                 :data-bs-dismiss "modal"}
-       [:span "&times;"]]]
+       [:span "×"]]]
      [:div {:class "modal-body"}
       [:ul {:class "list-group list-group-flush item-tag-list"}
        (for [tag tags
@@ -868,14 +880,14 @@
         (icon "far fa-file-word")
         "\u00a0"
         (:estimate reading-estimate) "m"
-        "&nbsp;&nbsp;"
-        nwords "&nbsp;words"]
+        "\u00a0\u00a0"
+        nwords "\u00a0words"]
        (tags-button-group id tags)
        (done-button item)]
       (when (some? ts)
         [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
          [:a {:class "btn"}
-          "&nbsp;&nbsp;"
+          "\u00a0\u00a0"
           (icon "far fa-calendar") "\u00a0" (human/datetime-ago ts)]])
       [:div {:class "btn-group btn-group-sm  p-2 flex-fill" :role "group"}
        (external-link-button url "_blank")
@@ -982,11 +994,11 @@
      [:span (format "n=%s (%s)" (count v) (type v))
       [:ol
        (for [i v]
-         [:li (StringEscapeUtils/escapeHtml4 (str i))])]]
+         [:li (str i)])]]
 
      (re-find #"(application|text)/\w+" (str k))
      [:span "(" (type v) ")"
-      [:code [:pre (StringEscapeUtils/escapeHtml4 v)]]]
+      [:code [:pre v]]]
 
      :else
      [:span
