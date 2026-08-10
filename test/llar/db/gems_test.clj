@@ -60,7 +60,7 @@
                  (events/context :related :related-generated
                    {:feature "gems" :kind "rediscover"}))]
     (persistency/record-impressions! *test-db* [(:id offer)])
-    (let [tomorrow (time/plus (time/zoned-date-time "UTC") (time/days 1))
+    (let [tomorrow (time/plus (time/zoned-date-time) (time/days 1))
           items (persistency/get-gem-rediscovery-candidates
                  *test-db* {:day-cutoff tomorrow
                             :day-key "test-day"
