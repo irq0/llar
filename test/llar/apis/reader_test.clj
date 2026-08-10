@@ -270,6 +270,70 @@
         (is (re-find #"action=\"/reader/tools/todays-vibe/seen\"" rendered))
         (is (not (re-find #"Fully seen" rendered)))))))
 
+(deftest gems-landing-renders-rediscovery-and-records-metadata-provenance
+  (let [now (time/zoned-date-time)
+        context (atom nil)
+        item {:id 42
+              :title "A keeper"
+              :author "Ada"
+              :source-key "example"
+              :ts now
+              :type :item-type/link
+              :nwords 800
+              :tags ["archive" "clojure"]
+              :entry {}
+              :data {:description {"text/plain" "Worth finding again."}}}]
+    (with-redefs [uut/frontend-db :db
+                  persistency/get-gem-facets
+                  (constantly {:total 1 :topic-count 1 :source-count 1
+                               :tags [{:value "clojure" :count 1}]
+                               :sources [{:value "example" :count 1}]})
+                  persistency/get-gem-rediscovery-candidates
+                  (fn [_ _] [item])
+                  persistency/record-results-offered!
+                  (fn [_ items event-context]
+                    (reset! context event-context)
+                    (mapv (fn [offered] {:id 91 :item-id (:id offered)}) items))]
+      (let [rendered (str (h/html (uut/tools-view-handler
+                                   {:view :gems :request-params {}})))]
+        (is (re-find #"Rediscover" rendered))
+        (is (re-find #"A keeper" rendered))
+        (is (re-find #"data-offer-id=\"91\"" rendered))
+        (is (re-find #"Related gems" rendered))
+        (is (re-find #"clojure" rendered))
+        (is (= :related (:surface @context)))
+        (is (= :related-generated (:trigger @context)))
+        (is (= "gems" (get-in @context [:metadata :feature])))
+        (is (= "rediscover" (get-in @context [:metadata :kind])))))))
+
+(deftest gems-search-is-live-archive-scoped
+  (let [seen (atom nil)
+        now (time/zoned-date-time)]
+    (with-redefs [uut/frontend-db :db
+                  persistency/get-gem-facets
+                  (constantly {:total 3 :topic-count 1 :source-count 1
+                               :tags [] :sources []})
+                  persistency/search
+                  (fn [_ query options]
+                    (reset! seen [query options])
+                    [{:id 7 :title "Found gem" :key "source"
+                      :ts now :type :item-type/link :nwords 100
+                      :tags ["archive" "research"]
+                      :headline "A [[[matching]]] passage"
+                      :total-count 1}])]
+      (let [rendered (str (h/html (uut/tools-view-handler
+                                   {:view :gems
+                                    :request-params {:query "matching"
+                                                     :tag "research"
+                                                     :source "source"}})))]
+        (is (= "matching" (first @seen)))
+        (is (true? (get-in @seen [1 :archived-only?])))
+        (is (= "research" (get-in @seen [1 :with-tag])))
+        (is (= "source" (get-in @seen [1 :with-source-key])))
+        (is (re-find #"Found gem" rendered))
+        (is (re-find #"<mark>matching</mark>" rendered))
+        (is (re-find #"Topic: research" rendered))))))
+
 (deftest item-detail-route-accepts-optional-offer-provenance
   (let [opened (atom [])
         modifications (atom [])

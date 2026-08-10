@@ -443,6 +443,32 @@ figure {
   padding: 0.5em;
 }
 
+.gems-view {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.min-width-0 {
+  min-width: 0;
+}
+
+.gem-card-image {
+  width: 11rem;
+  height: 7rem;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
+
+.gem-result:last-child {
+  border-bottom: 0 !important;
+}
+
+@media (width <= 576px) {
+  .gem-card-image {
+    display: none;
+  }
+}
+
 .feed-item a {
   color: #000;
   text-decoration: none;

@@ -34,6 +34,7 @@
    [llar.value-inspector :as value-inspector]
    [llar.vibe :as vibe]
    [llar.db.annotations]
+   [llar.db.gems]
    [llar.db.search :as db-search]
    [llar.export.zotero :as zotero]
    [llar.export.url-handler :as url-handler]))
@@ -594,6 +595,11 @@
          (icon "fas fa-fire") "\u00a0" "Today’s Vibe"]]]
       [:ul {:class "nav flex-column"}
        [:li {:class "nav-item"}
+        [:a {:class (str "nav-link" (when (= (:view x) :gems) " active"))
+             :href (make-site-href ["/reader/tools/gems"] x)}
+         (icon "fas fa-gem") "\u00a0" "Gems"]]]
+      [:ul {:class "nav flex-column"}
+       [:li {:class "nav-item"}
         [:a {:class (str "nav-link" (when (= (:view x) :search) " active"))
              :href (make-site-href ["/reader/tools/search"] x)}
          (icon "fas fa-search") "\u00a0" "Search"]]]
@@ -1091,6 +1097,7 @@
         :saved-overview "Reading Queue"
         :continue-reading "Continue Reading"
         :todays-vibe "Today’s Vibe"
+        :gems "Gems"
         :search "Search"
         "Reader Tools"))))
 
@@ -2020,6 +2027,316 @@
   (let [items (mapv queue-row->item
                     (persistency/get-reading-progress-items frontend-db {:limit 100}))]
     (render-reading-queue x {:items items :continue-only? true})))
+
+(def ^:private +gem-sort-orders+ #{"relevance" "newest" "oldest"})
+
+(declare render-search-headline)
+
+(defn- gem-param [value]
+  (when (string? value)
+    (let [value (string/trim value)]
+      (when-not (string/blank? value) value))))
+
+(defn- normalize-gem-params [request-params]
+  (let [query (some-> (gem-param (:query request-params))
+                      (subs 0 (min 500 (count (gem-param (:query request-params))))))
+        tag (gem-param (:tag request-params))
+        source (gem-param (:source request-params))
+        requested-sort (gem-param (:sort request-params))
+        sort (if (+gem-sort-orders+ requested-sort)
+               requested-sort
+               (if query "relevance" "newest"))]
+    {:query query
+     :tag tag
+     :source source
+     :sort sort
+     :offset (max 0 (or (some-> (:offset request-params) str parse-long) 0))
+     :batch (max 0 (or (some-> (:batch request-params) str parse-long) 0))
+     :browse? (= "true" (str (:browse request-params)))
+     :related-to (let [id (some-> (:related-to request-params) str parse-long)]
+                   (when (and id (pos? id)) id))}))
+
+(defn- gems-href
+  ([] "/reader/tools/gems")
+  ([params]
+   (let [params (cond-> (dissoc params :browse?)
+                  (:browse? params) (assoc :browse "true"))
+         params (into {}
+                      (remove (fn [[_ value]]
+                                (or (nil? value) (false? value) (= "" value))))
+                      params)
+         params (cond-> params
+                  (zero? (long (or (:offset params) 0))) (dissoc :offset)
+                  (zero? (long (or (:batch params) 0))) (dissoc :batch))
+         query-string (form-encode params)]
+     (if (string/blank? query-string)
+       (gems-href)
+       (str (gems-href) "?" query-string)))))
+
+(defn- gem-topic-tags [item]
+  (remove #{"archive" "saved" "unread" "in-progress"} (:tags item)))
+
+(defn- gem-open-href [{:keys [id offer-id]}]
+  (str "/reader/group/item-tags/archive/source/all/item/by-id/" id
+       (when offer-id (str "?offer=" offer-id))))
+
+(defn- offer-gems [items kind metadata]
+  (try
+    (let [offered (persistency/record-results-offered!
+                   frontend-db
+                   (mapv #(assoc % :reasons [(keyword kind)]) items)
+                   (events/context :related :related-generated
+                     (merge {:feature "gems" :kind kind} metadata)))]
+      (mapv #(assoc %1 :offer-id (:id %2)) items offered))
+    (catch Throwable throwable
+      (log/warn throwable "Could not record Gems offers" {:kind kind})
+      items)))
+
+(defn- render-gem-meta [item]
+  (let [minutes (when (and (integer? (:nwords item)) (not (neg? (:nwords item))))
+                  (:estimate (item/reading-time-estimate item)))]
+    [:div {:class "d-flex flex-wrap gap-2 small text-secondary"}
+     [:span (icon "fas fa-rss") " " (:source-key item)]
+     [:span {:class "timestamp" :title (:ts item)}
+      (human/datetime-ago-short (:ts item))]
+     (when minutes [:span (icon "far fa-clock") " " minutes " min"])
+     [:span (icon "fas fa-shapes") " " (name (:type item))]]))
+
+(defn- gem-tag-links [params item]
+  (for [tag (take 3 (gem-topic-tags item))]
+    [:a {:class "badge text-bg-light text-decoration-none me-1"
+         :href (gems-href (assoc params :tag tag :browse "true"
+                                 :offset nil :related-to nil))}
+     tag]))
+
+(defn- gem-archive-button [item]
+  (for [{:keys [tag] :as button} +state-buttons+
+        :when (= :archive tag)]
+    (state-button (:id item) (assoc button :is-set? true))))
+
+(defn- render-gem-card [params item]
+  (let [image-url (or (get-in item [:entry :thumbnail])
+                      (get-in item [:entry :lead-image-url]))
+        description (get-in item [:data :description "text/plain"])]
+    [:article {:id (str "item-" (:id item))
+               :class (str "card gem-card mb-3"
+                           (when (:offer-id item) " result-offer"))
+               :data-offer-id (:offer-id item)}
+     [:div {:class "card-body"}
+      [:div {:class "d-flex gap-3"}
+       [:div {:class "flex-grow-1 min-width-0"}
+        [:h3 {:class "h5 card-title mb-2"}
+         [:a {:class "link-dark" :href (gem-open-href item)}
+          (if (string/blank? (:title item)) "(no title)" (:title item))]]
+        (render-gem-meta item)
+        [:div {:class "mt-2"} (gem-tag-links params item)]
+        (when-not (string/blank? description)
+          [:p {:class "card-text mt-2 mb-2"}
+           (human/truncate-ellipsis description 420)])]
+       (when-not (string/blank? image-url)
+         [:img {:class "gem-card-image rounded"
+                :src image-url
+                :alt ""}])]
+      [:div {:class "d-flex align-items-center gap-2 mt-2"}
+       [:a {:class "btn btn-sm btn-primary" :href (gem-open-href item)} "Open"]
+       [:a {:class "btn btn-sm btn-outline-secondary"
+            :href (gems-href {:related-to (:id item)})}
+        "Related gems"]
+       [:div {:class "btn-group btn-group-sm ms-auto"}
+        (gem-archive-button item)]
+       [:span {:class "small text-secondary"}
+        (if-let [last-resurfaced (:last-resurfaced item)]
+          (str "Last resurfaced " (human/datetime-ago-short last-resurfaced))
+          "Not shown in Gems yet")]]]]))
+
+(defn- render-gem-result [params item]
+  [:article {:id (str "item-" (:id item))
+             :class (str "gem-result py-3 border-bottom"
+                         (when (:offer-id item) " result-offer"))
+             :data-offer-id (:offer-id item)}
+   [:div {:class "d-flex justify-content-between gap-2"}
+    [:h3 {:class "h5 mb-1"}
+     [:a {:class "link-dark" :href (gem-open-href item)} (:title item)]]
+    [:div {:class "btn-group btn-group-sm"} (gem-archive-button item)]]
+   (render-gem-meta item)
+   [:div {:class "mt-1"} (gem-tag-links params item)]
+   (when-not (string/blank? (:headline item))
+     [:div {:class "small text-secondary search-headline mt-2"}
+      (render-search-headline (:headline item))])
+   [:div {:class "mt-2"}
+    [:a {:class "small" :href (gems-href {:related-to (:id item)})}
+     "Related gems"]]])
+
+(defn- gem-facet-link [params key {:keys [value count]}]
+  (let [label (if (= value "__untagged__") "Untagged" value)]
+    [:a {:class "list-group-item list-group-item-action d-flex justify-content-between"
+         :href (gems-href (assoc params key value :browse "true"
+                                 :offset nil :related-to nil))}
+     [:span label]
+     [:span {:class "badge text-bg-light"} count]]))
+
+(defn- render-gem-facet [params title key rows]
+  (let [visible (take 12 rows)
+        remaining (drop 12 rows)]
+    [:section {:class "col-lg-6 mb-3"}
+     [:h3 {:class "h5"} title]
+     [:div {:class "list-group list-group-flush"}
+      (for [row visible] (gem-facet-link params key row))]
+     (when (seq remaining)
+       [:details {:class "mt-2"}
+        [:summary {:class "small text-secondary"} "Show all"]
+        [:div {:class "list-group list-group-flush mt-2"}
+         (for [row remaining] (gem-facet-link params key row))]])]))
+
+(defn- render-gem-search [params]
+  [:form {:action (gems-href) :method "get" :class "mb-4"}
+   (when (:tag params) [:input {:type "hidden" :name "tag" :value (:tag params)}])
+   (when (:source params) [:input {:type "hidden" :name "source" :value (:source params)}])
+   [:div {:class "input-group input-group-lg"}
+    [:input {:class "form-control" :type "search" :name "query"
+             :value (or (:query params) "")
+             :placeholder "Search titles, authors, URLs, and article text"
+             :aria-label "Search Gems"}]
+    [:button {:class "btn btn-primary" :type "submit"}
+     (icon "fas fa-search") " Search"]]
+   [:div {:class "form-text"}
+    "Use quotes for a phrase, OR for alternatives, and -word to exclude."]])
+
+(defn- gem-active-filter [params key label]
+  (when-let [value (get params key)]
+    [:span {:class "badge rounded-pill text-bg-secondary me-2"}
+     label ": " (if (= value "__untagged__") "Untagged" value) " "
+     [:a {:class "text-white" :aria-label (str "Clear " label)
+          :href (gems-href (assoc params key nil :offset nil))} "×"]]))
+
+(defn- render-gem-pagination [params total]
+  (let [offset (:offset params)
+        page-size 50]
+    (when (or (pos? offset) (> total (+ offset page-size)))
+      [:nav {:class "d-flex gap-2 mt-3" :aria-label "Gems result pages"}
+       (when (pos? offset)
+         [:a {:class "btn btn-outline-secondary btn-sm"
+              :href (gems-href (assoc params :offset (max 0 (- offset page-size))))}
+          "Previous"])
+       (when (> total (+ offset page-size))
+         [:a {:class "btn btn-outline-secondary btn-sm"
+              :href (gems-href (assoc params :offset (+ offset page-size)))}
+          "Next"])])))
+
+(defn- gem-search-results [params]
+  (if (:query params)
+    (let [rows (persistency/search frontend-db (:query params)
+                                   {:syntax :web
+                                    :with-source-key (:source params)
+                                    :with-tag (when-not (= "__untagged__" (:tag params))
+                                                (:tag params))
+                                    :untagged? (= "__untagged__" (:tag params))
+                                    :archived-only? true
+                                    :sort (:sort params)
+                                    :limit 50
+                                    :offset (:offset params)})]
+      {:total (or (:total-count (first rows)) 0)
+       :items (mapv #(-> %
+                         (assoc :source-key (:key %))
+                         (dissoc :total-count))
+                    rows)})
+    (persistency/get-gem-items frontend-db params)))
+
+(defn- render-gem-results [params {:keys [total items]} heading]
+  [:section
+   [:div {:class "d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"}
+    [:div
+     [:h2 {:class "h4 mb-1"} heading]
+     [:div {:class "text-secondary"} total " gem" (when (not= total 1) "s")]]
+    [:a {:class "btn btn-sm btn-outline-secondary" :href (gems-href)} "Back to Gems"]]
+   [:div {:class "mb-2"}
+    (gem-active-filter params :tag "Topic")
+    (gem-active-filter params :source "Source")]
+   (when (:query params)
+     [:div {:class "btn-group btn-group-sm mb-2"}
+      (for [[sort label] [["relevance" "Relevance"] ["newest" "Newest"] ["oldest" "Oldest"]]]
+        [:a {:class (str "btn btn-outline-secondary" (when (= sort (:sort params)) " active"))
+             :href (gems-href (assoc params :sort sort :offset nil))}
+         label])])
+   (if (seq items)
+     [:div (for [result items] (render-gem-result params result))]
+     [:div {:class "alert alert-light border"} "No gems match this search."])
+   (render-gem-pagination params total)])
+
+(defn- render-gems [x]
+  (let [params (normalize-gem-params (:request-params x))
+        facets (persistency/get-gem-facets frontend-db {})
+        result-mode? (or (:query params) (:tag params) (:source params)
+                         (:browse? params) (:related-to params))]
+    [:div {:class "gems-view px-2"}
+     [:div {:class "d-flex justify-content-between align-items-start gap-3 mb-2"}
+      [:div
+       [:h2 {:class "mb-1"} (icon "fas fa-gem") " Gems"]
+       [:p {:class "text-secondary"}
+        "Find something you kept, browse the collection, or rediscover a forgotten gem."]]
+      [:div {:class "text-end text-secondary small"}
+       [:strong (:total facets)] " gems"
+       [:br] (:topic-count facets) " topics · " (:source-count facets) " sources"]]
+     (render-gem-search params)
+     (cond
+       (:related-to params)
+       (if-let [{:keys [item results]} (persistency/get-related-gems frontend-db
+                                                                     (:related-to params))]
+         (let [results (offer-gems results "related"
+                                   {:seed-item-id (:related-to params)})]
+           (render-gem-results params {:total (count results) :items results}
+                               (str "Related to “" (:title item) "”")))
+         [:div {:class "alert alert-warning"} "That archived gem was not found."])
+
+       result-mode?
+       (try
+         (render-gem-results params (gem-search-results params)
+                             (if (:query params) "Search results" "Browse Gems"))
+         (catch Exception exception
+           (log/warn exception "Gems search failed" (select-keys params [:query :tag :source]))
+           [:div {:class "alert alert-warning"}
+            "Search failed. Check the query and try again."]))
+
+       :else
+       (let [zone (time/zone-id "UTC")
+             day (time/local-date zone)
+             total (:total facets)
+             batch-count (max 1 (long (Math/ceil (/ (double total) 5.0))))
+             batch (mod (:batch params) batch-count)
+             items (persistency/get-gem-rediscovery-candidates
+                    frontend-db {:day-cutoff (.atStartOfDay day zone)
+                                 :day-key (str day)
+                                 :candidate-limit 5
+                                 :candidate-offset (* batch 5)
+                                 :limit 5})
+             items (offer-gems items "rediscover" {:day (str day) :batch batch})]
+         [:div
+          [:section {:class "mb-4"}
+           [:div {:class "d-flex justify-content-between align-items-center mb-2"}
+            [:div
+             [:h3 {:class "h4 mb-0"} "Rediscover"]
+             [:div {:class "small text-secondary"} "A stable daily selection, biased toward forgotten items."]]
+            (when (> batch-count 1)
+              [:a {:class "btn btn-sm btn-outline-secondary"
+                   :href (gems-href {:batch (mod (inc batch) batch-count)})}
+               "Another set"])]
+           (if (seq items)
+             (for [gem items] (render-gem-card params gem))
+             [:div {:class "alert alert-light border"}
+              "Archive an item to make it a Gem."])]
+          (when (pos? total)
+            [:section
+             [:div {:class "d-flex justify-content-between align-items-center"}
+              [:h3 {:class "h4"} "Browse"]
+              [:a {:href (gems-href {:browse "true"})} "Browse all"]]
+             [:div {:class "row"}
+              (render-gem-facet params "Topics" :tag (:tags facets))
+              (render-gem-facet params "Sources" :source (:sources facets))]])]))]))
+
+(defmethod tools-view-handler
+  :gems
+  [x]
+  (render-gems x))
 
 (defn- render-search-headline [headline]
   (letfn [(render-parts [s]

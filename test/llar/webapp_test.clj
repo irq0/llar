@@ -77,6 +77,7 @@
            ["/reader/tools/saved-overview" "/reader/tools/reading-queue"]
            ["/reader/tools/continue-reading" "/reader/tools/continue-reading"]
            ["/reader/tools/todays-vibe" "/reader/tools/todays-vibe"]
+           ["/reader/tools/gems" "/reader/tools/gems"]
            ["/reader/tools/search" "/reader/tools/search"]
            ["/reader/tools/future-view" "/reader/tools/:view"]
            ["/api/v1/captures" "/api/v1/captures"]
