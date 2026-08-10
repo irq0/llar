@@ -83,5 +83,11 @@
   (update-index! [this])
   (search [this query args] [this query]))
 
+(defprotocol GemQueries
+  (get-gem-facets [this options])
+  (get-gem-items [this options])
+  (get-gem-rediscovery-candidates [this options])
+  (get-related-gems [this item-id]))
+
 (defprotocol DataStoreLifeCycle
   (stop-data-store [this]))

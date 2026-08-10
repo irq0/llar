@@ -33,7 +33,9 @@
   PostgresqlDataStore
 
   (search
-    ([this query {:keys [syntax with-source-key time-ago-period]}]
+    ([this query {:keys [syntax with-source-key with-tag untagged? time-ago-period
+                         archived-only? sort limit offset]
+                  :or {limit 100 offset 0}}]
      (if (string/blank? query)
        []
        (sql/search-item
@@ -41,6 +43,12 @@
         {:query query
          :syntax (name (normalize-search-syntax syntax))
          :source-key with-source-key
+         :with-tag with-tag
+         :untagged? untagged?
+         :archived-only? archived-only?
+         :sort sort
+         :limit limit
+         :offset offset
          :time-ago (when-not (nil? time-ago-period)
                      (time/minus (time/zoned-date-time) time-ago-period))})))
     ([this query]
@@ -49,7 +57,9 @@
        (sql/search-item
         this
         {:query query
-         :syntax (name (normalize-search-syntax nil))}))))
+         :syntax (name (normalize-search-syntax nil))
+         :limit 100
+         :offset 0}))))
 
   (update-index! [this]
     (refresh-search-index this)
@@ -127,19 +137,25 @@
 (defn related-items
   "Return a deliberately simple lexical neighborhood from the current search
   index. Index refresh cadence is accepted as part of this feature's contract."
-  [db item-id]
-  (when-let [item (sql/get-item-by-id db {:id item-id
-                                          :select (sql/item-select-default-snip)
-                                          :from (sql/item-from-join-default-snip)})]
-    (let [tf-idf-terms (sql/item-tf-idf-terms db {:item-id item-id})
-          query (related-query item tf-idf-terms)
-          matches (if (string/blank? query)
-                    []
-                    (sql/search-item db {:query query :syntax "web"}))]
-      {:item item
-       :query query
-       :results (->> matches
-                     (remove #(= item-id (:id %)))
-                     (filter #(>= (double (or (:rank %) 0.0)) 0.01))
-                     (cap-per-source 3)
-                     add-related-evidence)})))
+  ([db item-id]
+   (related-items db item-id {}))
+  ([db item-id {:keys [archived-only?]}]
+   (when-let [item (sql/get-item-by-id db {:id item-id
+                                           :select (sql/item-select-default-snip)
+                                           :from (sql/item-from-join-default-snip)})]
+     (let [tf-idf-terms (sql/item-tf-idf-terms db {:item-id item-id})
+           query (related-query item tf-idf-terms)
+           matches (if (string/blank? query)
+                     []
+                     (sql/search-item db {:query query
+                                          :syntax "web"
+                                          :archived-only? archived-only?
+                                          :limit 100
+                                          :offset 0}))]
+       {:item item
+        :query query
+        :results (->> matches
+                      (remove #(= item-id (:id %)))
+                      (filter #(>= (double (or (:rank %) 0.0)) 0.01))
+                      (cap-per-source 3)
+                      add-related-evidence)}))))

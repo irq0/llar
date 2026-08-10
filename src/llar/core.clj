@@ -18,6 +18,7 @@
    [llar.db.query]
    [llar.db.modify]
    [llar.db.search]
+   [llar.db.gems]
    [llar.http :as http]
    [llar.commands :as commands]
    [llar.fetch.streaming :as streaming]

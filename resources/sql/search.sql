@@ -19,6 +19,14 @@ select
   search_index.title,
   search_index.key,
   search_index.ts,
+  live_items.author,
+  live_items.entry,
+  live_items.type,
+  live_items.nlp_nwords as nwords,
+  live_items.nlp_top as "top-words",
+  (select array_agg(t.tag order by t.tag)
+   from unnest(live_items.tagi) tag_id
+   inner join tags t on t.id = tag_id) as tags,
   :syntax as syntax,
   case search_config
     when 'german' then query.german
@@ -27,11 +35,16 @@ select
   search_config,
   document,
   headline_text
-from search_index, query
+from search_index
+inner join items live_items on live_items.id = search_index.id
+cross join query
 where document @@ case search_config
   when 'german' then query.german
   else query.english
 end
+--~ (when (:archived-only? params) "and live_items.tagi @@ (select format('(%s)', id) from tags where tag = 'archive')::query_int")
+--~ (when (:with-tag params) "and live_items.tagi @@ (select format('(%s)', id) from tags where tag = :with-tag)::query_int")
+--~ (when (:untagged? params) "and not exists (select 1 from unnest(live_items.tagi) tag_id inner join tags t on t.id = tag_id where t.tag not in ('archive', 'saved', 'unread', 'in-progress'))")
 --~ (when (:time-ago params) "and search_index.ts > :time-ago")
 --~ (when (:source-key params) "and search_index.key = :source-key")
 )
@@ -40,6 +53,13 @@ select
   title,
   key,
   ts,
+  author,
+  entry,
+  type,
+  nwords,
+  "top-words",
+  tags,
+  count(*) over () as "total-count",
   syntax,
   ts_rank_cd(document, q, 32) as rank,
   ts_rank_cd(
@@ -54,8 +74,8 @@ select
     'StartSel="[[[", StopSel="]]]", MaxFragments=2, MinWords=8, MaxWords=24, FragmentDelimiter=" ... "'
   ) as headline
 from matches
-order by rank desc, ts desc
-limit 100
+--~ (case (:sort params) "oldest" "order by ts asc, id asc" "newest" "order by ts desc, id desc" "order by rank desc, ts desc, id desc")
+limit :limit offset :offset
 
 
 -- :name saved-items-tf-idf :? :raw
