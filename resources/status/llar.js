@@ -46,6 +46,7 @@ function getReadingBlocks(container) {
 
 function updateStateButton(button, isSet) {
   var icon = button.find("i");
+  var visibleLabel = button.find(".reader-action-label");
   var label = isSet ? button.data("label-set") : button.data("label-unset");
   button.data("is-set", isSet);
   button.attr("data-is-set", String(isSet));
@@ -55,6 +56,7 @@ function updateStateButton(button, isSet) {
     "class",
     isSet ? button.data("icon-set") : button.data("icon-unset"),
   );
+  visibleLabel.text(label);
 }
 
 function addItemTagRow(id, tag) {
@@ -67,7 +69,7 @@ function addItemTagRow(id, tag) {
 
   var label = "Toggle tag " + tag;
   var button = $("<a>")
-    .addClass("btn item-tag-toggle")
+    .addClass("btn reader-icon-button item-tag-toggle")
     .attr({
       href: "#",
       title: label,
@@ -839,7 +841,7 @@ $(document).ready(function () {
   });
 
   // annotation mode
-  $("#btn-annotation-mode").on("click", function () {
+  $(".btn-annotation-mode").on("click", function () {
     toggleAnnotationMode();
   });
 
@@ -878,7 +880,7 @@ function getItemId() {
 function toggleAnnotationMode() {
   if (!$("#item-content-body").length) return;
   annotationModeActive = !annotationModeActive;
-  var btn = $("#btn-annotation-mode");
+  var btn = $(".btn-annotation-mode");
 
   if (annotationModeActive) {
     btn.addClass("active");
@@ -1337,8 +1339,18 @@ function flashReadingLocation(container, selector) {
   flashReadingRange(range);
 }
 
+var checkpointFlashTimer = null;
+
 function flashReadingRange(range) {
   if (!range) return;
+  if (window.CSS && CSS.highlights && typeof Highlight !== "undefined") {
+    CSS.highlights.set("llar-checkpoint-flash", new Highlight(range));
+    window.clearTimeout(checkpointFlashTimer);
+    checkpointFlashTimer = window.setTimeout(function () {
+      CSS.highlights.delete("llar-checkpoint-flash");
+    }, 1800);
+    return;
+  }
   var target = $(range.startContainer).closest("p,li,pre,blockquote,div");
   if (!target.length) target = $(range.startContainer.parentElement);
   target.addClass("checkpoint-resume-target");

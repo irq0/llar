@@ -230,7 +230,9 @@
                  css))
     (is (re-find #"\.llar-reader ::selection \{[^}]*var\(--llar-primary-control\)"
                  css))
-    (is (re-find #"\.reader-mode-show-item #item-content-body-container \{[^}]*var\(--llar-space-3\)"
+    (is (re-find #"\.reader-mode-show-item #item-content-body-container"
+                 css))
+    (is (re-find #"\.reader-mode-focus-item #item-content-body-container \{[^}]*var\(--llar-space-3\)"
                  css))
     (is (re-find #"\.reading-checkpoint-control\.is-active \{[^}]*var\(--bs-primary\)"
                  css))
@@ -395,7 +397,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f02-11\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f02-12\"></script></body></html>$"
                    shell)))))
 
 (deftest reading-navigation-has-one-mode-aware-forward-path
