@@ -85,7 +85,8 @@
   (let [{:keys [headers]} resp]
     (try+
      (or (converter/parse-http-ts (get headers :last-modified))
-         (converter/parse-http-ts (get headers :date)))
+         (converter/parse-http-ts (get headers :date))
+         (time/zoned-date-time))
      (catch Object _
        (time/zoned-date-time)))))
 

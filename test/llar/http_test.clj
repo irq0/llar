@@ -15,6 +15,10 @@
   (:import
    [java.io ByteArrayInputStream StringReader]))
 
+(deftest http-timestamp-falls-back-when-response-has-no-date-headers
+  (is (instance? java.time.ZonedDateTime
+                 (uut/extract-http-timestamp {:headers {}}))))
+
 (def hick
   {:type :document,
    :content
