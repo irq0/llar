@@ -78,9 +78,40 @@
                         :entry {:thumbnail "/blob/youtube-thumbnail.jpg"}}
                        #{}))]
     (is (re-find #"class=\"youtube-preview-container\"" rendered))
-    (is (re-find #"class=\"lazy-youtube\"" rendered))
+    (is (re-find #"class=\"lazy-youtube reader-defensive-image\"" rendered))
     (is (re-find #"data-vid=\"abc123\"" rendered))
     (is (re-find #"alt=\"Play video on YouTube\"" rendered))))
+
+(deftest youtube-list-preview-is-compact-and-removes-a-broken-ratio
+  (let [rendered (str (uut/render-special-item-content
+                       {:url "https://www.youtube.com/watch?v=abc123"
+                        :entry {:thumbnail "/blob/youtube-thumbnail.jpg"}}
+                       #{:llar.apis.reader/compact-media}))]
+    (is (re-find #"reader-list-video-preview" rendered))
+    (is (re-find #"reader-defensive-image" rendered))
+    (is (re-find #"data-error-remove=\"\.ratio\"" rendered))))
+
+(deftest reddit-item-content-does-not-repeat-its-heading
+  (let [rendered (str (h/html (uut/main-show-item
+                               {:uri "/reader/item/by-id/42"
+                                :items [{:id 42
+                                         :source-key "reddit-games"
+                                         :title "Repeated title"
+                                         :url "https://reddit.example/post"
+                                         :entry {:language "en"
+                                                 :score 42
+                                                 :comments-url "https://reddit.example/comments"}
+                                         :tags []
+                                         :nwords 10
+                                         :data {:description
+                                                {"text/html" "<h1>Repeated title</h1><p>Body</p>"}}}]})))
+        css (slurp (io/resource "status/llar.css"))]
+    (is (re-find #"item-content-body hyphenate item-content-reddit" rendered))
+    (is (re-find #"class=\"summary\"><div><p>.*Subreddit:.*r/games.*Score:.*42"
+                 rendered))
+    (is (not (re-find #"<h1>Repeated title</h1>" rendered)))
+    (is (re-find #"\.item-content-reddit > h1:first-child \{[^}]*display: none"
+                 css))))
 
 (deftest list-navbar-keeps-the-read-and-update-toolbar-visible
   (with-redefs [rc/rc (constantly nil)]
@@ -93,10 +124,36 @@
                                   :sources []
                                   :selected-sources []
                                   :items [{:id 42 :title "An item" :tags []}]})))]
-      (is (re-find #"breadcrumb flex-grow-1 path" rendered))
+      (is (re-find #"reader-navbar-path breadcrumb path" rendered))
       (is (not (re-find #"col-12 form-control-dark breadcrumb" rendered)))
+      (is (not (re-find #"navbar-dark|bg-dark" rendered)))
+      (is (re-find #"reader-navbar-context" rendered))
+      (is (re-find #"reader-navbar-actions" rendered))
+      (is (not (re-find #"navbar-list|navbar-brand[^\"]*col-md" rendered)))
       (is (re-find #"btn-mark-view-read" rendered))
-      (is (re-find #"btn-update-sources-in-view" rendered)))))
+      (is (re-find #"btn-update-sources-in-view" rendered))
+      (is (= 9 (count (re-seq #"reader-icon-button" rendered))))
+      (is (not (re-find #"btn-outline-secondary" rendered))))))
+
+(deftest item-navbar-keeps-only-the-persistent-reading-actions
+  (with-redefs [rc/rc (constantly nil)]
+    (let [rendered (str (h/html (uut/nav-bar
+                                 {:mode :show-item
+                                  :uri "/reader/group/default/none/source/all/item/by-id/42"
+                                  :group-name :default
+                                  :group-item :none
+                                  :source-key :all
+                                  :selected-sources []
+                                  :items [{:id 42 :source-key "feed" :title "Current"
+                                           :tags ["saved" "archive" "podcast"]}
+                                          {:id 43 :source-key "feed" :title "Next"
+                                           :tags []}]})))]
+      (is (re-find #"btn-state-saved" rendered))
+      (is (re-find #"btn-item-done" rendered))
+      (is (re-find #"title=\"Show item HTML focus mode\"" rendered))
+      (is (re-find #"btn-annotation-mode" rendered))
+      (is (re-find #"id=\"btn-next-item\"[^>]*>\s*<i[^>]*fa-step-forward" rendered))
+      (is (not (re-find #"fa-arrow-down|btn-state-archived|item-tag-toggle" rendered))))))
 
 (deftest tool-breadcrumb-names-the-current-tool-instead-of-all
   (with-redefs [rc/rc (constantly nil)]
@@ -118,14 +175,76 @@
         (is (re-find #"breadcrumb-item active" rendered))
         (is (not (re-find #">all</a>" rendered)))))))
 
+(deftest related-breadcrumb-extends-the-originating-item-path
+  (with-redefs [rc/rc (constantly nil)]
+    (let [rendered (str (h/html (uut/nav-bar
+                                 {:mode :show-item
+                                  :breadcrumb-suffix {:icon "fas fa-project-diagram"
+                                                      :label "related"}
+                                  :uri "/reader/group/default/blog/source/all/item/by-id/42/related"
+                                  :group-name :default
+                                  :group-item :blog
+                                  :source-key :all
+                                  :selected-sources []
+                                  :items [{:id 42
+                                           :source-key "feed"
+                                           :title "An item"
+                                           :tags []}]})))]
+      (is (re-find #"(?s)>blog</a>.*?>feed</a>.*?>An item</a>.*?fa-project-diagram.*?related"
+                   rendered))
+      (is (re-find #"breadcrumb-item active" rendered)))))
+
+(deftest related-button-preserves-the-reader-path
+  (let [rendered (str (h/html (uut/related-button
+                               {:group-name :item-tags
+                                :group-item :saved
+                                :source-key :feed
+                                :list-style :headlines}
+                               42)))]
+    (is (re-find #"/reader/group/item-tags/saved/source/feed/item/by-id/42/related\?list-style=headlines"
+                 rendered))))
+
+(deftest related-route-passes-the-originating-reader-path
+  (let [call (atom nil)]
+    (with-redefs [uut/reader-related
+                  (fn [& args]
+                    (reset! call args)
+                    {:status 200 :body "related"})]
+      (let [response (uut/app {:request-method :get
+                               :uri "/reader/group/item-tags/saved/source/feed/item/by-id/42/related"
+                               :params {:list-style "headlines"}})]
+        (is (= 200 (:status response)))
+        (is (= 42 (first @call)))
+        (is (= {:group-name :item-tags
+                :group-item :saved
+                :source-key :feed
+                :list-style :headlines}
+               (select-keys (second @call)
+                            [:group-name :group-item :source-key :list-style])))))))
+
 (deftest reader-bootstrap-primary-is-the-llar-orange
   (let [css (slurp (io/resource "status/llar.css"))]
     (is (re-find #"--llar-primary: #f2711c" css))
     (is (re-find #"--llar-primary-control: #ff9a57" css))
+    (is (re-find #"::highlight\(llar-annotation\) \{[^}]*var\(--llar-primary-control\)"
+                 css))
+    (is (re-find #"\.llar-reader ::selection \{[^}]*var\(--llar-primary-control\)"
+                 css))
+    (is (re-find #"\.reader-mode-show-item #item-content-body-container \{[^}]*var\(--llar-space-3\)"
+                 css))
     (is (re-find #"\.reading-checkpoint-control\.is-active \{[^}]*var\(--bs-primary\)"
                  css))
     (is (re-find #"\.checkpoint-resume-target \{[^}]*var\(--llar-primary-rgb\)"
                  css))))
+
+(deftest reader-design-language-has-scoped-light-and-dark-tokens
+  (let [css (slurp (io/resource "status/llar.css"))]
+    (is (re-find #"\.llar-reader \{[^}]*--llar-canvas: #f5f5f3" css))
+    (is (re-find #"\.llar-reader\[data-bs-theme=\"dark\"\] \{" css))
+    (is (re-find #"@media \(prefers-color-scheme: dark\)" css))
+    (is (re-find #"\.llar-reader:not\(\[data-bs-theme=\"light\"\]\)" css))
+    (is (re-find #"--llar-font-reading: \"IBM Plex Serif\"" css))
+    (is (re-find #"--llar-reading-measure: 60ch" css))))
 
 (deftest youtube-player-sends-origin-referrer
   (let [javascript (slurp (io/resource "status/llar.js"))]
@@ -243,6 +362,11 @@
                            [:main "article"]
                            "Example"))]
       (is (re-find #"class=\"reading-surface\"" article))
+      (is (re-find #"class=\"reader-item-toolbar\"" article))
+      (is (re-find #"class=\"reader-item-meta\"" article))
+      (is (re-find #"id=\"item-more-menu\"" article))
+      (is (re-find #">Internal data</span>" article))
+      (is (not (re-find #"item-data-select|Reading Time Estimate" article)))
       (is (not (re-find #"reading-(?:step|checkpoint)-rail" article)))
       (is (re-find #"class=\"reading-viewport-overlay\"" overlay))
       (is (re-find #"class=\"reading-step-rail\"" overlay))
@@ -271,7 +395,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f01-4\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f02-11\"></script></body></html>$"
                    shell)))))
 
 (deftest reading-navigation-has-one-mode-aware-forward-path
@@ -296,7 +420,8 @@
                                            :is-set? false))]
     (is (= {:title "Save for later" :aria-label "Save for later"}
            (select-keys (second button) [:title :aria-label])))
-    (is (= [[:i {:class "far fa-star"} "\u2009"]]
+    (is (string/includes? (get-in button [1 :class]) "reader-icon-button"))
+    (is (= [[:i {:class "far fa-star" :aria-hidden "true"}]]
            (subvec button 2)))))
 
 (deftest reader-state-updates-do-not-prune-or-reload-lists

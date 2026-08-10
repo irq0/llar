@@ -242,7 +242,11 @@
             (is (= "An article" (:title entry)))
             (is (= 42 (:score entry)))
             (is (= ["someone"] (:authors entry)))
-            (is (= "the body" (get-in entry [:contents "text/plain"]))))
+            (is (= "the body" (get-in entry [:contents "text/plain"])))
+            (is (not (re-find #"<h1" (get-in entry [:contents "text/html"])))
+                "the item title already lives in the Reader path")
+            (is (not (re-find #"<ul" (get-in entry [:contents "text/html"])))
+                "Reddit uses the same paragraph summary structure as Hacker News"))
           (is (nil? (get-in (second items) [:entry :thumbnail]))
               "Reddit legitimately omits thumbnails from some posts"))
         (testing "missing selftext and relative post URLs are normalized"

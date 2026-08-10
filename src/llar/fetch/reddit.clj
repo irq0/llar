@@ -186,18 +186,16 @@
 (defn reddit-html-summary [c]
   (str
    (html
-    [:h1 (:title c)]
     [:div {:class "summary"}
-     [:ul
-      (when (some? (:subreddit_name_prefixed c))
-        [:li {:class "item-key-subreddit"}
-         [:span {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c)])
-      [:li {:class "item-key-score"} [:span {:class "key"} "Score: "] (:score c)]
-      [:li {:class "item-key-timestamp"}
-       [:span {:class "key"} "Time: "] (reddit-ts-to-zoned-date-time (:created_utc c))]
-      [:li {:class "item-key-url"} [:a {:href (:url c)} "URL"]]
-      [:li {:class "item-key-comments-url"}
-       [:a {:href (str "https://www.reddit.com" (:permalink c))} "Comments"]]]]
+     [:div
+      [:p
+       (when (some? (:subreddit_name_prefixed c))
+         [:span [:span {:class "key"} "Subreddit: "] (:subreddit_name_prefixed c) " "])
+       [:span [:span {:class "key"} "Score: "] (:score c)]]
+      [:p [:span {:class "key"} "URL: "] [:a {:href (:url c)} (:url c)]]
+      [:p [:span {:class "key"} "Comments: "]
+       [:a {:href (str "https://www.reddit.com" (:permalink c))}
+        (str "https://www.reddit.com" (:permalink c))]]]]
     [:p {:style "white-space: pre-line"} (:selftext c)])))
 
 (defn make-reddit-entry [c]
