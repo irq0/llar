@@ -264,18 +264,20 @@
        (string/join "/" path)
        (str (string/join "/" path) "?" query-string)))))
 
+(defn- item-detail-path [x id]
+  ["/reader/group"
+   (name (or (:group-name x) :default))
+   (name (or (:group-item x) :none))
+   "source"
+   (name (or (:source-key x) :all))
+   "item/by-id"
+   id])
+
 (defn show-item-href
   "Build the item-detail URL for an item in the current reader context."
   [x item]
   (when-let [id (:id item)]
-    (make-site-href ["/reader/group"
-                     (name (or (:group-name x) :default))
-                     (name (or (:group-item x) :none))
-                     "source"
-                     (name (or (:source-key x) :all))
-                     "item/by-id"
-                     id]
-                    x)))
+    (make-site-href (item-detail-path x id) x)))
 
 (defn html-header [title mode item]
   [:head
@@ -293,13 +295,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-f04-08"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-r01-02"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-f04-08"}]])
+   [:script {:src "/static/llar.js?v=reader-r01-02"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -483,6 +485,7 @@
                       :show-item (str (-> items first :title)
                                       (when breadcrumb-suffix
                                         (str " / " (:label breadcrumb-suffix))))
+                      :dump-item (str "Inspect / " (-> items first :title))
                       :tools (tool-view-title (:view x))
                       :list-items (if (= source-key :all)
                                     (name group-item)
@@ -557,15 +560,19 @@
           [:li {:class "breadcrumb-item"}
            [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
             (:title (first selected-sources))]])
-        (when (and (= mode :show-item) (= source-key :all))
+        (when (and (contains? #{:show-item :dump-item} mode) (= source-key :all))
           (let [source-key (-> items first :source-key)]
             [:li {:class "breadcrumb-item"}
              [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
               source-key]]))
-        (when (= mode :show-item)
+        (when (contains? #{:show-item :dump-item} mode)
           (let [item (first items)]
             [:li {:class "breadcrumb-item"}
              [:a {:href (show-item-href x item)} (:title item)]]))
+        (when (= mode :dump-item)
+          [:li {:class "breadcrumb-item active" :aria-current "page"}
+           (icon "fas fa-search")
+           " Inspect"])
         (when breadcrumb-suffix
           [:li {:class "breadcrumb-item active" :aria-current "page"}
            (icon (:icon breadcrumb-suffix))
@@ -945,17 +952,17 @@
   ([url]
    (external-link-button url nil))
   ([url target]
-   (icon-button (cond-> {:title "Open item URL"
-                         :aria-label "Open item URL"
+   (icon-button (cond-> {:title "Open original item"
+                         :aria-label "Open original item"
                          :href url}
                   target (assoc :target target))
                 "fas fa-external-link-alt")))
 
 (defn dump-button [href]
-  (icon-button {:title "Show internal data representation of this item"
-                :aria-label "Show internal data representation of this item"
+  (icon-button {:title "Inspect item"
+                :aria-label "Inspect item"
                 :href href}
-               "fas fa-code"))
+               "fas fa-search"))
 
 (defn focus-button [href]
   (icon-button {:title "Show item HTML focus mode"
@@ -1015,10 +1022,53 @@
      (icon (if is-set? icon-set icon-unset))
      [:span {:class "reader-action-label"} label]]))
 
-(defn- item-more-menu [x {:keys [id tags data]}]
+(def ^:private +representation-order+
+  [[:content "text/html"]
+   [:content "text/plain"]
+   [:description "text/html"]
+   [:description "text/plain"]])
+
+(defn- representation-label [data-key content-type]
+  (or (get {[:content "text/html"] "Extracted HTML"
+            [:content "text/plain"] "Extracted text"
+            [:description "text/html"] "Summary HTML"
+            [:description "text/plain"] "Summary text"}
+           [data-key content-type])
+      (str (string/capitalize (name data-key)) " · " content-type)))
+
+(defn- item-representations [{:keys [data]}]
+  (let [rank (zipmap +representation-order+ (range))]
+    (->> data
+         (mapcat (fn [[data-key contents]]
+                   (for [[content-type _] contents]
+                     {:data-key data-key
+                      :content-type content-type
+                      :label (representation-label data-key content-type)})))
+         (sort-by (fn [{:keys [data-key content-type]}]
+                    [(get rank [data-key content-type] 100)
+                     (name data-key)
+                     content-type])))))
+
+(defn- current-representation [x item]
+  (let [representations (item-representations item)
+        selected [(some-> (:data x) keyword) (:content-type x)]]
+    (or (when (every? some? selected)
+          (some #(when (= selected [(:data-key %) (:content-type %)]) %) representations))
+        (first representations))))
+
+(defn- representation-href [x id {:keys [data-key content-type]}]
+  (make-site-href (cond-> (item-detail-path x id)
+                    (not (string/starts-with? content-type "text/")) (conj "download"))
+                  {:data (name data-key)
+                   :content-type content-type}
+                  x))
+
+(defn- item-more-menu [x {:keys [id tags] :as item}]
   (let [has-zotero (some? (credentials :zotero))
         url-handler-cfg (rc/rc [:reader :export :url-handler])
-        has-url-handler (some? url-handler-cfg)]
+        has-url-handler (some? url-handler-cfg)
+        representations (item-representations item)
+        current (current-representation x item)]
     [:div {:class "dropdown d-inline-block"}
      (icon-button {:href "#"
                    :role "button"
@@ -1029,36 +1079,33 @@
                    :aria-label "More item actions"}
                   "fas fa-ellipsis-h")
      [:ul {:class "dropdown-menu dropdown-menu-end" :aria-labelledby "item-more-menu"}
-      [:li (state-menu-button id tags :archive)]
-      (for [button (tag-buttons)]
-        [:li (tag-menu-button id tags button)])
-      [:li [:hr {:class "dropdown-divider"}]]
+      [:li [:h6 {:class "dropdown-header"} "Item tools"]]
       [:li
        [:a {:class "dropdown-item"
-            :href (make-site-href [id "dump"] x)}
-        (icon "fas fa-code") [:span "Internal data"]]]
+            :href (make-site-href (conj (item-detail-path x id) "dump") x)}
+        (icon "fas fa-search") [:span "Inspect item"]]]
       [:li
        [:a {:class "dropdown-item"
-            :href (make-site-href [id "download"] {:data "content"
-                                                   :content-type "text/html"} x)}
-        (icon "fas fa-remove-format") [:span "Raw HTML"]]]
-      (when (seq data)
-        [:li [:h6 {:class "dropdown-header"} "Content variants"]])
-      (for [[descr contents] data
-            [content-type _] contents]
+            :href (make-site-href (conj (item-detail-path x id) "download")
+                                  {:data "content" :content-type "text/html"}
+                                  x)}
+        (icon "fas fa-remove-format") [:span "Raw extracted HTML"]]]
+      (when (seq representations)
+        [:li [:h6 {:class "dropdown-header"}
+              "Representation"
+              (when current (str " · " (:label current)))]])
+      (for [{:keys [data-key content-type label] :as representation} representations
+            :let [current? (= [data-key content-type]
+                              [(:data-key current) (:content-type current)])]]
         [:li
-         [:a {:class "dropdown-item"
-              :href (make-site-href
-                     (if (re-find #"text/.+" content-type)
-                       [(:uri x)]
-                       [(:uri x) "download"])
-                     {:data (name descr)
-                      :content-type content-type}
-                     x)}
-          (icon "far fa-file-alt")
-          [:span (str (name descr) " · " content-type)]]])
+         [:a (cond-> {:class "dropdown-item reader-representation-option"
+                      :href (representation-href x id representation)}
+               current? (assoc :aria-current "true"))
+          (icon (if current? "fas fa-check" "far fa-file-alt"))
+          [:span label]
+          [:code {:class "reader-representation-mime"} content-type]]])
       (when (or has-zotero has-url-handler)
-        [:li [:hr {:class "dropdown-divider"}]])
+        [:li [:h6 {:class "dropdown-header"} "Export"]])
       (when has-zotero
         [:li
          [:a {:class "dropdown-item" :id "btn-export-zotero" :href "#"}
@@ -1067,7 +1114,12 @@
         [:li
          [:a {:class "dropdown-item" :id "btn-export-url-handler" :href "#"}
           (icon (or (:icon url-handler-cfg) "fas fa-external-link-alt"))
-          [:span (or (:name url-handler-cfg) "Open in app")]]])]]))
+          [:span (or (:name url-handler-cfg) "Open in app")]]])
+      [:li [:hr {:class "dropdown-divider"}]]
+      [:li [:h6 {:class "dropdown-header"} "Workflow"]]
+      [:li (state-menu-button id tags :archive)]
+      (for [button (tag-buttons)]
+        [:li (tag-menu-button id tags button)])]]))
 
 (defn reading-checkpoint-tools [{:keys [id checkpoint-selector checkpoint-progress]}]
   (let [active? (some? checkpoint-progress)]
@@ -1158,8 +1210,10 @@
          [:span (action-icon "far fa-calendar") (human/datetime-ago ts)])]
       [:div {:class "reader-item-primary-actions"}
        (tags-button-group id tags)
-       (external-link-button url "_blank")
-       (related-button x id)
+       [:div {:class "reader-item-document-actions"
+              :aria-label "Document actions"}
+        (external-link-button url "_blank")
+        (related-button x id)]
        (item-more-menu x item)]]
      [:div {:id "annotation-item-notes"
             :class "container-fluid mb-2"
@@ -1211,16 +1265,372 @@
                     :aria-label "Add item note" :title "Add item note"}
            (action-icon "fas fa-sticky-note")]]]]]]]))
 
+(defn- inspect-fact [label value]
+  (when (some? value)
+    [:div {:class "reader-inspect-fact"}
+     [:dt {:class "reader-inspect-fact-label"} label]
+     [:dd {:class "reader-inspect-fact-value"} value]]))
+
+(defn- inspect-timestamp [ts]
+  (when ts
+    [:time {:datetime (str ts)}
+     (time/format (time/formatter "yyyy-MM-dd HH:mm:ss z") ts)]))
+
+(defn- inspect-state-label [item]
+  (let [tags (item-state/tag-set item)]
+    (string/join " · "
+                 (cond-> [(if (contains? tags :unread) "Unread" "Read")]
+                   (contains? tags :saved) (conj "Saved")
+                   (contains? tags :archive) (conj "Archived")
+                   (:checkpoint-progress item) (conj "Reading place saved")))))
+
+(defn- inspect-signal-values [values]
+  (->> (cond
+         (nil? values) []
+         (string? values) [values]
+         (coll? values) values
+         :else [values])
+       (remove nil?)
+       (map str)
+       distinct
+       vec))
+
+(defn- inspect-signal-row [label values]
+  (let [values (inspect-signal-values values)]
+    (when (seq values)
+      [:li {:class "reader-inspect-signal"}
+       [:span {:class "reader-inspect-signal-heading"}
+        [:strong label]
+        [:span {:class "reader-inspect-count"} (count values)]]
+       [:span {:class "reader-inspect-signal-values"}
+        (string/join ", " (take 8 values))
+        (when (> (count values) 8) " …")]])))
+
+(defn- inspect-signals [{:keys [names nouns verbs urls top-words]}]
+  (let [terms (concat (map first (get top-words "words" [])) nouns verbs)
+        rows (remove nil?
+                     [(inspect-signal-row "Entities" names)
+                      (inspect-signal-row "Terms" terms)
+                      (inspect-signal-row "References" urls)])]
+    (if (seq rows)
+      (into [:ul {:class "reader-inspect-signals"}] rows)
+      [:p {:class "reader-inspect-empty"} "No extracted signals are stored for this item."])))
+
+(defn- inspect-url-host [url]
+  (when-not (string/blank? (str url))
+    (try+
+     (some-> url str uri/uri uri/host)
+     (catch Object _ nil))))
+
+(defn- inspect-item-renderer [item]
+  (cond
+    (reddit-item? item) "Reddit summary"
+    (video-content? item) "Video"
+    :else "Generic article"))
+
+(defn- inspect-processor-count [processors]
+  (cond
+    (nil? processors) 0
+    (sequential? processors) (count processors)
+    :else 1))
+
+(defn- inspect-source-context [source item source-state]
+  (let [pre-count (inspect-processor-count (get-in source [:proc :pre]))
+        post-count (inspect-processor-count (get-in source [:proc :post]))
+        options (some->> (:options source) (map name) sort seq)
+        source-tags (some->> (:tags source) (map name) sort seq)
+        failure (some->> (:last-error source-state)
+                         vals
+                         (remove nil?)
+                         (map #(if (keyword? %) (name %) (str %)))
+                         seq
+                         (string/join " · "))
+        {:keys [fetched processed db]} (:stats source-state)]
+    (into
+     [:dl {:class "reader-inspect-facts"}]
+     (remove nil?
+             [(inspect-fact "Source implementation"
+                            (when-let [src (:src source)]
+                              [:code (metrics/source-type-label src)]))
+              (inspect-fact "Stored feed type"
+                            (or (get-in source [:data :feed-type])
+                                (get-in item [:entry :feed-type])))
+              (inspect-fact "Article renderer" (inspect-item-renderer item))
+              (inspect-fact "Source processors"
+                            (str pre-count " pre · " post-count " post"))
+              (inspect-fact "Source options" (when options (string/join ", " options)))
+              (inspect-fact "Source tags" (when source-tags (string/join ", " source-tags)))
+              (inspect-fact "Current update status"
+                            (some-> source-state :status name))
+              (inspect-fact "Last update attempt"
+                            (inspect-timestamp (:last-attempt-ts source-state)))
+              (inspect-fact "Last successful source update"
+                            (inspect-timestamp (:last-successful-fetch-ts source-state)))
+              (inspect-fact "Last update duration"
+                            (some-> source-state :last-duration human/format-duration))
+              (inspect-fact "Last update result"
+                            (when (every? number? [fetched processed db])
+                              (str fetched " fetched · " processed " processed · " db " new")))
+              (inspect-fact "Retry count"
+                            (when (pos? (or (:retry-count source-state) 0))
+                              (:retry-count source-state)))
+              (inspect-fact "Last failure" failure)]))))
+
+(defn- inspect-normalized-text [text]
+  (some-> text
+          str
+          string/lower-case
+          (string/replace #"\\s+" " ")
+          string/trim
+          not-empty))
+
+(defn- inspect-diagnostic [severity title explanation]
+  {:severity severity :title title :explanation explanation})
+
+(defn- inspect-health-checks [{:keys [title url ts nwords entry data source-key] :as item}
+                              source]
+  (let [representations (item-representations item)
+        values (mapcat vals (vals data))
+        readable-values (filter string? values)
+        all-representations-empty? (and (seq representations)
+                                        (not-any? (complement string/blank?) readable-values))
+        empty-representations (->> representations
+                                   (filter (fn [{:keys [data-key content-type]}]
+                                             (string/blank?
+                                              (get-in data [data-key content-type]))))
+                                   (map :label)
+                                   seq)
+        full-text (or (get-in data [:content "text/plain"])
+                      (get-in data [:content "text/html"]))
+        summary-text (or (get-in data [:description "text/plain"])
+                         (get-in data [:description "text/html"]))
+        normalized-title (inspect-normalized-text title)
+        normalized-full (inspect-normalized-text full-text)
+        future-ts? (and ts
+                        (try+
+                         (time/after? ts (time/plus (time/zoned-date-time) (time/hours 6)))
+                         (catch Object _ false)))]
+    (remove
+     nil?
+     [(when (string/blank? (str url))
+        (inspect-diagnostic :warning "Original URL is missing"
+                            "Opening or identifying the upstream item may be difficult."))
+      (when (and url (nil? (inspect-url-host url)))
+        (inspect-diagnostic :warning "Original URL has no recognizable host"
+                            (str url)))
+      (when (empty? representations)
+        (inspect-diagnostic :warning "No stored representation"
+                            "Reader has no content or description body to display."))
+      (when all-representations-empty?
+        (inspect-diagnostic :warning "All stored representations are empty"
+                            "The item exists, but its stored bodies contain no readable text."))
+      (when (and empty-representations (not all-representations-empty?))
+        (inspect-diagnostic :warning "Empty representation"
+                            (string/join ", " empty-representations)))
+      (when (and (nil? (get data :content))
+                 (some (complement string/blank?) (vals (get data :description))))
+        (inspect-diagnostic :notice "Summary fallback"
+                            "No full content is stored; Reader must use the description."))
+      (when (and normalized-title normalized-full
+                 (string/starts-with? normalized-full normalized-title))
+        (inspect-diagnostic :notice "Title appears at the start of the body"
+                            "The extractor may have retained a duplicate article heading."))
+      (when future-ts?
+        (inspect-diagnostic :warning "Item timestamp is in the future"
+                            "The timestamp is more than six hours ahead of the Reader clock."))
+      (when (or (nil? nwords) (and (number? nwords) (neg? nwords)))
+        (inspect-diagnostic :notice "Word analysis is unavailable"
+                            "Reading time and content-length diagnostics may be incomplete."))
+      (when (string/blank? (str (:language entry)))
+        (inspect-diagnostic :notice "Language is not stored"
+                            "Reader falls back to its default article language."))
+      (when (nil? source)
+        (inspect-diagnostic :warning "Source is not currently configured"
+                            (str "Stored source key: " source-key)))])))
+
+(defn- render-inspect-health [diagnostics]
+  (if (seq diagnostics)
+    [:ul {:class "reader-inspect-diagnostics"}
+     (for [{:keys [severity title explanation]} diagnostics]
+       [:li {:class (str "reader-inspect-diagnostic is-" (name severity))}
+        (action-icon (if (= severity :warning)
+                       "fas fa-exclamation-triangle"
+                       "fas fa-info-circle"))
+        [:span
+         [:strong title]
+         [:span {:class "reader-inspect-diagnostic-explanation"} explanation]]])]
+    [:p {:class "reader-inspect-health-ok"}
+     (action-icon "fas fa-check-circle")
+     " No obvious problems found in the stored item."]))
+
+(defn- inspect-event-label [event-type]
+  (case event-type
+    :result-offered "Offered"
+    :impression "Seen in viewport"
+    :item-opened "Opened"
+    :annotation-created "Annotation added"
+    :checkpoint-updated "Reading place updated"
+    (some-> event-type name string/capitalize)))
+
+(defn- inspect-event-detail [{:keys [position surface trigger data metadata]}]
+  (let [score (or (:score data) (:rank data))
+        progress (:progress data)]
+    (string/join
+     " · "
+     (remove string/blank?
+             [(when position (str "position " position))
+              (some-> surface name)
+              (some-> trigger name)
+              (when (number? score) (format "score %.3f" (double score)))
+              (when (number? progress) (format "%.0f%% read" (* 100.0 (double progress))))
+              (some-> metadata :group str)
+              (some-> metadata :source str)]))))
+
+(defn- render-inspect-workflow [{:keys [events annotations]} item]
+  (let [event-counts (frequencies (map :event-type events))
+        checkpoint-ts (:checkpoint-updated-ts item)
+        annotation-events (map (fn [{:keys [created-ts]}]
+                                 {:event-type :annotation-created
+                                  :recorded-at created-ts})
+                               annotations)
+        checkpoint-event (when checkpoint-ts
+                           {:event-type :checkpoint-updated
+                            :recorded-at checkpoint-ts
+                            :data {:progress (:checkpoint-progress item)}})
+        recent-events (->> (concat events annotation-events [checkpoint-event])
+                           (remove #(nil? (:recorded-at %)))
+                           (sort-by (comp str :recorded-at) #(compare %2 %1))
+                           (take 12))]
+    [:div {:class "reader-inspect-workflow"}
+     (into
+      [:dl {:class "reader-inspect-facts reader-inspect-workflow-summary"}]
+      (remove nil?
+              [(inspect-fact "Offers" (get event-counts :result-offered 0))
+               (inspect-fact "Viewport impressions" (get event-counts :impression 0))
+               (inspect-fact "Opens" (get event-counts :item-opened 0))
+               (inspect-fact "Annotations" (count annotations))
+               (inspect-fact "Reading place updated" (inspect-timestamp checkpoint-ts))]))
+     (if (seq recent-events)
+       [:ol {:class "reader-inspect-timeline"}
+        (for [{:keys [event-type recorded-at] :as event} recent-events]
+          [:li {:class "reader-inspect-timeline-event"}
+           [:span {:class "reader-inspect-timeline-marker" :aria-hidden "true"}]
+           [:div
+            [:strong (inspect-event-label event-type)]
+            (when recorded-at
+              [:time {:datetime (str recorded-at)} (str recorded-at)])
+            (when-let [detail (not-empty (inspect-event-detail event))]
+              [:span {:class "reader-inspect-timeline-detail"} detail])]])]
+       [:p {:class "reader-inspect-empty"} "No Reader workflow events are recorded for this item."])]))
+
 (defn dump-item
-  "Dump Item Developer Representation"
+  "Inspect an item's provenance and representations before exposing its raw values."
   [x]
-  (let [item (first (:items x))]
-    [:div {:class "item-content"}
-     [:div {:class "item-content-nav"}
-      [:h3 "Clojure value inspector"]
-      (value-inspector/value-inspector
-       [[:item "Current item" item]
-        [:context "Full data structure" x]])]]))
+  (let [{:keys [id title url ts author source-key entry nwords tags type feed-id
+                checkpoint-updated-ts] :as item}
+        (first (:items x))
+        source (get (:sources x) (keyword source-key))
+        {:keys [source-state] :as inspect-details} (:inspect-details x)
+        source-title (or (:title source) (some-> source-key name) (str source-key))
+        language (:language entry)
+        reading-estimate (item/reading-time-estimate item)
+        representations (item-representations item)
+        current (current-representation x item)
+        diagnostics (inspect-health-checks item source)
+        labels (->> tags
+                    (remove #(contains? item-state/workflow-tags (keyword %)))
+                    sort
+                    seq)]
+    [:div {:class "item-content reader-inspect-workspace"}
+     [:header {:class "reader-inspect-header"}
+      [:div {:class "reader-inspect-kicker"}
+       (action-icon "fas fa-search") " Inspect item"]
+      [:h1 {:class "reader-inspect-title"} title]
+      (when url
+        [:a {:class "reader-inspect-original" :href url :target "_blank"
+             :rel "noopener noreferrer"}
+         (action-icon "fas fa-external-link-alt") " Open original"])]
+
+     [:section {:class "reader-inspect-section" :aria-labelledby "inspect-provenance"}
+      [:h2 {:id "inspect-provenance" :class "reader-inspect-section-title"}
+       "Item identity and provenance"]
+      (into
+       [:dl {:class "reader-inspect-facts"}]
+       (remove nil?
+               [(inspect-fact "Source" source-title)
+                (inspect-fact "Source key" [:code (some-> source-key name)])
+                (inspect-fact "Item ID" [:code id])
+                (inspect-fact "Item type" (some-> type name))
+                (inspect-fact "Source database ID" (when feed-id [:code feed-id]))
+                (inspect-fact "Original host" (inspect-url-host url))
+                (inspect-fact "Original URL"
+                              (when url
+                                [:a {:href url :target "_blank" :rel "noopener noreferrer"}
+                                 [:code (str url)]]))
+                (inspect-fact "Comments URL"
+                              (when-let [comments-url (:comments-url entry)]
+                                [:a {:href comments-url :target "_blank"
+                                     :rel "noopener noreferrer"}
+                                 [:code (str comments-url)]]))
+                (inspect-fact "Item timestamp" (inspect-timestamp ts))
+                (inspect-fact "Feed publication timestamp" (:pub-ts entry))
+                (inspect-fact "Feed updated timestamp" (:updated-ts entry))
+                (inspect-fact "Reading place updated" (inspect-timestamp checkpoint-updated-ts))
+                (inspect-fact "Author" (when-not (string/blank? author) author))
+                (inspect-fact "Language" (when-not (string/blank? language) language))
+                (inspect-fact "Length"
+                              (when (and (number? nwords) (not (neg? nwords)))
+                                (str nwords " words · " (:estimate reading-estimate) " min")))
+                (inspect-fact "State" (inspect-state-label item))
+                (inspect-fact "Labels" (when labels (string/join ", " labels)))
+                (inspect-fact "Representations" (count representations))]))]
+
+     [:section {:class "reader-inspect-section" :aria-labelledby "inspect-health"}
+      [:h2 {:id "inspect-health" :class "reader-inspect-section-title"}
+       "Automatic health checks"]
+      (render-inspect-health diagnostics)]
+
+     [:section {:class "reader-inspect-section" :aria-labelledby "inspect-source-context"}
+      [:h2 {:id "inspect-source-context" :class "reader-inspect-section-title"}
+       "Source and processing context"]
+      (inspect-source-context source item source-state)]
+
+     [:section {:class "reader-inspect-section" :aria-labelledby "inspect-signals"}
+      [:h2 {:id "inspect-signals" :class "reader-inspect-section-title"}
+       "Extracted signals"]
+      (inspect-signals item)]
+
+     [:section {:class "reader-inspect-section" :aria-labelledby "inspect-representations"}
+      [:h2 {:id "inspect-representations" :class "reader-inspect-section-title"}
+       "Available representations"]
+      (if (seq representations)
+        [:ul {:class "reader-inspect-representations"}
+         (for [{:keys [data-key content-type label] :as representation} representations
+               :let [current? (= [data-key content-type]
+                                 [(:data-key current) (:content-type current)])]]
+           [:li {:class "reader-inspect-representation"}
+            [:a {:class "reader-inspect-representation-link"
+                 :href (representation-href x id representation)}
+             (action-icon (if current? "fas fa-check" "far fa-file-alt"))
+             [:span label]]
+            [:code {:class "reader-inspect-representation-mime"} content-type]
+            (when current?
+              [:span {:class "reader-inspect-current"} "Default"])])]
+        [:p {:class "reader-inspect-empty"} "No stored content representation is available."])]
+
+     [:section {:class "reader-inspect-section" :aria-labelledby "inspect-workflow"}
+      [:h2 {:id "inspect-workflow" :class "reader-inspect-section-title"}
+       "Reader workflow history"]
+      (render-inspect-workflow inspect-details item)]
+
+     [:details {:class "reader-inspect-raw"}
+      [:summary {:class "reader-inspect-raw-summary"}
+       (action-icon "fas fa-code")
+       [:span "Clojure data and render context"]]
+      [:div {:class "reader-inspect-raw-body"}
+       (value-inspector/value-inspector
+        [[:item "Current item" item]
+         [:context "Full data structure" x]])]]]))
 
 (defn awesome-url-text
   "Helper: Make URL Text from URL, enriched with with Icons, etc."
@@ -1303,7 +1713,7 @@
         current-item (first (:items x))]
     (cond
       (= mode :dump-item)
-      "💩"
+      (format "🔍 Inspect — %s" (:title current-item))
 
       (#{:focus-item :show-item} mode)
       (format "🕮 %s [%s]"
@@ -1965,11 +2375,42 @@
          annotated-items (if (= effective-sort :ranked)
                            (map-indexed (fn [idx item] (assoc item :ranked-pos (+ base-offset idx))) fetched)
                            fetched)
+         inspect-details (when (= :dump-item (:mode params))
+                           (let [item-id (some-> annotated-items first :id)
+                                 item-source-key (some-> annotated-items first :source-key keyword)
+                                 full-source-state (get (update/get-current-state) item-source-key)
+                                 exception-data (get-in full-source-state [:last-exception :data])
+                                 last-error (when (:last-exception full-source-state)
+                                              {:type (:type exception-data)
+                                               :step (:update-step exception-data)
+                                               :reason (metrics/reason-class-from-data
+                                                        exception-data)
+                                               :class (some-> full-source-state
+                                                              :last-exception
+                                                              :throwable
+                                                              class
+                                                              .getName)})]
+                             {:events (if item-id
+                                        (persistency/get-events-for-item frontend-db item-id)
+                                        [])
+                              :annotations (if item-id
+                                             (persistency/get-annotations frontend-db item-id)
+                                             [])
+                              :source-state (cond-> (select-keys full-source-state
+                                                                 [:status
+                                                                  :last-successful-fetch-ts
+                                                                  :last-attempt-ts
+                                                                  :last-finished-ts
+                                                                  :last-duration
+                                                                  :retry-count
+                                                                  :stats])
+                                              last-error (assoc :last-error last-error))}))
          params (merge params {:sources sources
                                :active-sources active-sources
                                :selected-sources selected-sources
                                :source-update-context source-update-context
                                :items annotated-items
+                               :inspect-details inspect-details
                                :item-tags @item-tags
                                :filter orig-fltr
                                :snapshot-ts (time/zoned-date-time)

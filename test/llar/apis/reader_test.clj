@@ -266,6 +266,23 @@
                    rendered))
       (is (re-find #"breadcrumb-item active" rendered)))))
 
+(deftest inspect-breadcrumb-extends-the-originating-item-path
+  (with-redefs [rc/rc (constantly nil)]
+    (let [rendered (str (h/html (uut/nav-bar
+                                 {:mode :dump-item
+                                  :uri "/reader/group/default/blog/source/all/item/by-id/42/dump"
+                                  :group-name :default
+                                  :group-item :blog
+                                  :source-key :all
+                                  :selected-sources []
+                                  :items [{:id 42
+                                           :source-key "feed"
+                                           :title "An item"
+                                           :tags []}]})))]
+      (is (re-find #"(?s)>blog</a>.*?>feed</a>.*?>An item</a>.*?fa-search.*?Inspect"
+                   rendered))
+      (is (re-find #"breadcrumb-item active" rendered)))))
+
 (deftest related-button-preserves-the-reader-path
   (let [rendered (str (h/html (uut/related-button
                                {:group-name :item-tags
@@ -438,8 +455,11 @@
       (is (re-find #"class=\"reading-surface\"" article))
       (is (re-find #"class=\"reader-item-toolbar\"" article))
       (is (re-find #"class=\"reader-item-meta\"" article))
+      (is (re-find #"class=\"reader-item-document-actions\"" article))
       (is (re-find #"id=\"item-more-menu\"" article))
-      (is (re-find #">Internal data</span>" article))
+      (is (re-find #">Inspect item</span>" article))
+      (is (re-find #">Raw extracted HTML</span>" article))
+      (is (string/includes? article "Representation · Summary HTML"))
       (is (not (re-find #"item-data-select|Reading Time Estimate" article)))
       (is (not (re-find #"reading-(?:step|checkpoint)-rail" article)))
       (is (re-find #"class=\"reading-viewport-overlay\"" overlay))
@@ -469,8 +489,112 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f04-08\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-r01-02\"></script></body></html>$"
                    shell)))))
+
+(deftest item-inspector-leads-with-provenance-signals-and-representations
+  (let [ts (time/zoned-date-time 2026 8 11 12 0 0 0 "Europe/Berlin")
+        rendered (str
+                  (h/html
+                   (uut/dump-item
+                    {:uri "/reader/group/default/all/source/all/item/by-id/42/dump"
+                     :group-name :default
+                     :group-item :all
+                     :source-key :all
+                     :sources {:feed {:title "Example Feed"
+                                      :proc {:pre [identity] :post [identity identity]}
+                                      :options #{:main-list-use-description}
+                                      :tags #{:news}}}
+                     :inspect-details
+                     {:source-state {:status :ok
+                                     :last-successful-fetch-ts ts
+                                     :last-duration (java.time.Duration/ofSeconds 2)
+                                     :stats {:fetched 20 :processed 18 :db 3}}
+                      :annotations [{:id 7 :created-ts ts}]
+                      :events [{:event-type :result-offered
+                                :recorded-at ts
+                                :position 4
+                                :surface :related
+                                :trigger :related-generated
+                                :data {:score 0.75}}
+                               {:event-type :impression
+                                :recorded-at ts
+                                :surface :related
+                                :trigger :viewport-dwell}
+                               {:event-type :item-opened
+                                :recorded-at ts
+                                :surface :item-detail
+                                :trigger :item-rendered}]}
+                     :items [{:id 42
+                              :title "Inspectable item"
+                              :url "https://example.test/post"
+                              :source-key "feed"
+                              :author "Ada"
+                              :ts ts
+                              :checkpoint-progress 0.4
+                              :checkpoint-updated-ts ts
+                              :nwords 800
+                              :names ["Ada" "Berlin"]
+                              :nouns ["reader"]
+                              :verbs ["inspect"]
+                              :urls ["https://clojure.org"]
+                              :top-words {"words" [["interface" 4]]}
+                              :tags ["unread" "saved" "research"]
+                              :entry {:language "en"}
+                              :data {:content {"text/html" "<p>Article</p>"
+                                               "text/plain" "Article"}
+                                     :description {"text/plain" "Summary"}}}]})))]
+    (is (string/includes? rendered "Item identity and provenance"))
+    (is (string/includes? rendered "Example Feed"))
+    (is (string/includes? rendered "Original host"))
+    (is (string/includes? rendered "example.test"))
+    (is (string/includes? rendered "Unread · Saved"))
+    (is (string/includes? rendered "research"))
+    (is (string/includes? rendered "Automatic health checks"))
+    (is (string/includes? rendered "No obvious problems found"))
+    (is (string/includes? rendered "Source and processing context"))
+    (is (string/includes? rendered "1 pre · 2 post"))
+    (is (string/includes? rendered "20 fetched · 18 processed · 3 new"))
+    (is (string/includes? rendered "Extracted signals"))
+    (is (string/includes? rendered "Ada, Berlin"))
+    (is (string/includes? rendered "interface, reader, inspect"))
+    (is (string/includes? rendered "Available representations"))
+    (is (string/includes? rendered "Extracted HTML"))
+    (is (string/includes? rendered "Extracted text"))
+    (is (string/includes? rendered "Summary text"))
+    (is (string/includes? rendered "Reader workflow history"))
+    (is (string/includes? rendered "Seen in viewport"))
+    (is (string/includes? rendered "Annotation added"))
+    (is (string/includes? rendered "Reading place updated"))
+    (is (string/includes? rendered "position 4 · related · related-generated · score 0.750"))
+    (is (string/includes? rendered "data=content&amp;content-type=text%2Fhtml"))
+    (is (string/includes? rendered "Clojure data and render context"))
+    (is (string/includes? rendered "data-clojure-value-inspector"))
+    (is (= "🔍 Inspect — Inspectable item"
+           (uut/short-page-headline {:mode :dump-item
+                                     :items [{:title "Inspectable item"}]})))))
+
+(deftest item-inspector-surfaces-derived-health-warnings
+  (let [rendered (str
+                  (h/html
+                   (uut/dump-item
+                    {:sources {}
+                     :items [{:id 43
+                              :title "Repeated title"
+                              :source-key "retired-feed"
+                              :ts (time/plus (time/zoned-date-time) (time/days 1))
+                              :nwords -1
+                              :tags []
+                              :entry {}
+                              :data {:description {"text/html" ""
+                                                   "text/plain" "Summary"}}}]})))]
+    (is (string/includes? rendered "Original URL is missing"))
+    (is (string/includes? rendered "Empty representation"))
+    (is (string/includes? rendered "Summary fallback"))
+    (is (string/includes? rendered "Item timestamp is in the future"))
+    (is (string/includes? rendered "Word analysis is unavailable"))
+    (is (string/includes? rendered "Language is not stored"))
+    (is (string/includes? rendered "Source is not currently configured"))))
 
 (deftest reading-navigation-has-one-mode-aware-forward-path
   (let [javascript (slurp (io/resource "status/llar.js"))]

@@ -18,8 +18,8 @@
   (let [same-tab (uut/external-link-button "https://example.test")
         new-tab (uut/external-link-button "https://example.test" "_blank")]
     (is (= {:class "btn reader-icon-button"
-            :title "Open item URL"
-            :aria-label "Open item URL"
+            :title "Open original item"
+            :aria-label "Open original item"
             :href "https://example.test"}
            (second same-tab)))
     (is (= "_blank" (get-in new-tab [1 :target])))
@@ -28,8 +28,8 @@
 (deftest item-toolbox-buttons-share-icon-button-markup
   (doseq [[button label icon-class]
           [[(uut/dump-button "/item/dump")
-            "Show internal data representation of this item"
-            "fas fa-code"]
+            "Inspect item"
+            "fas fa-search"]
            [(uut/focus-button "/item/focus")
             "Show item HTML focus mode"
             "fas fa-expand"]
