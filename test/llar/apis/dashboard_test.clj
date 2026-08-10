@@ -4,6 +4,7 @@
    [clojure.test :refer [deftest is testing]]
    [hiccup2.core :as h]
    [java-time.api :as time]
+   [mount.core :as mount]
    [llar.appconfig :as appconfig]
    [llar.apis.podcast :as podcast-api]
    [llar.config :as config]
@@ -108,7 +109,7 @@
       (is (string/includes? (:body response) "Export configuration"))
       (is (string/includes? (:body response) "Extraction"))
       (is (string/includes? (:body response) "config-lab-data-tree"))
-      (is (string/includes? (:body response) "Keys and values use EDN notation"))
+      (is (string/includes? (:body response) "Clojure readable notation"))
       (is (not (string/includes? (:body response) "Copy JSON"))))))
 
 (deftest docs-tab-renders-config-docs
@@ -174,7 +175,42 @@
         (is (string/includes? body "llar.test/daily"))
         (is (string/includes? body "manual"))
         (is (string/includes? body ":count"))
+        (is (string/includes? body "data-clojure-inspector-variant=\"compact\""))
+        (is (string/includes? body "table-responsive"))
+        (is (string/includes? body "bg-body-tertiary"))
+        (is (string/includes? body "colspan=\"11\""))
+        (is (not (string/includes? body ">Inspect<")))
         (is (string/includes? body "btn-run-schedule"))))))
+
+(deftest ranking-chart-is-server-rendered
+  (let [body (str (h/html (#'uut/ranking-bar-chart
+                           "Rarity"
+                           [{:source_key :one :rarity_boost_hours 10.0}
+                            {:source_key :two :rarity_boost_hours 5.0}]
+                           :rarity_boost_hours
+                           #(format "%.1fh" %)
+                           "bg-primary")))
+        footer (apply str (map #(str (h/html %)) (uut/html-footer)))]
+    (is (string/includes? body "dashboard-ranking-chart"))
+    (is (string/includes? body "progress-bar bg-primary"))
+    (is (string/includes? body "width:100.00%"))
+    (is (string/includes? body "width:50.00%"))
+    (is (string/includes? body "10.0h"))
+    (is (not (string/includes? footer "chartjs")))))
+
+(deftest state-tab-renders-values-in-place
+  (with-redefs [mount/find-all-states (constantly ["#'llar.test/example"])
+                mount/running-states (constantly ["#'llar.test/example"])
+                mount/current-state (constantly {:answer 42})]
+    (let [body (str (h/html (uut/state-tab)))]
+      (is (string/includes? body "data-clojure-inspector-variant=\"compact\""))
+      (is (string/includes? body ":answer"))
+      (is (not (string/includes? body "Inspect value"))))))
+
+(deftest dashboard-loads-the-shipped-datatables-runtime
+  (let [body (apply str (map #(str (h/html %)) (uut/html-footer)))]
+    (is (string/includes? body "/static/datatables/jquery.dataTables.min.js"))
+    (is (not (string/includes? body "/static/datatables/dataTables.min.js")))))
 
 (deftest source-staleness-follows-the-advertised-schedule-deadline
   (let [now (time/zoned-date-time 2026 8 8 12 0 0 0 "UTC")

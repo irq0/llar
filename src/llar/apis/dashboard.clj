@@ -1,6 +1,5 @@
 (ns llar.apis.dashboard
   (:require
-   [cheshire.core :as cheshire]
    [clj-stacktrace.core :as stacktrace]
    [clj-stacktrace.repl :as stacktrace-repl]
    [compojure.core :refer [DELETE GET POST routes context]]
@@ -12,7 +11,7 @@
    [mount.core :as mount]
    [puget.printer :as puget]
    [clojure.string :as string]
-   [llar.apis.reader :refer [frontend-db map-to-tree] :as reader]
+   [llar.apis.reader :refer [frontend-db]]
    [llar.apis.config-lab :as config-lab-api]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
@@ -31,6 +30,7 @@
    [llar.sched :as sched]
    [llar.store :as store]
    [llar.update :as update]
+   [llar.value-inspector :as value-inspector]
    [llar.work :as work])
   (:import
    [io.prometheus.client.exporter.common TextFormat]
@@ -52,15 +52,15 @@
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
    [:link {:rel "stylesheet" :href "/static/datatables/dataTables.bootstrap5.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=inspector-5"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
-   [:script {:src "/static/datatables/dataTables.min.js"}]
+   [:script {:src "/static/datatables/jquery.dataTables.min.js"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js"}]
-   [:script {:src "/static/chartjs/chart.umd.min.js"}]
-   [:script {:src "/static/llar-status.js?v=config-lab-2"}]])
+   [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
+   [:script {:src "/static/llar-status.js?v=config-lab-5"}]])
 
 (defn wrap-body [body]
   (str
@@ -79,6 +79,8 @@
     :else
     nil))
 
+;; The standalone crash page does not load dashboard JavaScript. Keep its
+;; bounded, server-rendered fallback separate from the interactive value views.
 (def +pprint-handlers+
   {java.time.ZonedDateTime
    (puget/tagged-handler
@@ -96,7 +98,6 @@
     'uri str)})
 
 (def +light-mode-color-scheme+
-  "Light mode friendly color scheme for puget pretty printing"
   {:delimiter [:bold :black]
    :tag [:bold :blue]
    :nil [:bold :black]
@@ -115,7 +116,7 @@
    (h/raw
     (let [pr-str-orig pr-str
           #_:clj-kondo/ignore
-          pr-str  (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
+          pr-str (fn [& xs] (StringEscapeUtils/escapeHtml4 (apply pr-str xs)))]
       (puget/pprint-str
        x
        {:width 60
@@ -124,7 +125,9 @@
         :print-color true
         :color-scheme +light-mode-color-scheme+
         :print-handlers +pprint-handlers+
-        :print-fallback (fn [_ value] [:span (StringEscapeUtils/escapeHtml4 (pr-str-orig value))])
+        :print-fallback (fn [_ value]
+                          [:span (StringEscapeUtils/escapeHtml4
+                                  (pr-str-orig value))])
         :color-markup :html-inline})))])
 
 (defn source-tab []
@@ -305,13 +308,16 @@
 (defn source-details [src-k]
   (let [k (keyword src-k)
         source (config/get-source k)
-        state (get-state k)]
+        state (get-state k)
+        exception-data (get-in state [:last-exception :data])]
     (str (h/html
           [:div
-           [:h5 "Source Configuration"]
-           (pprint-html source)
-           [:h5 "State Structure"]
-           (pprint-html state)]
+           [:h5 "Source data"]
+           (value-inspector/value-inspector
+            (cond-> [[:configuration "Configuration" source]
+                     [:state "Runtime state" state]]
+              (some? exception-data)
+              (conj [:exception-data "Exception data" exception-data])))]
           (when-let [th (some-> (get-in state [:last-exception :throwable])
                                 stacktrace/parse-exception)]
             [:div
@@ -319,8 +325,7 @@
              [:ul
               [:li "Exception Class: " [:pre (class (get-in state [:last-exception :throwable]))]]
               [:li "Message: " [:pre (get-in state [:last-exception :message])]]
-              [:li "Cause: " [:pre (get-in state [:last-exception :cause])]]
-              [:li "Data: " (pprint-html (get-in state [:last-exception :data]))]]
+              [:li "Cause: " [:pre (get-in state [:last-exception :cause])]]]
              [:h6 "Stack Trace"]
              [:ol
               (for [s (:trace-elems th)
@@ -395,13 +400,19 @@
         [:th "Value"]]]
       [:tbody
        (for [state states
-             :let [val (mount/current-state state)
-                   pretty (if (= "#'llar.update/state" state) "..omitted.." (pprint-html val))]]
+             :let [val (mount/current-state state)]]
          [:tr
           [:td state]
           [:td (some? (some #{state} running))]
           [:td (type val)]
-          [:td pretty]])]])))
+          [:td
+           (if (= "#'llar.update/state" state)
+             "..omitted.."
+             (value-inspector/value-inspector
+              [[:value "Value" val]]
+              {:variant :compact
+               :max-nodes 600
+               :max-children 75}))]])]])))
 
 ;;; Activity tab
 ;;;
@@ -610,45 +621,74 @@
 (defn schedule-tab []
   (let [schedules (sched/find-schedules)]
     [:div
-     [:table {:class "table"}
-      [:thead
-       [:tr
-        [:th "Name"]
-        [:th "State"]
-        [:th "Type"]
-        [:th "Canned"]
-        [:th "Next Run"]
-        [:th "Running?"]
-        [:th "Last Started"]
-        [:th "Last Finished"]
-        [:th "Duration"]
-        [:th "Trigger"]
-        [:th "Result"]
-        [:th "Exception"]
-        [:th "Actions"]]]
-      [:tbody
-       (for [schedule schedules
-             :let [{:keys [key mount-state sched-name sched-type chime-times
-                           next-run-at running? last-started-at last-finished-at last-duration
-                           last-trigger last-result last-exception]}
-                   (sched/snapshot schedule)]]
-         [:tr
-          [:td sched-name]
-          [:td mount-state]
-          [:td sched-type]
-          [:td chime-times]
-          [:td (some-> next-run-at datetime-until)]
-          [:td (if running? "yes" "no")]
-          [:td (some-> last-started-at human/datetime-ago)]
-          [:td (some-> last-finished-at human/datetime-ago)]
-          [:td (some-> last-duration human/format-duration)]
-          [:td (some-> last-trigger name)]
-          [:td (when (some? last-result) (pprint-html last-result))]
-          [:td (when (some? last-exception) (pprint-html last-exception))]
-          [:td [:button {:type "button"
-                         :class "btn btn-sm btn-primary btn-run-schedule"
-                         :data-schedule-key (name key)}
-                "Run"]]])]]]))
+     [:div {:class "table-responsive"}
+      [:table {:class "table align-middle schedule-table"}
+       [:thead
+        [:tr
+         [:th "Name"]
+         [:th "State"]
+         [:th "Type"]
+         [:th "Canned"]
+         [:th "Next Run"]
+         [:th "Running?"]
+         [:th "Last Started"]
+         [:th "Last Finished"]
+         [:th "Duration"]
+         [:th "Trigger"]
+         [:th "Actions"]]]
+       [:tbody
+        (mapcat
+         (fn [schedule]
+           (let [{:keys [key mount-state sched-name sched-type chime-times
+                         next-run-at running? last-started-at last-finished-at last-duration
+                         last-trigger last-result last-exception]}
+                 (sched/snapshot schedule)
+                 output? (or (some? last-result) (some? last-exception))]
+             (cond->
+              [[:tr
+                [:td sched-name]
+                [:td mount-state]
+                [:td sched-type]
+                [:td chime-times]
+                [:td (some-> next-run-at datetime-until)]
+                [:td (if running? "yes" "no")]
+                [:td (some-> last-started-at human/datetime-ago)]
+                [:td (some-> last-finished-at human/datetime-ago)]
+                [:td (some-> last-duration human/format-duration)]
+                [:td (some-> last-trigger name)]
+                [:td [:button {:type "button"
+                               :class "btn btn-sm btn-primary btn-run-schedule"
+                               :data-schedule-key (name key)}
+                      "Run"]]]]
+               output?
+               (conj
+                [:tr
+                 [:td {:colspan 11
+                       :class "border-top-0 px-2 pt-0 pb-3"}
+                  [:div {:class "row g-2"}
+                   (when (some? last-result)
+                     [:div {:class (if (some? last-exception)
+                                     "col-12 col-xl-6"
+                                     "col-12")}
+                      [:section {:class "schedule-output-panel h-100 border rounded bg-body-tertiary p-2"}
+                       [:h6 {:class "small fw-semibold text-uppercase mb-1"} "Result"]
+                       (value-inspector/value-inspector
+                        [[:result "Result" last-result]]
+                        {:variant :compact
+                         :max-nodes 400
+                         :max-children 50})]])
+                   (when (some? last-exception)
+                     [:div {:class (if (some? last-result)
+                                     "col-12 col-xl-6"
+                                     "col-12")}
+                      [:section {:class "schedule-output-panel h-100 border border-danger-subtle rounded bg-body-tertiary p-2"}
+                       [:h6 {:class "small fw-semibold text-uppercase mb-1"} "Exception"]
+                       (value-inspector/value-inspector
+                        [[:exception "Exception" last-exception]]
+                        {:variant :compact
+                         :max-nodes 400
+                         :max-children 50})]])]]]))))
+         schedules)]]]]))
 
 (defn- podcast-status-badge [status]
   (let [cls (case status
@@ -778,6 +818,28 @@
                                        ".then(()=>location.reload())")}
                 "Delete"])]])]])]))
 
+(defn- ranking-bar-chart [title rows value-key format-value color-class]
+  (let [rows (vec rows)
+        maximum (reduce max 0.0 (map #(double (or (get % value-key) 0)) rows))]
+    [:figure {:class "dashboard-ranking-chart mb-3"}
+     [:figcaption {:class "h6 mb-2"} title]
+     (if (seq rows)
+       [:div {:class "dashboard-ranking-bars d-grid gap-1"}
+        (for [row rows
+              :let [value (double (or (get row value-key) 0))
+                    percent (if (pos? maximum) (* 100.0 (/ value maximum)) 0.0)]]
+          [:div {:class "dashboard-ranking-bar"}
+           [:span {:class "dashboard-ranking-bar-label small text-truncate"
+                   :title (name (:source_key row))}
+            (name (:source_key row))]
+           [:span {:class "progress dashboard-ranking-bar-track"
+                   :aria-hidden "true"}
+            [:span {:class (str "progress-bar " color-class)
+                    :style (format "width:%.2f%%" percent)}]]
+           [:span {:class "dashboard-ranking-bar-value small text-secondary font-monospace text-end"}
+            (format-value value)]])]
+       [:p {:class "text-muted"} "No ranking data yet."])]))
+
 (defn ranking-tab []
   (let [reader-db frontend-db
         ranking-config (rc/rc [:reader :ranking])
@@ -797,11 +859,7 @@
         top-30-highlight (take 30 (sort-by :highlight_count #(compare %2 %1)
                                            (filter #(pos? (:highlight_count %)) stats)))
         ranked-top-10 (take 10 preview)
-        time-top-10 (take 10 (sort-by :ts #(compare %2 %1) preview))
-        rarity-chart-data {:labels (mapv (comp name :source_key) top-30-rarity)
-                           :values (mapv :rarity_boost_hours top-30-rarity)}
-        highlight-chart-data {:labels (mapv (comp name :source_key) top-30-highlight)
-                              :values (mapv :highlight_count top-30-highlight)}]
+        time-top-10 (take 10 (sort-by :ts #(compare %2 %1) preview))]
     [:div
      [:h5 "Ranking Analytics"]
      [:p {:class "text-muted"}
@@ -810,11 +868,19 @@
      ;; Charts row
      [:div {:class "row mb-4"}
       [:div {:class "col-md-6"}
-       [:h6 "Rarity Boost Distribution (top 30)"]
-       [:canvas {:id "rarity-boost-chart" :height "400"}]]
+       (ranking-bar-chart
+        "Rarity Boost Distribution (top 30)"
+        top-30-rarity
+        :rarity_boost_hours
+        #(format "%.1fh" %)
+        "bg-primary")]
       [:div {:class "col-md-6"}
-       [:h6 "Highlight Distribution (top 30)"]
-       [:canvas {:id "highlight-chart" :height "400"}]]]
+       (ranking-bar-chart
+        "Highlight Distribution (top 30)"
+        top-30-highlight
+        :highlight_count
+        #(format "%.0f" %)
+        "bg-warning")]]
 
      ;; Source stats table
      [:div {:class "mb-4"}
@@ -857,74 +923,17 @@
            [:small {:class "text-muted"}
             (name (:source_key item))
             " | effective age: " (format "%.1f" (double (:effective_age_hours item))) "h"
-            (when (:is_highlighted item) " | highlighted")]])]]]
-
-     ;; Chart.js initialization
-     [:script
-      (h/raw
-       (format "
-(function() {
-  var rarityData = %s;
-  var highlightData = %s;
-
-  if (document.getElementById('rarity-boost-chart')) {
-    new Chart(document.getElementById('rarity-boost-chart'), {
-      type: 'bar',
-      data: {
-        labels: rarityData.labels,
-        datasets: [{
-          label: 'Rarity Boost (hours)',
-          data: rarityData.values,
-          backgroundColor: 'rgba(54, 162, 235, 0.6)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true } }
-      }
-    });
-  }
-
-  if (document.getElementById('highlight-chart')) {
-    new Chart(document.getElementById('highlight-chart'), {
-      type: 'bar',
-      data: {
-        labels: highlightData.labels,
-        datasets: [{
-          label: 'Highlight Count',
-          data: highlightData.values,
-          backgroundColor: 'rgba(255, 206, 86, 0.6)',
-          borderColor: 'rgba(255, 206, 86, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true } }
-      }
-    });
-  }
-})();"
-               (cheshire/generate-string rarity-chart-data)
-               (cheshire/generate-string highlight-chart-data)))]]))
+            (when (:is_highlighted item) " | highlighted")]])]]]]))
 
 (defn config-tab []
   [:div
-   [:h5 "System config"]
-   (map-to-tree (appconfig-redact-secrets))
-   [:h5 "Runtime config (rc)"]
-   [:h6 "Effective"]
-   (map-to-tree (rc/rc-effective))
-   [:h6 "Runtime overrides (.llar)"]
-   (map-to-tree (rc/rc-overrides))
-   [:h6 "Baseline (defaults + appconfig)"]
-   (map-to-tree (rc/rc-baseline))
+   [:h5 "Configuration values"]
+   [:p {:class "text-muted"} "System config and Runtime config (rc)"]
+   (value-inspector/value-inspector
+    [[:system "System config" (appconfig-redact-secrets)]
+     [:effective "Effective" (rc/rc-effective)]
+     [:overrides "Runtime overrides (.llar)" (rc/rc-overrides)]
+     [:baseline "Baseline (defaults + appconfig)" (rc/rc-baseline)]])
    [:h6 "Supported rc paths"]
    (docs.config/rc-path-table)])
 

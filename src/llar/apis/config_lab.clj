@@ -5,6 +5,7 @@
    [llar.apis.capture :as token-auth]
    [llar.appconfig :as appconfig]
    [llar.config-lab :as lab]
+   [llar.value-inspector :as value-inspector]
    [ring.util.time :as ring-time])
   (:import
    [java.util Date]))
@@ -13,6 +14,15 @@
 
 (defn- no-store [response]
   (assoc-in response [:headers "Cache-Control"] "no-store"))
+
+(defn- inspected-body [body]
+  (if (map? body)
+    (assoc (lab/json-safe body)
+           :_llar-inspector
+           (value-inspector/present body {:max-nodes 5000
+                                          :max-children 100
+                                          :max-total-printed-length 150000}))
+    body))
 
 (defn- error-status [type]
   (case type
@@ -29,11 +39,12 @@
      (catch clojure.lang.ExceptionInfo exception#
        (let [data# (ex-data exception#)]
          (no-store {:status (error-status (:type data#))
-                    :body {:error (some-> (:type data#) name)
-                           :message (ex-message exception#)
-                           :data (select-keys data# [:url :address :item-index
-                                                     :timeout-ms :source-type
-                                                     :field :expected :actual-type])}})))
+                    :body (inspected-body
+                           {:error (some-> (:type data#) name)
+                            :message (ex-message exception#)
+                            :data (select-keys data# [:url :address :item-index
+                                                      :timeout-ms :source-type
+                                                      :field :expected :actual-type])})})))
      (catch Throwable throwable#
        (log/error throwable# "Config Lab request failed")
        (no-store {:status 500
@@ -100,11 +111,14 @@
 (defn compile-response [request id]
   (with-errors
     {:status 200
-     :body (lab/compile-session! (:config-lab/owner request) id (:params request))}))
+     :body (inspected-body
+            (lab/compile-session! (:config-lab/owner request) id (:params request)))}))
 
 (defn fetch-response [request id]
   (with-errors
-    {:status 200 :body (lab/fetch-session! (:config-lab/owner request) id)}))
+    {:status 200
+     :body (inspected-body
+            (lab/fetch-session! (:config-lab/owner request) id))}))
 
 (defn selector-item-response [request id]
   (with-errors
@@ -114,14 +128,16 @@
         (throw (ex-info "item-index must be a non-negative integer"
                         {:type ::invalid-item-index})))
       {:status 200
-       :body (lab/fetch-selector-item! (:config-lab/owner request) id item-index)})))
+       :body (inspected-body
+              (lab/fetch-selector-item! (:config-lab/owner request) id item-index))})))
 
 (defn process-response [request id]
   (with-errors
     {:status 200
-     :body (lab/process-session! (:config-lab/owner request)
-                                 id
-                                 (get-in request [:params :processors]))}))
+     :body (inspected-body
+            (lab/process-session! (:config-lab/owner request)
+                                  id
+                                  (get-in request [:params :processors])))}))
 
 (defn export-response [request id]
   (with-errors
@@ -273,12 +289,9 @@
       [:div {:id "config-lab-transform-pane" :class "tab-pane fade" :role "tabpanel"}
        (processors-card)]
       [:div {:id "config-lab-data-pane" :class "tab-pane fade" :role "tabpanel"}
-       [:div {:class "d-flex gap-2 align-items-center mb-1"}
-        [:label {:class "small fw-semibold" :for "config-lab-data-root"} "Snapshot"]
-        [:select {:id "config-lab-data-root" :class "form-select form-select-sm w-auto"}]]
        [:p {:class "small text-muted mb-2"}
-        "Keys and values use EDN notation."]
-       [:div {:id "config-lab-data-tree" :class "config-lab-data-tree config-lab-scroll-pane"}]]
+        "Keys and values use Clojure readable notation and retain their JVM type."]
+       [:div {:id "config-lab-data-tree"}]]
       [:div {:id "config-lab-http-pane" :class "tab-pane fade" :role "tabpanel"}
        [:div {:id "config-lab-http" :class "config-lab-scroll-pane text-muted"}
         "HTTP traces appear after fetching."]]]]]])

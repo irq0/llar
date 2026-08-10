@@ -395,7 +395,11 @@
     (str (subs value 0 limit) "\n… truncated …")
     value))
 
-(defn- json-safe [value]
+(defn json-safe
+  "Convert Config Lab response data for its ordinary JSON-driven UI. Value
+  inspector snapshots must be prepared before this conversion so Clojure and
+  JVM type information is retained."
+  [value]
   (walk/postwalk
    (fn [x]
      (cond
@@ -408,16 +412,15 @@
    value))
 
 (defn- item-summary [item]
-  (json-safe
-   {:title (get-in item [:summary :title])
-    :timestamp (get-in item [:summary :ts])
-    :url (get-in item [:entry :url])
-    :authors (get-in item [:entry :authors])
-    :tags (get-in item [:meta :tags])
-    :hash (:hash item)
-    :contents (update-vals (or (get-in item [:entry :contents]) {})
-                           #(truncate % 50000))
-    :raw-preview (truncate (pr-str (:raw item)) 20000)}))
+  {:title (get-in item [:summary :title])
+   :timestamp (get-in item [:summary :ts])
+   :url (get-in item [:entry :url])
+   :authors (get-in item [:entry :authors])
+   :tags (get-in item [:meta :tags])
+   :hash (:hash item)
+   :contents (update-vals (or (get-in item [:entry :contents]) {})
+                          #(truncate % 50000))
+   :raw-preview (truncate (pr-str (:raw item)) 20000)})
 
 (defn- http-response-summary [http]
   (let [raw (:raw http)
@@ -429,12 +432,12 @@
 
 (defn- http-diagnostics [http]
   {:response (http-response-summary http)
-   :summary (json-safe (:summary http))
-   :trace (json-safe (:trace http))
+   :summary (:summary http)
+   :trace (:trace http)
    ;; This is the exact sanitized, absolutified and blobified tree used by the
    ;; selectors. Keeping it beside the HTTP trace makes Config Lab paths useful
    ;; when developing selectors and extractors.
-   :hickory (json-safe (:hickory http))})
+   :hickory (:hickory http)})
 
 (defn- with-isolation [session f]
   (let [network-timeout (min 15000 (:run-timeout-ms (settings)))]
@@ -468,8 +471,7 @@
                                                                  (truncate (hick-r/hickory-to-html match)
                                                                            2000))
                                                                (take 100 (:matches index)))
-                                                :selected-hickory (json-safe
-                                                                   (vec (take 20 (:matches index))))
+                                                :selected-hickory (vec (take 20 (:matches index)))
                                                 :selected-hickory-truncated? (> (count (:matches index))
                                                                                 20)
                                                 :urls (mapv str (take 100 (:item-urls index)))}})})
@@ -509,8 +511,8 @@
                      :url (str (:item-url fetched))}
                     (http-diagnostics (:http fetched))
                     {:valid? (:valid? extracted)
-                     :errors (json-safe (:errors extracted))
-                     :fields (json-safe (:fields extracted))
+                     :errors (:errors extracted)
+                     :fields (:fields extracted)
                      :item (some-> (:item extracted) item-summary)})]
         (swap! sessions update id
                (fn [current]
@@ -553,7 +555,7 @@
       {:stage :processed
        :item-count (count results)
        :removed-count (count (filter :removed results))
-       :items (json-safe (vec (take 20 results)))})))
+       :items (vec (take 20 results))})))
 
 (defn export-form
   ([owner id]

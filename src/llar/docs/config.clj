@@ -488,7 +488,7 @@
     [:title "LLAR Configuration"]
     [:link {:rel "stylesheet" :href "static/bootstrap/css/bootstrap.min.css"}]
     [:link {:rel "stylesheet" :href "static/ibmplex/Web/css/ibm-plex.min.css"}]
-    [:link {:rel "stylesheet" :href "static/llar.css"}]]
+    [:link {:rel "stylesheet" :href "static/llar.css?v=inspector-5"}]]
    [:body
     [:div {:class "container my-4"}
      (docs-fragment)]]])

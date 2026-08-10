@@ -36,12 +36,19 @@ function update_source_row(url, source_key, row, retries) {
 
 function sources_row_actions_html(source_key) {
   return `
-<a data-source-key="${source_key}" data-overwrite="false" class="btn-update-source">
-<i title="Update" class="fas fa-angle-down"></i></a>
-<a data-source-key="${source_key}" data-overwrite="true" class="btn-update-source">
-<i title="Update, overwrite existing" class="fas fa-angle-double-down"></i></a>
-<a data-source-key="${source_key}" class="btn-source-details">
-<i title="Show state details" class="fas fa-info-circle"></i></a>`;
+<button type="button" data-source-key="${source_key}" data-overwrite="false"
+  class="btn btn-sm btn-link p-0 me-1 btn-update-source" title="Update">
+<i aria-hidden="true" class="fas fa-angle-down"></i>
+<span class="visually-hidden">Update</span></button>
+<button type="button" data-source-key="${source_key}" data-overwrite="true"
+  class="btn btn-sm btn-link p-0 me-1 btn-update-source" title="Update and overwrite existing items">
+<i aria-hidden="true" class="fas fa-angle-double-down"></i>
+<span class="visually-hidden">Update and overwrite existing items</span></button>
+<button type="button" data-source-key="${source_key}"
+  class="btn btn-sm btn-link p-0 me-1 btn-source-details" aria-expanded="false"
+  title="Show or hide state details">
+<i aria-hidden="true" class="fas fa-info-circle"></i>
+<span class="visually-hidden">Show or hide state details</span></button>`;
 }
 
 function initialize_datatables(container) {
@@ -98,6 +105,7 @@ var config_lab_state = {
   source_form: null,
   snapshots: {},
   snapshot_labels: {},
+  active_snapshot: null,
   fetch_result: null,
   selector_items: {},
   active_item: null,
@@ -135,13 +143,12 @@ function config_lab_activate_tab(name) {
 }
 
 function config_lab_store_snapshot(key, label, value) {
-  config_lab_state.snapshots[key] = value;
+  config_lab_state.snapshots[key] =
+    value && value["_llar-inspector"]
+      ? value["_llar-inspector"]
+      : window.llarValueInspector.fromJson(value);
   config_lab_state.snapshot_labels[key] = label;
-  var select = $("#config-lab-data-root");
-  if (!select.find('option[value="' + key + '"]').length) {
-    select.append($("<option>").val(key).text(label));
-  }
-  select.val(key);
+  config_lab_state.active_snapshot = key;
   config_lab_render_data();
 }
 
@@ -192,181 +199,52 @@ function config_lab_copy_text(value, message) {
   });
 }
 
-function config_lab_plain_object(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function config_lab_edn_key(key) {
-  return /^[A-Za-z*+!_?.<>=][A-Za-z0-9*+!_?.<>=/-]*$/.test(key)
-    ? ":" + key
-    : JSON.stringify(key);
-}
-
-function config_lab_edn(value) {
-  if (value === null || value === undefined) return "nil";
-  if (typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  if (Array.isArray(value))
-    return "[" + value.map(config_lab_edn).join(" ") + "]";
-  if (config_lab_plain_object(value)) {
-    return (
-      "{" +
-      Object.keys(value)
-        .map(function (key) {
-          return config_lab_edn_key(key) + " " + config_lab_edn(value[key]);
-        })
-        .join(" ") +
-      "}"
-    );
-  }
-  return JSON.stringify(String(value));
-}
-
-function config_lab_collection_summary(value) {
-  var count = Array.isArray(value) ? value.length : Object.keys(value).length;
-  var shape = Array.isArray(value)
-    ? count
-      ? "[…]"
-      : "[]"
-    : count
-      ? "{…}"
-      : "{}";
-  return shape + "  " + count + (count === 1 ? " entry" : " entries");
-}
-
-function config_lab_scalar_summary(value, limit) {
-  if (value === null || value === undefined) return "nil";
-  if (typeof value !== "string") return String(value);
-  if (value.length <= limit) return JSON.stringify(value);
-  return JSON.stringify(value.slice(0, limit) + "…");
-}
-
-function config_lab_edn_summary(value, limit) {
-  var edn = config_lab_edn(value);
+function config_lab_edn_summary(value, limit, presentedNode) {
+  var edn = window.llarValueInspector.nodeToEdn(
+    presentedNode || window.llarValueInspector.fromJson(value),
+  );
   return edn.length <= limit ? edn : edn.slice(0, limit) + "…";
 }
 
-function config_lab_tree_key(key, parentIsVector) {
-  if (key === null || key === undefined)
-    return $("<span>").addClass("config-lab-tree-key");
-  return $("<code>")
-    .addClass("config-lab-tree-key")
-    .text(parentIsVector ? "[" + key + "]" : config_lab_edn_key(String(key)));
-}
-
-function config_lab_tree_line(key, parentIsVector, valueNode) {
-  return $("<span>")
-    .addClass("config-lab-tree-line")
-    .append($("<span>").addClass("config-lab-tree-marker"))
-    .append(config_lab_tree_key(key, parentIsVector))
-    .append(valueNode.addClass("config-lab-tree-value"));
-}
-
-function config_lab_tree_node(value, depth, key, parentIsVector) {
-  var root = key === null || key === undefined;
-  if (value === null || typeof value !== "object") {
-    var kind = value === null ? "nil" : typeof value;
-    if (typeof value === "string" && value.length > 180) {
-      var longValue = $("<details>")
-        .addClass("config-lab-tree-entry config-lab-tree-long-value")
-        .append(
-          $("<summary>").append(
-            config_lab_tree_line(
-              key,
-              parentIsVector,
-              $("<span>")
-                .append(
-                  $("<code>")
-                    .addClass("config-lab-tree-string")
-                    .text(config_lab_scalar_summary(value, 120)),
-                )
-                .append(
-                  $("<span>")
-                    .addClass("config-lab-tree-size ms-2")
-                    .text(value.length.toLocaleString() + " chars"),
-                ),
-            ),
-          ),
-        );
-      longValue.one("toggle", function () {
-        if (this.open)
-          longValue.append(
-            $("<pre>").addClass("config-lab-tree-full-value").text(value),
-          );
-      });
-      return longValue;
-    }
-    return $("<div>")
-      .addClass(
-        "config-lab-tree-entry config-lab-tree-leaf config-lab-tree-" + kind,
-      )
-      .append(
-        config_lab_tree_line(
-          key,
-          parentIsVector,
-          $("<code>").text(config_lab_scalar_summary(value, 180)),
-        ),
-      );
-  }
-
-  var details = $("<details>")
-    .addClass("config-lab-tree-entry config-lab-tree-collection")
-    .toggleClass("config-lab-tree-root", root)
-    .prop("open", depth < 2);
-  details.append(
-    $("<summary>").append(
-      config_lab_tree_line(
-        key,
-        parentIsVector,
-        $("<span>")
-          .addClass("config-lab-tree-shape")
-          .text(config_lab_collection_summary(value)),
-      ),
-    ),
+function config_lab_presented_node(response, path) {
+  if (!response || !response["_llar-inspector"]) return null;
+  return window.llarValueInspector.nodeAtPath(
+    response["_llar-inspector"],
+    path || [],
   );
-  var children = $("<div>").addClass("config-lab-tree-children");
-  details.append(children);
-  var rendered = false;
-  function renderChildren() {
-    if (rendered) return;
-    rendered = true;
-    var entries = Array.isArray(value)
-      ? value.map(function (entry, index) {
-          return [index, entry];
-        })
-      : Object.keys(value).map(function (key) {
-          return [key, value[key]];
-        });
-    entries.forEach(function (entry) {
-      children.append(
-        config_lab_tree_node(
-          entry[1],
-          depth + 1,
-          entry[0],
-          Array.isArray(value),
-        ),
-      );
-    });
-  }
-  details.on("toggle", function () {
-    if (this.open) renderChildren();
+}
+
+function config_lab_json_inspector(value, presentedNode, label) {
+  var container = document.createElement("div");
+  window.llarValueInspector.mount(container, {
+    version: 1,
+    "show-types": true,
+    roots: [
+      {
+        id: "value",
+        label: label || "Value",
+        node: presentedNode || window.llarValueInspector.fromJson(value),
+      },
+    ],
   });
-  if (depth < 2) renderChildren();
-  return details;
+  return $(container);
 }
 
 function config_lab_render_data() {
-  var key = $("#config-lab-data-root").val();
-  var value = config_lab_state.snapshots[key];
-  var tree = $("#config-lab-data-tree").empty();
-  if (value === undefined) {
-    tree.append(
-      $("<div>").addClass("text-muted").text("No data captured yet."),
-    );
-    return;
-  }
-  tree.append(config_lab_tree_node(value, 0, null, false));
+  var container = document.getElementById("config-lab-data-tree");
+  if (!container) return;
+  var roots = Object.keys(config_lab_state.snapshots).map(function (key) {
+    return {
+      id: key,
+      label: config_lab_state.snapshot_labels[key],
+      node: config_lab_state.snapshots[key],
+    };
+  });
+  window.llarValueInspector.mount(
+    container,
+    { version: 1, "show-types": true, roots: roots },
+    { initialRoot: config_lab_state.active_snapshot },
+  );
 }
 
 function config_lab_rewrite_blob_urls(html) {
@@ -544,7 +422,13 @@ function config_lab_render_http() {
     var card = $("<section>").addClass("mb-4");
     card.append($("<h6>").text(stage[0]));
     if (stage[1].response)
-      card.append(config_lab_tree_node(stage[1].response, 0, null, false));
+      card.append(
+        config_lab_json_inspector(
+          stage[1].response,
+          config_lab_presented_node(stage[1], [":response"]),
+          "Response summary",
+        ),
+      );
     var trace = stage[1].trace || {};
     card
       .append(config_lab_trace_section("Raw response HTML", trace["raw-html"]))
@@ -556,7 +440,7 @@ function config_lab_render_http() {
   });
 }
 
-function config_lab_selector_data(diagnostic, field, open) {
+function config_lab_selector_data(diagnostic, field, open, presentedNode) {
   var nodes = diagnostic && diagnostic["selected-hickory"];
   if (!Array.isArray(nodes)) return null;
   var total = Number(diagnostic["match-count"] || 0);
@@ -598,7 +482,16 @@ function config_lab_selector_data(diagnostic, field, open) {
   details.append(
     $("<div>")
       .addClass("config-lab-data-tree config-lab-selector-data-tree")
-      .append(config_lab_tree_node(nodes, 0, null, false)),
+      .append(
+        config_lab_json_inspector(
+          nodes,
+          presentedNode &&
+            window.llarValueInspector.nodeAtPath(presentedNode, [
+              ":selected-hickory",
+            ]),
+          label,
+        ),
+      ),
   );
   return details;
 }
@@ -628,7 +521,7 @@ function config_lab_field_default(field) {
   }[field];
 }
 
-function config_lab_field_card(field, diagnostic) {
+function config_lab_field_card(field, diagnostic, presentedNode) {
   var matches = Number(diagnostic["match-count"] || 0);
   var invalid = diagnostic["valid?"] === false;
   var card = $("<div>").addClass("col-12");
@@ -702,11 +595,15 @@ function config_lab_field_card(field, diagnostic) {
         config_lab_edn_summary(
           diagnostic.value,
           field === "content" ? 1200 : 400,
+          presentedNode &&
+            window.llarValueInspector.nodeAtPath(presentedNode, [":value"]),
         ),
       ),
   );
   if (diagnostic.selector || field === "content") {
-    body.append(config_lab_selector_data(diagnostic, ":" + field, false));
+    body.append(
+      config_lab_selector_data(diagnostic, ":" + field, false, presentedNode),
+    );
   } else {
     body.append(
       $("<p>")
@@ -722,7 +619,7 @@ function config_lab_field_card(field, diagnostic) {
   return card;
 }
 
-function config_lab_url_selector_panel(urlSelector, open) {
+function config_lab_url_selector_panel(urlSelector, open, presentedNode) {
   var panel = $("<details>")
     .addClass("config-lab-index-selector border rounded p-2")
     .prop("open", open === true)
@@ -741,7 +638,9 @@ function config_lab_url_selector_panel(urlSelector, open) {
   body.append(
     $("<code>").addClass("d-block text-break mb-2").text(urlSelector.selector),
   );
-  body.append(config_lab_selector_data(urlSelector, ":urls", true));
+  body.append(
+    config_lab_selector_data(urlSelector, ":urls", true, presentedNode),
+  );
   var previews = config_lab_match_previews(urlSelector);
   if (previews) body.append(previews);
   return panel.append(body);
@@ -751,6 +650,7 @@ function config_lab_render_selectors() {
   var container = $("#config-lab-selectors").empty().removeClass("text-muted");
   var fetched = config_lab_state.fetch_result;
   var urlSelector = fetched && fetched["url-selector"];
+  var urlSelectorNode = config_lab_presented_node(fetched, [":url-selector"]);
   if (!urlSelector) {
     container
       .addClass("text-muted")
@@ -768,7 +668,9 @@ function config_lab_render_selectors() {
             "The index selector works. Select one of its URLs in Articles to inspect title, author, timestamp, description, and content.",
           ),
       )
-      .append(config_lab_url_selector_panel(urlSelector, true));
+      .append(
+        config_lab_url_selector_panel(urlSelector, true, urlSelectorNode),
+      );
     return;
   }
 
@@ -838,12 +740,22 @@ function config_lab_render_selectors() {
       ),
   );
   var fields = selected.fields;
+  var fieldsNode = config_lab_presented_node(selected, [":fields"]);
   var cards = $("<div>").addClass("row g-3 mb-4");
   ["title", "author", "ts", "description", "content"].forEach(function (field) {
-    cards.append(config_lab_field_card(field, fields[field] || {}));
+    cards.append(
+      config_lab_field_card(
+        field,
+        fields[field] || {},
+        fieldsNode &&
+          window.llarValueInspector.nodeAtPath(fieldsNode, [":" + field]),
+      ),
+    );
   });
   container.append(cards);
-  container.append(config_lab_url_selector_panel(urlSelector, false));
+  container.append(
+    config_lab_url_selector_panel(urlSelector, false, urlSelectorNode),
+  );
 }
 
 function config_lab_render_item_panel(item, label) {
@@ -1095,12 +1007,6 @@ function initialize_config_lab(container) {
         config_lab_render_preview(config_lab_state.active_item);
         config_lab_render_selectors();
         config_lab_render_http();
-        Object.keys(config_lab_state.snapshots).forEach(function (key) {
-          var select = $("#config-lab-data-root");
-          select.append(
-            $("<option>").val(key).text(config_lab_state.snapshot_labels[key]),
-          );
-        });
         config_lab_render_data();
       }
     })
@@ -1162,8 +1068,6 @@ function initialize_config_lab(container) {
     });
   });
 
-  $("#config-lab-data-root").on("change", config_lab_render_data);
-
   $("#config-lab-copy").on("click", function () {
     config_lab_export_request().then(function (form) {
       return config_lab_copy_text(form, "Copied .llar form to the clipboard.");
@@ -1202,6 +1106,7 @@ function load_dashboard_tab(target_selector) {
       pane.html(html);
       initialize_datatables(pane);
       initialize_config_lab(pane);
+      window.llarValueInspector.mountAll(pane[0]);
     })
     .fail(function () {
       pane.data("tab-loaded", false);
@@ -1241,6 +1146,7 @@ function reload_dashboard_tab(target_selector) {
       pane.html(html);
       initialize_datatables(pane);
       initialize_config_lab(pane);
+      window.llarValueInspector.mountAll(pane[0]);
     })
     .fail(function () {
       pane.data("tab-loaded", false);
@@ -1270,33 +1176,42 @@ $(document).ready(function () {
   $(document).on(
     "click",
     "#sources-datatable .btn-source-details",
-    function () {
+    function (event) {
+      event.stopPropagation();
       var k = $(this).data("source-key");
+      var toggle = $(this);
       var tr = $(this).closest("tr");
       var sources_datatable = $("#sources-datatable").DataTable();
       var row = sources_datatable.row(tr);
       if (row.child.isShown()) {
         row.child.hide();
+        toggle.attr("aria-expanded", "false");
       } else {
         $.ajax({
           url: "/source-details/" + k,
         })
           .done(function (msg) {
-            row.child(msg).show();
+            var details = $("<div>").addClass("source-details-panel");
+            var close = $("<button>")
+              .attr("type", "button")
+              .addClass("btn btn-sm btn-outline-secondary mb-2")
+              .text("Close details")
+              .on("click", function () {
+                row.child.hide();
+                toggle.attr("aria-expanded", "false");
+              });
+            details.append(close, $("<div>").html(msg));
+            row.child(details).show();
+            toggle.attr("aria-expanded", "true");
+            window.llarValueInspector.mountAll(row.child()[0]);
           })
           .fail(function () {
             row.child("<em>Failed to load details</em>").show();
+            toggle.attr("aria-expanded", "true");
           });
       }
     },
   );
-
-  $(document).on("click", "#sources-datatable tr", function () {
-    var tr = $(this);
-    var sources_datatable = $("#sources-datatable").DataTable();
-    var row = sources_datatable.row(tr);
-    row.child.hide();
-  });
 
   $(document).on("click", "#sources-datatable .btn-update-source", function () {
     var k = $(this).data("source-key");

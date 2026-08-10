@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "node --test tools/readability/test/*.test.js"
+    "test": "node --test tools/readability/test/*.test.js tools/value-inspector/test/*.test.js"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

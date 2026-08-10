@@ -81,6 +81,22 @@
                 {:source-key "example" :tags-form "#{:news}"}]
                @seen))))))
 
+(deftest config-lab-responses-carry-a-clojure-fidelity-inspector-snapshot
+  (with-redefs [lab/compile-session! (fn [& _]
+                                       {:stage :compiled
+                                        :tags #{:news :storage}})]
+    (let [response (api/compile-response {:config-lab/owner "tester"
+                                          :params {}}
+                                         "session-id")
+          body (:body response)
+          tags-entry (some #(when (= ":tags" (get-in % [:key :printed])) %)
+                           (get-in body [:_llar-inspector :children]))]
+      (is (= 200 (:status response)))
+      (is (vector? (:tags body)) "ordinary Config Lab fields remain JSON-safe")
+      (is (= "set" (get-in tags-entry [:value :semantic-type])))
+      (is (= "clojure.lang.PersistentHashSet"
+             (get-in tags-entry [:value :runtime-type]))))))
+
 (deftest blob-response-is-private-and-nosniff
   (let [created (time/zoned-date-time)]
     (with-redefs [lab/session-blob (fn [owner id hash]

@@ -31,6 +31,7 @@
    [llar.rc :as rc]
    [llar.store :as store]
    [llar.update :as update]
+   [llar.value-inspector :as value-inspector]
    [llar.vibe :as vibe]
    [llar.db.annotations]
    [llar.db.search :as db-search]
@@ -270,11 +271,12 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=inspector-5"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
+   [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
    [:script {:src "/static/llar.js"}]])
 
 (def ^:private tag-action-labels
@@ -982,58 +984,16 @@
           [:button {:class "btn btn-outline-secondary" :id "btn-add-item-note"}
            (icon "fas fa-sticky-note")]]]]]]]))
 
-(defn list-entry-kv
-  "Helper: Key/Value Pair to pretty HTML <li>"
-  [k v]
-  [:li (icon "far fa-file") [:strong (str k)] "\u00a0"
-   (cond
-     (nil? v)
-     [:span "nil"]
-
-     (coll? v)
-     [:span (format "n=%s (%s)" (count v) (type v))
-      [:ol
-       (for [i v]
-         [:li (str i)])]]
-
-     (re-find #"(application|text)/\w+" (str k))
-     [:span "(" (type v) ")"
-      [:code [:pre v]]]
-
-     :else
-     [:span
-      (str v) " (" (type v) ")"])])
-
-(defn map-to-tree
-  "Convert nested map to semantic ui tree"
-  [node]
-  (when (map? node)
-    (let [nested-pred (fn [[k v]] (when (map? v) [k v]))
-          nested (filter nested-pred node)
-          rest (remove nested-pred node)]
-      [:ul
-       (filter some?
-               (concat
-                (when (coll? nested)
-                  (for [[k v] nested]
-                    [:li
-                     (icon "far fa-folder")
-                     [:strong (str k)]
-                     (map-to-tree v)]))
-                (when (coll? rest)
-                  (for [[k v] rest]
-                    (list-entry-kv k v)))))])))
-
 (defn dump-item
   "Dump Item Developer Representation"
   [x]
   (let [item (first (:items x))]
     [:div {:class "item-content"}
      [:div {:class "item-content-nav"}
-      [:h3 "Current Item"]
-      (map-to-tree item)
-      [:h3 "Full Datastructure"]
-      (map-to-tree x)]]))
+      [:h3 "Clojure value inspector"]
+      (value-inspector/value-inspector
+       [[:item "Current item" item]
+        [:context "Full data structure" x]])]]))
 
 (defn awesome-url-text
   "Helper: Make URL Text from URL, enriched with with Icons, etc."
