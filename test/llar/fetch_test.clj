@@ -56,7 +56,21 @@
       (is (= "2017-11-03T03:01Z"
              (str (parse-published-time "2017-11-03 03:01:00.000000"))))
       (is (= "2020-09-21T00:00Z"
-             (str (parse-published-time "2020-09-21")))))))
+             (str (parse-published-time "2020-09-21")))))
+    (testing "RFC 1123 and unambiguous English dates"
+      (is (= "2026-08-07T15:30Z"
+             (str (parse-published-time "Fri, 7 Aug 2026 15:30:00 GMT"))))
+      (doseq [timestamp ["Aug 07, 2026"
+                         "august 7, 2026"
+                         "7 Aug 2026"
+                         "7 August 2026"]]
+        (is (= "2026-08-07T00:00Z"
+               (str (parse-published-time timestamp)))
+            timestamp)))
+    (testing "unrecognized metadata falls through to the caller's timestamp fallback"
+      (is (nil? (parse-published-time "not a publication date")))
+      (is (nil? (parse-published-time "  ")))
+      (is (nil? (parse-published-time nil))))))
 
 (defn fake-fetch-rss [url & _args]
   (when-not (= (str url) "http://example.com/feed.xml")

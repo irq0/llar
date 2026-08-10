@@ -14,7 +14,8 @@
    [clojure.spec.alpha :as s])
   (:import
    [java.time LocalDate LocalDateTime ZoneOffset ZonedDateTime]
-   [java.time.format DateTimeFormatter DateTimeFormatterBuilder]))
+   [java.time.format DateTimeFormatter DateTimeFormatterBuilder DateTimeParseException]
+   [java.util Locale]))
 
 (defrecord ReadabilityItem
            [meta
@@ -97,19 +98,38 @@
       (.append DateTimeFormatter/ISO_LOCAL_TIME)
       (.toFormatter)))
 
-(defn- parse-published-time [timestamp]
+(defn- english-date-formatter [pattern]
+  (-> (DateTimeFormatterBuilder.)
+      (.parseCaseInsensitive)
+      (.appendPattern pattern)
+      (.toFormatter Locale/ENGLISH)))
+
+(def ^:private published-date-formatters
+  [DateTimeFormatter/ISO_LOCAL_DATE
+   (english-date-formatter "MMM d, uuuu")
+   (english-date-formatter "MMMM d, uuuu")
+   (english-date-formatter "d MMM uuuu")
+   (english-date-formatter "d MMMM uuuu")])
+
+(defn- try-parse [parse-fn]
   (try
-    (ZonedDateTime/parse timestamp published-time-formatter)
-    (catch java.time.format.DateTimeParseException zoned-error
-      (try
-        (.atZone (LocalDateTime/parse timestamp local-published-time-formatter)
-                 ZoneOffset/UTC)
-        (catch java.time.format.DateTimeParseException _
-          (try
-            (.atStartOfDay (LocalDate/parse timestamp DateTimeFormatter/ISO_LOCAL_DATE)
-                           ZoneOffset/UTC)
-            (catch java.time.format.DateTimeParseException _
-              (throw zoned-error))))))))
+    (parse-fn)
+    (catch DateTimeParseException _
+      nil)))
+
+(defn- parse-published-time [timestamp]
+  (when-let [timestamp (some-> timestamp string/trim not-empty)]
+    (or
+     (try-parse #(ZonedDateTime/parse timestamp published-time-formatter))
+     (try-parse #(ZonedDateTime/parse timestamp DateTimeFormatter/RFC_1123_DATE_TIME))
+     (when-let [^LocalDateTime local-date-time
+                (try-parse #(LocalDateTime/parse timestamp local-published-time-formatter))]
+       (.atZone local-date-time ZoneOffset/UTC))
+     (some (fn [formatter]
+             (when-let [^LocalDate local-date
+                        (try-parse #(LocalDate/parse timestamp formatter))]
+               (.atStartOfDay local-date ZoneOffset/UTC)))
+           published-date-formatters))))
 
 (extend-protocol FetchSource
   llar.src.Readability
