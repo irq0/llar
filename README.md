@@ -197,3 +197,68 @@ or check out [my config](https://github.com/irq0/llar-config).
 
 The credentials file contains secrets made available with the `$credentials` function in `.llar` config files.
 See [credentials.edn.example](resources/credentials.edn.example).
+
+### Config Lab
+
+Config Lab is an opt-in Dashboard tab for test-driving source configuration
+without loading a `.llar` file. Enable it inside the Dashboard configuration:
+
+```clojure
+:api {:dashboard
+      {:port 9999
+       :config-lab {:enabled? true
+                    :credentials :config-lab
+                    :max-concurrent-runs 2
+                    :run-timeout-ms 20000
+                    :session-ttl-minutes 30}}}
+```
+
+Generate a dedicated token and put it only in `credentials.edn`:
+
+```sh
+openssl rand -hex 32
+```
+
+```clojure
+{:config-lab
+ {:tokens {:dashboard "replace-with-the-generated-value"}}}
+```
+
+Paste a source constructor and choose **Run**. Config Lab compiles it, fetches a
+snapshot, lists the articles it found, and opens the first item in an isolated
+reader-like preview. SelectorFeed articles are fetched on demand. The Selector
+and HTTP tabs retain URL matches, per-field extraction results, the raw
+response, DOMPurify output, and final LLAR HTML. Selector diagnostics show the
+selected Hickory vector passed into each extractor, so extractor functions can
+be written against the actual node shape. Clicking a SelectorFeed article opens
+an extraction workbench for its title, author, timestamp, description, and
+content; the initial automatic selection still opens the reader preview. The
+lab keeps this partial diagnostic result when an extracted field has the wrong
+type, instead of requiring a valid item first. The Data tab provides an
+expandable, EDN-oriented map/vector browser. Keys use keyword notation, long
+strings stay collapsed, and nested collections are expanded on demand.
+SelectorFeed fetch snapshots also include the exact sanitized Hickory tree used
+by the selectors under `:hickory`.
+
+Source key, tags, and reader options live under **Export configuration** because
+they identify and configure the deployed source, not the experiment. Export
+only copies or downloads a `.llar` form—it never writes runtime config. Refetch
+replaces the cached index snapshot, while processor experiments operate on the
+session's cached items.
+
+Source and processor forms run through SCI with no filesystem, credential,
+arbitrary namespace loading, unrestricted Java interop, or general HTTP access.
+The normal `$` helper names resolve for config compatibility, but
+`$credentials`, `$http-get`, and `$http-post` remain unavailable rather than
+exposing secrets or unguarded requests. Safe value APIs needed by
+source forms, currently including `java.net.URI`, are explicitly allowlisted.
+Rendered previews cannot run scripts, submit forms, or navigate the dashboard;
+images are served only from the owning session's expiring temporary blob store.
+The initial version supports unauthenticated `website`, `feed`, `selector-feed`,
+`readability`, `hn`, `github-issues`, `github-repos`, and isolated `custom`
+sources. Credential-dependent sources and
+source implementations whose network calls cannot yet use the lab's redirect
+guard are rejected. Fetches reject local/private destinations, run with bounded
+time and concurrency, and store generated blobs in the expiring lab session's
+temporary directory. The rest of the Dashboard keeps its existing access model;
+the token protects only Config Lab.
