@@ -12,6 +12,7 @@
    [llar.lab :as lab]
    [llar.persistency :as persistency]
    [llar.rc :as rc]
+   [llar.update :as update]
    [llar.vibe :as vibe]))
 
 (deftest reader-bookmark-form-uses-the-durable-capture-queue
@@ -123,6 +124,8 @@
                                   :source-key :all
                                   :sources []
                                   :selected-sources []
+                                  :source-update-context {:source-count 12
+                                                          :estimated-duration-label "30.0 s"}
                                   :items [{:id 42 :title "An item" :tags []}]})))]
       (is (re-find #"reader-navbar-path breadcrumb path" rendered))
       (is (not (re-find #"col-12 form-control-dark breadcrumb" rendered)))
@@ -132,8 +135,77 @@
       (is (not (re-find #"navbar-list|navbar-brand[^\"]*col-md" rendered)))
       (is (re-find #"btn-mark-view-read" rendered))
       (is (re-find #"btn-update-sources-in-view" rendered))
-      (is (= 9 (count (re-seq #"reader-icon-button" rendered))))
+      (is (re-find #"btn-update-sources-in-view[^>]*>\s*<i[^>]*fa-download" rendered))
+      (is (re-find #"btn-reload-current-view" rendered))
+      (is (re-find #"btn-next-batch" rendered))
+      (is (re-find #"title=\"Read all in view\"" rendered))
+      (is (not (string/includes? rendered "~30.0 s")))
+      (is (not (string/includes? rendered "12 sources")))
       (is (not (re-find #"btn-outline-secondary" rendered))))))
+
+(deftest source-update-estimate-stays-out-of-the-source-sidebar
+  (let [rendered (str (h/html
+                       (uut/source-nav
+                        {:mode :list-items
+                         :group-name :source-tag
+                         :group-item :all
+                         :source-key :all
+                         :active-sources []
+                         :source-update-context {:estimated-duration-label "30.0 s"}})))]
+    (is (not (string/includes? rendered "reader-source-update-estimate")))
+    (is (not (string/includes? rendered "Update usually ~30.0 s")))))
+
+(deftest list-footer-keeps-only-useful-snapshot-and-scroll-policy-context
+  (with-redefs [rc/rc (constantly nil)]
+    (let [ts (time/zoned-date-time 2026 8 11 12 0 0 0 "Z")
+          snapshot-ts (time/zoned-date-time 2026 8 11 14 32 0 0 "Z")
+          x {:uri "/reader/group/default/all/source/all/items"
+             :items [{:id 42 :ts ts}]
+             :list-style :preview
+             :sort-order :newest
+             :filter :unread
+             :snapshot-ts snapshot-ts
+             :source-update-context {:last-fetch {:last-success ts
+                                                  :stats {:fetched 18 :db 3}}}
+             :selected-sources [{:options #{:mark-read-on-view}}
+                                {:options #{}}]
+             :range-recent {:id 42 :ts ts}
+             :range-before {:id 42 :ts ts}
+             :has-more? true}
+          footer (str (h/html (#'uut/batch-footer x)))
+          final-footer (str (h/html (#'uut/batch-footer (assoc x :has-more? false))))]
+      (is (string/includes? footer "Snapshot 2026-08-11 14:32"))
+      (is (string/includes? footer "1 item"))
+      (is (string/includes? footer "Newest First"))
+      (is (string/includes? footer "unread"))
+      (is (string/includes? footer "Last fetch "))
+      (is (string/includes? footer ": 18 fetched · 3 new"))
+      (is (string/includes? footer "Mark on scroll: 1 of 2 sources"))
+      (is (not (string/includes? footer "Preview")))
+      (is (not (string/includes? footer "End of this finite batch")))
+      (is (string/includes? footer "id=\"reader-list-lifecycle-status\""))
+      (is (string/includes? footer "aria-live=\"polite\""))
+      (is (string/includes? footer "Next batch"))
+      (is (not (string/includes? final-footer "Next batch"))))))
+
+(deftest source-update-estimate-requires-coverage-and-respects-concurrency
+  (let [sources [{:key :one} {:key :two} {:key :three}]
+        state {:one {:last-duration (time/seconds 10)}
+               :two {:last-duration (time/seconds 20)}
+               :three {:last-duration (time/seconds 30)}}]
+    (with-redefs [update/updateable-sources (constantly {:one {} :two {} :three {}})
+                  update/get-current-state (constantly state)
+                  rc/rc (constantly 2)]
+      (let [context (#'uut/source-update-view-context sources)]
+        (is (= 3 (:source-count context)))
+        (is (= 3 (:duration-sample-count context)))
+        (is (= 30000 (:estimated-duration-ms context)))
+        (is (= "30.0 s" (:estimated-duration-label context)))))
+    (with-redefs [update/updateable-sources (constantly {:one {} :two {} :three {}})
+                  update/get-current-state (constantly (dissoc state :three))
+                  rc/rc (constantly 2)]
+      (is (nil? (:estimated-duration-ms
+                 (#'uut/source-update-view-context sources)))))))
 
 (deftest item-navbar-keeps-only-the-persistent-reading-actions
   (with-redefs [rc/rc (constantly nil)]
@@ -397,7 +469,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f02-12\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-f04-08\"></script></body></html>$"
                    shell)))))
 
 (deftest reading-navigation-has-one-mode-aware-forward-path
@@ -433,6 +505,28 @@
     (is (not (re-find #"direct-tag-buttons|ajax-toggle|btn-tag-unread" javascript)))
     (is (re-find #"requestItemState\(item\.data\(\"id\"\), \"seen\"\)"
                  javascript))))
+
+(deftest list-lifecycle-keeps-source-checks-manual-and-batch-read-reversible
+  (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (string/includes? javascript
+                          "This snapshot will stay in place while the check runs."))
+    (is (string/includes? javascript "Open updated snapshot"))
+    (is (re-find #"setSourceUpdateReady\(itemsUrl\)" javascript))
+    (is (not (string/includes? javascript "fa-hourglass-half")))
+    (is (string/includes? javascript "fa-sync-alt icon-is-set"))
+    (is (not (string/includes? javascript ".text(\"Refresh ready\")")))
+    (is (not (string/includes? javascript "fa-spinner fa-spin")))
+    (is (string/includes? javascript "reader-lifecycle-dots"))
+    (is (string/includes? javascript "reader-source-update-dots"))
+    (is (string/includes? javascript ".removeClass(\"active\")"))
+    (is (string/includes? javascript "document.activeElement === this"))
+    (is (string/includes? javascript "reader-lifecycle-sync"))
+    (is (string/includes? javascript "Recent source runs suggest about "))
+    (is (string/includes? javascript "No timing information yet."))
+    (is (re-find #"runItemStateBatch\(ids, \"seen\"" javascript))
+    (is (re-find #"runItemStateBatch\(ids, \"mark-unread\"" javascript))
+    (is (not (string/includes? javascript
+                               ".btn-update-sources-in-view\").popover")))))
 
 (deftest digest-tag-button-follows-runtime-configuration
   (with-redefs [rc/rc (fn [path] (= path [:digest :enabled?]))]
@@ -569,6 +663,7 @@
     (let [args (#'uut/build-items-query-args {:mode :list-items} :ranked)]
       (is (= 6 (:highlight-boost args)))
       (is (= 12 (:rarity-cap args)))
+      (is (= (inc uut/+max-items+) (:limit args)))
       (is (= :ranked (:sort-order args))))))
 
 (deftest reading-queue-reasons

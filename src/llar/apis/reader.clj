@@ -28,6 +28,7 @@
                      current-clustered-saved-items]]
    [llar.metrics :as metrics]
    [llar.persistency :as persistency]
+   [llar.pool :as pool]
    [llar.rc :as rc]
    [llar.store :as store]
    [llar.update :as update]
@@ -292,13 +293,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-f02-12"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-f04-08"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-f02-12"}]])
+   [:script {:src "/static/llar.js?v=reader-f04-08"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -398,6 +399,53 @@
 
 (declare focus-button annotation-button)
 
+(defn- next-batch-href [x]
+  (when (not= false (:has-more? x))
+    (if (:page-offset x)
+      (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
+      (make-site-href [(:uri x)] (:range-before x) x))))
+
+(defn- source-update-button [x link-prefix]
+  (let [{:keys [estimated-duration-label] :as update-context}
+        (:source-update-context x)
+        idle-title (str "Update sources in view"
+                        (when estimated-duration-label
+                          (str " · last runs suggest about " estimated-duration-label)))
+        pending-title (str "Checking sources"
+                           (when estimated-duration-label
+                             (str " · usually about " estimated-duration-label)))]
+    (icon-button {:class "btn-update-sources-in-view"
+                  :title idle-title
+                  :aria-label idle-title
+                  :data-idle-title idle-title
+                  :data-pending-title pending-title
+                  :data-duration-label estimated-duration-label
+                  :data-target (make-site-href [link-prefix "update"] x)
+                  :data-items (make-site-href [(:uri x)] x)
+                  :href "#"}
+                 "fas fa-download")))
+
+(defn- list-lifecycle-actions [x link-prefix]
+  (remove nil?
+          [(source-update-button x link-prefix)
+           (icon-button {:class "btn-mark-view-read"
+                         :title "Read all in view"
+                         :aria-label "Read all in view"
+                         :href "#"}
+                        "fas fa-glasses")
+           [:span {:class "reader-navbar-action-separator" :aria-hidden "true"}]
+           (icon-button {:class "btn-reload-current-view"
+                         :title "Reload this view"
+                         :aria-label "Reload this view"
+                         :href (make-site-href [(:uri x)] x)}
+                        "fas fa-redo-alt")
+           (when-let [href (next-batch-href x)]
+             (icon-button {:class "btn-next-batch"
+                           :title "Next batch"
+                           :aria-label "Next batch"
+                           :href href}
+                          "fas fa-step-forward"))]))
+
 (defn nav-bar
   "Top Navigation Bar: Site Title, Tag Buttons, Branding"
   [x]
@@ -454,35 +502,19 @@
                    "fas fa-bars")
       (cond
         (= mode :list-items)
-        [:span {:class "reader-mobile-actions"}
-         (icon-button {:class "btn-update-sources-in-view"
-                       :title "Update sources in view"
-                       :aria-label "Update sources in view"
-                       :data-target (make-site-href [link-prefix "update"] x)
-                       :data-items (make-site-href [(:uri x)] x)
-                       :href "#"}
-                      "fas fa-sync-alt")
-         (icon-button {:title "Next batch"
-                       :aria-label "Next batch"
-                       :href (if (:page-offset x)
-                               (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
-                               (make-site-href [(:uri x)] (:range-before x) x))}
-                      "fas fa-step-forward")
-         (icon-button {:class "btn-mark-view-read"
-                       :title "Mark all items in view read"
-                       :aria-label "Mark all items in view read"
-                       :href "#"}
-                      "fas fa-glasses")
-         (icon-button {:title "Show groups and filters"
-                       :aria-label "Show groups and filters"
-                       :data-bs-toggle "collapse"
-                       :href "#groupnav"}
-                      "fas fa-compass")
-         (icon-button {:title "Show sources"
-                       :aria-label "Show sources"
-                       :data-bs-toggle "collapse"
-                       :href "#sourcenav"}
-                      "fas fa-list")]
+        (into [:span {:class "reader-mobile-actions"}]
+              (concat
+               (list-lifecycle-actions x link-prefix)
+               [(icon-button {:title "Show groups and filters"
+                              :aria-label "Show groups and filters"
+                              :data-bs-toggle "collapse"
+                              :href "#groupnav"}
+                             "fas fa-compass")
+                (icon-button {:title "Show sources"
+                              :aria-label "Show sources"
+                              :data-bs-toggle "collapse"
+                              :href "#sourcenav"}
+                             "fas fa-list")]))
 
         (= mode :show-item)
         [:span {:class "reader-mobile-actions"}
@@ -544,26 +576,7 @@
          [:div {:class "reader-navbar-actions" :aria-label "Current view actions"}
           (cond
             (= mode :list-items)
-            (list
-             (icon-button {:class "btn-update-sources-in-view"
-                           :title "Update sources in view"
-                           :aria-label "Update sources in view"
-                           :data-target (make-site-href [link-prefix "update"] x)
-                           :data-items (make-site-href [(:uri x)] x)
-                           :href "#"}
-                          "fas fa-sync-alt")
-             (icon-button {:class "btn-mark-view-read"
-                           :title "Remove unread tag from all items in view"
-                           :aria-label "Remove unread tag from all items in view"
-                           :href "#"}
-                          "fas fa-glasses")
-             [:span {:class "reader-navbar-action-separator" :aria-hidden "true"}]
-             (icon-button {:title "Next batch"
-                           :aria-label "Next batch"
-                           :href (if (:page-offset x)
-                                   (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
-                                   (make-site-href [(:uri x)] (:range-before x) x))}
-                          "fas fa-step-forward"))
+            (list-lifecycle-actions x link-prefix)
 
             (= mode :show-item)
             (list
@@ -1451,7 +1464,9 @@
                                        (name source-key))
                    {:keys [id source-key title ts tags url]} item
                    source (get sources (keyword source-key))]]
-         [:tr {:data-id id}
+         [:tr {:id (str "item-" id)
+               :data-id id
+               :data-unread (str (boolean (some #(= % "unread") tags)))}
           [:th {:class "title"}
            [:a {:href (make-site-href [link-prefix "item/by-id" id]
                                       (cond-> {:mark :read}
@@ -1505,7 +1520,10 @@
                (:lead-image-url entry))
         modal-id (str "full-img-" id)
         modal-title-id (str modal-id "-title")]
-    [:div {:class "col" :data-id id}
+    [:div {:id (str "item-" id)
+           :class "col"
+           :data-id id
+           :data-unread (str (boolean (some #(= % "unread") tags)))}
      [:div {:class "card"}
       [:div {:class "card-header"} source-key]
       (when image
@@ -1614,6 +1632,66 @@
 (defn list-items [x]
   ((get-in +list-styles+ [(get-list-style x) :fn]) x))
 
+(defn- current-filter-label [x]
+  (or (first (get +exposed-simple-filter+ (:filter x)))
+      (some-> (:filter x) name)
+      "all"))
+
+(defn- mark-on-scroll-source-count [x]
+  (count (filter #(contains? (set (:options %)) :mark-read-on-view)
+                 (:selected-sources x))))
+
+(defn- batch-footer [x]
+  (let [items (:items x)
+        item-count (count items)
+        sort-order (get-sort-order x)
+        sort-label (get-in +sort-orders+ [sort-order :name] (name sort-order))
+        source-count (count (:selected-sources x))
+        mark-on-scroll-count (mark-on-scroll-source-count x)
+        snapshot-ts (or (:snapshot-ts x) (time/zoned-date-time))
+        last-fetch (get-in x [:source-update-context :last-fetch])]
+    [:footer {:class "reader-batch-footer"
+              :aria-label "Current batch"}
+     [:div {:class "reader-batch-metadata"}
+      [:span {:class "reader-batch-metadata-item timestamp"
+              :title snapshot-ts}
+       (action-icon "far fa-clock")
+       "Snapshot " (time/format (time/formatter "yyyy-MM-dd HH:mm") snapshot-ts)]
+      [:span {:class "reader-batch-metadata-item"}
+       (format "%d item%s" item-count (if (= item-count 1) "" "s"))]
+      [:span {:class "reader-batch-metadata-item"}
+       (action-icon (get-in +sort-orders+ [sort-order :ico]))
+       sort-label]
+      [:span {:class "reader-batch-metadata-item"}
+       (action-icon (or (second (get +exposed-simple-filter+ (:filter x)))
+                        "fas fa-filter"))
+       (current-filter-label x)]
+      (when last-fetch
+        [:span {:class "reader-batch-metadata-item"
+                :title (:last-success last-fetch)}
+         (action-icon "fas fa-download")
+         "Last fetch " (human/datetime-ago-short (:last-success last-fetch))
+         ": " (get-in last-fetch [:stats :fetched]) " fetched"
+         " · " (get-in last-fetch [:stats :db]) " new"])
+      (when (pos? mark-on-scroll-count)
+        [:span {:class "reader-batch-metadata-item reader-mark-on-scroll-policy"
+                :title "Items from these sources are marked read after you scroll past them"}
+         (action-icon "fas fa-glasses")
+         (if (= source-count mark-on-scroll-count)
+           "Mark on scroll"
+           (format "Mark on scroll: %d of %d sources"
+                   mark-on-scroll-count source-count))])]
+     (when-let [href (next-batch-href x)]
+       [:a {:class "reader-batch-next" :href href}
+        "Next batch"
+        (action-icon "fas fa-step-forward")])
+     [:div {:id "reader-list-lifecycle-status"
+            :class "reader-list-lifecycle-status"
+            :role "status"
+            :aria-live "polite"
+            :aria-atomic "true"
+            :hidden true}]]))
+
 (defn main-view
   "Generate Main Items View, depending on selected style"
   [x]
@@ -1625,7 +1703,9 @@
         :show-item (main-show-item x)
         :dump-item (dump-item x)
         :focus-item (main-show-item x)
-        :list-items (list-items x)
+        :list-items [:div
+                     (list-items x)
+                     (batch-footer x)]
         "Unknown mode")]]))
 
 (defn- build-items-query-args
@@ -1638,8 +1718,9 @@
                      :rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
                      :simple-filter (:filter params)
                      :with-data? false
-                     :limit (if (= mode :get-moar-items)
-                              1
+                     :limit (case mode
+                              :get-moar-items 1
+                              :list-items (inc +max-items+)
                               +max-items+)}]
     (if (= effective-sort :ranked)
       (assoc common-args :offset (or (:page-offset params) 0))
@@ -1768,6 +1849,56 @@
       (filter #(= (:key %) source-key) group-sources)
       group-sources)))
 
+(def ^:private +source-duration-coverage-threshold+ 0.7)
+
+(defn- duration-millis [duration]
+  (cond
+    (instance? java.time.Duration duration) (.toMillis ^java.time.Duration duration)
+    (number? duration) (long (* 1000.0 duration))))
+
+(defn- source-update-view-context [selected-sources]
+  (let [selected-source-count (count selected-sources)
+        updateable-keys (set (keys (update/updateable-sources)))
+        updateable-sources (->> selected-sources
+                                (filter #(contains? updateable-keys (:key %)))
+                                vec)
+        source-count (count updateable-sources)
+        states (update/get-current-state)
+        samples (->> updateable-sources
+                     (keep (fn [{:keys [key]}]
+                             (when-let [millis (some-> (get-in states [key :last-duration])
+                                                       duration-millis)]
+                               {:key key :millis millis})))
+                     vec)
+        sample-count (count samples)
+        enough-samples? (and (pos? source-count)
+                             (>= (/ (double sample-count) source-count)
+                                 +source-duration-coverage-threshold+))
+        concurrency (when (pos? source-count)
+                      (-> (or (rc/rc [:throttle :source-update-max-concurrent]) 1)
+                          pool/resolve-size
+                          long
+                          (max 1)
+                          (min source-count)))
+        estimate-ms (when (and enough-samples? (seq samples))
+                      (let [durations (map :millis samples)]
+                        (long (max (apply max durations)
+                                   (Math/ceil (/ (double (reduce + durations))
+                                                 concurrency))))))
+        only-source (when (and (= selected-source-count 1) (= source-count 1))
+                      (first updateable-sources))
+        only-state (when only-source (get states (:key only-source)))
+        last-fetch (when (and (:last-successful-fetch-ts only-state)
+                              (number? (get-in only-state [:stats :fetched]))
+                              (number? (get-in only-state [:stats :db])))
+                     {:last-success (:last-successful-fetch-ts only-state)
+                      :stats (select-keys (:stats only-state) [:fetched :db])})]
+    {:source-count source-count
+     :duration-sample-count sample-count
+     :estimated-duration-ms estimate-ms
+     :estimated-duration-label (some-> estimate-ms (/ 1000.0) human/format-duration)
+     :last-fetch last-fetch}))
+
 (defn download-item-content
   "Download Selected Item Content"
   [params]
@@ -1822,20 +1953,29 @@
                             (get-active-group-sources sources params))))
 
          selected-sources (get-selected-sources active-sources params)
+         source-update-context (source-update-view-context selected-sources)
          effective-sort (get-sort-order params)
          base-offset (or (:page-offset params) 0)
-         fetched @items
+         raw-fetched @items
+         list-mode? (= :list-items (:mode params))
+         has-more? (and list-mode? (> (count raw-fetched) +max-items+))
+         fetched (if has-more?
+                   (vec (take +max-items+ raw-fetched))
+                   raw-fetched)
          annotated-items (if (= effective-sort :ranked)
                            (map-indexed (fn [idx item] (assoc item :ranked-pos (+ base-offset idx))) fetched)
                            fetched)
          params (merge params {:sources sources
                                :active-sources active-sources
                                :selected-sources selected-sources
+                               :source-update-context source-update-context
                                :items annotated-items
                                :item-tags @item-tags
                                :filter orig-fltr
+                               :snapshot-ts (time/zoned-date-time)
                                :range-recent (-> fetched first (select-keys [:ts :id]))
                                :range-before (-> fetched last (select-keys [:ts :id]))
+                               :has-more? has-more?
                                :page-offset (when (= effective-sort :ranked)
                                               (+ base-offset (count fetched)))})]
      params)

@@ -125,7 +125,9 @@ function applyItemState(state) {
   itemTags.forEach(function (tag) {
     addItemTagRow(id, tag);
   });
-  $("#item-" + id).data("unread", !!state.unread);
+  $("#item-" + id)
+    .data("unread", !!state.unread)
+    .attr("data-unread", state.unread ? "true" : "false");
   updateCheckpointControls(state);
 }
 
@@ -136,28 +138,157 @@ function requestItemState(id, action, data) {
   ).done(applyItemState);
 }
 
-function show_update_sources_update_result(title, message) {
-  var popover_root = $(".btn-update-sources-in-view");
-  popover_root.data("result-title", "Update done");
-  popover_root.data(
-    "result-message",
-    `<div class="text-center">${message}</div>`,
-  );
-  popover_root.popover("show");
+function makeAnimatedDots(extraClass) {
+  var dots = $("<span>")
+    .addClass("reader-lifecycle-indicator reader-lifecycle-dots")
+    .attr("aria-hidden", "true");
+  if (extraClass) dots.addClass(extraClass);
+  for (var i = 0; i < 3; i += 1) {
+    $("<span>").addClass("reader-lifecycle-dot").appendTo(dots);
+  }
+  return dots;
 }
 
-function update_sources_update_state(target) {
-  $.getJSON(target, (result) => {
-    if (result["done"]) {
-      var items_url = $(".btn-update-sources-in-view").data("items");
-      show_update_sources_update_result(
-        "Update done",
-        `<a href="${items_url}">refresh</a>`,
+function addListLifecycleIndicator(root, indicator) {
+  if (indicator === "dots") {
+    makeAnimatedDots().appendTo(root);
+  } else if (indicator === "sync") {
+    $("<i>")
+      .addClass(
+        "fas fa-sync-alt reader-lifecycle-indicator reader-lifecycle-sync",
+      )
+      .attr("aria-hidden", "true")
+      .appendTo(root);
+  }
+}
+
+function showListLifecycleStatus(message, state, action, indicator) {
+  var root = $("#reader-list-lifecycle-status");
+  if (!root.length) return;
+
+  root
+    .empty()
+    .attr("data-state", state || "info")
+    .prop("hidden", false);
+  addListLifecycleIndicator(root, indicator);
+  $("<span>").text(message).appendTo(root);
+  if (!action) return;
+
+  var control = action.href
+    ? $("<a>").attr("href", action.href)
+    : $("<button>").attr("type", "button");
+  control.text(action.label).appendTo(root);
+  if (action.className) control.addClass(action.className);
+  if (action.onClick) control.on("click", action.onClick);
+}
+
+function setSourceUpdatePending(pending) {
+  var buttons = $(".btn-update-sources-in-view");
+  buttons
+    .data("source-update-pending", pending)
+    .removeClass("active")
+    .toggleClass("disabled", pending)
+    .toggleClass("source-update-pending", pending)
+    .attr("aria-disabled", pending ? "true" : null)
+    .each(function () {
+      var button = $(this);
+      var title = pending
+        ? button.data("pending-title")
+        : button.data("idle-title");
+      button.attr("title", title).attr("aria-label", title);
+      button.find(".reader-source-update-dots").remove();
+      button.find("i").prop("hidden", pending);
+      if (pending) {
+        makeAnimatedDots("reader-source-update-dots").appendTo(button);
+        if (document.activeElement === this) this.blur();
+      }
+    });
+}
+
+function setSourceUpdateReady(itemsUrl) {
+  $(".btn-update-sources-in-view")
+    .data("source-update-ready", true)
+    .addClass("source-update-ready")
+    .attr("href", itemsUrl)
+    .attr("title", "Open updated snapshot")
+    .attr("aria-label", "Open updated snapshot")
+    .find("i")
+    .prop("hidden", false)
+    .removeClass("fa-download")
+    .addClass("fa-sync-alt icon-is-set");
+}
+
+function sourceUpdateFailures(result) {
+  var failureStatuses = ["temp-fail", "perm-fail", "bug"];
+  return (Array.isArray(result) ? result : []).filter(function (outcome) {
+    return (
+      outcome.outcome === "error" || failureStatuses.includes(outcome.status)
+    );
+  }).length;
+}
+
+function sourceUpdateCompletions(result) {
+  return (Array.isArray(result) ? result : []).filter(function (outcome) {
+    return outcome.outcome === "completed" && outcome.status === "ok";
+  }).length;
+}
+
+function update_sources_update_state(target, attempts) {
+  attempts = attempts || 0;
+  $.getJSON(target)
+    .done(function (result) {
+      if (!result || !result.done) {
+        if (attempts >= 150) {
+          setSourceUpdatePending(false);
+          showListLifecycleStatus(
+            "The source check is taking longer than expected. This snapshot is unchanged.",
+            "error",
+          );
+          return;
+        }
+        window.setTimeout(
+          update_sources_update_state,
+          2000,
+          target,
+          attempts + 1,
+        );
+        return;
+      }
+
+      setSourceUpdatePending(false);
+      var outcomes = Array.isArray(result.result) ? result.result : [];
+      var failures = sourceUpdateFailures(outcomes);
+      var completions = sourceUpdateCompletions(outcomes);
+      var itemsUrl = $(".btn-update-sources-in-view").first().data("items");
+      var message;
+      if (!outcomes.length) {
+        message = "No fetchable sources are present in this view.";
+      } else if (failures) {
+        message =
+          "Source check finished with " +
+          failures +
+          (failures === 1 ? " failure." : " failures.") +
+          (completions ? "" : " No updated snapshot is available.");
+      } else if (!completions) {
+        message = "Source check finished; no sources were updated.";
+      } else {
+        message = "Source check complete.";
+      }
+      if (completions) setSourceUpdateReady(itemsUrl);
+      showListLifecycleStatus(
+        message,
+        failures ? "error" : "success",
+        null,
+        "sync",
       );
-    } else {
-      setTimeout(update_sources_update_state, 5000, target);
-    }
-  });
+    })
+    .fail(function () {
+      setSourceUpdatePending(false);
+      showListLifecycleStatus(
+        "The source-check status could not be retrieved. This snapshot is unchanged.",
+        "error",
+      );
+    });
 }
 
 //
@@ -517,32 +648,92 @@ $(function () {
 });
 
 $(document).ready(function () {
+  function runItemStateBatch(ids, action, onComplete) {
+    var remaining = ids.length;
+    var successful = [];
+    ids.forEach(function (id) {
+      requestItemState(id, action)
+        .done(function () {
+          successful.push(id);
+        })
+        .always(function () {
+          remaining -= 1;
+          if (!remaining)
+            onComplete(successful, ids.length - successful.length);
+        });
+    });
+  }
+
+  function setReadAllPending(pending) {
+    $(".btn-mark-view-read")
+      .data("read-all-pending", pending)
+      .toggleClass("disabled", pending)
+      .attr("aria-disabled", pending ? "true" : null);
+  }
+
+  function undoReadAll(ids) {
+    setReadAllPending(true);
+    showListLifecycleStatus(
+      "Restoring the unread state for " + ids.length + " items…",
+      "pending",
+    );
+    runItemStateBatch(ids, "mark-unread", function (successful, failed) {
+      setReadAllPending(false);
+      var message =
+        "Restored " + successful.length + " items to unread in this snapshot.";
+      if (failed) message += " " + failed + " could not be restored.";
+      showListLifecycleStatus(message, failed ? "error" : "success");
+    });
+  }
+
   $(".btn-mark-view-read").on("click", function (event) {
     event.preventDefault();
+    if ($(this).data("read-all-pending")) return;
     var ids = Array.from(
       new Set(
         $("main")
-          .find("[data-id]")
+          .find('[data-id][data-unread="true"]')
           .map(function () {
             return $(this).data("id");
           })
           .get(),
       ),
     );
-    console.log(ids);
-    for (var id of ids) {
-      requestItemState(id, "seen");
+    if (!ids.length) {
+      showListLifecycleStatus(
+        "Every item in this snapshot is already read.",
+        "info",
+      );
+      return;
     }
-  });
 
-  $(".btn-update-sources-in-view").popover({
-    placement: "bottom",
-    container: "body",
-    offset: [10, 20],
-    trigger: "manual",
-    html: true,
-    title: () => $(".btn-update-sources-in-view").data("result-title"),
-    content: () => $(".btn-update-sources-in-view").data("result-message"),
+    setReadAllPending(true);
+    showListLifecycleStatus(
+      "Marking " + ids.length + " items read…",
+      "pending",
+    );
+    runItemStateBatch(ids, "seen", function (successful, failed) {
+      setReadAllPending(false);
+      var message =
+        "Marked " +
+        successful.length +
+        (successful.length === 1 ? " item" : " items") +
+        " read. This snapshot stays in place.";
+      if (failed) message += " " + failed + " could not be changed.";
+      showListLifecycleStatus(
+        message,
+        failed ? "error" : "success",
+        successful.length
+          ? {
+              label: "Undo",
+              className: "btn-undo-mark-view-read",
+              onClick: function () {
+                undoReadAll(successful);
+              },
+            }
+          : null,
+      );
+    });
   });
   // bookmark / document add url
   $(".bookmark-submit").on("click", function () {
@@ -612,9 +803,9 @@ $(document).ready(function () {
       return;
     }
 
-    item.data("unread", false);
+    item.data("unread", false).attr("data-unread", "false");
     requestItemState(item.data("id"), "seen").fail(function () {
-      item.data("unread", true);
+      item.data("unread", true).attr("data-unread", "true");
     });
   }
 
@@ -716,14 +907,35 @@ $(document).ready(function () {
     markVisibleItemsRead();
     $(window).on("scroll resize", markVisibleItemsRead);
   }
-  $(".btn-update-sources-in-view").on("click", function () {
+  $(".btn-update-sources-in-view").on("click", function (event) {
+    if ($(this).data("source-update-ready")) return;
+    event.preventDefault();
+    if ($(this).data("source-update-pending")) return;
     var target = $(this).data("target");
-    $(this).find("i").addClass("icon-is-set");
-    $.post(target, (data, status) => {
-      if (status == "success") {
-        setTimeout(update_sources_update_state, 5000, target);
-      }
-    });
+    var durationLabel = $(this).data("duration-label");
+    var timingMessage = durationLabel
+      ? " Recent source runs suggest about " + durationLabel + "."
+      : " No timing information yet.";
+    setSourceUpdatePending(true);
+    showListLifecycleStatus(
+      "Checking sources." +
+        timingMessage +
+        " This snapshot will stay in place while the check runs.",
+      "pending",
+      null,
+      "dots",
+    );
+    $.post(target)
+      .done(function () {
+        window.setTimeout(update_sources_update_state, 1000, target);
+      })
+      .fail(function () {
+        setSourceUpdatePending(false);
+        showListLifecycleStatus(
+          "The source check could not be started. This snapshot is unchanged.",
+          "error",
+        );
+      });
   });
 
   // Item tags use the same state endpoint as semantic workflow actions.
