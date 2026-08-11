@@ -417,33 +417,51 @@ function readableClientRects(block) {
   });
 }
 
-function readingStructureCandidates(container) {
-  var candidates = Array.from(
-    container.querySelectorAll("h1, h2, h3, h4, hr"),
-  ).filter(function (element) {
-    return (
-      element.getClientRects().length > 0 &&
-      (element.matches("hr") || element.textContent.trim().length > 0)
-    );
+function readingStructureElements(container) {
+  return Array.from(container.querySelectorAll("h1, h2, h3, h4, hr")).filter(
+    function (element) {
+      return (
+        element.getClientRects().length > 0 &&
+        (element.matches("hr") || element.textContent.trim().length > 0)
+      );
+    },
+  );
+}
+
+function evenlySampleReadingCandidates(candidates, limit) {
+  if (limit <= 0) return [];
+  if (candidates.length <= limit) return candidates;
+  if (limit === 1) return [candidates[Math.floor(candidates.length / 2)]];
+  return Array.from({ length: limit }, function (_unused, index) {
+    return candidates[
+      Math.round((index * (candidates.length - 1)) / (limit - 1))
+    ];
   });
-  if (candidates.length <= 24) return candidates;
+}
+
+function selectReadingStructureCandidates(elements) {
+  if (elements.length <= 24) return elements;
 
   // Keep the rail quiet on documents with generated or very granular
-  // headings. Prefer high-level headings and authored section breaks, in
-  // source order.
+  // headings. Preserve whole-document coverage while preferring high-level
+  // headings and authored section breaks.
+  var preferred = elements.filter(function (element) {
+    return element.matches("h1, h2, hr");
+  });
   var selected = new Set(
-    candidates
-      .filter(function (element) {
-        return element.matches("h1, h2, hr");
-      })
-      .slice(0, 24),
+    evenlySampleReadingCandidates(preferred, Math.min(24, preferred.length)),
   );
   if (selected.size < 24) {
-    candidates.forEach(function (element) {
-      if (selected.size < 24) selected.add(element);
+    var remaining = elements.filter(function (element) {
+      return !selected.has(element);
     });
+    evenlySampleReadingCandidates(remaining, 24 - selected.size).forEach(
+      function (element) {
+        selected.add(element);
+      },
+    );
   }
-  return candidates.filter(function (element) {
+  return elements.filter(function (element) {
     return selected.has(element);
   });
 }
@@ -491,11 +509,17 @@ function rebuildReadingLandmarks() {
 
   rail.replaceChildren();
   var metrics = readingAxisMetrics(container);
-  var candidates = readingStructureCandidates(container);
-  readingNavigation.landmarks = candidates.map(function (element, index) {
+  var structureElements = readingStructureElements(container);
+  var candidates = selectReadingStructureCandidates(structureElements);
+  readingNavigation.landmarks = candidates.map(function (element) {
     var divider = element.matches("hr");
     var progress = readingElementProgress(container, element, metrics);
-    var label = readingLandmarkLabel(element, candidates, index);
+    var structureIndex = structureElements.indexOf(element);
+    var label = readingLandmarkLabel(
+      element,
+      structureElements,
+      structureIndex,
+    );
     var percent = Math.round(progress * 100);
     var control = document.createElement("button");
     control.type = "button";
