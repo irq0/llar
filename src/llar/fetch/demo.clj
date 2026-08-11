@@ -2,6 +2,7 @@
   "Deterministic, network-free editorial fixtures for demos and UI development."
   (:require
    [clojure.spec.alpha :as s]
+   [clojure.spec.gen.alpha :as gen]
    [clojure.string :as string]
    [hiccup2.core :refer [html]]
    [java-time.api :as time]
@@ -9,7 +10,8 @@
    [llar.fetch :refer [FetchSource item-to-string make-item-hash make-meta]]
    [llar.item]
    [llar.persistency :refer [CouchItem]]
-   [llar.postproc :refer [ItemProcessor]])
+   [llar.postproc :refer [ItemProcessor]]
+   [llar.src :as src])
   (:import
    (java.util Locale Random)
    (net.datafaker Faker)))
@@ -219,10 +221,32 @@
         (assoc :type :link)
         (assoc-in [:meta :source :args] nil))))
 
+(s/def ::source
+  (s/with-gen #(instance? llar.src.Demo %)
+    #(gen/fmap src/demo (gen/elements (vec src/demo-publications)))))
+
+(s/def ::faker
+  (s/with-gen #(instance? Faker %)
+    #(gen/fmap (fn [seed]
+                 (Faker. Locale/ENGLISH (Random. (long seed))))
+               (gen/int))))
+
+(s/def ::base-time
+  (s/with-gen :irq0-fetch-item/ts
+    #(gen/return (now))))
+
+(s/def ::index
+  (s/with-gen (s/and nat-int? #(< % (count stories)))
+    #(gen/choose 0 (dec (count stories)))))
+
+(s/def ::story
+  (s/with-gen map?
+    #(gen/elements stories)))
+
 (s/fdef make-demo-item
-  :args (s/cat :src #(instance? llar.src.Demo %)
-               :faker #(instance? Faker %)
-               :base-time :irq0-fetch-item/ts
-               :index nat-int?
-               :story map?)
+  :args (s/cat :src ::source
+               :faker ::faker
+               :base-time ::base-time
+               :index ::index
+               :story ::story)
   :ret #(instance? DemoItem %))

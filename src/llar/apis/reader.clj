@@ -53,7 +53,7 @@
                           (= :html (ffirst content)))
                    (first content)
                    (into [:html] content))]
-    (str (h/html (h/raw "<!DOCTYPE html>\n") document))))
+    (str (html (h/raw "<!DOCTYPE html>\n") document))))
 
 ;; NEXT
 ;; set read, saved
@@ -423,7 +423,7 @@
       (make-site-href [(:uri x)] (:range-before x) x))))
 
 (defn- source-update-button [x link-prefix]
-  (let [{:keys [estimated-duration-label] :as update-context}
+  (let [{:keys [estimated-duration-label]}
         (:source-update-context x)
         idle-title (str "Update sources in view"
                         (when estimated-duration-label
