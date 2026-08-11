@@ -97,7 +97,7 @@
         (.setDataset inst ds)
         (doall (map-indexed (fn [i attrib]
                               (try
-                                (.setValue inst i (get m attrib 0.0))
+                                (.setValue inst (int i) (double (get m attrib 0.0)))
                                 (catch Throwable th
                                   (log/info th i attrib (get m attrib) (type (get m attrib)))
                                   (throw th))))

@@ -87,7 +87,7 @@
       (let [instance (SparseInstance. (count attributes))]
         (.setDataset instance dataset)
         (doseq [[attribute-index attribute] (map-indexed vector attributes)]
-          (.setValue instance attribute-index
+          (.setValue instance (int attribute-index)
                      (double (if (= attribute "item-id") idx
                                  (get features attribute 0.0)))))
         (.add dataset instance)))
