@@ -292,6 +292,21 @@
    [:link {:rel "icon" :type "image/png" :sizes "32x32" :href "/static/img/favicon-32x32.png"}]
    [:link {:rel "icon" :type "image/png" :sizes "16x16" :href "/static/img/favicon-16x16.png"}]
    [:link {:rel "manifest" :href "/static/img/site.webmanifest"}]
+   [:link {:rel "preload"
+           :href "/static/ibmplex/Web/IBM-Plex-Sans/fonts/split/woff2/IBMPlexSans-Regular-Latin1.woff2"
+           :as "font"
+           :type "font/woff2"
+           :crossorigin "anonymous"}]
+   [:link {:rel "preload"
+           :href "/static/ibmplex/Web/IBM-Plex-Sans-Condensed/fonts/split/woff2/IBMPlexSansCondensed-LightItalic-Latin1.woff2"
+           :as "font"
+           :type "font/woff2"
+           :crossorigin "anonymous"}]
+   [:link {:rel "preload"
+           :href "/static/ibmplex/Web/IBM-Plex-Mono/fonts/split/woff2/IBMPlexMono-Regular-Latin1.woff2"
+           :as "font"
+           :type "font/woff2"
+           :crossorigin "anonymous"}]
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
