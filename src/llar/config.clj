@@ -106,7 +106,7 @@
   {:llar.config/kind :construct
    :llar.config/order 10
    :llar.config/keys [":tags tags applied to the source. a set of keywords"
-                      ":options reader behavior changes. a set of keywords. supported: :mark-read-on-view, :main-list-use-description, "
+                      ":options reader behavior changes. a set of keywords. supported: :mark-read-on-view. :main-list-use-description remains accepted as a legacy no-op; Preview descriptions are automatic"
                       ":pre pre-processing function body"
                       ":pre-fns a list of functions to pre-process items"
                       ":rm a filter function body"

@@ -1,5 +1,6 @@
 (ns llar.db.query
   (:require
+   [clojure.tools.logging :as log]
    [llar.persistency :refer [StatsQueries SourceQueries ItemQueries RankingQueries]]
    [llar.db.core]
    [llar.db.sql :as sql]
@@ -115,27 +116,58 @@
 ;; ----------
 
 (defn- choose-recent-items-select-snip [args]
-  (let [{:keys [with-data? with-preview-data?]} args]
+  (let [{:keys [with-data?]} args]
     (cond
       with-data? (sql/item-select-with-data-snip)
-      with-preview-data? (sql/item-select-with-data-snip)
       :else (sql/item-select-default-snip))))
 
 (defn- choose-recent-items-from-snip [args]
-  (let [{:keys [with-data? with-preview-data?]} args
+  (let [{:keys [with-data?]} args
         ranked (= (:sort-order args) :ranked)]
     (cond
       (and ranked with-data?)          (sql/item-from-join-with-data-table-ranked-snip)
-      (and ranked with-preview-data?)  (sql/item-from-join-with-preview-data-ranked-snip)
       ranked                           (sql/item-from-join-ranked-snip)
       with-data?                       (sql/item-from-join-with-data-table-snip)
-      with-preview-data?               (sql/item-from-join-with-preview-data-snip)
       :else                            (sql/item-from-join-default-snip))))
 
 (defn- choose-recent-items-group-by-colums [args]
-  (let [{:keys [with-data? with-preview-data?]} args]
-    (when (or with-data? with-preview-data?)
+  (let [{:keys [with-data?]} args]
+    (when with-data?
       ["items.id"])))
+
+(def ^:private +preview-description-query-characters+ 512)
+
+(defn- attach-preview-descriptions
+  "Attach bounded plain-text descriptions to an already limited item batch."
+  [db items]
+  (let [item-ids (mapv :id items)]
+    (if (seq item-ids)
+      (let [descriptions (->> (sql/get-item-preview-descriptions
+                               db
+                               {:item-ids item-ids
+                                :max-characters +preview-description-query-characters+})
+                              (keep (fn [{:keys [description] :as row}]
+                                      (when-let [item-id (or (:item-id row)
+                                                             (:item_id row))]
+                                        [item-id description])))
+                              (into {}))]
+        (mapv (fn [{:keys [id] :as item}]
+                (if-let [description (get descriptions id)]
+                  (assoc-in item [:data :description "text/plain"] description)
+                  item))
+              items))
+      items)))
+
+(defn- attach-preview-descriptions-best-effort
+  "Keep the selected Reader batch usable when optional description hydration fails."
+  [db items]
+  (try
+    (attach-preview-descriptions db items)
+    (catch Exception exception
+      (log/warn exception
+                (format "Reader preview descriptions unavailable for %d selected items; rendering without them"
+                        (count items)))
+      items)))
 
 (defn- choose-order-by-snip [args]
   (case (:sort-order args)
@@ -177,15 +209,18 @@
   PostgresqlDataStore
 
   (get-items-recent [this {:keys [limit offset] :or {limit 42} :as args}]
-    (sql/get-items-recent
-     this
-     {:select (choose-recent-items-select-snip args)
-      :from (choose-recent-items-from-snip args)
-      :where (make-recent-items-where-cond-vec args)
-      :order-by (choose-order-by-snip args)
-      :limit limit
-      :offset offset
-      :group-by-columns (choose-recent-items-group-by-colums args)}))
+    (let [items (sql/get-items-recent
+                 this
+                 {:select (choose-recent-items-select-snip args)
+                  :from (choose-recent-items-from-snip args)
+                  :where (make-recent-items-where-cond-vec args)
+                  :order-by (choose-order-by-snip args)
+                  :limit limit
+                  :offset offset
+                  :group-by-columns (choose-recent-items-group-by-colums args)})]
+      (if (and (:with-preview-data? args) (not (:with-data? args)))
+        (attach-preview-descriptions-best-effort this items)
+        items)))
 
   (get-items-by-tag [this tag]
     (sql/get-items-by-tag this {:tag (tags/normalize-tag tag)}))

@@ -44,6 +44,15 @@ from items inner join sources
 on items.source_id = sources.id
 where tagi @@ (SELECT format('(%s)', id) FROM tags WHERE tag = :tag)::query_int
 
+-- :name get-item-preview-descriptions :? :*
+select item_id as "item-id",
+       left(text, cast(:max-characters as integer)) as description
+from item_data
+where item_id in (:v*:item-ids)
+  and type = 'description'
+  and mime_type = 'text/plain'
+  and text is not null
+
 -- :snip item-select-default-snip
 select
   items.source_id as feed_id,
@@ -107,14 +116,6 @@ from items
     items.id = item_data.item_id
     and (item_data.type = 'content' or item_data.type = 'description')
 
--- :snip item-from-join-with-preview-data-snip
-from items
-  inner join sources on items.source_id = sources.id
-  left join item_data on
-     items.id = item_data.item_id
-     and item_data.type = 'description'
-     and mime_type = 'text/plain'
-
 -- :snip item-from-join-ranked-snip
 from items
   inner join sources on items.source_id = sources.id
@@ -126,15 +127,6 @@ from items
   left join item_data on
     items.id = item_data.item_id
     and (item_data.type = 'content' or item_data.type = 'description')
-  left join source_stats ss on items.source_id = ss.source_id
-
--- :snip item-from-join-with-preview-data-ranked-snip
-from items
-  inner join sources on items.source_id = sources.id
-  left join item_data on
-     items.id = item_data.item_id
-     and item_data.type = 'description'
-     and mime_type = 'text/plain'
   left join source_stats ss on items.source_id = ss.source_id
 
 -- :name get-item-by-id :? :1

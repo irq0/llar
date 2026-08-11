@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-r02-04"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l01-03"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-r02-04"}]])
+   [:script {:src "/static/llar.js?v=reader-l01-03"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -951,10 +951,7 @@
      (when-let [image-url (and (not youtube-url)
                                (first-usable-image-url (:thumbnail entry)
                                                        (:lead-image-url entry)))]
-       [:div {:class (str "item-preview-small float-end reader-image-container"
-                          (when (every? options [:main-list-use-description
-                                                 :short-word-cloud])
-                            " float-md-end"))
+       [:div {:class "item-preview-small float-end reader-image-container"
               :style "width: 200px; height: auto;"}
         [:img {:src image-url
                :class "reader-defensive-image"
@@ -1770,6 +1767,222 @@
     (nth +word-cloud-sizes+
          (-> size int (max 0) (min max-size)))))
 
+(def ^:private +preview-visible-signal-limit+ 11)
+(def ^:private +preview-term-candidate-limit+ 15)
+(def ^:private +preview-entity-candidate-limit+ 5)
+(def ^:private +preview-entity-initial-limit+ 3)
+(def ^:private +preview-reference-limit+ 2)
+(def ^:private +preview-reference-expanded-limit+ 4)
+(def ^:private +preview-reference-candidate-limit+ 20)
+(def ^:private +preview-description-character-limit+ 360)
+
+(defn- preview-useful-signal? [value]
+  (and (string? value)
+       (not (string/blank? value))
+       (<= (count value) 20)
+       (not (re-find #"^(\W{1,2}|[a-z0-9]\.)" value))
+       (not (re-find +boring-words-regex+ value))))
+
+(defn- preview-url-host [url]
+  (when (string? url)
+    (try+
+     (some-> url uri/uri uri/host)
+     (catch Object _ nil))))
+
+(defn- preview-distinct-by [key-fn values]
+  (second
+   (reduce (fn [[seen result] value]
+             (let [key (key-fn value)]
+               (if (contains? seen key)
+                 [seen result]
+                 [(conj seen key) (conj result value)])))
+           [#{} []]
+           values)))
+
+(defn- preview-term-weight [freq min-freq max-freq]
+  (if (and (number? freq)
+           (number? min-freq)
+           (number? max-freq)
+           (not= min-freq max-freq))
+    (let [position (/ (- freq min-freq) (- max-freq min-freq))]
+      (cond
+        (>= position 0.67) :strong
+        (>= position 0.33) :regular
+        :else :quiet))
+    :regular))
+
+(defn- preview-reference-signals [{:keys [url urls]}]
+  (let [item-host (preview-url-host url)]
+    (->> urls
+         (filter string?)
+         (remove #(= (preview-url-host %) item-host))
+         (filter #(> (count %) 20))
+         (remove #(re-find +boring-url-regex+ %))
+         (take +preview-reference-candidate-limit+)
+         (map (fn [reference-url]
+                {:label (awesome-url-text reference-url)
+                 :url reference-url}))
+         (preview-distinct-by #(pr-str (:label %)))
+         vec)))
+
+(defn- preview-fingerprint [{:keys [names top-words] :as item}]
+  (let [word-pairs (or (:words top-words) (get top-words "words") [])
+        word-pairs (->> word-pairs
+                        (filter (fn [[word _]] (preview-useful-signal? word)))
+                        (take +preview-term-candidate-limit+)
+                        vec)
+        frequencies (filter number? (map second word-pairs))
+        min-freq (when (seq frequencies) (apply min frequencies))
+        max-freq (when (seq frequencies) (apply max frequencies))
+        terms (mapv (fn [[word freq]]
+                      {:label word
+                       :frequency freq
+                       :weight (preview-term-weight freq min-freq max-freq)})
+                    word-pairs)
+        entities (->> names
+                      (filter preview-useful-signal?)
+                      distinct
+                      (take +preview-entity-candidate-limit+)
+                      (mapv (fn [entity]
+                              {:label entity
+                               :url (str "https://en.wikipedia.org/wiki/"
+                                         (string/replace entity #" " "_"))})))
+        references (preview-reference-signals item)
+        initial-entity-count (min +preview-entity-initial-limit+ (count entities))
+        initial-reference-count (min +preview-reference-limit+ (count references))
+        term-count (min (count terms)
+                        (- +preview-visible-signal-limit+
+                           initial-entity-count
+                           initial-reference-count))
+        remaining-after-terms (- +preview-visible-signal-limit+
+                                 initial-entity-count
+                                 initial-reference-count
+                                 term-count)
+        entity-count (+ initial-entity-count
+                        (min remaining-after-terms
+                             (- (count entities) initial-entity-count)))
+        remaining-after-entities (- remaining-after-terms
+                                    (- entity-count initial-entity-count))
+        reference-count (+ initial-reference-count
+                           (min remaining-after-entities
+                                (- (min +preview-reference-expanded-limit+
+                                        (count references))
+                                   initial-reference-count)))
+        visible-terms (vec (take term-count terms))
+        visible-entities (vec (take entity-count entities))
+        visible-references (vec (take reference-count references))]
+    (when (some seq [terms entities references])
+      {:terms visible-terms
+       :entities visible-entities
+       :references visible-references
+       :more-terms (vec (drop term-count terms))
+       :more-entities (vec (drop entity-count entities))
+       :more-references (vec (drop reference-count references))})))
+
+(defn- render-preview-terms [terms]
+  (when (seq terms)
+    (into [:div {:class "reader-preview-signal-group reader-preview-terms"
+                 :role "group"
+                 :aria-label (str "Terms, " (count terms) " shown")}]
+          (map (fn [{:keys [label frequency weight]}]
+                 [:span {:class (str "reader-preview-signal reader-preview-term is-"
+                                     (name weight))
+                         :title (if (number? frequency)
+                                  (str "Term frequency: " frequency)
+                                  "Extracted term")}
+                  label])
+               terms))))
+
+(defn- render-preview-entities [entities]
+  (when (seq entities)
+    (into [:div {:class "reader-preview-signal-group reader-preview-entities"
+                 :role "group"
+                 :aria-label (str "Entities, " (count entities) " shown")}]
+          (map (fn [{:keys [label url]}]
+                 [:a {:class "reader-preview-signal reader-preview-entity"
+                      :href url
+                      :title (str "Entity: " label ". Look up on Wikipedia")}
+                  label])
+               entities))))
+
+(defn- render-preview-reference [reference]
+  [:a {:class "reader-preview-signal reader-preview-reference"
+       :href (:url reference)
+       :title (str "Reference: " (:url reference))}
+   (:label reference)])
+
+(defn- render-preview-references [references]
+  (when (seq references)
+    (into [:div {:class "reader-preview-signal-group reader-preview-references"
+                 :role "group"
+                 :aria-label (str "References, " (count references) " shown")}]
+          (map render-preview-reference references))))
+
+(defn- preview-overflow-label [more-terms more-entities more-references]
+  (let [parts (cond-> []
+                (seq more-terms) (conj (format "%d %s"
+                                               (count more-terms)
+                                               (if (= 1 (count more-terms)) "term" "terms")))
+                (seq more-entities) (conj (format "%d %s"
+                                                  (count more-entities)
+                                                  (if (= 1 (count more-entities))
+                                                    "entity"
+                                                    "entities")))
+                (seq more-references) (conj (format "%d %s"
+                                                    (count more-references)
+                                                    (if (= 1 (count more-references))
+                                                      "reference"
+                                                      "references"))))]
+    (string/join " · " parts)))
+
+(defn- render-preview-more-signals [more-terms more-entities more-references]
+  (let [total (+ (count more-terms) (count more-entities) (count more-references))]
+    (when (pos? total)
+      (let [label (str "Show " total " more signals: "
+                       (preview-overflow-label more-terms more-entities more-references))]
+        [:details {:class "reader-preview-more-signals"}
+         [:summary {:title label :aria-label label} (str "+" total)]
+         (into [:div {:class "reader-preview-signal-overflow"}]
+               (remove nil?
+                       [(render-preview-terms more-terms)
+                        (render-preview-entities more-entities)
+                        (render-preview-references more-references)]))]))))
+
+(defn- render-preview-fingerprint [item]
+  (when-let [{:keys [terms entities references
+                     more-terms more-entities more-references]}
+             (preview-fingerprint item)]
+    (into [:div {:class "reader-preview-fingerprint"
+                 :role "group"
+                 :aria-label "Extracted signals"}]
+          (remove nil?
+                  [(render-preview-terms terms)
+                   (render-preview-entities entities)
+                   (render-preview-references references)
+                   (render-preview-more-signals more-terms
+                                                more-entities
+                                                more-references)]))))
+
+(defn- normalized-preview-text [value]
+  (when (string? value)
+    (some-> value
+            (string/replace #"\s+" " ")
+            string/trim
+            not-empty)))
+
+(defn- preview-description [{:keys [title] :as item}]
+  (let [description (normalized-preview-text
+                     (get-in item [:data :description "text/plain"]))
+        normalized-title (some-> title normalized-preview-text string/lower-case)]
+    (when (and description
+               (not= (string/lower-case description) normalized-title))
+      (human/truncate-ellipsis description +preview-description-character-limit+))))
+
+(defn- render-preview-description [item]
+  (when-let [description (preview-description item)]
+    [:p {:class "description reader-preview-description"}
+     description]))
+
 (defn short-page-headline
   [x]
   (let [{:keys [mode source-key group-item view]} x
@@ -1789,29 +2002,13 @@
       (= mode :tools)
       (tool-view-title view))))
 
-;; todo - add number of images
-;; add number of nouns
-
 (defn main-list-item
-  "Main Item List - Word Cloud Style"
+  "Main Item List - Semantic Fingerprint Style"
   [x link-prefix item]
   (let [{:keys [sources]} x
-        {:keys [id source-key title ts author tags
-                names entry url urls top-words]} item
-        url-site (some-> url uri/uri uri/host)
+        {:keys [id source-key title ts author tags entry url]} item
         source (get sources (keyword source-key))
-        boring-filter (fn [word]
-                        (not (or
-                              (> (count word) 20)
-                              (re-find #"^(\W{1,2}|[a-z0-9]\.)" word)
-                              (re-find +boring-words-regex+ word))))
-        words (take 15 (filter (fn [[word _]] (boring-filter word)) (:words top-words)))
-        names (take 5 (filter boring-filter names))
-        options (cond-> (set (:options source))
-                  (< (+ (count words) (count names) (count urls)) 10)
-                  (conj :short-word-cloud))
-        min-freq (second (last words))
-        max-freq (second (first words))]
+        options (set (:options source))]
     [:div {:id (str "item-" id)
            :data-id id
            :data-unread (str (boolean (some #(= % "unread") tags)))
@@ -1861,39 +2058,10 @@
          "\u00a0"
          (icon "far fa-user") author])]
 
-     [:div {:class "clearfix"}
-      [:p (render-special-item-content item (conj options ::compact-media))]
-
-      (if (contains? options :main-list-use-description)
-        [:p {:class "description"}
-         (get-in item [:data :description "text/plain"])]
-        [:p {:class "word-cloud"}
-         (html
-          (for [[word freq] words
-                :let [size (word-cloud-fontsize freq min-freq max-freq)]]
-            [:span {:class (str "word border text-white " size)} word]))
-         (html
-          (for [n names]
-            [:span {:class "name border"}
-             [:a {:href (str "https://en.wikipedia.org/wiki/" n)
-                  :class "text-white sz-b"} n]]))
-         (html
-          (for [[text all-text-urls] (->> urls
-                                         ;; controversial? remove urls pointing to same site
-                                          (remove (fn [str-url]
-                                                    (= (some-> str-url uri/uri uri/host)
-                                                       url-site)))
-                                          (filter #(> (count %) 20))
-                                          (take 20)
-                                          (map (juxt awesome-url-text identity))
-                                          (group-by first)
-                                          (doall))
-                :let [url (-> all-text-urls
-                              first second)]
-                :when (not (re-find +boring-url-regex+ url))]
-            [:span {:class "url border"}
-             [:a {:href url :class "text-white sz-b"}
-              text]]))])]
+     [:div {:class "reader-preview-body"}
+      (render-special-item-content item (conj options ::compact-media))
+      (render-preview-description item)
+      (render-preview-fingerprint item)]
 
      (when-let [highlight (get-in item [:entry :highlight])]
        (html [:p {:class "highlight"}
@@ -2192,6 +2360,8 @@
                      :rarity-cap (get ranking-config :rarity-boost-cap-hours 168.0)
                      :simple-filter (:filter params)
                      :with-data? false
+                     :with-preview-data? (and (= mode :list-items)
+                                              (= :preview (get-list-style params)))
                      :limit (case mode
                               :get-moar-items 1
                               :list-items (inc +max-items+)
@@ -2226,10 +2396,7 @@
 
       (and (= group-name :default) (= group-item :all) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                       {:with-preview-data? (contains?
-                                                                             (get-in sources [source-key :options])
-                                                                             :main-list-use-description)
-                                                        :with-source-keys [source-key]}))
+                                                       {:with-source-keys [source-key]}))
 
       (and (= group-name :item-tags) (keyword? group-item) (= source-key :all))
       (persistency/get-items-recent frontend-db (merge common-args
@@ -2237,10 +2404,7 @@
 
       (and (= group-name :item-tags) (keyword? group-item) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
-                                                       {:with-preview-data? (contains?
-                                                                             (get-in sources [source-key :options])
-                                                                             :main-list-use-description)
-                                                        :with-source-keys [source-key]
+                                                       {:with-source-keys [source-key]
                                                         :with-tag group-item}))
 
       (and (= group-name :source-tag) (keyword? group-item) (= source-key :all))
@@ -2248,10 +2412,7 @@
                                   vals
                                   (filter #(contains? (:tags %) group-item)))]
         (persistency/get-items-recent frontend-db (merge common-args
-                                                         {:with-preview-data? (some #(contains? (:options %)
-                                                                                                :main-list-use-description)
-                                                                                    selected-sources)
-                                                          :with-source-ids (map :id selected-sources)})))
+                                                         {:with-source-ids (map :id selected-sources)})))
 
       (and (= group-name :source-tag) (keyword? group-item) (keyword? source-key))
       (if (->> sources
@@ -2261,10 +2422,7 @@
                          (= (:key %) source-key)))
                not-empty)
         (persistency/get-items-recent frontend-db (merge common-args
-                                                         {:with-preview-data? (contains?
-                                                                               (get-in sources [source-key :options])
-                                                                               :main-list-use-description)
-                                                          :with-source-keys [source-key]}))
+                                                         {:with-source-keys [source-key]}))
         [])
 
       (and (= group-name :type) (keyword? group-item) (= source-key :all))
@@ -2274,9 +2432,6 @@
       (and (= group-name :type) (keyword? group-item) (keyword? source-key))
       (persistency/get-items-recent frontend-db (merge common-args
                                                        {:with-source-keys [source-key]
-                                                        :with-preview-data? (contains?
-                                                                             (get-in sources [source-key :options])
-                                                                             :main-list-use-description)
                                                         :with-type group-item}))
 
       :else

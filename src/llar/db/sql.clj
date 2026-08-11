@@ -14,13 +14,12 @@
  get-item-count-unread-today
  get-sources-with-item-tags-count
  get-items-by-tag
+ get-item-preview-descriptions
  item-select-default-snip
  item-select-with-data-snip
  item-from-join-default-snip
  item-from-join-with-data-table-snip
- item-from-join-with-preview-data-snip
  item-from-join-ranked-snip
- item-from-join-with-preview-data-ranked-snip
  item-from-join-with-data-table-ranked-snip
  cond-before
  cond-after

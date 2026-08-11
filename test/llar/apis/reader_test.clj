@@ -8,7 +8,9 @@
    [llar.apis.reader :as uut]
    [llar.appconfig :as appconfig]
    [llar.bookmark-capture :as bookmark-capture]
+   [llar.db.query :as db-query]
    [llar.db.search :as db-search]
+   [llar.db.sql :as sql]
    [llar.lab :as lab]
    [llar.persistency :as persistency]
    [llar.rc :as rc]
@@ -114,6 +116,124 @@
       (is (not (string/includes? article "20 words")))
       (is (not (string/includes? article "min read")))
       (is (re-find #"fa-play-circle.*11 min video" list-item)))))
+
+(deftest preview-renders-a-bounded-semantic-fingerprint
+  (let [item {:id 42
+              :source-key "feed"
+              :title "Signals worth scanning"
+              :url "https://example.com/article"
+              :ts (time/zoned-date-time)
+              :tags ["unread" "my-label"]
+              :top-words {"words" [["security" 12]
+                                   ["architecture" 10]
+                                   ["agents" 9]
+                                   ["systems" 8]
+                                   ["platform" 7]
+                                   ["protocols" 6]
+                                   ["overflowterm" 5]
+                                   ["hiddencontext" 4]]}
+              :names ["Linus Torvalds" "Grace Hopper" "Ada Lovelace" "Barbara Liskov"]
+              :urls ["https://example.com/related-path"
+                     "https://github.com/example/project"
+                     "https://en.wikipedia.org/wiki/Computer_security"
+                     "https://news.ycombinator.com/item?id=42"
+                     "https://clojure.org/reference/reader"]
+              :entry {}}
+        fingerprint (#'uut/preview-fingerprint item)
+        rendered (str (h/html (uut/main-list-item
+                               {:sources {:feed {:options #{}}}}
+                               "/reader/source/feed"
+                               item)))]
+    (is (= ["security" "architecture" "agents" "systems" "platform" "protocols"]
+           (mapv :label (:terms fingerprint))))
+    (is (= [:strong :strong :regular :regular :regular :quiet]
+           (mapv :weight (:terms fingerprint))))
+    (is (= ["Linus Torvalds" "Grace Hopper" "Ada Lovelace"]
+           (mapv :label (:entities fingerprint))))
+    (is (= 2 (count (:references fingerprint))))
+    (is (= 2 (count (:more-terms fingerprint))))
+    (is (= 1 (count (:more-entities fingerprint))))
+    (is (= 2 (count (:more-references fingerprint))))
+    (is (string/includes? rendered "class=\"reader-preview-fingerprint\""))
+    (is (string/includes? rendered "aria-label=\"Extracted signals\""))
+    (is (not (string/includes? rendered ">Terms<")))
+    (is (not (string/includes? rendered ">Entities<")))
+    (is (not (string/includes? rendered ">References<")))
+    (is (string/includes? rendered "<details class=\"reader-preview-more-signals\">"))
+    (is (string/includes? rendered ">+5</summary>"))
+    (is (string/includes? rendered "2 terms · 1 entity · 2 references"))
+    (is (string/includes? rendered "overflowterm"))
+    (is (not (string/includes? rendered "https://example.com/related-path")))
+    (is (not (string/includes? rendered "word-cloud")))
+    (is (string/includes? rendered "my-label"))))
+
+(deftest preview-combines-a-restrained-description-with-the-fingerprint
+  (let [base-item {:id 42
+                   :source-key "feed"
+                   :title "Description source"
+                   :url "https://example.com/article"
+                   :ts (time/zoned-date-time)
+                   :tags []
+                   :entry {}
+                   :data {:description {"text/plain" "  Configured\n\n description  "}}}
+        description-rendered (str
+                              (h/html
+                               (uut/main-list-item
+                                {:sources {:feed {:options #{:main-list-use-description}}}}
+                                "/reader/source/feed"
+                                (assoc base-item
+                                       :top-words {"words" [["security" 10]]}))))
+        empty-rendered (str
+                        (h/html
+                         (uut/main-list-item
+                          {:sources {:feed {:options #{}}}}
+                          "/reader/source/feed"
+                          base-item)))]
+    (is (string/includes? description-rendered "Configured description"))
+    (is (string/includes? description-rendered "reader-preview-description"))
+    (is (string/includes? description-rendered "reader-preview-fingerprint"))
+    (is (not (string/includes? empty-rendered "reader-preview-fingerprint")))
+    (is (not (string/includes? empty-rendered "No extracted signals")))))
+
+(deftest preview-description-is-bounded-and-omits-title-duplicates
+  (let [long-description (apply str (repeat 400 "x"))
+        bounded (#'uut/preview-description
+                 {:title "Different title"
+                  :data {:description {"text/plain" long-description}}})]
+    (is (= 360 (count bounded)))
+    (is (string/ends-with? bounded "…"))
+    (is (nil? (#'uut/preview-description
+               {:title "  SAME title "
+                :data {:description {"text/plain" "Same\n title"}}})))
+    (is (nil? (#'uut/preview-description
+               {:title "No description"
+                :data {:description {"text/plain" " \n "}}})))))
+
+(deftest preview-description-hydration-is-bounded-to-the-selected-item-ids
+  (let [query-args (atom nil)]
+    (with-redefs [sql/get-item-preview-descriptions
+                  (fn [_ args]
+                    (reset! query-args args)
+                    ;; Unquoted PostgreSQL identifiers historically arrived
+                    ;; with underscores; hydration accepts that row shape too.
+                    [{:item_id 2 :description "Second item summary"}])]
+      (let [items (#'db-query/attach-preview-descriptions
+                   :db
+                   [{:id 1 :title "First"}
+                    {:id 2 :title "Second"}])]
+        (is (= {:item-ids [1 2] :max-characters 512} @query-args))
+        (is (nil? (:data (first items))))
+        (is (= "Second item summary"
+               (get-in (second items) [:data :description "text/plain"])))))))
+
+(deftest preview-description-hydration-fails-open
+  (let [items [{:id 1 :title "First"}
+               {:id 2 :title "Second"}]]
+    (with-redefs [sql/get-item-preview-descriptions
+                  (fn [& _]
+                    (throw (java.sql.SQLException. "preview query unavailable")))]
+      (is (= items
+             (#'db-query/attach-preview-descriptions-best-effort :db items))))))
 
 (deftest reader-hides-false-reading-time-when-video-duration-is-missing
   (with-redefs [appconfig/credentials (constantly nil)
@@ -533,7 +653,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-r02-04\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-l01-03\"></script></body></html>$"
                    shell)))))
 
 (deftest item-inspector-leads-with-provenance-signals-and-representations
@@ -861,6 +981,21 @@
       (is (= 12 (:rarity-cap args)))
       (is (= (inc uut/+max-items+) (:limit args)))
       (is (= :ranked (:sort-order args))))))
+
+(deftest only-preview-list-batches-request-description-data
+  (with-redefs [rc/rc (constantly nil)]
+    (is (true? (:with-preview-data?
+                (#'uut/build-items-query-args
+                 {:mode :list-items :list-style :preview}
+                 :newest))))
+    (is (false? (:with-preview-data?
+                 (#'uut/build-items-query-args
+                  {:mode :list-items :list-style :headlines}
+                  :newest))))
+    (is (false? (:with-preview-data?
+                 (#'uut/build-items-query-args
+                  {:mode :show-item :list-style :preview}
+                  :newest))))))
 
 (deftest reading-queue-reasons
   (is (= [:saved]

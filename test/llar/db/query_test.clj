@@ -105,6 +105,29 @@
           item-data (:text (first results-with-data))]
       (is (some? item-data) "Should include data"))))
 
+(deftest test-get-items-recent-with-bounded-preview-descriptions
+  (testing "Hydrate only bounded plain-text descriptions after limiting the batch"
+    (let [id (:id (create-test-item *test-db*
+                                    :src-name "preview-description-test"
+                                    :hash "preview-description-item"
+                                    :title "Item with preview description"
+                                    :entry {:url "https://example.com"}))
+          long-description (apply str (repeat 700 "x"))]
+      (create-test-item-data *test-db*
+                             :item-id id
+                             :type :item-data-type/description
+                             :text long-description)
+      (create-test-item-data *test-db*
+                             :item-id id
+                             :type :item-data-type/content
+                             :text "Full content must stay out of previews")
+      (let [item (first (persistency/get-items-recent
+                         *test-db*
+                         {:limit 1 :with-preview-data? true}))]
+        (is (= 512 (count (get-in item [:data :description "text/plain"]))))
+        (is (nil? (get-in item [:data :content])))
+        (is (nil? (:text item)))))))
+
 (deftest test-get-item-by-id
   (testing "Retrieve single item by ID with data"
     (let [id (:id (create-test-item *test-db*
