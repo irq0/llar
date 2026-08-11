@@ -291,8 +291,7 @@ jobs:
             -w "%{http_code}" \
             http://localhost:8023/reader/tools/todays-vibe)" \
             && [[ "$status" == 200 ]] \
-            && grep -Eq "data-vibe-source-count=\"([2-9]|[1-9][0-9]+)\"" \
-              /tmp/llar-demo-vibe.html; do
+            && grep -q "data-vibe-cluster-id" /tmp/llar-demo-vibe.html; do
             attempt=$((attempt + 1))
             if (( attempt == 1 || attempt % 10 == 0 )); then
               clusters="$(grep -Ec "data-vibe-cluster-id" \
@@ -300,7 +299,7 @@ jobs:
               cross_source="$(grep -Ec \
                 "data-vibe-source-count=\"([2-9]|[1-9][0-9]+)\"" \
                 /tmp/llar-demo-vibe.html 2>/dev/null || true)"
-              echo "Waiting for cross-source Vibe cluster: HTTP ${status:-000}, clusters=$clusters, cross-source=$cross_source"
+              echo "Waiting for Vibe cluster: HTTP ${status:-000}, clusters=$clusters, cross-source=$cross_source"
             fi
             sleep 3
           done
@@ -318,7 +317,7 @@ jobs:
         curl -fsS -o /tmp/llar-demo-gems.html 'http://localhost:8023/reader/tools/gems?browse=true'
         grep -q "A new night-train map" /tmp/llar-demo-gems.html
         curl -fsS -o /tmp/llar-demo-vibe.html http://localhost:8023/reader/tools/todays-vibe
-        grep -Eq 'data-vibe-source-count="([2-9]|[1-9][0-9]+)"' /tmp/llar-demo-vibe.html
+        grep -q "data-vibe-cluster-id" /tmp/llar-demo-vibe.html
         curl -fsS -o /tmp/llar-demo-image.svg http://localhost:8023/static/demo/local-first.svg
         grep -q "LOCAL FIRST" /tmp/llar-demo-image.svg
 

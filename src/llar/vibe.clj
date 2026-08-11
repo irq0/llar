@@ -218,6 +218,12 @@
   (try
     (locking current-vibe
       (let [items (recent-candidates db)
+            _ (log/infof "Today’s Vibe clustering %d candidates from sources %s with settings %s"
+                         (count items)
+                         (frequencies (map :source-key items))
+                         (select-keys (tuning-settings)
+                                      [:acuity :cutoff :random-seed
+                                       :max-feature-frequency-ratio]))
             clusters (cluster-items items)
             snapshot {:run-id (str (UUID/randomUUID))
                       :generated-at (time/zoned-date-time)

@@ -21,7 +21,7 @@
    :nouns ["result"]
    :urls []})
 
-(deftest features-read-persisted-json-keys
+(deftest features-accept-string-json-keys
   (is (= 2.0
          (get (#'vibe/raw-features
                {:top-words {"words" [["Election" 2]]}})
