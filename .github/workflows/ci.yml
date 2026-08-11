@@ -357,7 +357,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: demo-screenshots
-        path: target/demo-media/reader.png
+        path: target/demo-media/*.png
         if-no-files-found: error
         retention-days: 1
 
@@ -458,11 +458,8 @@ jobs:
       run: |
         test -s "$RUNNER_TEMP/llar-demo-screenshots/reader.png"
         mkdir -p "$RUNNER_TEMP/llar-docs/demo/main"
-        cp "$RUNNER_TEMP/llar-demo-screenshots/reader.png" \
-          "$RUNNER_TEMP/llar-docs/demo/main/reader.png"
-
-    - name: Configure Pages custom domain
-      run: echo 'docs.llar.dev' > "$RUNNER_TEMP/llar-docs/CNAME"
+        cp "$RUNNER_TEMP/llar-demo-screenshots"/*.png \
+          "$RUNNER_TEMP/llar-docs/demo/main/"
 
     - uses: actions/upload-pages-artifact@v3
       with:

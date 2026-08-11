@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const viewport = { width: 1440, height: 900 };
+const deviceScaleFactor = 2;
 const baseUrl = new URL(process.env.LLAR_READER_URL ?? "http://127.0.0.1:8023");
 const browserChannel = process.env.LLAR_BROWSER_CHANNEL ?? "chrome";
 const outputDir = path.resolve(
   process.env.LLAR_SCREENSHOT_OUT ?? "target/demo-media",
 );
 const diagnosticsDir = path.join(outputDir, "diagnostics");
-const screenshotPath = path.join(outputDir, "reader.png");
 const tracePath = path.join(diagnosticsDir, "reader-trace.zip");
 const failurePath = path.join(diagnosticsDir, "reader-failure.png");
 const captureStyles = fileURLToPath(new URL("capture.css", import.meta.url));
@@ -38,6 +38,41 @@ function pngDimensions(data) {
     width: data.readUInt32BE(16),
     height: data.readUInt32BE(20),
   };
+}
+
+async function captureStable(page, name) {
+  const options = {
+    animations: "disabled",
+    caret: "hide",
+    fullPage: false,
+    type: "png",
+  };
+  const firstCapture = await page.screenshot(options);
+  const secondCapture = await page.screenshot(options);
+
+  assert.equal(
+    digest(firstCapture),
+    digest(secondCapture),
+    `Two consecutive ${name} captures differed; refusing to publish an unstable screenshot`,
+  );
+  assert.deepEqual(
+    pngDimensions(secondCapture),
+    {
+      width: viewport.width * deviceScaleFactor,
+      height: viewport.height * deviceScaleFactor,
+    },
+    `${name} screenshot dimensions are incorrect`,
+  );
+  assert.ok(
+    secondCapture.length >= 50_000,
+    `${name} screenshot is unexpectedly small: ${secondCapture.length} bytes`,
+  );
+
+  const screenshotPath = path.join(outputDir, `${name}.png`);
+  await writeFile(screenshotPath, secondCapture);
+  console.log(
+    `Captured ${screenshotPath} (${secondCapture.length} bytes, sha256:${digest(secondCapture)})`,
+  );
 }
 
 async function waitForVisibleImages(page) {
@@ -86,7 +121,7 @@ const browser = await chromium.launch({
 console.log(`Capturing with ${browserChannel} ${browser.version()}`);
 const context = await browser.newContext({
   viewport,
-  deviceScaleFactor: 1,
+  deviceScaleFactor,
   colorScheme: "light",
   locale: "en-US",
   timezoneId: "Europe/Berlin",
@@ -179,34 +214,36 @@ try {
     `HTTP error responses:\n${badResponses.join("\n")}`,
   );
 
-  const screenshotOptions = {
-    animations: "disabled",
-    caret: "hide",
-    fullPage: false,
-    type: "png",
-  };
-  const firstCapture = await page.screenshot(screenshotOptions);
-  const secondCapture = await page.screenshot(screenshotOptions);
+  await captureStable(page, "reader");
 
-  assert.equal(
-    digest(firstCapture),
-    digest(secondCapture),
-    "Two consecutive captures differed; refusing to publish an unstable screenshot",
-  );
-  assert.deepEqual(
-    pngDimensions(secondCapture),
-    viewport,
-    "Screenshot dimensions are incorrect",
-  );
-  assert.ok(
-    secondCapture.length >= 50_000,
-    `Screenshot is unexpectedly small: ${secondCapture.length} bytes`,
-  );
-
-  await writeFile(screenshotPath, secondCapture);
-  console.log(
-    `Captured ${screenshotPath} (${secondCapture.length} bytes, sha256:${digest(secondCapture)})`,
-  );
+  for (const { name, path: route, ready } of [
+    {
+      name: "reading-queue",
+      path: "/reader/tools/saved-overview",
+      ready: ".feed-item",
+    },
+    {
+      name: "continue-reading",
+      path: "/reader/tools/continue-reading",
+      ready: ".feed-item",
+    },
+    {
+      name: "gems",
+      path: "/reader/tools/gems?browse=true",
+      ready: ".gems-view",
+    },
+    {
+      name: "todays-vibe",
+      path: "/reader/tools/todays-vibe",
+      ready: "[data-vibe-cluster-id]",
+    },
+  ]) {
+    await page.goto(new URL(route, baseUrl).href, { waitUntil: "networkidle" });
+    await page.locator(ready).first().waitFor({ state: "visible" });
+    await page.addStyleTag({ path: captureStyles });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await captureStable(page, name);
+  }
 } catch (error) {
   await page
     .screenshot({ path: failurePath, fullPage: true })
