@@ -2,6 +2,8 @@
   (:require
    [clojure.test :refer [deftest is]]
    [java-time.api :as time]
+   [llar.config :as config]
+   [llar.persistency :as persistency]
    [llar.rc :as rc]
    [llar.vibe :as vibe]))
 
@@ -95,3 +97,23 @@
                      {:id 2 :source-key "b" :title "Beta" :ts now :tags ["unread"]}])]
       (is (= 2 (count clusters)))
       (is (every? #(= 1 (:source-count %)) clusters)))))
+
+(deftest build-selects-candidates-by-configured-source-tags
+  (let [demo-items [(story-item 1 "demo-a" "Berlin city election result")
+                    (story-item 2 "demo-b" "Berlin election results announced")]
+        news-item (story-item 3 "news-a" "Berlin election analysis")
+        vibe-settings (assoc settings
+                             :hours 24
+                             :limit 10
+                             :source-tags #{:demo})]
+    (with-redefs [vibe/current-vibe (atom vibe/not-compiled)
+                  rc/rc (fn [& _] vibe-settings)
+                  config/get-sources (constantly {:demo-a {:tags #{:demo}}
+                                                  :demo-b {:tags #{:demo}}
+                                                  :news-a {:tags #{:news}}})
+                  persistency/get-items-recent (fn [_ _]
+                                                 (conj demo-items news-item))]
+      (let [snapshot (vibe/build! ::db)
+            clustered-items (mapcat :items (:clusters snapshot))]
+        (is (= #{1 2} (set (map :id clustered-items))))
+        (is (not (:error snapshot)))))))

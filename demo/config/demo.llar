@@ -24,6 +24,8 @@
 
 (highlight words "local-first" "repair" "libraries" "attention")
 
+(rc [:reader :vibe :source-tags] #{:demo})
+
 (reader-favorites
  [[:all :default]
   [:demo :source-tag]
