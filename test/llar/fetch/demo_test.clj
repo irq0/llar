@@ -81,7 +81,7 @@
       (is (every? pos? (map #(get-in % [:entry :nlp :nwords]) processed))))))
 
 (deftest demo-stories-produce-cross-source-vibe-clusters
-  (let [settings {:acuity 1.0
+  (let [settings {:acuity 2.0
                   :cutoff 0.002
                   :random-seed 1
                   :max-feature-frequency-ratio 0.2}
@@ -98,10 +98,12 @@
                    (map-indexed #(vibe-item (inc %1)
                                             (get-in %2 [:meta :source-key])
                                             %2))
+                   (sort-by (juxt :ts :id))
                    vec)]
     (with-redefs [rc/rc (fn [& _] settings)]
-      (let [clusters (vibe/cluster-items items)]
-        (is (some #(>= (:source-count %) 2) clusters))))))
+      (let [clusters (vibe/cluster-items items)
+            selected (:multi-source (vibe/select-clusters clusters))]
+        (is (some #(>= (:source-count %) 2) selected))))))
 
 (deftest demo-source-validates-its-small-bounded-corpus
   (is (thrown? AssertionError (src/demo :unknown-publication)))
