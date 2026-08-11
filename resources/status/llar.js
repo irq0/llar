@@ -428,41 +428,49 @@ function readingStructureElements(container) {
   );
 }
 
-function evenlySampleReadingCandidates(candidates, limit) {
-  if (limit <= 0) return [];
-  if (candidates.length <= limit) return candidates;
-  if (limit === 1) return [candidates[Math.floor(candidates.length / 2)]];
-  return Array.from({ length: limit }, function (_unused, index) {
-    return candidates[
-      Math.round((index * (candidates.length - 1)) / (limit - 1))
-    ];
-  });
+function readingStructurePriority(element) {
+  if (element.matches("h1")) return 0;
+  if (element.matches("h2")) return 1;
+  if (element.matches("hr")) return 2;
+  if (element.matches("h3")) return 3;
+  return 4;
 }
 
 function selectReadingStructureCandidates(elements) {
-  if (elements.length <= 24) return elements;
+  var segmentCount = 24;
+  if (elements.length <= segmentCount) return elements;
 
   // Keep the rail quiet on documents with generated or very granular
-  // headings. Preserve whole-document coverage while preferring high-level
-  // headings and authored section breaks.
-  var preferred = elements.filter(function (element) {
-    return element.matches("h1, h2, hr");
-  });
-  var selected = new Set(
-    evenlySampleReadingCandidates(preferred, Math.min(24, preferred.length)),
-  );
-  if (selected.size < 24) {
-    var remaining = elements.filter(function (element) {
-      return !selected.has(element);
-    });
-    evenlySampleReadingCandidates(remaining, 24 - selected.size).forEach(
-      function (element) {
-        selected.add(element);
+  // headings. Pick one landmark from each document segment so the full
+  // article remains represented, preferring high-level structure locally.
+  var segmentSize = elements.length / segmentCount;
+  return Array.from({ length: segmentCount }, function (_unused, segmentIndex) {
+    var segmentStart = Math.floor(segmentIndex * segmentSize);
+    var segmentEnd =
+      segmentIndex === segmentCount - 1
+        ? elements.length
+        : Math.floor((segmentIndex + 1) * segmentSize);
+    var midpoint = (segmentStart + segmentEnd - 1) / 2;
+    var segment = elements.slice(segmentStart, segmentEnd);
+    var choice = segment.reduce(
+      function (best, element, localIndex) {
+        var priority = readingStructurePriority(element);
+        var distance = Math.abs(segmentStart + localIndex - midpoint);
+        if (
+          priority < best.priority ||
+          (priority === best.priority && distance < best.distance)
+        ) {
+          return { element: element, priority: priority, distance: distance };
+        }
+        return best;
+      },
+      {
+        element: segment[0],
+        priority: readingStructurePriority(segment[0]),
+        distance: Math.abs(segmentStart - midpoint),
       },
     );
-  }
-  return elements.filter(function (element) {
-    return selected.has(element);
+    return choice.element;
   });
 }
 
