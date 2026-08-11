@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Local-first software</title>
+  <desc id="desc">Connected orange and blue nodes surrounding a local document.</desc>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#17243d"/><stop offset="1" stop-color="#335f78"/></linearGradient></defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <g stroke="#8ed7de" stroke-width="6" opacity=".75"><path d="M210 185 455 300 760 170 980 350 735 520 455 300 300 520" fill="none"/></g>
+  <g fill="#f59a5b"><circle cx="210" cy="185" r="25"/><circle cx="760" cy="170" r="25"/><circle cx="980" cy="350" r="25"/><circle cx="300" cy="520" r="25"/></g>
+  <rect x="410" y="220" width="360" height="250" rx="22" fill="#f7f3e8"/>
+  <path d="M480 290h220M480 345h165M480 400h200" stroke="#335f78" stroke-width="17" stroke-linecap="round"/>
+  <text x="60" y="620" fill="#fff" font-family="sans-serif" font-size="44" font-weight="600">LOCAL FIRST</text>
+</svg>

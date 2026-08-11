@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Night trains</title>
+  <desc id="desc">A sleeper train crossing a moonlit landscape.</desc>
+  <defs><linearGradient id="sky" y2="1"><stop stop-color="#111b38"/><stop offset="1" stop-color="#39456c"/></linearGradient></defs>
+  <rect width="1200" height="675" fill="url(#sky)"/>
+  <circle cx="940" cy="125" r="75" fill="#f6e8ad"/>
+  <path d="M0 430 230 300l180 105 215-145 230 155 170-105 175 105v260H0Z" fill="#24324a"/>
+  <path d="M0 520h1200" stroke="#d58a50" stroke-width="12"/>
+  <g transform="translate(170 330)"><rect width="720" height="165" rx="25" fill="#c7524a"/><rect x="45" y="38" width="115" height="70" rx="8" fill="#f5d996"/><rect x="205" y="38" width="115" height="70" rx="8" fill="#f5d996"/><rect x="365" y="38" width="115" height="70" rx="8" fill="#f5d996"/><rect x="525" y="38" width="115" height="70" rx="8" fill="#f5d996"/><circle cx="145" cy="165" r="35" fill="#171a25"/><circle cx="575" cy="165" r="35" fill="#171a25"/></g>
+  <text x="60" y="625" fill="#fff" font-family="sans-serif" font-size="44" font-weight="600">NIGHT TRAINS</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Calm interfaces</title>
+  <desc id="desc">A quiet reading interface floating over soft concentric shapes.</desc>
+  <rect width="1200" height="675" fill="#dce9e5"/>
+  <circle cx="600" cy="315" r="280" fill="#b9d3cc"/><circle cx="600" cy="315" r="210" fill="#8fb8ae"/><circle cx="600" cy="315" r="145" fill="#6f9e96"/>
+  <rect x="315" y="120" width="570" height="390" rx="28" fill="#fffdf6" filter="drop-shadow(0 18px 24px #44665a55)"/>
+  <path d="M395 205h285M395 265h410M395 325h350M395 385h245" stroke="#425e59" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="805" cy="425" r="28" fill="#ef8c59"/>
+  <text x="60" y="620" fill="#31534c" font-family="sans-serif" font-size="44" font-weight="600">CALM INTERFACES</text>
+</svg>

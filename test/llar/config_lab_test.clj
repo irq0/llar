@@ -37,6 +37,8 @@
     (is (false? ((first (:filter processors)) {})))
     (is (instance? llar.src.Custom
                    (lab/compile-source "(src/custom :trial (fn [] []))")))
+    (is (instance? llar.src.Demo
+                   (lab/compile-source "(src/demo :signal-wire :count 3 :seed 17)")))
     (is (instance? llar.src.HackerNews
                    (lab/compile-source "(src/hn :front_page :count 10)")))
     (is (instance? llar.src.GitHubSearch

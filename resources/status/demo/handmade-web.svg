@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">The handmade web</title>
+  <desc id="desc">Layered personal web pages connected by hand-drawn links.</desc>
+  <rect width="1200" height="675" fill="#f4ead8"/>
+  <g transform="rotate(-6 330 300)"><rect x="115" y="105" width="430" height="360" rx="12" fill="#e37d63"/><rect x="155" y="160" width="350" height="55" fill="#f8e9ce"/><rect x="155" y="250" width="145" height="165" fill="#5f8b8a"/><path d="M330 270h145M330 315h115M330 360h135" stroke="#f8e9ce" stroke-width="15"/></g>
+  <g transform="rotate(7 825 340)"><rect x="650" y="145" width="430" height="360" rx="12" fill="#4d6f86"/><circle cx="760" cy="270" r="70" fill="#edb85e"/><path d="M870 230h145M870 280h115M715 400h300" stroke="#f8e9ce" stroke-width="15"/></g>
+  <path d="M500 180c100-90 165-60 225 20M505 440c95 85 170 70 245 5" stroke="#3c514f" stroke-width="8" fill="none" stroke-dasharray="18 16"/>
+  <text x="60" y="625" fill="#354a48" font-family="sans-serif" font-size="44" font-weight="600">THE HANDMADE WEB</text>
+</svg>

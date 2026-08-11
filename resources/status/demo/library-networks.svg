@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Library networks</title>
+  <desc id="desc">Colorful books connected by fine lines like a network.</desc>
+  <rect width="1200" height="675" fill="#233747"/>
+  <g stroke="#88b4b8" stroke-width="4" opacity=".5"><path d="M170 160 470 245 760 135 1020 265 850 515 520 430 230 525Z" fill="none"/><path d="m470 245 50 185M760 135l90 380M230 525l290-95M1020 265 520 430"/></g>
+  <g><rect x="120" y="100" width="105" height="190" rx="8" fill="#dd795b"/><rect x="400" y="175" width="125" height="210" rx="8" fill="#e4b85d"/><rect x="700" y="75" width="115" height="220" rx="8" fill="#70a69c"/><rect x="955" y="200" width="105" height="205" rx="8" fill="#cf8ca4"/><rect x="175" y="420" width="115" height="160" rx="8" fill="#7b9fc5"/><rect x="785" y="405" width="125" height="175" rx="8" fill="#d87354"/></g>
+  <text x="60" y="630" fill="#fff" font-family="sans-serif" font-size="44" font-weight="600">LIBRARY NETWORKS</text>
+</svg>

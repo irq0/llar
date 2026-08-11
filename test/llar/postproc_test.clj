@@ -150,6 +150,19 @@
           (is (= "spoiler" (get-in result [:entry :lead-image-url])))
           (is (= ["image"] (get-in result [:entry :entities :photos]))))))
 
+    (testing "leaves application-local preview URLs local"
+      (let [seen (atom [])]
+        (with-redefs [http/try-blobify-url! (fn [url]
+                                              (swap! seen conj url)
+                                              (str "/blob/" url))]
+          (let [item (assoc base-item :entry {:url "https://example.com/article"
+                                              :lead-image-url "/static/demo/local-first.svg"
+                                              :contents {}})
+                result (uut/all-items-process-first item example-src state)]
+            (is (= "/static/demo/local-first.svg"
+                   (get-in result [:entry :lead-image-url])))
+            (is (empty? @seen))))))
+
     (testing "keeps original preview URL on blobification failure"
       (with-redefs [http/try-blobify-url! (fn [_] (throw (ex-info "download failed" {})))]
         (let [item (assoc base-item :entry {:url "https://example.com/article"

@@ -1,0 +1,7 @@
+services:
+  llar-init-db:
+    volumes:
+      - ../demo/config:/llar/config/:ro
+  llar:
+    volumes:
+      - ../demo/config:/llar/config/:ro

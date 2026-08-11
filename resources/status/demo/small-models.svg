@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Small models</title>
+  <desc id="desc">A compact processor surrounded by measured signal paths.</desc>
+  <rect width="1200" height="675" fill="#211d35"/>
+  <g stroke="#9a8bd1" stroke-width="9" fill="none"><path d="M110 170h250l85 85M1090 170H840l-85 85M110 475h250l85-85M1090 475H840l-85-85"/><path d="M600 70v130M600 445v130"/></g>
+  <rect x="405" y="180" width="390" height="280" rx="34" fill="#f0b35e"/>
+  <rect x="475" y="245" width="250" height="150" rx="18" fill="#30284d"/>
+  <g fill="#ef7c72"><circle cx="110" cy="170" r="18"/><circle cx="1090" cy="170" r="18"/><circle cx="110" cy="475" r="18"/><circle cx="1090" cy="475" r="18"/></g>
+  <text x="60" y="625" fill="#fff" font-family="sans-serif" font-size="44" font-weight="600">SMALL MODELS</text>
+</svg>

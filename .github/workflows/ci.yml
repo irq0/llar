@@ -207,6 +207,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: docker
     if: github.event_name != 'pull_request'
+    env:
+      COMPOSE_FILE: docker/docker-compose.yaml:docker/docker-compose.demo.yaml
     steps:
     - uses: actions/checkout@v4
 
@@ -235,34 +237,66 @@ jobs:
     - name: Validate compose
       env:
         LLAR_IMAGE: ${{ needs.docker.outputs.image-ref }}
-      run: docker compose -f docker/docker-compose.yaml config
+      run: docker compose config
 
     - name: Start compose stack
       env:
         LLAR_IMAGE: ${{ needs.docker.outputs.image-ref }}
-      run: docker compose -f docker/docker-compose.yaml up -d
+      run: docker compose up -d
 
     - name: Wait for application
       run: |
         timeout 180 bash -c '
           until curl -fsS http://localhost:9999/metrics >/dev/null; do
-            docker compose -f docker/docker-compose.yaml ps
+            docker compose ps
             sleep 5
+          done
+        '
+
+    - name: Populate deterministic demo content
+      run: |
+        curl -fsS -X POST http://localhost:9999/api/schedule/demo-sources/run
+        timeout 180 bash -c '
+          until curl -fsS \
+            -o /tmp/llar-demo-items.html \
+            http://localhost:8023/reader/group/source-tag/demo/source/all/items \
+            && grep -q "Local-first tools" /tmp/llar-demo-items.html; do
+            sleep 3
+          done
+        '
+        curl -fsS -X POST http://localhost:9999/api/schedule/update-todays-vibe/run
+        timeout 180 bash -c '
+          until curl -fsS \
+            -o /tmp/llar-demo-vibe.html \
+            http://localhost:8023/reader/tools/todays-vibe \
+            && grep -q "data-vibe-cluster-id" /tmp/llar-demo-vibe.html; do
+            sleep 3
           done
         '
 
     - name: Run e2e checks
       run: |
         curl -fsS http://localhost:9999/metrics >/dev/null
-        curl -fsS http://localhost:8023/reader >/dev/null
+        curl -fsS -o /tmp/llar-demo-items.html http://localhost:8023/reader/group/source-tag/demo/source/all/items
+        grep -q "Local-first tools" /tmp/llar-demo-items.html
+        curl -fsS -o /tmp/llar-demo-saved.html http://localhost:8023/reader/tools/saved-overview
+        grep -q "Open hardware turns repair manuals" /tmp/llar-demo-saved.html
+        curl -fsS -o /tmp/llar-demo-continue.html http://localhost:8023/reader/tools/continue-reading
+        grep -q "Open hardware turns repair manuals" /tmp/llar-demo-continue.html
+        curl -fsS -o /tmp/llar-demo-gems.html 'http://localhost:8023/reader/tools/gems?browse=true'
+        grep -q "A new night-train map" /tmp/llar-demo-gems.html
+        curl -fsS -o /tmp/llar-demo-vibe.html http://localhost:8023/reader/tools/todays-vibe
+        grep -q "data-vibe-cluster-id" /tmp/llar-demo-vibe.html
+        curl -fsS -o /tmp/llar-demo-image.svg http://localhost:8023/static/demo/local-first.svg
+        grep -q "LOCAL FIRST" /tmp/llar-demo-image.svg
 
     - name: Compose logs
       if: always()
-      run: docker compose -f docker/docker-compose.yaml logs --no-color
+      run: docker compose logs --no-color
 
     - name: Cleanup compose stack
       if: always()
-      run: docker compose -f docker/docker-compose.yaml down -v --remove-orphans
+      run: docker compose down -v --remove-orphans
 
   docs:
     runs-on: ubuntu-latest

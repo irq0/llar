@@ -90,7 +90,8 @@
        (not (#{"self" "default" "image" "nsfw" "spoiler"} url))))
 
 (defn- blobify-preview-url [url]
-  (if (preview-url? url)
+  (if (and (preview-url? url)
+           (privacy/external-http-url? url))
     (try+
      (http/try-blobify-url! url)
      (catch Object _

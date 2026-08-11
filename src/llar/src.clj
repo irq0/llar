@@ -67,6 +67,40 @@
    :post [(spec/valid? source? %)]}
   (Custom. id fn))
 
+(def demo-publications
+  "Publication profiles available to the deterministic demo source."
+  #{:after-hours :common-ground :field-notes :signal-wire})
+
+(def +demo-default-args+
+  {:count 8
+   :seed 4242})
+
+(spec/def :irq0-src-demo/count (spec/and int? #(<= 1 % 8)))
+(spec/def :irq0-src-demo/seed int?)
+(spec/def :irq0-src-demo/args
+  (spec/or :none nil?
+           :args (spec/keys :opt-un [:irq0-src-demo/count :irq0-src-demo/seed])))
+
+(defrecord Demo [publication args]
+  Source
+  (source-type [_] ::fetch)
+
+  Object
+  (toString [_] (str "[Demo: " (name publication) "]")))
+
+(defn demo
+  "Deterministic, network-free editorial content for demos and UI development."
+  {:llar.config/kind :source
+   :llar.config/order 25
+   :llar.config/specs [demo-publications :irq0-src-demo/count :irq0-src-demo/seed]
+   :llar.config/defaults +demo-default-args+
+   :llar.config/example "(src/demo :signal-wire :count 8 :seed 4242)"}
+  [publication & {:as args}]
+  {:pre [(contains? demo-publications publication)
+         (spec/valid? :irq0-src-demo/args args)]
+   :post [(spec/valid? source? %)]}
+  (->Demo publication (merge +demo-default-args+ args)))
+
 (defrecord PaywalledWebsite
            [url cookie-getter args]
   Source

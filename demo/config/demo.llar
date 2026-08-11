@@ -1,0 +1,38 @@
+;; A deterministic, network-free reader used by local demos and CI.
+
+(fetch signal-wire
+  (src/demo :signal-wire :count 8 :seed 4242)
+  :tags #{:demo :technology :systems})
+
+(fetch field-notes
+  (src/demo :field-notes :count 8 :seed 4242)
+  :tags #{:demo :design :practice})
+
+(fetch common-ground
+  (src/demo :common-ground :count 8 :seed 4242)
+  :tags #{:demo :community :public-interest})
+
+(fetch after-hours
+  (src/demo :after-hours :count 8 :seed 4242)
+  :tags #{:demo :culture :long-reads})
+
+;; CI triggers this schedule through the Dashboard after the application is
+;; healthy. Keeping a normal cadence also makes the same config convenient for
+;; local development.
+(sched-fetch demo-sources :now-and-hourly
+  (some #{:demo} $TAGS))
+
+(highlight words "local-first" "repair" "libraries" "attention")
+
+(reader-favorites
+ [[:all :default]
+  [:demo :source-tag]
+  [:saved :item-tags]
+  [:highlight :item-tags]
+  [:archive :item-tags]])
+
+(reader-default-list-view :demo :headlines)
+
+(reader-ranking
+ :highlight-boost-hours 48
+ :rarity-boost-cap-hours 168)

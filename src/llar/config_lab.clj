@@ -12,6 +12,7 @@
    [llar.blobstore :as blobstore]
    [llar.commands :as commands]
    [llar.fetch :as fetch]
+   [llar.fetch.demo]
    [llar.fetch.feed :as feed]
    [llar.fetch.github]
    [llar.fetch.hackernews]
@@ -202,6 +203,7 @@
    {'user helper-vars
     'src {'website src/website
           'custom src/custom
+          'demo src/demo
           'feed src/feed
           'github-issues src/github-issues
           'github-repos src/github-repos
@@ -243,6 +245,7 @@
                       {:type ::invalid-source :value (pr-str source)})))
     (when-not (or (instance? llar.src.GenericWebsite source)
                   (instance? llar.src.Custom source)
+                  (instance? llar.src.Demo source)
                   (instance? llar.src.Feed source)
                   (instance? llar.src.GitHubSearch source)
                   (instance? llar.src.HackerNews source)

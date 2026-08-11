@@ -14,6 +14,7 @@
    [llar.src :as src]
    [llar.rc]
    [llar.fetch.custom]
+   [llar.fetch.demo]
    [llar.fetch.feed]
    [llar.fetch.http]
    [llar.fetch.imap]

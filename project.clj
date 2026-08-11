@@ -91,6 +91,7 @@
                  [slingshot "0.12.2"]
                  [io.github.clj-kondo/config-slingshot-slingshot "1.0.0"]
                  [org.apache.commons/commons-text "1.15.0"]
+                 [net.datafaker/datafaker "2.7.0"]
                  [commons-io/commons-io "2.22.0"]
                  [com.sun.activation/jakarta.activation "2.0.1"]
                  [com.google.guava/guava "31.1-jre"]
