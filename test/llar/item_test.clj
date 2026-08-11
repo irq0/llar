@@ -92,6 +92,46 @@
     (is (nil? (llar.item/best-content {:data {}})))
     (is (nil? (llar.item/best-content {})))))
 
+(deftest consumption-time-prefers-stored-media-duration-over-description-words
+  (testing "video duration is exact"
+    (is (= {:kind :video :seconds 605 :minutes 11 :estimated? false}
+           (llar.item/consumption-time
+            {:tags ["has-video"]
+             :entry {:duration 605}
+             :nwords 20
+             :top-words {"words" [["description" 3]]}}))))
+  (testing "recognized video without duration does not get a reading estimate"
+    (is (= {:kind :video :estimated? false}
+           (llar.item/consumption-time
+            {:tags [:has-video]
+             :entry {}
+             :url "https://youtube.com/watch?v=abc"
+             :nwords 200}))))
+  (testing "audio uses the same exact-duration model"
+    (is (= {:kind :audio :seconds 3600 :minutes 60 :estimated? false}
+           (llar.item/consumption-time
+            {:tags ["has-audio"] :entry {:duration 3600}}))))
+  (testing "prose retains its estimated reading time"
+    (is (= {:kind :reading :minutes 2 :estimated? true :difficulty :easy}
+           (llar.item/consumption-time
+            {:tags [] :nwords 400 :top-words {"words" [["read" 4]]}}))))
+  (testing "an article mentioning a video still uses its prose estimate"
+    (is (= :reading
+           (:kind (llar.item/consumption-time
+                   {:tags ["has-video"]
+                    :url "https://example.com/article"
+                    :nwords 400
+                    :top-words {"words" [["read" 4]]}})))))
+  (testing "a video-looking query parameter does not turn an article into media"
+    (is (= :reading
+           (:kind (llar.item/consumption-time
+                   {:tags []
+                    :url "https://example.com/article?next=https://youtube.com/watch"
+                    :nwords 400
+                    :top-words {"words" [["read" 4]]}})))))
+  (testing "empty prose has no useful consumption estimate"
+    (is (nil? (llar.item/consumption-time {:tags [] :nwords 0})))))
+
 (deftest item-hash-spec-test
   (testing "valid hashes"
     (are [h] (s/valid? :irq0/item-hash h)

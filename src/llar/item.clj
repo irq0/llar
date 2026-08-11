@@ -1,5 +1,7 @@
 (ns llar.item
   (:require
+   [clojure.string :as string]
+   [org.bovinegenius [exploding-fish :as uri]]
    [clojure.spec.alpha :as s]
    [llar.src :as src]))
 
@@ -76,3 +78,58 @@
         estimate (* (/ (or nwords 0) words-per-min) factor)]
     {:estimate (int (Math/ceil estimate))
      :difficulty level}))
+
+(defn- normalized-tags [tags]
+  (into #{}
+        (keep (fn [tag]
+                (cond
+                  (keyword? tag) tag
+                  (string? tag) (keyword tag))))
+        tags))
+
+(defn- primary-media-kind [url]
+  (let [host (when url
+               (try
+                 (some-> url str uri/uri uri/host string/lower-case)
+                 (catch Exception _ nil)))]
+    (cond
+      (and host
+           (re-find #"(^|\.)(youtube\.com|youtu\.be|vimeo\.com|media\.ccc\.de)$|peertube"
+                    host))
+      :video
+
+      (and host (re-find #"(^|\.)(soundcloud\.com|bandcamp\.com)$" host))
+      :audio)))
+
+(defn consumption-time
+  "Describe the time needed to consume an item using already stored metadata.
+
+  Media duration is exact and expressed in seconds. Prose duration remains an
+  estimated reading time. Recognized video/audio without duration deliberately
+  returns its kind without minutes, so callers do not mistake the media
+  description's word count for the duration of the media itself."
+  [{:keys [entry nwords tags] :as item}]
+  (let [tags (normalized-tags tags)
+        tagged-media-kind (cond
+                            (contains? tags :has-video) :video
+                            (contains? tags :has-audio) :audio)
+        duration (:duration entry)
+        duration-seconds (when (and (number? duration) (pos? duration))
+                           (long duration))
+        media-kind (or (primary-media-kind (or (:url entry) (:url item)))
+                       (when duration-seconds tagged-media-kind))]
+    (cond
+      media-kind
+      (cond-> {:kind media-kind :estimated? false}
+        duration-seconds
+        (assoc :seconds duration-seconds
+               :minutes (int (Math/ceil (/ duration-seconds 60.0)))))
+
+      (and (number? nwords) (pos? nwords))
+      (let [{:keys [estimate difficulty]} (reading-time-estimate item)]
+        {:kind :reading
+         :minutes estimate
+         :estimated? true
+         :difficulty difficulty})
+
+      :else nil)))

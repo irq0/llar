@@ -295,13 +295,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-r01-02"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-r01-03"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-r01-02"}]])
+   [:script {:src "/static/llar.js?v=reader-r01-03"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -866,6 +866,39 @@
         youtube-url (parse-youtube-url url)]
     (some? youtube-url)))
 
+(defn- format-media-duration [seconds]
+  (when (and (number? seconds) (pos? seconds))
+    (let [seconds (long seconds)
+          hours (quot seconds 3600)
+          minutes (quot (mod seconds 3600) 60)
+          seconds (mod seconds 60)]
+      (if (pos? hours)
+        (format "%d:%02d:%02d" hours minutes seconds)
+        (format "%d:%02d" minutes seconds)))))
+
+(defn- consumption-time-meta
+  ([item] (consumption-time-meta item false))
+  ([item exact-media?]
+   (let [{:keys [kind minutes seconds] :as consumption} (item/consumption-time item)
+         media-label (when (#{:video :audio} kind) (name kind))]
+     (when (and consumption minutes)
+       {:kind kind
+        :minutes minutes
+        :icon (case kind
+                :video "far fa-play-circle"
+                :audio "fas fa-headphones"
+                "far fa-clock")
+        :label (case kind
+                 :reading (str minutes " min read")
+                 (str (if exact-media?
+                        (format-media-duration seconds)
+                        (str minutes " min"))
+                      " " media-label))
+        :title (case kind
+                 :reading (str "Estimated reading time: " minutes " minutes")
+                 (str (string/capitalize media-label) " duration: "
+                      (format-media-duration seconds)))}))))
+
 (defn render-special-item-content
   "Renders item content that is somehow unique to a source and benefits from special rendering
   (e.g youtube videos, twitter images)"
@@ -1187,7 +1220,8 @@
   (let [item (first (:items x))
         selected-data (:data x)
         selected-content-type (:content-type x)
-        reading-estimate (item/reading-time-estimate item)
+        consumption (item/consumption-time item)
+        consumption-meta (consumption-time-meta item true)
         {:keys [id url ts tags entry nwords]} item
         lang (if (#{"de" "en"} (:language entry))
                (:language entry)
@@ -1201,10 +1235,12 @@
             :role "toolbar"
             :aria-label "Item information and actions"}
       [:div {:class "reader-item-meta"}
-       [:span
-        (action-icon "far fa-clock")
-        (:estimate reading-estimate) " min"]
-       (when (and (number? nwords) (not (neg? nwords)))
+       (when consumption-meta
+         [:span {:title (:title consumption-meta)}
+          (action-icon (:icon consumption-meta))
+          (:label consumption-meta)])
+       (when (and (= :reading (:kind consumption))
+                  (number? nwords) (not (neg? nwords)))
          [:span (action-icon "far fa-file-word") nwords " words"])
        (when (some? ts)
          [:span (action-icon "far fa-calendar") (human/datetime-ago ts)])]
@@ -1402,8 +1438,8 @@
                                    seq)
         full-text (or (get-in data [:content "text/plain"])
                       (get-in data [:content "text/html"]))
-        summary-text (or (get-in data [:description "text/plain"])
-                         (get-in data [:description "text/html"]))
+        consumption (item/consumption-time item)
+        media-item? (contains? #{:video :audio} (:kind consumption))
         normalized-title (inspect-normalized-text title)
         normalized-full (inspect-normalized-text full-text)
         future-ts? (and ts
@@ -1438,10 +1474,14 @@
       (when future-ts?
         (inspect-diagnostic :warning "Item timestamp is in the future"
                             "The timestamp is more than six hours ahead of the Reader clock."))
-      (when (or (nil? nwords) (and (number? nwords) (neg? nwords)))
+      (when (and media-item? (nil? (:minutes consumption)))
+        (inspect-diagnostic :notice "Media duration is unavailable"
+                            "Reader intentionally does not substitute the description's reading time."))
+      (when (and (not media-item?)
+                 (or (nil? nwords) (and (number? nwords) (neg? nwords))))
         (inspect-diagnostic :notice "Word analysis is unavailable"
                             "Reading time and content-length diagnostics may be incomplete."))
-      (when (string/blank? (str (:language entry)))
+      (when (and (not media-item?) (string/blank? (str (:language entry))))
         (inspect-diagnostic :notice "Language is not stored"
                             "Reader falls back to its default article language."))
       (when (nil? source)
@@ -1453,14 +1493,16 @@
     [:ul {:class "reader-inspect-diagnostics"}
      (for [{:keys [severity title explanation]} diagnostics]
        [:li {:class (str "reader-inspect-diagnostic is-" (name severity))}
-        (action-icon (if (= severity :warning)
-                       "fas fa-exclamation-triangle"
-                       "fas fa-info-circle"))
+        (action-icon (str (if (= severity :warning)
+                            "fas fa-exclamation-triangle"
+                            "fas fa-info-circle")
+                          " reader-inspect-diagnostic-icon"
+                          (when (= severity :warning) " is-warning")))
         [:span
          [:strong title]
          [:span {:class "reader-inspect-diagnostic-explanation"} explanation]]])]
     [:p {:class "reader-inspect-health-ok"}
-     (action-icon "fas fa-check-circle")
+     (action-icon "fas fa-check-circle reader-inspect-health-icon")
      " No obvious problems found in the stored item."]))
 
 (defn- inspect-event-label [event-type]
@@ -1533,7 +1575,7 @@
         {:keys [source-state] :as inspect-details} (:inspect-details x)
         source-title (or (:title source) (some-> source-key name) (str source-key))
         language (:language entry)
-        reading-estimate (item/reading-time-estimate item)
+        consumption-meta (consumption-time-meta item true)
         representations (item-representations item)
         current (current-representation x item)
         diagnostics (inspect-health-checks item source)
@@ -1578,9 +1620,11 @@
                 (inspect-fact "Reading place updated" (inspect-timestamp checkpoint-updated-ts))
                 (inspect-fact "Author" (when-not (string/blank? author) author))
                 (inspect-fact "Language" (when-not (string/blank? language) language))
-                (inspect-fact "Length"
+                (inspect-fact "Consumption time"
+                              (when consumption-meta (:label consumption-meta)))
+                (inspect-fact "Text analysis"
                               (when (and (number? nwords) (not (neg? nwords)))
-                                (str nwords " words · " (:estimate reading-estimate) " min")))
+                                (str nwords " words")))
                 (inspect-fact "State" (inspect-state-label item))
                 (inspect-fact "Labels" (when labels (string/join ", " labels)))
                 (inspect-fact "Representations" (count representations))]))]
@@ -1734,7 +1778,7 @@
   [x link-prefix item]
   (let [{:keys [sources]} x
         {:keys [id source-key title ts author tags
-                nwords names entry url urls top-words]} item
+                names entry url urls top-words]} item
         url-site (some-> url uri/uri uri/host)
         source (get sources (keyword source-key))
         boring-filter (fn [word]
@@ -1771,12 +1815,10 @@
        [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
        [:span " - "]
        [:span {:class "timestamp"} (human/datetime-ago ts)]]
-      (when (and (number? nwords) (not (neg? nwords)))
-        (let [estimate (item/reading-time-estimate item)
-              human-time (:estimate estimate)]
-          [:li {:class "list-inline-item"}
-           (icon "far fa-clock")
-           [:span human-time " min"]]))
+      (when-let [consumption-meta (consumption-time-meta item)]
+        [:li {:class "list-inline-item" :title (:title consumption-meta)}
+         (icon (:icon consumption-meta))
+         [:span (:label consumption-meta)]])
       (when (contains? options :mark-read-on-view)
         [:li {:class "list-inline-item"}
          (icon "fas fa-glasses")])
@@ -1873,7 +1915,8 @@
                                        (name group-item)
                                        (name source-key))
                    {:keys [id source-key title ts tags url]} item
-                   source (get sources (keyword source-key))]]
+                   source (get sources (keyword source-key))
+                   consumption-meta (consumption-time-meta item)]]
          [:tr {:id (str "item-" id)
                :data-id id
                :data-unread (str (boolean (some #(= % "unread") tags)))}
@@ -1896,10 +1939,12 @@
                              (human/host-identifier (:url source))))
               [:span " → " (human/host-identifier url)])]]
 
-          [:td {:class "nwords" :title "Reading time estimate in minutes"}
-           (let [estimate (item/reading-time-estimate item)
-                 human-time (:estimate estimate)]
-             human-time)]
+          [:td {:class "nwords consumption-time"
+                :title (or (:title consumption-meta) "Consumption time unavailable")}
+           (when consumption-meta
+             [:span
+              (action-icon (:icon consumption-meta))
+              "\u2009" (:minutes consumption-meta)])]
 
           [:td {:class "ts"}
            [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
@@ -2532,10 +2577,9 @@
   (when (+queue-time-filter-keys+ queue-time-filter)
     queue-time-filter))
 
-(defn- queue-item-reading-minutes [item]
-  (when (and (integer? (:nwords item))
-             (not (neg? (:nwords item))))
-    (:estimate (item/reading-time-estimate item))))
+(defn- queue-item-consumption-minutes [item]
+  (let [{:keys [minutes seconds]} (item/consumption-time item)]
+    (if seconds (/ seconds 60.0) minutes)))
 
 (defn- queue-time-filter-for-minutes [minutes]
   (cond
@@ -2549,7 +2593,7 @@
 (defn- queue-item-matches-time-filter? [queue-time-filter item]
   (if-let [queue-time-filter (normalize-queue-time-filter queue-time-filter)]
     (= queue-time-filter
-       (queue-time-filter-for-minutes (queue-item-reading-minutes item)))
+       (queue-time-filter-for-minutes (queue-item-consumption-minutes item)))
     true))
 
 (defn- queue-item-matches-filters? [queue-filter queue-time-filter item]
@@ -2566,7 +2610,7 @@
 (defn- queue-time-stats [items]
   (let [items (filter queue-item? items)
         buckets (frequencies (keep (comp queue-time-filter-for-minutes
-                                         queue-item-reading-minutes)
+                                         queue-item-consumption-minutes)
                                    items))]
     {:total (count items)
      :under-5 (get buckets :under-5 0)
@@ -2649,7 +2693,7 @@
         [:span {:class "badge text-bg-light ms-1"} n]])]))
 
 (defn- render-reading-queue-item
-  [x {:keys [id title source-key author ts tags nwords entry url] :as item}]
+  [x {:keys [id title source-key author ts tags entry url] :as item}]
   [:div {:id (str "item-" id)
          :class "feed-item"
          :data-id id}
@@ -2674,11 +2718,11 @@
       (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
      [:span " - "]
      [:span {:class "timestamp"} (human/datetime-ago ts)]]
-    (when (and (number? nwords) (not (neg? nwords)))
+    (when-let [consumption-meta (consumption-time-meta item)]
       [:li {:class "list-inline-item"}
-       [:a {:class "btn"}
-        "\u00a0" (icon "far fa-file-word") "\u00a0"
-        (:estimate (item/reading-time-estimate item)) "\u2009min"]])
+       [:span {:class "reader-queue-consumption-time" :title (:title consumption-meta)}
+        "\u00a0" (icon (:icon consumption-meta)) "\u00a0"
+        (:label consumption-meta)]])
     (when (string? source-key)
       [:li {:class "list-inline-item"}
        "\u00a0" (icon "fas fa-rss") source-key
@@ -2910,13 +2954,14 @@
       items)))
 
 (defn- render-gem-meta [item]
-  (let [minutes (when (and (integer? (:nwords item)) (not (neg? (:nwords item))))
-                  (:estimate (item/reading-time-estimate item)))]
+  (let [consumption-meta (consumption-time-meta item)]
     [:div {:class "d-flex flex-wrap gap-2 small text-secondary"}
      [:span (icon "fas fa-rss") " " (:source-key item)]
      [:span {:class "timestamp" :title (:ts item)}
       (human/datetime-ago-short (:ts item))]
-     (when minutes [:span (icon "far fa-clock") " " minutes " min"])
+     (when consumption-meta
+       [:span {:title (:title consumption-meta)}
+        (icon (:icon consumption-meta)) " " (:label consumption-meta)])
      [:span (icon "fas fa-shapes") " " (name (:type item))]]))
 
 (defn- gem-tag-links [params item]

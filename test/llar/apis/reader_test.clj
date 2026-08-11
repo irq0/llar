@@ -92,6 +92,47 @@
     (is (re-find #"reader-defensive-image" rendered))
     (is (re-find #"data-error-remove=\"\.ratio\"" rendered))))
 
+(deftest reader-uses-video-duration-instead-of-description-reading-time
+  (with-redefs [appconfig/credentials (constantly nil)
+                rc/rc (constantly nil)]
+    (let [base-item {:id 42
+                     :source-key "youtube"
+                     :title "A long video"
+                     :url "https://www.youtube.com/watch?v=abc123"
+                     :ts (time/zoned-date-time)
+                     :tags ["has-video"]
+                     :nwords 20
+                     :top-words {"words" [["description" 3]]}
+                     :entry {:language "en" :duration 605}
+                     :data {:content {"text/plain" "Short description"}}}
+          article (str (h/html (uut/main-show-item {:items [base-item]})))
+          list-item (str (h/html (uut/main-list-item
+                                  {:sources {:youtube {:options #{}}}}
+                                  "/reader/source/youtube"
+                                  base-item)))]
+      (is (re-find #"fa-play-circle.*10:05 video" article))
+      (is (not (string/includes? article "20 words")))
+      (is (not (string/includes? article "min read")))
+      (is (re-find #"fa-play-circle.*11 min video" list-item)))))
+
+(deftest reader-hides-false-reading-time-when-video-duration-is-missing
+  (with-redefs [appconfig/credentials (constantly nil)
+                rc/rc (constantly nil)]
+    (let [rendered (str
+                    (h/html
+                     (uut/main-show-item
+                      {:items [{:id 42
+                                :source-key "youtube"
+                                :title "Unknown length"
+                                :url "https://www.youtube.com/watch?v=abc123"
+                                :ts (time/zoned-date-time)
+                                :tags ["has-video"]
+                                :nwords 200
+                                :entry {:language "en"}
+                                :data {:content {"text/plain" "Description"}}}]})))]
+      (is (not (string/includes? rendered "min read")))
+      (is (not (string/includes? rendered "200 words"))))))
+
 (deftest reddit-item-content-does-not-repeat-its-heading
   (let [rendered (str (h/html (uut/main-show-item
                                {:uri "/reader/item/by-id/42"
@@ -489,7 +530,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-r01-02\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-r01-03\"></script></body></html>$"
                    shell)))))
 
 (deftest item-inspector-leads-with-provenance-signals-and-representations
@@ -871,6 +912,15 @@
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 in-progress-short)))
     (is (not (#'uut/queue-item-matches-filters? :saved :under-5 saved-long)))
     (is (#'uut/queue-item-matches-filters? :unread :under-5 unread-bookmark))))
+
+(deftest reading-queue-time-filters-use-video-duration
+  (let [video {:tags ["saved" "has-video"]
+               :type :item-type/link
+               :entry {:duration 299}
+               :nwords 5000}]
+    (is (#'uut/queue-item-matches-filters? :saved :under-5 video))
+    (is (not (#'uut/queue-item-matches-filters? :saved :5-15 video)))
+    (is (not (#'uut/queue-item-matches-filters? :saved :60-plus video)))))
 
 (deftest reading-queue-semantics-have-one-sql-definition
   (let [migration (slurp (io/resource "migrations/20260809000002-bookmark-state.up.sql"))
