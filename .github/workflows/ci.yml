@@ -255,21 +255,41 @@ jobs:
 
     - name: Populate deterministic demo content
       run: |
-        curl -fsS -X POST http://localhost:9999/api/schedule/demo-sources/run
+        timeout 180 bash -c '
+          until response="$(curl -fsS -X POST \
+            http://localhost:9999/api/schedule/demo-sources/run)" \
+            && grep -Eq "\"result\"[[:space:]]*:[[:space:]]*\"triggered\"" \
+              <<<"$response"; do
+            sleep 3
+          done
+          printf "%s\n" "$response"
+        '
         timeout 180 bash -c '
           until curl -fsS \
             -o /tmp/llar-demo-items.html \
             http://localhost:8023/reader/group/source-tag/demo/source/all/items \
-            && grep -q "Local-first tools" /tmp/llar-demo-items.html; do
+            && grep -q "Local-first tools" /tmp/llar-demo-items.html \
+            && grep -q "Designing for ownership" /tmp/llar-demo-items.html \
+            && grep -q "Community archives rediscover" /tmp/llar-demo-items.html \
+            && grep -q "The software that keeps working" /tmp/llar-demo-items.html; do
             sleep 3
           done
         '
-        curl -fsS -X POST http://localhost:9999/api/schedule/update-todays-vibe/run
+        timeout 180 bash -c '
+          until response="$(curl -fsS -X POST \
+            http://localhost:9999/api/schedule/update-todays-vibe/run)" \
+            && grep -Eq "\"result\"[[:space:]]*:[[:space:]]*\"triggered\"" \
+              <<<"$response"; do
+            sleep 3
+          done
+          printf "%s\n" "$response"
+        '
         timeout 180 bash -c '
           until curl -fsS \
             -o /tmp/llar-demo-vibe.html \
             http://localhost:8023/reader/tools/todays-vibe \
-            && grep -q "data-vibe-cluster-id" /tmp/llar-demo-vibe.html; do
+            && grep -Eq "data-vibe-source-count=\"([2-9]|[1-9][0-9]+)\"" \
+              /tmp/llar-demo-vibe.html; do
             sleep 3
           done
         '
@@ -286,7 +306,7 @@ jobs:
         curl -fsS -o /tmp/llar-demo-gems.html 'http://localhost:8023/reader/tools/gems?browse=true'
         grep -q "A new night-train map" /tmp/llar-demo-gems.html
         curl -fsS -o /tmp/llar-demo-vibe.html http://localhost:8023/reader/tools/todays-vibe
-        grep -q "data-vibe-cluster-id" /tmp/llar-demo-vibe.html
+        grep -Eq 'data-vibe-source-count="([2-9]|[1-9][0-9]+)"' /tmp/llar-demo-vibe.html
         curl -fsS -o /tmp/llar-demo-image.svg http://localhost:8023/static/demo/local-first.svg
         grep -q "LOCAL FIRST" /tmp/llar-demo-image.svg
 
@@ -319,6 +339,17 @@ jobs:
       with:
         name: demo-screenshot-diagnostics
         path: target/demo-media/diagnostics/
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload compose E2E response diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: compose-e2e-responses
+        path: |
+          /tmp/llar-demo-*.html
+          /tmp/llar-demo-*.svg
         if-no-files-found: ignore
         retention-days: 7
 
