@@ -158,6 +158,21 @@ jobs:
     - name: Install packages
       run: sudo apt update && sudo apt-get install -y make libarchive-tools unzip wget
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Cache frontend assets
+      uses: actions/cache@v4
+      with:
+        path: |
+          resources/status/bootstrap
+          resources/status/chartjs
+          resources/status/datatables
+          resources/status/fontawesome
+          resources/status/ibmplex
+          resources/status/jquery
+        key: frontend-assets-${{ runner.os }}-${{ hashFiles('Makefile') }}
+
     - name: Initialize lein
       run: lein deps
 
@@ -182,7 +197,7 @@ jobs:
           type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
     - name: build and push
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: docker/Dockerfile
@@ -191,6 +206,8 @@ jobs:
           VERSION=${{ env.VERSION }}
           UBUNTU_MIRROR=http://azure.archive.ubuntu.com/ubuntu
         push: true
+        cache-from: type=gha,scope=llar-image
+        cache-to: type=gha,mode=max,scope=llar-image
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
 
@@ -402,6 +419,18 @@ jobs:
 
     - name: Install docs asset tools
       run: sudo apt update && sudo apt-get install -y make libarchive-tools wget
+
+    - name: Cache frontend assets
+      uses: actions/cache@v4
+      with:
+        path: |
+          resources/status/bootstrap
+          resources/status/chartjs
+          resources/status/datatables
+          resources/status/fontawesome
+          resources/status/ibmplex
+          resources/status/jquery
+        key: frontend-assets-${{ runner.os }}-${{ hashFiles('Makefile') }}
 
     - name: Log in to the Container registry
       uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1

@@ -10,7 +10,6 @@ LABEL org.opencontainers.image.title="llar"
 LABEL org.opencontainers.image.description="Live Long and Read: Container Image"
 LABEL org.opencontainers.image.authors="llar@irq0.org"
 LABEL org.opencontainers.image.licenses=AGPLv3
-LABEL org.opencontainers.image.version=$VERSION
 
 RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
@@ -57,7 +56,6 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 
 RUN mkdir -p /opt/llar /llar
-COPY --chown=0:0 target/uberjar/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
 
 ENV LLAR_CONFIG=/llar/config.edn
 ENV WEKA_HOME=/llar/wekafiles
@@ -85,6 +83,12 @@ RUN mkdir -p /llar/wekafiles && chown llar:llar /llar/wekafiles
 
 USER llar:llar
 WORKDIR /llar
+
+# Keep volatile build outputs and metadata last so dependency layers remain cached
+# when only application code or the version changes.
+COPY --chown=0:0 target/uberjar/llar-$VERSION-standalone.jar /opt/llar/standalone.jar
+LABEL org.opencontainers.image.version=$VERSION
+
 EXPOSE 8023
 EXPOSE 8024
 EXPOSE 9999
