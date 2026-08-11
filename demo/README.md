@@ -34,5 +34,6 @@ served locally; the demo does not depend on live feeds or third-party images.
 The media pipeline will reuse this environment in three stages:
 
 1. Compose smoke test and content verification.
-2. Playwright screenshots at fixed viewport, locale, theme, and font state.
+2. [Playwright screenshots](media/README.md) at fixed viewport, locale, theme,
+   and font state.
 3. A short Playwright journey recorded from the same seeded database.

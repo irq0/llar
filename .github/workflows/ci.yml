@@ -290,6 +290,38 @@ jobs:
         curl -fsS -o /tmp/llar-demo-image.svg http://localhost:8023/static/demo/local-first.svg
         grep -q "LOCAL FIRST" /tmp/llar-demo-image.svg
 
+    - uses: actions/setup-node@v4
+      if: github.ref == 'refs/heads/main'
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+
+    - name: Install screenshot dependencies
+      if: github.ref == 'refs/heads/main'
+      run: npm ci
+
+    - name: Capture README screenshot
+      if: github.ref == 'refs/heads/main'
+      run: npm run demo:screenshots
+
+    - name: Upload README screenshot
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: demo-screenshots
+        path: target/demo-media/reader.png
+        if-no-files-found: error
+        retention-days: 1
+
+    - name: Upload screenshot diagnostics
+      if: failure() && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: demo-screenshot-diagnostics
+        path: target/demo-media/diagnostics/
+        if-no-files-found: ignore
+        retention-days: 7
+
     - name: Compose logs
       if: always()
       run: docker compose logs --no-color
@@ -320,6 +352,12 @@ jobs:
 
     - uses: actions/configure-pages@v5
 
+    - name: Download README screenshot
+      uses: actions/download-artifact@v4
+      with:
+        name: demo-screenshots
+        path: ${{ runner.temp }}/llar-demo-screenshots
+
     - name: Install docs asset tools
       run: sudo apt update && sudo apt-get install -y make libarchive-tools wget
 
@@ -344,6 +382,13 @@ jobs:
 
     - name: Copy docs assets
       run: make docs-assets DOCS_OUT="$RUNNER_TEMP/llar-docs"
+
+    - name: Include README screenshot
+      run: |
+        test -s "$RUNNER_TEMP/llar-demo-screenshots/reader.png"
+        mkdir -p "$RUNNER_TEMP/llar-docs/demo/main"
+        cp "$RUNNER_TEMP/llar-demo-screenshots/reader.png" \
+          "$RUNNER_TEMP/llar-docs/demo/main/reader.png"
 
     - name: Configure Pages custom domain
       run: echo 'docs.llar.dev' > "$RUNNER_TEMP/llar-docs/CNAME"

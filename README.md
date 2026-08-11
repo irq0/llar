@@ -4,6 +4,9 @@ Live Long and Read!
 
 A self-hosted news aggregator focused on customizability.
 
+> This README and its screenshots describe the current `main` branch and may
+> include features not yet available in the [latest release](https://github.com/irq0/llar/releases/latest).
+
 ## Getting Started
 
 LLAR needs a PostgreSQL database, a JVM and a [couple of command line tools](resources/config.edn) to run.
@@ -76,7 +79,7 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
 
 ### Reader
 
-![Screenshot of the LLAR UI](doc/img/screenshot_2024-02-20.png)
+![The LLAR Reader populated with deterministic demo content](https://docs.llar.dev/demo/main/reader.png)
 
 Per default running on port 8023.
 
