@@ -45,17 +45,19 @@
          (take 12))))
 
 (defn- raw-features [item]
-  (merge-with +
-              (into {} (map #(vector (str "title:" %) 3.0) (tokens (:title item))))
-              (into {} (for [[term tf] (take 25 (get-in item [:top-words :words]))
-                             :when (string? term)]
-                         [(str "term:" (string/lower-case term)) (double tf)]))
-              (into {} (map #(vector (str "name:" (string/lower-case %)) 2.0)
-                            (filter string? (take 12 (:names item)))))
-              (into {} (map #(vector (str "noun:" (string/lower-case %)) 1.5)
-                            (filter string? (take 12 (:nouns item)))))
-              (into {} (map #(vector (str "url:" %) 2.0)
-                            (filter string? (:urls item))))))
+  (let [top-words (:top-words item)
+        words (or (:words top-words) (get top-words "words"))]
+    (merge-with +
+                (into {} (map #(vector (str "title:" %) 3.0) (tokens (:title item))))
+                (into {} (for [[term tf] (take 25 words)
+                               :when (string? term)]
+                           [(str "term:" (string/lower-case term)) (double tf)]))
+                (into {} (map #(vector (str "name:" (string/lower-case %)) 2.0)
+                              (filter string? (take 12 (:names item)))))
+                (into {} (map #(vector (str "noun:" (string/lower-case %)) 1.5)
+                              (filter string? (take 12 (:nouns item)))))
+                (into {} (map #(vector (str "url:" %) 2.0)
+                              (filter string? (:urls item)))))))
 
 (defn- weighted-features [items]
   (let [raw (mapv raw-features items)
@@ -216,12 +218,17 @@
   (try
     (locking current-vibe
       (let [items (recent-candidates db)
+            clusters (cluster-items items)
             snapshot {:run-id (str (UUID/randomUUID))
                       :generated-at (time/zoned-date-time)
                       :window-hours (get (rc/rc [:reader :vibe]) :hours)
                       :algorithm :cobweb
-                      :feature-version 2
-                      :clusters (cluster-items items)}]
+                      :feature-version 3
+                      :clusters clusters}]
+        (log/infof "Today’s Vibe built from %d candidates: %d clusters, %d cross-source"
+                   (count items)
+                   (count clusters)
+                   (count (filter #(>= (:source-count %) 2) clusters)))
         (reset! current-vibe snapshot))
       @current-vibe)
     (catch Throwable error

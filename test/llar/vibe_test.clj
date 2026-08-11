@@ -21,6 +21,12 @@
    :nouns ["result"]
    :urls []})
 
+(deftest features-read-persisted-json-keys
+  (is (= 2.0
+         (get (#'vibe/raw-features
+               {:top-words {"words" [["Election" 2]]}})
+              "term:election"))))
+
 (deftest cobweb-groups-overlapping-reports
   (with-redefs [rc/rc (fn [& _] settings)]
     (let [clusters (vibe/cluster-items

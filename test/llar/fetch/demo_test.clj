@@ -30,7 +30,7 @@
      :title (get-in item [:summary :title])
      :ts (get-in item [:summary :ts])
      :tags (mapv name (get-in item [:meta :tags]))
-     :top-words (:top nlp)
+     :top-words {"words" (get-in nlp [:top :words])}
      :names (:names nlp)
      :nouns (:nouns nlp)
      :urls (:urls nlp)}))
