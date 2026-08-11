@@ -505,9 +505,12 @@
       (is (not (re-find #"reading-(?:step|checkpoint)-rail" article)))
       (is (re-find #"class=\"reading-viewport-overlay\"" overlay))
       (is (re-find #"class=\"reading-step-rail\"" overlay))
+      (is (re-find #"class=\"reading-structure-rail\"" overlay))
+      (is (re-find #"class=\"reading-structure-landmarks\"" overlay))
       (is (re-find #"class=\"reading-checkpoint-rail\"" overlay))
       (is (re-find #"class=\"reading-checkpoint-tools\""
                    overlay))
+      (is (re-find #"reading-checkpoint-resume btn-resume-checkpoint" overlay))
       (is (re-find #"reading-checkpoint-control reading-checkpoint-save"
                    overlay))
       (is (not (re-find #"btn-outline-secondary|btn-secondary" overlay)))
@@ -530,7 +533,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-r01-03\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-r02-04\"></script></body></html>$"
                    shell)))))
 
 (deftest item-inspector-leads-with-provenance-signals-and-representations
@@ -641,6 +644,18 @@
   (let [javascript (slurp (io/resource "status/llar.js"))]
     (is (re-find #"function advanceReadingBlock\(\)" javascript))
     (is (re-find #"function readingUsesHorizontalColumns" javascript))
+    (is (re-find #"function readingAxisMetrics" javascript))
+    (is (re-find #"querySelectorAll\(\"h1, h2, h3, h4, hr\"\)" javascript))
+    (is (re-find #"Section break before" javascript))
+    (is (re-find #"is-heading-\" \+ element\.tagName\.substring\(1\)" javascript))
+    (is (re-find #"function rebuildReadingLandmarks" javascript))
+    (is (re-find #"function updateNearestReadingLandmark" javascript))
+    (is (re-find #"metrics\.start \+ metrics\.extent / 3" javascript))
+    (is (re-find #"Math\.abs\(landmark\.progress - readingFocus\)" javascript))
+    (is (re-find #"readingPrefersReducedMotion\(\) \? \"auto\" : \"smooth\""
+                 javascript))
+    (is (re-find #"new ResizeObserver" javascript))
+    (is (re-find #"new MutationObserver" javascript))
     (is (not (re-find #"viewport-(?:bottom|pivot)" javascript)))))
 
 (deftest reading-checkpoint-controls-flash-and-use-the-bottom-icon-hud
@@ -650,6 +665,18 @@
                  javascript))
     (is (re-find #"function checkpointRange\(container, selector\)" javascript))
     (is (re-find #"bottom: calc\(0\.75rem \+ env\(safe-area-inset-bottom\)\)"
+                 css))
+    (is (re-find #"\.reading-step-rail \{[^}]*left: 0;" css))
+    (is (re-find #"\.reading-checkpoint-rail \{[^}]*right: 0;" css))
+    (is (re-find #"\.reader-mode-show-item \.reading-structure-rail \{[^}]*right: 16\.6667%"
+                 css))
+    (is (re-find #"\.reading-structure-landmark\.is-heading-1 \{[^}]*1rem"
+                 css))
+    (is (re-find #"\.reading-structure-landmark\.is-heading-4 \{[^}]*0\.4rem"
+                 css))
+    (is (re-find #"\.reading-structure-landmark\.is-divider::before \{[^}]*width: 0\.3rem"
+                 css))
+    (is (re-find #"@media \(prefers-reduced-motion: reduce\) \{[^}]*\.reading-structure-landmark"
                  css))
     (is (re-find #"\.reading-checkpoint-control \{[^}]*border: 0;"
                  css))))

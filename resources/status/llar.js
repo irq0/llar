@@ -311,11 +311,29 @@ function show_bookmark_add_result(title, message) {
 var readingNavigation = {
   container: null,
   blocks: [],
+  landmarks: [],
   target: null,
   frame: null,
   landingBlock: null,
   landingTimer: null,
+  resizeObserver: null,
+  mutationObserver: null,
 };
+
+function clampReadingValue(value, minimum, maximum) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function readingPrefersReducedMotion() {
+  return (
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function readingScrollBehavior() {
+  return readingPrefersReducedMotion() ? "auto" : "smooth";
+}
 
 function readingViewport(container) {
   var topNav = document.getElementById("top-nav");
@@ -339,9 +357,196 @@ function readingUsesHorizontalColumns(container) {
   );
 }
 
+function readingAxisMetrics(container) {
+  if (readingUsesHorizontalColumns(container)) {
+    var horizontalTotal = Math.max(1, container.scrollWidth);
+    var horizontalExtent = clampReadingValue(
+      container.clientWidth,
+      0,
+      horizontalTotal,
+    );
+    var horizontalStart = clampReadingValue(
+      container.scrollLeft,
+      0,
+      Math.max(0, horizontalTotal - horizontalExtent),
+    );
+    return {
+      axis: "horizontal",
+      total: horizontalTotal,
+      start: horizontalStart,
+      extent: horizontalExtent,
+    };
+  }
+
+  var viewport = readingViewport(container);
+  var containerRect = container.getBoundingClientRect();
+  var verticalTotal = Math.max(1, container.scrollHeight, containerRect.height);
+  var verticalStart = clampReadingValue(
+    viewport.top - containerRect.top,
+    0,
+    verticalTotal,
+  );
+  var verticalEnd = clampReadingValue(
+    viewport.bottom - containerRect.top,
+    verticalStart,
+    verticalTotal,
+  );
+  var verticalExtent = verticalEnd - verticalStart;
+  return {
+    axis: "vertical",
+    total: verticalTotal,
+    start: verticalStart,
+    extent: verticalExtent,
+  };
+}
+
+function readingElementProgress(container, element, metrics) {
+  var containerRect = container.getBoundingClientRect();
+  var rects = readableClientRects(element);
+  var rect = rects.length ? rects[0] : element.getBoundingClientRect();
+  var position =
+    metrics.axis === "horizontal"
+      ? container.scrollLeft + rect.left - containerRect.left
+      : rect.top - containerRect.top;
+  return clampReadingValue(position / metrics.total, 0, 1);
+}
+
 function readableClientRects(block) {
   return Array.from(block.getClientRects()).filter(function (rect) {
     return rect.width > 0 && rect.height > 0;
+  });
+}
+
+function readingStructureCandidates(container) {
+  var candidates = Array.from(
+    container.querySelectorAll("h1, h2, h3, h4, hr"),
+  ).filter(function (element) {
+    return (
+      element.getClientRects().length > 0 &&
+      (element.matches("hr") || element.textContent.trim().length > 0)
+    );
+  });
+  if (candidates.length <= 24) return candidates;
+
+  // Keep the rail quiet on documents with generated or very granular
+  // headings. Prefer high-level headings and authored section breaks, in
+  // source order.
+  var selected = new Set(
+    candidates
+      .filter(function (element) {
+        return element.matches("h1, h2, hr");
+      })
+      .slice(0, 24),
+  );
+  if (selected.size < 24) {
+    candidates.forEach(function (element) {
+      if (selected.size < 24) selected.add(element);
+    });
+  }
+  return candidates.filter(function (element) {
+    return selected.has(element);
+  });
+}
+
+function readingLandmarkLabel(element, candidates, index) {
+  if (!element.matches("hr")) {
+    return element.textContent.replace(/\s+/g, " ").trim().slice(0, 120);
+  }
+  var followingHeading = candidates.slice(index + 1).find(function (candidate) {
+    return !candidate.matches("hr");
+  });
+  return followingHeading
+    ? "Section break before " +
+        followingHeading.textContent.replace(/\s+/g, " ").trim().slice(0, 96)
+    : "Section break";
+}
+
+function scrollToReadingElement(element) {
+  var container = readingNavigation.container;
+  if (!container || !element) return;
+  var rect = element.getBoundingClientRect();
+  if (readingUsesHorizontalColumns(container)) {
+    var containerRect = container.getBoundingClientRect();
+    container.scrollTo({
+      left: Math.max(0, container.scrollLeft + rect.left - containerRect.left),
+      behavior: readingScrollBehavior(),
+    });
+  } else {
+    window.scrollTo({
+      top: window.scrollY + rect.top - readingViewport(container).top,
+      behavior: readingScrollBehavior(),
+    });
+  }
+  showReadingLanding(element);
+  setTimeout(
+    requestReadingNavigationUpdate,
+    readingPrefersReducedMotion() ? 0 : 350,
+  );
+}
+
+function rebuildReadingLandmarks() {
+  var container = readingNavigation.container;
+  var rail = document.querySelector(".reading-structure-landmarks");
+  if (!container || !rail) return;
+
+  rail.replaceChildren();
+  var metrics = readingAxisMetrics(container);
+  var candidates = readingStructureCandidates(container);
+  readingNavigation.landmarks = candidates.map(function (element, index) {
+    var divider = element.matches("hr");
+    var progress = readingElementProgress(container, element, metrics);
+    var label = readingLandmarkLabel(element, candidates, index);
+    var percent = Math.round(progress * 100);
+    var control = document.createElement("button");
+    control.type = "button";
+    control.className =
+      "reading-structure-landmark " +
+      (divider ? "is-divider" : "is-heading-" + element.tagName.substring(1));
+    control.style.top = 2 + progress * 96 + "%";
+    control.dataset.label = label + " · " + percent + "%";
+    control.setAttribute(
+      "aria-label",
+      "Go to " + label + ", around " + percent + "%",
+    );
+    control.title = label + " · " + percent + "%";
+    control.addEventListener("click", function () {
+      scrollToReadingElement(element);
+    });
+    rail.appendChild(control);
+    return {
+      element: element,
+      control: control,
+      progress: progress,
+      label: label,
+    };
+  });
+  rail.hidden = readingNavigation.landmarks.length === 0;
+}
+
+function updateNearestReadingLandmark() {
+  var container = readingNavigation.container;
+  if (!container) return;
+
+  var metrics = readingAxisMetrics(container);
+  var readingFocus = clampReadingValue(
+    (metrics.start + metrics.extent / 3) / metrics.total,
+    0,
+    1,
+  );
+  var nearestLandmark = null;
+  var nearestDistance = Infinity;
+  readingNavigation.landmarks.forEach(function (landmark) {
+    var distance = Math.abs(landmark.progress - readingFocus);
+    if (distance < nearestDistance) {
+      nearestLandmark = landmark;
+      nearestDistance = distance;
+    }
+  });
+  readingNavigation.landmarks.forEach(function (landmark) {
+    var current = landmark === nearestLandmark;
+    landmark.control.classList.toggle("is-current", current);
+    if (current) landmark.control.setAttribute("aria-current", "location");
+    else landmark.control.removeAttribute("aria-current");
   });
 }
 
@@ -493,6 +698,7 @@ function updateReadingNavigation() {
     !!target && target.axis === "horizontal",
   );
   if (target) positionReadingStepMarker(marker, target.rect.top);
+  updateNearestReadingLandmark();
   updateReadingLandingMarker();
 }
 
@@ -503,10 +709,16 @@ function requestReadingNavigationUpdate() {
   );
 }
 
+function refreshReadingLandmarks() {
+  if (!readingNavigation.container) return;
+  rebuildReadingLandmarks();
+  requestReadingNavigationUpdate();
+}
+
 function refreshReadingBlocks() {
   if (!readingNavigation.container) return;
   readingNavigation.blocks = getReadingBlocks(readingNavigation.container);
-  requestReadingNavigationUpdate();
+  refreshReadingLandmarks();
 }
 
 function showReadingLanding(block) {
@@ -565,6 +777,35 @@ $(function () {
   $(window).on("resize.reading-navigation", refreshReadingBlocks);
   $(window).on("load.reading-navigation", refreshReadingBlocks);
   $(container).on("scroll.reading-navigation", requestReadingNavigationUpdate);
+
+  container.addEventListener("load", refreshReadingLandmarks, true);
+  container.addEventListener("error", refreshReadingLandmarks, true);
+  if ("ResizeObserver" in window) {
+    readingNavigation.resizeObserver = new ResizeObserver(
+      refreshReadingLandmarks,
+    );
+    readingNavigation.resizeObserver.observe(container);
+  }
+  if ("MutationObserver" in window) {
+    readingNavigation.mutationObserver = new MutationObserver(function (
+      mutations,
+    ) {
+      if (
+        mutations.some(function (mutation) {
+          return mutation.type === "childList";
+        })
+      ) {
+        refreshReadingLandmarks();
+      }
+    });
+    readingNavigation.mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+  }
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(refreshReadingLandmarks);
+  }
 });
 
 function keepCurrentItemUnread(onComplete) {

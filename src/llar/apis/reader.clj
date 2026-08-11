@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-r01-03"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-r02-04"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-r01-03"}]])
+   [:script {:src "/static/llar.js?v=reader-r02-04"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -1201,6 +1201,10 @@
    [:div {:class "reading-step-rail" :aria-hidden "true"}
     [:span {:class "reading-step-indicator reading-step-next"}]
     [:span {:class "reading-step-indicator reading-step-landing"}]]
+   [:div {:class "reading-structure-rail"}
+    [:nav {:class "reading-structure-landmarks"
+           :aria-label "Article sections"
+           :hidden true}]]
    [:aside {:class "reading-checkpoint-rail" :aria-label "Saved reading position"}
     (reading-checkpoint-tools item)]])
 
