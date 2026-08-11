@@ -79,9 +79,19 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
 
 ### Reader
 
-![The LLAR Reader populated with deterministic demo content](https://docs.llar.dev/demo/main/reader.png)
+![The LLAR Reader populated with deterministic demo content](https://irq0.github.io/llar/demo/main/reader.png)
 
 Per default running on port 8023.
+
+The same demo deployment also shows the main Reader tools:
+
+| Reading Queue | Continue Reading |
+| --- | --- |
+| ![LLAR Reading Queue](https://irq0.github.io/llar/demo/main/reading-queue.png) | ![LLAR Continue Reading](https://irq0.github.io/llar/demo/main/continue-reading.png) |
+
+| Gems | Today’s Vibe |
+| --- | --- |
+| ![LLAR Gems](https://irq0.github.io/llar/demo/main/gems.png) | ![LLAR Today’s Vibe](https://irq0.github.io/llar/demo/main/todays-vibe.png) |
 
 ### Dashboard
 
