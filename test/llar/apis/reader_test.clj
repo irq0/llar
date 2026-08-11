@@ -518,23 +518,40 @@
               [42 {:action :remove-tag :tag :research}]]
              @calls)))))
 
-(deftest done-control-is-available-in-headline-view
+(deftest headline-view-is-a-compact-scan-table-with-restrained-actions
   (let [rendered (str (h/html (uut/headlines-list-items
                                {:group-name :default
                                 :group-item :none
                                 :source-key :all
-                                :sources {}
+                                :sources {:feed {:title "Example Feed"
+                                                 :url "https://feed.example.org/rss"}}
                                 :items [{:id 42
                                          :source-key "feed"
                                          :title "Queued headline"
                                          :ts (time/zoned-date-time)
-                                         :tags ["saved"]
+                                         :tags ["unread" "saved"]
                                          :type :item-type/link
                                          :nwords 100
                                          :url "https://example.com"}]})))]
+    (is (re-find #"class=\"reader-headlines-table\"" rendered))
+    (is (re-find #"aria-label=\"Headlines in the current snapshot\"" rendered))
+    (is (re-find #"class=\"reader-headline-title-column\"" rendered))
+    (is (re-find #"class=\"reader-headline-source-column\"" rendered))
+    (is (re-find #"class=\"reader-headline-row\"[^>]*data-unread=\"true\"" rendered))
+    (is (re-find #"class=\"reader-headline-link\"[^>]*>Queued headline</a>" rendered))
+    (is (re-find #"reader-headline-source-key\">feed</span>" rendered))
+    (is (re-find #"reader-headline-host\"> → example.com</span>" rendered))
+    (is (re-find #"class=\"reader-headline-consumption\"[^>]*>1m</td>" rendered))
     (is (re-find #"btn-item-done" rendered))
     (is (re-find #"data-action-set=\"done\"" rendered))
     (is (re-find #"data-action-unset=\"mark-unread\"" rendered))
+    (is (re-find #"id=\"headline-more-menu-42\"" rendered))
+    (is (string/includes? rendered "Original item"))
+    (is (string/includes? rendered "Related items"))
+    (is (string/includes? rendered "Focus mode"))
+    (is (string/includes? rendered "Save for later"))
+    (is (not (string/includes? rendered "table-responsive")))
+    (is (not (string/includes? rendered "fa-ellipsis-v")))
     (is (not (re-find #"btn-tag-unread" rendered)))
     (is (not (re-find #"direct-tag-buttons" rendered)))))
 
@@ -653,7 +670,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-l01-03\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-l02-02\"></script></body></html>$"
                    shell)))))
 
 (deftest item-inspector-leads-with-provenance-signals-and-representations

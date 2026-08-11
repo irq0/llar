@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l01-03"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l02-02"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-l01-03"}]])
+   [:script {:src "/static/llar.js?v=reader-l02-02"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -2089,68 +2089,127 @@
        (done-button item)]]
      (tags-button-modal id tags)]))
 
+(defn- safe-host-identifier [url]
+  (when (string? url)
+    (try
+      (human/host-identifier url)
+      (catch Exception _ nil))))
+
+(defn- headline-source-context [source-key source url]
+  (let [item-host (safe-host-identifier url)
+        source-host (safe-host-identifier (:url source))
+        show-item-host? (and item-host (not= item-host source-host))]
+    [:span
+     [:span {:class "reader-headline-source-key"} source-key]
+     (when show-item-host?
+       [:span {:class "reader-headline-host"} " → " item-host])]))
+
+(defn- headline-menu-link [href icon-class label]
+  [:a {:class "dropdown-item" :href href}
+   (icon icon-class)
+   [:span label]])
+
+(defn- headline-more-menu [x link-prefix {:keys [id tags url]}]
+  (let [menu-id (str "headline-more-menu-" id)]
+    [:div {:class "dropdown d-inline-block reader-headline-more"}
+     (icon-button {:href "#"
+                   :role "button"
+                   :id menu-id
+                   :data-bs-toggle "dropdown"
+                   :aria-expanded "false"
+                   :title "More item actions"
+                   :aria-label "More item actions"}
+                  "fas fa-ellipsis-h")
+     [:ul {:class "dropdown-menu dropdown-menu-end" :aria-labelledby menu-id}
+      [:li [:h6 {:class "dropdown-header"} "Open"]]
+      (when-not (string/blank? url)
+        [:li (headline-menu-link url "fas fa-external-link-alt" "Original item")])
+      [:li (headline-menu-link
+            (make-site-href [link-prefix "item/by-id" id "related"] x)
+            "fas fa-project-diagram"
+            "Related items")]
+      [:li (headline-menu-link
+            (make-site-href [link-prefix "item/by-id" id "focus"]
+                            {:data "content" :content-type "text/html"}
+                            x)
+            "fas fa-expand"
+            "Focus mode")]
+      [:li [:hr {:class "dropdown-divider"}]]
+      [:li [:h6 {:class "dropdown-header"} "Workflow"]]
+      [:li (state-menu-button id tags :saved)]
+      [:li (state-menu-button id tags :archive)]
+      (for [button (tag-buttons)]
+        [:li (tag-menu-button id tags button)])]]))
+
 (defn headlines-list-items
   "Main Item List - Headlines Style"
   [x]
-  (let [{:keys [group-name group-item source-key sources items]} x]
-    [:div {:id "headlines" :class "table-responsive"}
-     [:table {:class "table table-borderless"}
+  (let [{:keys [group-name group-item source-key sources items]} x
+        link-prefix (format "/reader/group/%s/%s/source/%s"
+                            (name group-name)
+                            (name group-item)
+                            (name source-key))]
+    [:div {:id "headlines" :class "reader-headlines"}
+     [:table {:class "reader-headlines-table"
+              :aria-label "Headlines in the current snapshot"}
+      [:colgroup
+       [:col {:class "reader-headline-marker-column"}]
+       [:col {:class "reader-headline-title-column"}]
+       [:col {:class "reader-headline-source-column"}]
+       [:col {:class "reader-headline-consumption-column"}]
+       [:col {:class "reader-headline-age-column"}]
+       [:col {:class "reader-headline-actions-column"}]]
+      [:thead {:class "visually-hidden"}
+       [:tr
+        [:th "Status"]
+        [:th "Headline"]
+        [:th "Source"]
+        [:th "Length"]
+        [:th "Age"]
+        [:th "Actions"]]]
       [:tbody
        (for [item items
-             :let [link-prefix (format "/reader/group/%s/%s/source/%s"
-                                       (name group-name)
-                                       (name group-item)
-                                       (name source-key))
-                   {:keys [id source-key title ts tags url]} item
-                   source (get sources (keyword source-key))
-                   consumption-meta (consumption-time-meta item)]]
+             :let [{:keys [id title ts tags url]} item
+                   item-source-key (:source-key item)
+                   source (get sources (keyword item-source-key))
+                   source-title (or (:title source) item-source-key)
+                   display-title (if (string/blank? title) "(no title)" title)
+                   consumption-meta (consumption-time-meta item)
+                   consumption-label (when consumption-meta
+                                       (str (:minutes consumption-meta) "m"))
+                   age-label (human/datetime-ago-short ts)]]
          [:tr {:id (str "item-" id)
+               :class "reader-headline-row"
                :data-id id
                :data-unread (str (boolean (some #(= % "unread") tags)))}
-          [:th {:class "title"}
-           [:a {:href (make-site-href [link-prefix "item/by-id" id]
+          [:td {:class "reader-headline-marker" :aria-hidden "true"}
+           [:span {:class "reader-headline-unread-indicator"}]]
+          [:th {:class "reader-headline-title" :scope "row"}
+           [:a {:class "reader-headline-link"
+                :href (make-site-href [link-prefix "item/by-id" id]
                                       (cond-> {:mark :read}
                                         (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
-                                      x)}
-            (if (string/blank? title)
-              "(no title)"
-              title)]
-           "\u00a0"
-           [:span {:class "source"}
-            source-key
-            (when (= (:type item) :item-type/link)
-              [:span "\u00a0"
-               " → " (human/host-identifier url)])
-            (when (and (string? url) (string? (:url source))
-                       (not= (human/host-identifier url)
-                             (human/host-identifier (:url source))))
-              [:span " → " (human/host-identifier url)])]]
-
-          [:td {:class "nwords consumption-time"
-                :title (or (:title consumption-meta) "Consumption time unavailable")}
-           (when consumption-meta
-             [:span
-              (action-icon (:icon consumption-meta))
-              "\u2009" (:minutes consumption-meta)])]
-
-          [:td {:class "ts"}
-           [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
-
-          [:td {:class "toolbox"}
+                                      x)
+                :title display-title}
+            display-title]
+           [:span {:class "reader-headline-mobile-meta"}
+            source-title
+            (when consumption-label (str " · " consumption-label))
+            " · " age-label]]
+          [:td {:class "reader-headline-source"
+                :title (str source-title
+                            (when-let [host (safe-host-identifier url)]
+                              (str " · " host)))}
+           (headline-source-context item-source-key source url)]
+          [:td {:class "reader-headline-consumption"
+                :title (or (:title consumption-meta) "Consumption time unavailable")
+                :aria-label (or (:title consumption-meta) "Consumption time unavailable")}
+           (or consumption-label "—")]
+          [:td {:class "reader-headline-age"}
+           [:span {:class "timestamp" :title ts} age-label]]
+          [:td {:class "reader-headline-actions"}
            (done-button item)
-           [:span {:class "dropstart position-static"}
-            [:a {:type "button" :class "btn reader-icon-button" :data-bs-toggle "dropdown"
-                 :aria-label "More item actions" :title "More item actions"}
-             (action-icon "fa fa-ellipsis-v fa-lg")]
-            [:ul {:class "dropdown-menu position-absolute"}
-             [:li
-              (external-link-button url)
-              (related-button x id)
-              (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
-                                                                                   :content-type "text/html"} x))]
-             [:li
-              (state-buttons id tags)
-              (item-tag-buttons id tags)]]]]])]]]))
+           (headline-more-menu x link-prefix item)]])]]]))
 
 (defn gallery-list-item
   [x link-prefix item]
