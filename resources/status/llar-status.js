@@ -53,8 +53,9 @@ function sources_row_actions_html(source_key) {
 
 function initialize_datatables(container) {
   var sources_table = $(container).find("#sources-datatable");
-  if (sources_table.length && !$.fn.DataTable.isDataTable(sources_table[0])) {
-    sources_table.DataTable({
+
+  if (sources_table.length && !DataTable.isDataTable(sources_table[0])) {
+    new DataTable(sources_table[0], {
       paging: true,
       pageLength: 100,
       deferRender: true,
