@@ -2267,7 +2267,7 @@
 
 (defn gallery-list-item
   [x link-prefix item]
-  (let [{:keys [id source-key title ts tags entry url]} item
+  (let [{:keys [id source-key title ts tags entry]} item
         display-title (if (string/blank? title) "(no title)" title)
         youtube-context (youtube-preview-context item)
         image-context (gallery-image-context entry)
