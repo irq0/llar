@@ -15,6 +15,15 @@ document.addEventListener(
       return;
     }
 
+    var revealSelector = image.getAttribute("data-error-reveal");
+    var revealContainer = revealSelector
+      ? image.closest(".reader-gallery-media")
+      : null;
+    var revealTarget = revealContainer
+      ? revealContainer.querySelector(revealSelector)
+      : null;
+    if (revealTarget) revealTarget.removeAttribute("hidden");
+
     var selector = image.getAttribute("data-error-remove");
     var target = selector ? image.closest(selector) : image;
     if (target) target.remove();
@@ -1050,16 +1059,18 @@ $(document).ready(function () {
     content: () => $("#add-thing").data("result-message"),
   });
 
-  // click on youtube preview image to start player
-  $(".lazy-youtube").on("click", function () {
+  // Activate a privacy-friendly YouTube embed only after an explicit click.
+  $(".lazy-youtube-trigger").on("click", function () {
     var vid = $(this).data("vid");
     var target = $(this).data("target");
     var embedUrl =
-      "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(vid);
+      "https://www.youtube-nocookie.com/embed/" +
+      encodeURIComponent(vid) +
+      "?controls=1&fs=1&playsinline=1";
     $("#" + target).html(
       `<iframe src="${embedUrl}" title="YouTube video player" ` +
         `referrerpolicy="strict-origin-when-cross-origin" ` +
-        `allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ` +
+        `allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share" ` +
         `allowfullscreen></iframe>`,
     );
   });

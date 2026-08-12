@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l02-02"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l03-05"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-l02-02"}]])
+   [:script {:src "/static/llar.js?v=reader-l03-05"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -914,6 +914,34 @@
                  (str (string/capitalize media-label) " duration: "
                       (format-media-duration seconds)))}))))
 
+(defn- youtube-preview-context [{:keys [id entry url]}]
+  (when-let [match (parse-youtube-url url)]
+    (when-let [thumbnail (first-usable-image-url (:thumbnail entry))]
+      (let [video-id (last match)]
+        {:video-id video-id
+         :thumbnail thumbnail
+         :target-id (str "youtube-container-" (or id video-id) "-" video-id)}))))
+
+(defn- lazy-youtube-player
+  [item {:keys [error-remove error-reveal trigger-class]}]
+  (when-let [{:keys [video-id thumbnail target-id]}
+             (youtube-preview-context item)]
+    [:div {:id target-id :class "youtube-preview-container"}
+     [:button {:type "button"
+               :class (string/trim (str "lazy-youtube-trigger " trigger-class))
+               :data-vid video-id
+               :data-target target-id
+               :aria-label "Play video on YouTube"}
+      [:img (cond-> {:class "lazy-youtube reader-defensive-image"
+                     :alt "Play video on YouTube"
+                     :loading "lazy"
+                     :decoding "async"
+                     :src thumbnail}
+              error-remove (assoc :data-error-remove error-remove)
+              error-reveal (assoc :data-error-reveal error-reveal))]
+      [:span {:class "reader-lazy-video-cue" :aria-hidden "true"}
+       (action-icon "fas fa-play")]]]))
+
 (defn render-special-item-content
   "Renders item content that is somehow unique to a source and benefits from special rendering
   (e.g youtube videos, twitter images)"
@@ -922,21 +950,11 @@
         youtube-url (parse-youtube-url url)
         compact-media? (contains? options ::compact-media)]
     (html
-     (when-let [vid youtube-url]
-       (when (some? vid)
-         (when-let [thumb (first-usable-image-url (:thumbnail entry))]
-           [:div {:class (str "ratio ratio-16x9"
-                              (when compact-media? " reader-list-video-preview"))}
-            [:div {:id (str "youtube-container-" (last vid))
-                   :class "youtube-preview-container"}
-             [:img {:class "lazy-youtube reader-defensive-image"
-                    :data-vid (last vid)
-                    :data-target (str "youtube-container-" (last vid))
-                    :data-error-remove ".ratio"
-                    :alt "Play video on YouTube"
-                    :loading "lazy"
-                    :decoding "async"
-                    :src thumb}]]])))
+     (when youtube-url
+       (when-let [player (lazy-youtube-player item {:error-remove ".ratio"})]
+         [:div {:class (str "ratio ratio-16x9"
+                            (when compact-media? " reader-list-video-preview"))}
+          player]))
 
      (when-let [twit-pic (first-usable-image-url
                           (first (get-in entry [:entities :photos])))]
@@ -2109,9 +2127,9 @@
    (icon icon-class)
    [:span label]])
 
-(defn- headline-more-menu [x link-prefix {:keys [id tags url]}]
-  (let [menu-id (str "headline-more-menu-" id)]
-    [:div {:class "dropdown d-inline-block reader-headline-more"}
+(defn- compact-item-more-menu [x link-prefix {:keys [id tags url]}]
+  (let [menu-id (str "compact-item-more-menu-" id)]
+    [:div {:class "dropdown d-inline-block reader-compact-item-more"}
      (icon-button {:href "#"
                    :role "button"
                    :id menu-id
@@ -2209,70 +2227,134 @@
            [:span {:class "timestamp" :title ts} age-label]]
           [:td {:class "reader-headline-actions"}
            (done-button item)
-           (headline-more-menu x link-prefix item)]])]]]))
+           (compact-item-more-menu x link-prefix item)]])]]]))
+
+(defn- gallery-image-context [{:keys [thumbnail lead-image-url entities]}]
+  (let [photo (first (:photos entities))]
+    (cond
+      (usable-image-url? photo) {:url photo :fit :contain}
+      (usable-image-url? thumbnail) {:url thumbnail :fit :cover}
+      (usable-image-url? lead-image-url) {:url lead-image-url :fit :cover})))
+
+(defn- gallery-text-signals [{:keys [names top-words url]}]
+  (let [word-pairs (or (:words top-words) (get top-words "words") [])]
+    (->> (concat [(safe-host-identifier url)]
+                 names
+                 (map first word-pairs))
+         (filter preview-useful-signal?)
+         distinct
+         (take 4))))
+
+(defn- gallery-modal [modal-id modal-title-id display-title image item]
+  [:div {:class "modal reader-gallery-modal"
+         :id modal-id
+         :tabindex "-1"
+         :role "dialog"
+         :aria-modal "true"
+         :aria-labelledby modal-title-id
+         :aria-hidden "true"}
+   [:div {:class "modal-dialog modal-dialog-centered modal-xl"}
+    [:div {:class "modal-content"}
+     [:h2 {:class "visually-hidden" :id modal-title-id} display-title]
+     [:button {:type "button"
+               :class "btn-close position-absolute top-0 end-0 m-2"
+               :data-bs-dismiss "modal"
+               :aria-label "Close"}]
+     [:img {:src image
+            :class "reader-gallery-full-image reader-defensive-image"
+            :alt (item-image-alt item)
+            :decoding "async"}]]]])
 
 (defn gallery-list-item
   [x link-prefix item]
   (let [{:keys [id source-key title ts tags entry url]} item
         display-title (if (string/blank? title) "(no title)" title)
-        image (first-usable-image-url
-               (first (get-in entry [:entities :photos]))
-               (:thumbnail entry)
-               (:lead-image-url entry))
+        youtube-context (youtube-preview-context item)
+        image-context (gallery-image-context entry)
+        image (:url image-context)
+        has-media? (or youtube-context image)
+        consumption-meta (consumption-time-meta item)
+        signals (gallery-text-signals item)
         modal-id (str "full-img-" id)
         modal-title-id (str modal-id "-title")]
     [:div {:id (str "item-" id)
-           :class "col"
+           :class "col reader-gallery-item"
            :data-id id
            :data-unread (str (boolean (some #(= % "unread") tags)))}
-     [:div {:class "card"}
-      [:div {:class "card-header"} source-key]
-      (when image
-        [:button {:type "button"
-                  :class "gallery-image-trigger p-0 border-0 bg-transparent w-100"
-                  :data-bs-target (str "#" modal-id)
-                  :data-bs-toggle "modal"
-                  :aria-label (str "View full image for " display-title)}
-         [:img {:src image
-                :class "card-img-top gallery-card-image reader-defensive-image"
-                :data-error-remove ".gallery-image-trigger"
-                :alt (item-image-alt item)
-                :loading "lazy"
-                :decoding "async"}]])
-      (when image
-        [:div {:class "modal"
-               :id modal-id
-               :tabindex "-1"
-               :role "dialog"
-               :aria-modal "true"
-               :aria-labelledby modal-title-id
-               :aria-hidden "true"}
-         [:div {:class "modal-dialog modal-dialog-centered modal-lg"}
-          [:div {:class "modal-content"}
-           [:h2 {:class "visually-hidden" :id modal-title-id} display-title]
-           [:button {:type "button"
-                     :class "btn-close position-absolute top-0 end-0 m-2"
-                     :data-bs-dismiss "modal"
-                     :aria-label "Close"}]
-           [:img {:src image
-                  :class "gallery-full-image reader-defensive-image"
-                  :alt (item-image-alt item)
-                  :decoding "async"}]]]])
-      [:div {:class "card-body"}
-       [:p {:class "card-title"}
-        [:a {:href (make-site-href [link-prefix "item/by-id" id]
+     [:article {:class (str "card reader-gallery-card "
+                            (if has-media? "has-image" "is-text-only"))}
+      (cond
+        youtube-context
+        [:div {:class "reader-gallery-media is-video"}
+         [:div {:class "reader-gallery-media-fallback" :hidden true}
+          (action-icon "far fa-play-circle")
+          [:span "Video preview unavailable"]]
+         (lazy-youtube-player item
+                              {:error-remove ".youtube-preview-container"
+                               :error-reveal ".reader-gallery-media-fallback"
+                               :trigger-class "reader-gallery-video-trigger"})]
+
+        image
+        [:div {:class "reader-gallery-media"}
+         [:div {:class "reader-gallery-media-fallback" :hidden true}
+          (action-icon "far fa-image")
+          [:span "Image unavailable"]]
+         [:button {:type "button"
+                   :class "reader-gallery-image-trigger"
+                   :data-bs-target (str "#" modal-id)
+                   :data-bs-toggle "modal"
+                   :aria-label (str "Enlarge image for " display-title)}
+          [:img {:src image
+                 :class (str "reader-gallery-card-image reader-defensive-image is-"
+                             (name (:fit image-context)))
+                 :data-error-remove ".reader-gallery-image-trigger"
+                 :data-error-reveal ".reader-gallery-media-fallback"
+                 :alt (item-image-alt item)
+                 :loading "lazy"
+                 :decoding "async"}]
+          [:span {:class "reader-gallery-zoom-cue" :aria-hidden "true"}
+           (action-icon "fas fa-expand-alt")]]]
+
+        :else
+        [:div {:class "reader-gallery-text-lead"}
+         (action-icon "far fa-file-alt reader-gallery-text-icon")
+         (if (seq signals)
+           (into [:div {:class "reader-gallery-signals"
+                        :role "group"
+                        :aria-label "Item signals"}]
+                 (map (fn [signal]
+                        [:span {:class "reader-gallery-signal"} signal])
+                      signals))
+           [:span {:class "reader-gallery-text-kind"} "Text item"])])
+      [:div {:class "card-body reader-gallery-body"}
+       [:h2 {:class "reader-gallery-title"}
+        [:a {:class "reader-gallery-item-link"
+             :href (make-site-href [link-prefix "item/by-id" id]
                                    (cond-> {:mark :read}
                                      (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
-                                   x)}
-         display-title]]
-       [:p {:class "card-text"}
-        [:small {:class "text-muted"} (human/datetime-ago ts)]]]
-      [:div {:class "card-footer toolbox"}
-       (external-link-button url)
-       (related-button x id)
-       (state-buttons id tags)
-       (item-tag-buttons id tags)
-       (done-button item)]]]))
+                                   x)
+             :title display-title}
+         display-title]]]
+      [:footer {:class "card-footer reader-gallery-actions"
+                :aria-label "Item actions"}
+       [:div {:class "reader-gallery-meta"}
+        [:span {:class "reader-gallery-unread-indicator" :aria-hidden "true"}]
+        [:span {:class "reader-gallery-source"} source-key]
+        (when consumption-meta
+          [:span {:class "reader-gallery-consumption" :title (:title consumption-meta)}
+           (action-icon (str (:icon consumption-meta)
+                             " reader-gallery-consumption-icon"))
+           (str (:minutes consumption-meta) "m")])
+        [:span {:class "reader-gallery-age" :title ts}
+         (human/datetime-ago-short ts)]]
+       [:div {:class "reader-gallery-action-buttons"
+              :role "group"
+              :aria-label "Item state and actions"}
+        (item-state-button id tags :saved)
+        (done-button item)
+        (compact-item-more-menu x link-prefix item)]]]
+     (when (and image (not youtube-context))
+       (gallery-modal modal-id modal-title-id display-title image item))]))
 
 (defn gallery-list-items
   "Main Item List - Gallery Style"
@@ -2282,7 +2364,8 @@
                             (name group-name)
                             (name group-item)
                             (name source-key))]
-    [:div {:class "row row-cols-1 row-cols-md-2 g-4" :id "gallery"}
+    [:div {:class "row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-3 reader-gallery-grid"
+           :id "gallery"}
      (for [item items]
        (gallery-list-item x link-prefix item))]))
 

@@ -55,7 +55,7 @@
       (is (re-find #"(?s)id=\"view-style-select\".*?nav-link active.*?list-style=headlines.*?Headlines"
                    rendered)))))
 
-(deftest feed-images-are-defensive-and-gallery-placeholders-stay-quiet
+(deftest gallery-distinguishes-image-zoom-from-text-only-items
   (is (false? (#'uut/usable-image-url? " SELF ")))
   (is (false? (#'uut/usable-image-url? "default")))
   (is (true? (#'uut/usable-image-url? "https://example.com/image.jpg")))
@@ -71,9 +71,81 @@
                                  {} "/reader/source/feed"
                                  (assoc base-item :entry
                                         {:thumbnail "https://example.com/image.jpg"}))))]
-    (is (not (re-find #"gallery-image-trigger|<img" without-image)))
-    (is (re-find #"gallery-card-image reader-defensive-image" with-image))
-    (is (re-find #"alt=\"Preview for A picture\"" with-image))))
+    (is (not (re-find #"reader-gallery-image-trigger|<img" without-image)))
+    (is (string/includes? without-image "reader-gallery-card is-text-only"))
+    (is (string/includes? without-image "reader-gallery-text-lead"))
+    (is (string/includes? without-image
+                          "reader-gallery-signal\">example.com</span>"))
+    (is (string/includes? with-image "reader-gallery-card has-image"))
+    (is (string/includes? with-image "reader-gallery-image-trigger"))
+    (is (string/includes? with-image "reader-gallery-media-fallback"))
+    (is (string/includes? with-image
+                          "data-error-reveal=\".reader-gallery-media-fallback\""))
+    (is (string/includes? with-image
+                          "reader-gallery-card-image reader-defensive-image is-cover"))
+    (is (string/includes? with-image "reader-gallery-zoom-cue"))
+    (is (re-find #"alt=\"Preview for A picture\"" with-image))
+    (is (string/includes? with-image "reader-gallery-meta"))
+    (is (string/includes? with-image "reader-gallery-action-buttons"))
+    (is (string/includes? with-image "btn-state-saved"))
+    (is (string/includes? with-image "btn-item-done"))
+    (is (string/includes? with-image "compact-item-more-menu-42"))))
+
+(deftest gallery-prefers-direct-photos-and-preserves-grid-order
+  (let [item {:id 43
+              :source-key "photos"
+              :title "Direct photo"
+              :ts (time/zoned-date-time)
+              :tags ["unread"]
+              :url "https://example.com/story"
+              :entry {:entities {:photos ["https://example.com/photo.jpg"]}
+                      :thumbnail "https://example.com/thumb.jpg"}}
+        card (str (h/html (uut/gallery-list-item
+                           {} "/reader/source/photos" item)))
+        grid (str (h/html (uut/gallery-list-items
+                           {:group-name :default
+                            :group-item :none
+                            :source-key :all
+                            :items [item (assoc item :id 44 :title "Second")]})))]
+    (is (string/includes? card "src=\"https://example.com/photo.jpg\""))
+    (is (not (string/includes? card "thumb.jpg")))
+    (is (string/includes? card
+                          "reader-gallery-card-image reader-defensive-image is-contain"))
+    (is (string/includes? card "data-unread=\"true\""))
+    (is (string/includes? grid
+                          "row-cols-1 row-cols-sm-2 row-cols-xl-3"))
+    (is (< (string/index-of grid "Direct photo")
+           (string/index-of grid "Second")))))
+
+(deftest gallery-youtube-items-lazy-load-inline-instead-of-opening-an-image-modal
+  (let [rendered (str
+                  (h/html
+                   (uut/gallery-list-item
+                    {}
+                    "/reader/source/youtube"
+                    {:id 45
+                     :source-key "youtube"
+                     :title "Watch this"
+                     :ts (time/zoned-date-time)
+                     :tags ["has-video" "unread"]
+                     :url "https://www.youtube.com/watch?v=abc123"
+                     :entry {:thumbnail "/blob/youtube-thumbnail.jpg"
+                             :duration 605}})))]
+    (is (string/includes? rendered
+                          "lazy-youtube-trigger reader-gallery-video-trigger"))
+    (is (string/includes? rendered "data-vid=\"abc123\""))
+    (is (string/includes? rendered
+                          "data-target=\"youtube-container-45-abc123\""))
+    (is (string/includes? rendered "reader-lazy-video-cue"))
+    (is (string/includes? rendered "aria-label=\"Play video on YouTube\""))
+    (is (not (string/includes? rendered "reader-gallery-modal")))
+    (is (not (string/includes? rendered "reader-gallery-zoom-cue")))
+    (is (string/includes? rendered "Video duration: 10:05"))))
+
+(deftest broken-gallery-images-reveal-their-stable-frame-fallback
+  (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (string/includes? javascript "data-error-reveal"))
+    (is (string/includes? javascript "revealTarget.removeAttribute(\"hidden\")"))))
 
 (deftest youtube-preview-fills-ratio-container
   (let [rendered (str (uut/render-special-item-content
@@ -81,6 +153,7 @@
                         :entry {:thumbnail "/blob/youtube-thumbnail.jpg"}}
                        #{}))]
     (is (re-find #"class=\"youtube-preview-container\"" rendered))
+    (is (re-find #"class=\"lazy-youtube-trigger" rendered))
     (is (re-find #"class=\"lazy-youtube reader-defensive-image\"" rendered))
     (is (re-find #"data-vid=\"abc123\"" rendered))
     (is (re-find #"alt=\"Play video on YouTube\"" rendered))))
@@ -500,7 +573,11 @@
 
 (deftest youtube-player-sends-origin-referrer
   (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (re-find #"\$\(\"\.lazy-youtube-trigger\"\)" javascript))
     (is (re-find #"youtube-nocookie\.com/embed/" javascript))
+    (is (string/includes? javascript "?controls=1&fs=1&playsinline=1"))
+    (is (string/includes? javascript "encrypted-media; fullscreen; gyroscope"))
+    (is (string/includes? javascript "allowfullscreen"))
     (is (re-find #"referrerpolicy=\"strict-origin-when-cross-origin\"" javascript))))
 
 (deftest item-tags-use-the-state-endpoint
@@ -545,7 +622,7 @@
     (is (re-find #"btn-item-done" rendered))
     (is (re-find #"data-action-set=\"done\"" rendered))
     (is (re-find #"data-action-unset=\"mark-unread\"" rendered))
-    (is (re-find #"id=\"headline-more-menu-42\"" rendered))
+    (is (re-find #"id=\"compact-item-more-menu-42\"" rendered))
     (is (string/includes? rendered "Original item"))
     (is (string/includes? rendered "Related items"))
     (is (string/includes? rendered "Focus mode"))
@@ -670,7 +747,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-l02-02\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-l03-05\"></script></body></html>$"
                    shell)))))
 
 (deftest item-inspector-leads-with-provenance-signals-and-representations
