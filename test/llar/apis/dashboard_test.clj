@@ -30,10 +30,13 @@
                               :status :failed
                               :attempt-count 5
                               :submitted-by "iphone"
+                              :last-attempt-ts (time/zoned-date-time 2026 8 13 12 0 0 0 "UTC")
                               :failure-class "fetch"
                               :last-error "network failed"}])]
     (let [body (str (h/html (uut/bookmarks-tab)))]
       (is (string/includes? body "1 Ready"))
+      (is (string/includes? body "id=\"bookmarks-datatable\""))
+      (is (string/includes? body "data-order=\"1786622400000\""))
       (is (string/includes? body "Failed capture"))
       (is (string/includes? body "network failed"))
       (is (string/includes? body "/api/bookmark-captures/42/retry"))
@@ -178,6 +181,10 @@
         (is (string/includes? body ":count"))
         (is (string/includes? body "data-clojure-inspector-variant=\"compact\""))
         (is (string/includes? body "table-responsive"))
+        (is (string/includes? body "id=\"schedules-datatable\""))
+        (is (string/includes? body "class=\"schedule-row\""))
+        (is (string/includes? body "class=\"schedule-detail-row\""))
+        (is (string/includes? body "data-order=\"90000\""))
         (is (string/includes? body "bg-body-tertiary"))
         (is (string/includes? body "colspan=\"11\""))
         (is (not (string/includes? body ">Inspect<")))
@@ -199,11 +206,16 @@
     (is (string/includes? body "10.0h"))
     (is (not (string/includes? footer "chartjs")))))
 
-(deftest state-tab-renders-values-in-place
+(deftest state-tab-renders-values-as-full-width-details
   (with-redefs [mount/find-all-states (constantly ["#'llar.test/example"])
                 mount/running-states (constantly ["#'llar.test/example"])
                 mount/current-state (constantly {:answer 42})]
     (let [body (str (h/html (uut/state-tab)))]
+      (is (string/includes? body "id=\"states-datatable\""))
+      (is (string/includes? body "data-order=\"1\""))
+      (is (string/includes? body "class=\"state-row\""))
+      (is (string/includes? body "class=\"state-detail-row\""))
+      (is (string/includes? body "colspan=\"3\""))
       (is (string/includes? body "data-clojure-inspector-variant=\"compact\""))
       (is (string/includes? body ":answer"))
       (is (not (string/includes? body "Inspect value"))))))
@@ -217,7 +229,7 @@
     (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.0.1"))
     (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"))
     (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
-    (is (string/includes? body "/static/llar-status.js?v=datatables-3-01"))
+    (is (string/includes? body "/static/llar-status.js?v=dashboard-tables-1"))
     (is (string/includes? javascript "DataTable.isDataTable"))
     (is (string/includes? javascript "new DataTable"))
     (is (not (re-find #"[.$]DataTable\(" javascript)))))
@@ -296,16 +308,32 @@
   (reset! podcast/download-state
           {42 {:status :perm-failed
                :media-url "https://example.com/episode"
+               :metadata {:duration 90}
                :error "video unavailable"}})
   (try
     (with-redefs [podcast/podcast-disk-stats (constantly nil)
                   podcast-api/format-duration (constantly nil)]
       (let [body (str (h/html (uut/podcast-tab)))]
         (is (string/includes? body "Perm Failed"))
+        (is (string/includes? body "id=\"podcasts-datatable\""))
+        (is (string/includes? body "data-order=\"90\""))
         (is (string/includes? body ">Untag<"))
         (is (string/includes? body "/api/podcast/42/tag"))))
     (finally
       (reset! podcast/download-state {}))))
+
+(deftest tiny-dashboard-summaries-do-not-render-datatables
+  (testing "memory"
+    (let [body (str (uut/memory-tab))]
+      (is (string/includes? body "Runtime Total"))
+      (is (not (string/includes? body "datatable")))))
+  (testing "word count groups"
+    (with-redefs [persistency/get-word-count-groups (constantly [[0 2]])
+                  persistency/get-tag-stats (constantly [])
+                  persistency/get-type-stats (constantly [])]
+      (let [body (str (uut/database-tab))]
+        (is (string/includes? body
+                              "<h5>Word Count Groups</h5><table class=\"table\">"))))))
 
 (deftest podcast-untag-removes-tag-and-tracking-state
   (reset! podcast/download-state

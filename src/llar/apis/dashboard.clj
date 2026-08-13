@@ -60,7 +60,7 @@
    [:script {:src "/static/datatables/dataTables.min.js?v=3.0.1"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar-status.js?v=datatables-3-01"}]])
+   [:script {:src "/static/llar-status.js?v=dashboard-tables-1"}]])
 
 (defn wrap-body [body]
   (str
@@ -346,7 +346,7 @@
 
 (defn memory-tab []
   (h/html
-   [:table {:class "datatable table"}
+   [:table {:class "table"}
     [:thead
      [:tr
       [:th "Metric"]
@@ -367,7 +367,7 @@
    [:div
     [:div
      [:h5 "Word Count Groups"]
-     [:table {:class "datatable table"}
+     [:table {:class "table"}
       [:thead
        [:tr
         [:th "Group"]
@@ -391,28 +391,40 @@
   (let [states (mount/find-all-states)
         running (mount/running-states)]
     (h/html
-     [:table {:class "table"}
-      [:thead
-       [:tr
-        [:th "State"]
-        [:th "Running?"]
-        [:th "Type"]
-        [:th "Value"]]]
-      [:tbody
-       (for [state states
-             :let [val (mount/current-state state)]]
-         [:tr
-          [:td state]
-          [:td (some? (some #{state} running))]
-          [:td (type val)]
-          [:td
-           (if (= "#'llar.update/state" state)
-             "..omitted.."
-             (value-inspector/value-inspector
-              [[:value "Value" val]]
-              {:variant :compact
-               :max-nodes 600
-               :max-children 75}))]])]])))
+     [:div {:class "table-responsive"}
+      [:table {:id "states-datatable"
+               :class "table align-middle"
+               :aria-label "Application states"}
+       [:thead
+        [:tr
+         [:th "State"]
+         [:th "Running?"]
+         [:th "Type"]]]
+       [:tbody
+        (mapcat
+         (fn [state]
+           (let [val (mount/current-state state)
+                 state-key (str state)]
+             [[:tr {:class "state-row"
+                    :data-state-key state-key}
+               [:td state]
+               [:td {:data-order (if (some? (some #{state} running)) 1 0)}
+                (some? (some #{state} running))]
+               [:td (type val)]]
+              [:tr {:class "state-detail-row"
+                    :data-state-key state-key}
+               [:td {:colspan 3
+                     :class "border-top-0 px-2 pt-0 pb-3"}
+                [:section {:class "state-value-panel border rounded bg-body-tertiary p-2"}
+                 [:h6 {:class "small fw-semibold text-uppercase mb-1"} "Value"]
+                 (if (= "#'llar.update/state" state)
+                   "..omitted.."
+                   (value-inspector/value-inspector
+                    [[:value "Value" val]]
+                    {:variant :compact
+                     :max-nodes 600
+                     :max-children 75}))]]]]))
+         states)]]])))
 
 ;;; Activity tab
 ;;;
@@ -622,7 +634,9 @@
   (let [schedules (sched/find-schedules)]
     [:div
      [:div {:class "table-responsive"}
-      [:table {:class "table align-middle schedule-table"}
+      [:table {:id "schedules-datatable"
+               :class "table align-middle schedule-table"
+               :aria-label "Schedules"}
        [:thead
         [:tr
          [:th "Name"]
@@ -645,16 +659,29 @@
                  (sched/snapshot schedule)
                  output? (or (some? last-result) (some? last-exception))]
              (cond->
-              [[:tr
+              [[:tr {:class "schedule-row"
+                     :data-schedule-key (name key)}
                 [:td sched-name]
                 [:td mount-state]
                 [:td sched-type]
                 [:td chime-times]
-                [:td (some-> next-run-at datetime-until)]
-                [:td (if running? "yes" "no")]
-                [:td (some-> last-started-at human/datetime-ago)]
-                [:td (some-> last-finished-at human/datetime-ago)]
-                [:td (some-> last-duration human/format-duration)]
+                [:td {:data-order (if next-run-at
+                                    (time/to-millis-from-epoch next-run-at)
+                                    -1)}
+                 (some-> next-run-at datetime-until)]
+                [:td {:data-order (if running? 1 0)} (if running? "yes" "no")]
+                [:td {:data-order (if last-started-at
+                                    (time/to-millis-from-epoch last-started-at)
+                                    -1)}
+                 (some-> last-started-at human/datetime-ago)]
+                [:td {:data-order (if last-finished-at
+                                    (time/to-millis-from-epoch last-finished-at)
+                                    -1)}
+                 (some-> last-finished-at human/datetime-ago)]
+                [:td {:data-order (if (instance? java.time.Duration last-duration)
+                                    (.toMillis ^java.time.Duration last-duration)
+                                    -1)}
+                 (some-> last-duration human/format-duration)]
                 [:td (some-> last-trigger name)]
                 [:td [:button {:type "button"
                                :class "btn btn-sm btn-primary btn-run-schedule"
@@ -662,7 +689,8 @@
                       "Run"]]]]
                output?
                (conj
-                [:tr
+                [:tr {:class "schedule-detail-row"
+                      :data-schedule-key (name key)}
                  [:td {:colspan 11
                        :class "border-top-0 px-2 pt-0 pb-3"}
                   [:div {:class "row g-2"}
@@ -756,7 +784,9 @@
 
      (if (empty? state)
        [:p {:class "text-muted"} "No podcast items tracked. Tag items with \"podcast\" to start."]
-       [:table {:class "table table-sm"}
+       [:table {:id "podcasts-datatable"
+                :class "table table-sm"
+                :aria-label "Podcast episodes"}
         [:thead
          [:tr
           [:th "Status"]
@@ -771,10 +801,12 @@
         [:tbody
          (for [[item-id info] (sort-by (comp :last-attempt val) #(compare %2 %1) state)
                :let [{:keys [status media-url metadata last-attempt blob-hash
-                             item-title source-key error]} info]]
+                             item-title source-key error]} info
+                     duration (:duration metadata)
+                     blob-size (when blob-hash (podcast/blob-file-size blob-hash))]]
            [:tr
-            [:td (podcast-status-badge status)]
-            [:td [:small {:class "font-monospace"} item-id]]
+            [:td {:data-order (name status)} (podcast-status-badge status)]
+            [:td {:data-order item-id} [:small {:class "font-monospace"} item-id]]
             [:td (when source-key
                    [:small (str source-key)])]
             [:td
@@ -788,13 +820,14 @@
                [:small {:class "text-muted"} (human/truncate-ellipsis (str media-url) 80)])
              (when blob-hash
                [:div [:small {:class "text-muted font-monospace"} (subs blob-hash 0 12) "..."]])]
-            [:td (when-let [dur (:duration metadata)]
-                   (podcast-api/format-duration dur))]
-            [:td (when blob-hash
-                   (let [sz (podcast/blob-file-size blob-hash)]
-                     (when (pos? sz) (human/filesize sz))))]
-            [:td (when last-attempt
-                   (human/datetime-ago last-attempt))]
+            [:td {:data-order (or duration -1)}
+             (some-> duration podcast-api/format-duration)]
+            [:td {:data-order (or blob-size -1)}
+             (when (and blob-size (pos? blob-size)) (human/filesize blob-size))]
+            [:td {:data-order (if last-attempt
+                                (time/to-millis-from-epoch last-attempt)
+                                -1)}
+             (when last-attempt (human/datetime-ago last-attempt))]
             [:td (when error
                    [:details
                     [:summary [:small {:class "text-danger"} (human/truncate-ellipsis error 60)]]
@@ -968,7 +1001,8 @@
            last-error failure-class item-id]
     :as capture}]
   [:tr
-   [:td (capture-status-badge capture)]
+   [:td {:data-order (name (capture-operational-state capture))}
+    (capture-status-badge capture)]
    [:td
     (when title [:div [:strong title]])
     [:a {:href url :target "_blank" :rel "noreferrer"}
@@ -976,8 +1010,11 @@
     (when item-id
       [:div [:small {:class "text-muted font-monospace"} "item " item-id]])]
    [:td [:small submitted-by]]
-   [:td attempt-count]
-   [:td (when last-attempt-ts (human/datetime-ago last-attempt-ts))]
+   [:td {:data-order attempt-count} attempt-count]
+   [:td {:data-order (if last-attempt-ts
+                       (time/to-millis-from-epoch last-attempt-ts)
+                       -1)}
+    (when last-attempt-ts (human/datetime-ago last-attempt-ts))]
    [:td
     (when last-error
       [:details
@@ -1012,7 +1049,9 @@
       "Captures are acknowledged only after a durable queue commit. Retry and Dismiss are manual recovery actions; recapturing a failed URL does not change it."]
      (if (empty? captures)
        [:p {:class "text-muted"} "No bookmark captures yet."]
-       [:table {:class "table table-sm"}
+       [:table {:id "bookmarks-datatable"
+                :class "table table-sm"
+                :aria-label "Bookmark captures"}
         [:thead
          [:tr
           [:th "Status"]

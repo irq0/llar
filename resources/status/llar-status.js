@@ -59,6 +59,92 @@ function datatable_for(selector) {
   return new DataTable(table, { retrieve: true });
 }
 
+function initialize_dashboard_table(container, selector, column_defs) {
+  $(container)
+    .find(selector)
+    .each(function () {
+      if (!DataTable.isDataTable(this)) {
+        new DataTable(this, {
+          paging: false,
+          info: false,
+          lengthChange: false,
+          deferRender: true,
+          searching: true,
+          order: [],
+          columnDefs: column_defs,
+        });
+      }
+    });
+}
+
+function initialize_expanded_dashboard_table(container, options) {
+  $(container)
+    .find(options.selector)
+    .each(function () {
+      if (DataTable.isDataTable(this)) return;
+
+      var detail_rows = [];
+      this.querySelectorAll("tbody > tr." + options.rowClass).forEach(
+        function (row) {
+          var detail_row = row.nextElementSibling;
+          if (
+            !detail_row ||
+            !detail_row.classList.contains(options.detailRowClass)
+          ) {
+            return;
+          }
+
+          var content = document.createElement("div");
+          content.className = options.contentClass + " px-2 pt-0 pb-3";
+          content.dataset[options.keyName] =
+            detail_row.dataset[options.keyName];
+          while (detail_row.cells[0].firstChild) {
+            content.appendChild(detail_row.cells[0].firstChild);
+          }
+          detail_rows.push({ row: row, content: content });
+          detail_row.remove();
+        },
+      );
+
+      var table = new DataTable(this, {
+        paging: false,
+        info: false,
+        lengthChange: false,
+        deferRender: true,
+        searching: true,
+        order: [],
+        columnDefs: options.columnDefs || [],
+      });
+
+      detail_rows.forEach(function (detail) {
+        table.row(detail.row).child(detail.content, options.childClass).show();
+      });
+    });
+}
+
+function initialize_schedule_datatable(container) {
+  initialize_expanded_dashboard_table(container, {
+    selector: "#schedules-datatable",
+    rowClass: "schedule-row",
+    detailRowClass: "schedule-detail-row",
+    contentClass: "schedule-detail-content",
+    childClass: "schedule-detail-child",
+    keyName: "scheduleKey",
+    columnDefs: [{ targets: 10, orderable: false, searchable: false }],
+  });
+}
+
+function initialize_state_datatable(container) {
+  initialize_expanded_dashboard_table(container, {
+    selector: "#states-datatable",
+    rowClass: "state-row",
+    detailRowClass: "state-detail-row",
+    contentClass: "state-detail-content",
+    childClass: "state-detail-child",
+    keyName: "stateKey",
+  });
+}
+
 function initialize_datatables(container) {
   var sources_table = $(container).find("#sources-datatable");
 
@@ -107,6 +193,15 @@ function initialize_datatables(container) {
       searching: true,
     });
   }
+
+  initialize_dashboard_table(container, "#bookmarks-datatable", [
+    { targets: 6, orderable: false, searchable: false },
+  ]);
+  initialize_dashboard_table(container, "#podcasts-datatable", [
+    { targets: 8, orderable: false, searchable: false },
+  ]);
+  initialize_state_datatable(container);
+  initialize_schedule_datatable(container);
 }
 
 var config_lab_state = {
