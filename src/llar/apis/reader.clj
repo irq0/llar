@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t02-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t03-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-t02-01"}]])
+   [:script {:src "/static/llar.js?v=reader-t03-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -3005,11 +3005,6 @@
             (name group-item)
             (or (:source-key item) "all"))))
 
-(defn- queue-item-href [x item]
-  (make-site-href [(queue-item-link-prefix item) "item/by-id" (:id item)]
-                  {:mark :read}
-                  x))
-
 (defn- queue-duration-label [minutes]
   (let [minutes (long (Math/ceil (double minutes)))
         hours (quot minutes 60)
@@ -3159,72 +3154,118 @@
         label
         [:span {:class "badge text-bg-light ms-1"} n]])]))
 
-(defn- render-reading-queue-item
-  [x {:keys [id title source-key author ts tags entry url] :as item}]
-  [:div {:id (str "item-" id)
-         :class "feed-item reader-tool-row"
-         :data-id id}
-   [:h4 {:class "h4"}
-    [:a {:href (queue-item-href x item)}
-     (if (string/blank? title) "(no title)" title)]]
-   [:ul {:class "list-inline reader-tool-metadata"}
-    (for [reason (queue-item-reasons item)
-          :let [[label badge-class] (queue-reason-label reason)]]
-      [:li {:class "list-inline-item"}
-       [:span {:class (str "badge " badge-class)} label]])
-    (when (item-has-tag? item :unread)
-      [:li {:class "list-inline-item"}
-       [:span {:class "badge text-bg-light"} "Unread"]])
-    (when-let [checkpoint (item-state/checkpoint item)]
-      [:li {:class "list-inline-item"}
-       [:span {:class "badge text-bg-primary"}
-        (format "Saved place %.0f%%" (* 100.0 (:progress checkpoint)))]])
-    [:li {:class "list-inline-item"}
-     (icon "far fa-calendar") "\u00a0"
-     [:span {:class "timestamp"}
-      (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
-     [:span " - "]
-     [:span {:class "timestamp"} (human/datetime-ago ts)]]
-    (when-let [consumption-meta (consumption-time-meta item)]
-      [:li {:class "list-inline-item"}
-       [:span {:class "reader-queue-consumption-time" :title (:title consumption-meta)}
-        "\u00a0" (icon (:icon consumption-meta)) "\u00a0"
-        (:label consumption-meta)]])
-    (when (string? source-key)
-      [:li {:class "list-inline-item"}
-       "\u00a0" (icon "fas fa-rss") source-key
-       (when (= (:type item) :item-type/link)
-         [:span "\u00a0"
-          (when-let [comments-url (:comments-url entry)]
-            [:a {:href comments-url} "(comments)"])
-          " → " (human/host-identifier url)])])
-    (when-not (string/blank? author)
-      [:li {:class "list-inline-item"}
-       "\u00a0" (icon "far fa-user") author])]
-   [:div {:class "clearfix"}
-    (when-let [image-url (first-usable-image-url (:thumbnail entry)
-                                                 (:lead-image-url entry))]
-      [:figure {:class "figure float-start me-3 reader-queue-thumbnail reader-image-container"}
-       [:img {:src image-url
-              :class "figure-img reader-defensive-image"
-              :data-error-remove ".reader-image-container"
-              :alt ""
-              :loading "lazy"
-              :decoding "async"}]])
-    [:div {:class "description"}
-     [:p (human/truncate-ellipsis
-          (get-in item [:data :description "text/plain"])
-          1200)]]]
-   [:div {:class "reader-tool-actions btn-toolbar" :role "toolbar"}
-    [:div {:class "btn-group btn-group-sm me-2" :role "group"}
-     (focus-button
-      (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"]
-                      {:data "content" :content-type "text/html"}
-                      x))]
-    [:div {:class "item-action-buttons btn-group btn-group-sm me-2" :role "group"}
-     (state-buttons id tags)
-     (item-tag-buttons id tags)
-     (done-button item)]]])
+(defn- continue-progress-percentage [progress]
+  (cond
+    (<= progress 0.0) 0
+    (>= progress 1.0) 100
+    :else (-> (Math/round (* 100.0 progress))
+              (max 1)
+              (min 99))))
+
+(defn- continue-progress-label [percentage]
+  (cond
+    (zero? percentage) "Ready to begin"
+    (= percentage 100) "At the end"
+    :else (str percentage "% read")))
+
+(defn- continue-time-label [item progress]
+  (let [{:keys [kind minutes]} (item/consumption-time item)]
+    (when minutes
+      (let [remaining (long (Math/ceil (* minutes (- 1.0 progress))))
+            unit (case kind
+                   :video "video"
+                   :audio "audio"
+                   "read")]
+        (if (pos? remaining)
+          (format "%s min left · %s min %s" remaining minutes unit)
+          (format "%s min %s" minutes unit))))))
+
+(defn- continue-item-href [x item]
+  (make-site-href [(queue-item-link-prefix item) "item/by-id" (:id item)]
+                  {:mark :read :resume :checkpoint}
+                  x))
+
+(defn- clear-checkpoint-button [id]
+  (icon-button {:class "state-action reader-continue-clear"
+                :href "#"
+                :title "Remove from Continue Reading"
+                :aria-label "Remove from Continue Reading"
+                :data-id id
+                :data-action "clear-checkpoint"}
+               "fas fa-times"))
+
+(defn- continue-done-button [id]
+  (icon-button {:class "state-action reader-continue-done"
+                :href "#"
+                :title "Done reading"
+                :aria-label "Done reading"
+                :data-id id
+                :data-action "done"}
+               "fas fa-check-circle"))
+
+(defn- render-continue-reading-item
+  [x {:keys [id title source-key author entry url checkpoint-updated-ts]
+      :as item}]
+  (let [{:keys [progress]} (item-state/checkpoint item)
+        percentage (continue-progress-percentage progress)
+        href (continue-item-href x item)
+        image-url (first-usable-image-url (:thumbnail entry)
+                                          (:lead-image-url entry))]
+    [:article {:id (str "item-" id)
+               :class (str "reader-continue-item reader-tool-row"
+                           (when image-url " has-thumbnail"))
+               :data-id id}
+     [:div {:class "reader-continue-layout"}
+      [:div {:class "reader-continue-main"}
+       [:h2 {:class "reader-continue-title"}
+        [:a {:href href} (if (string/blank? title) "(no title)" title)]]
+       [:div {:class "reader-continue-progress-row"}
+        [:div {:class "reader-continue-progress"
+               :role "progressbar"
+               :aria-label "Saved reading progress"
+               :aria-valuemin "0"
+               :aria-valuemax "100"
+               :aria-valuenow percentage}
+         [:span {:style (format "width: %s%%" percentage)}]]
+        [:span {:class "reader-continue-progress-label"}
+         (continue-progress-label percentage)]]
+       [:div {:class "reader-continue-footer"}
+        [:ul {:class "list-inline reader-continue-metadata"}
+         (when checkpoint-updated-ts
+           [:li {:class "list-inline-item"
+                 :title (time/format (time/formatter "yyyy-MM-dd HH:mm z")
+                                     checkpoint-updated-ts)}
+            (icon "far fa-map")
+            [:time {:datetime (str checkpoint-updated-ts)}
+             "Place updated " (human/datetime-ago-short checkpoint-updated-ts) " ago"]])
+         (when-let [time-label (continue-time-label item progress)]
+           [:li {:class "list-inline-item"}
+            (icon "far fa-clock") time-label])
+         (when (string? source-key)
+           [:li {:class "list-inline-item"}
+            (icon "fas fa-rss") source-key])
+         (when (and (not (string/blank? author))
+                    (not= (some-> source-key string/lower-case)
+                          (some-> author string/lower-case)))
+           [:li {:class "list-inline-item"}
+            (icon "far fa-user") author])]
+        [:div {:class "reader-continue-actions btn-group btn-group-sm"
+               :role "toolbar"
+               :aria-label "Continue Reading actions"}
+         (when (string? url) (external-link-button url))
+         (clear-checkpoint-button id)
+         (continue-done-button id)]]]
+      (when image-url
+        [:a {:class "reader-continue-thumbnail reader-image-container"
+             :href href
+             :aria-hidden "true"
+             :tabindex "-1"}
+         [:img {:src image-url
+                :class "reader-defensive-image"
+                :data-error-remove ".reader-image-container"
+                :alt ""
+                :loading "lazy"
+                :decoding "async"}]])]]))
 
 (defn- queue-pagination [x offset page-size has-more?]
   (when (or (pos? offset) has-more?)
@@ -3271,9 +3312,10 @@
                                             [cluster cluster-items]))))
                                 vec))]
     [:div {:class "reader-tool-view reader-reading-queue"}
-     [:p {:class "reader-tool-status"}
+     [:p {:class (str "reader-tool-status"
+                      (when continue-only? " reader-continue-status"))}
       (if continue-only?
-        (format "%s active item%s, most recently updated first."
+        (format "%s saved place%s."
                 (:total stats) (if (= 1 (:total stats)) "" "s"))
         (format "Loaded page: %s queue item%s across %s cluster%s. Last clustered: %s."
                 (:total stats)
@@ -3296,11 +3338,13 @@
         (queue-time-filter-nav x queue-time-filter time-stats)])
      (when-not continue-only?
        (queue-cluster-index visible-clusters))
-     (when (zero? (:total stats))
-       [:p {:class "reader-tool-empty"}
-        (if continue-only?
-          "Nothing is in progress. Pin your place in an item to put it here."
-          "No saved or partially read items in the queue.")])
+     (if continue-only?
+       [:p (cond-> {:class "reader-tool-empty reader-continue-empty"}
+             (pos? (:total stats)) (assoc :hidden true))
+        "Nothing is in progress. Pin your place in an item to put it here."]
+       (when (zero? (:total stats))
+         [:p {:class "reader-tool-empty"}
+          "No saved or partially read items in the queue."]))
      (when (and (pos? (:total stats)) (empty? filtered-items))
        [:p {:class "reader-tool-empty"}
         (format "No %s items for %s on this page."
@@ -3308,7 +3352,7 @@
                 (string/lower-case (queue-time-filter-label queue-time-filter)))])
      (if continue-only?
        (for [item filtered-items]
-         (render-reading-queue-item x item))
+         (render-continue-reading-item x item))
        (for [[cluster-index [cluster cluster-items]] (map-indexed vector visible-clusters)]
          [:section {:class "reader-tool-section reader-queue-cluster"
                     :id (queue-cluster-id cluster cluster-index)}

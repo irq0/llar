@@ -790,7 +790,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t02-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t03-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime
@@ -1279,7 +1279,7 @@
              [[{:id 1 :words ["only"]}
                [{:type :item-type/link :tags ["saved"]}]]]))))
 
-(deftest reading-queue-uses-preview-extensions-without-changing-continue-reading
+(deftest reading-queue-and-continue-reading-keep-distinct-presentations
   (let [item {:id 7
               :title "Resume later"
               :source-key "feed"
@@ -1288,6 +1288,7 @@
               :url "https://example.com/story"
               :tags []
               :checkpoint-progress 0.2
+              :checkpoint-updated-ts (time/zoned-date-time)
               :nwords 200}
         queue (str (h/html (#'uut/render-reading-queue
                             {:request-params {}}
@@ -1301,8 +1302,51 @@
     (is (string/includes? queue "reader-queue-preview"))
     (is (string/includes? queue "id=\"queue-cluster-1\""))
     (is (string/includes? queue "class=\"feed-item reader-queue-preview"))
-    (is (string/includes? continue "class=\"feed-item"))
+    (is (string/includes? continue "reader-continue-item reader-tool-row"))
+    (is (string/includes? continue "1 saved place."))
+    (is (string/includes? continue "20% read"))
+    (is (string/includes? continue "2 min left · 2 min read"))
+    (is (string/includes? continue "resume=checkpoint"))
+    (is (string/includes? continue "Place updated"))
+    (is (string/includes? continue "Remove from Continue Reading"))
+    (is (string/includes? continue "data-action=\"done\""))
+    (is (string/includes? continue "Done reading"))
+    (is (not (string/includes? continue "Mark unread")))
+    (is (not (string/includes? continue "most recently updated first.</p>")))
     (is (not (string/includes? continue "reader-queue-preview")))))
+
+(deftest continue-reading-zero-progress-is-an-honest-start-state
+  (let [item {:id 9
+              :title "Start here"
+              :source-key "feed"
+              :ts (time/zoned-date-time)
+              :type :item-type/link
+              :url "https://example.com/start"
+              :tags []
+              :checkpoint-progress 0.0
+              :checkpoint-updated-ts (time/zoned-date-time)
+              :nwords 100}
+        rendered (str (h/html (#'uut/render-continue-reading-item
+                               {:request-params {}} item)))]
+    (is (string/includes? rendered "Ready to begin"))
+    (is (not (string/includes? rendered "Start reading")))
+    (is (string/includes? rendered "width: 0%"))
+    (is (string/includes? rendered "aria-valuenow=\"0\""))
+    (is (not (string/includes? rendered "Saved place 0%")))))
+
+(deftest continue-reading-progress-does-not-round-away-real-position
+  (is (= 1 (#'uut/continue-progress-percentage 0.001)))
+  (is (= 99 (#'uut/continue-progress-percentage 0.999)))
+  (is (= 100 (#'uut/continue-progress-percentage 1.0))))
+
+(deftest continue-reading-resume-request-uses-existing-checkpoint-code
+  (let [javascript (slurp "resources/status/llar.js")]
+    (is (string/includes? javascript
+                          "params.get(\"resume\") !== \"checkpoint\""))
+    (is (string/includes? javascript
+                          "button.trigger(\"click\")"))
+    (is (string/includes? javascript
+                          "updateContinueReadingAfterState(state)"))))
 
 (deftest reading-queue-filters
   (let [saved {:tags ["saved"] :type :item-type/link}

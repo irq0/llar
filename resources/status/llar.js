@@ -140,11 +140,26 @@ function applyItemState(state) {
   updateCheckpointControls(state);
 }
 
+function updateContinueReadingAfterState(state) {
+  var item = $("#item-" + state.id + ".reader-continue-item");
+  if (!item.length || state.checkpoint) return;
+  item.remove();
+
+  var count = $(".reader-continue-item").length;
+  $(".reader-continue-status").text(
+    count + " saved place" + (count === 1 ? "." : "s."),
+  );
+  $(".reader-continue-empty").prop("hidden", count !== 0);
+}
+
 function requestItemState(id, action, data) {
   return $.post(
     "/reader/item/by-id/" + id + "/state",
     Object.assign({ action: action }, data || {}),
-  ).done(applyItemState);
+  ).done(function (state) {
+    applyItemState(state);
+    updateContinueReadingAfterState(state);
+  });
 }
 
 function makeAnimatedDots(extraClass) {
@@ -1903,6 +1918,26 @@ function resumeReadingCheckpoint(event) {
   }
   flashReadingRange(range);
 }
+
+function resumeRequestedCheckpoint() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get("resume") !== "checkpoint") return;
+  var button = $(".btn-resume-checkpoint").first();
+  if (!button.length) return;
+
+  var resume = function () {
+    button.trigger("click");
+  };
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      window.requestAnimationFrame(resume);
+    });
+  } else {
+    window.requestAnimationFrame(resume);
+  }
+}
+
+$(window).on("load", resumeRequestedCheckpoint);
 
 function renderHighlights() {
   clearHighlights();

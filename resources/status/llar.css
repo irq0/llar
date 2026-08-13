@@ -1480,6 +1480,107 @@ figure {
   margin: var(--llar-space-2) 0 0;
 }
 
+.reader-continue-item {
+  padding-block: var(--llar-space-5);
+  border-bottom: 1px solid var(--llar-border);
+}
+
+.reader-continue-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10rem;
+  gap: var(--llar-space-5);
+  align-items: start;
+}
+
+.reader-continue-item:not(.has-thumbnail) .reader-continue-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.reader-continue-main {
+  min-width: 0;
+}
+
+.reader-continue-title {
+  margin: 0 0 var(--llar-space-3);
+  color: var(--llar-ink);
+  font-size: clamp(1.15rem, 1.7vw, 1.45rem);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.reader-continue-title > a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.reader-continue-progress-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 20rem) auto;
+  gap: var(--llar-space-3);
+  align-items: center;
+  margin-bottom: var(--llar-space-2);
+}
+
+.reader-continue-progress {
+  height: 0.34rem;
+  overflow: hidden;
+  border-radius: 500rem;
+  background: var(--llar-border);
+}
+
+.reader-continue-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--llar-primary);
+}
+
+.reader-continue-progress-label {
+  color: var(--llar-primary-control);
+  font-family: var(--llar-font-data);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.reader-continue-metadata {
+  margin: 0;
+  color: var(--llar-ink-muted);
+  font-size: 0.78rem;
+}
+
+.reader-continue-metadata .list-inline-item {
+  margin-right: var(--llar-space-3);
+}
+
+.reader-continue-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--llar-space-2);
+  align-items: center;
+}
+
+.reader-continue-actions {
+  flex: 0 0 auto;
+}
+
+.reader-continue-thumbnail {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--llar-border);
+  border-radius: var(--llar-radius);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-continue-thumbnail > .reader-defensive-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  object-fit: contain;
+}
+
 @media (width <= 576px) {
   .reader-tool-workbench {
     padding-inline: var(--llar-space-3);
@@ -1503,6 +1604,26 @@ figure {
 
   .reader-queue-cluster-meta {
     white-space: normal;
+  }
+
+  .reader-continue-layout {
+    grid-template-columns: minmax(0, 1fr) 6rem;
+    gap: var(--llar-space-3);
+  }
+
+  .reader-continue-progress-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--llar-space-1);
+  }
+}
+
+@media (width <= 400px) {
+  .reader-continue-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reader-continue-thumbnail {
+    display: none;
   }
 }
 
@@ -1540,6 +1661,12 @@ div.item-content-body a {
 .feed-item a:hover {
   color: var(--llar-ink);
   text-decoration: none;
+}
+
+.reader-continue-title > a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--llar-primary-control);
+  text-underline-offset: 0.15em;
 }
 
 .feed-item > h4 {
@@ -2936,21 +3063,6 @@ div.item-content-body p > code {
     min-height: 4.5rem;
     padding: var(--llar-space-3);
   }
-}
-
-.reader-queue-thumbnail {
-  width: 200px;
-  max-width: 35%;
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-}
-
-.reader-queue-thumbnail > .reader-defensive-image {
-  display: block;
-  width: 100%;
-  max-height: 12rem;
-  margin: 0;
-  object-fit: contain;
 }
 
 .reader-headlines {

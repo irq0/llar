@@ -51,14 +51,9 @@ SELECT i.id,
           INNER JOIN tags ON tags.id = tag_id) AS tags,
        i.reading_selector AS "checkpoint-selector",
        i.reading_progress AS "checkpoint-progress",
-       i.reading_updated_ts AS "checkpoint-updated-ts",
-       description.text AS "description-text"
+       i.reading_updated_ts AS "checkpoint-updated-ts"
 FROM items i
 INNER JOIN sources s ON s.id = i.source_id
-LEFT JOIN item_data description
-  ON description.item_id = i.id
- AND description.type = 'description'
- AND description.mime_type = 'text/plain'
 WHERE i.reading_progress IS NOT NULL
   AND NOT (i.tagi @@ '3')
 ORDER BY i.reading_updated_ts DESC, i.ts DESC, i.id DESC
