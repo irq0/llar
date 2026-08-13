@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l03-05"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t01-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-l03-05"}]])
+   [:script {:src "/static/llar.js?v=reader-t01-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -396,23 +396,40 @@
                   :href "#"}
                  (str "fas fa-check-circle" (when read? " icon-is-set")))))
 
+(def ^:private +tool-views+
+  [{:view :saved-overview
+    :title "Reading Queue"
+    :icon "fas fa-project-diagram"
+    :purpose "Review items you saved or paused, organized for deliberate return."}
+   {:view :continue-reading
+    :title "Continue Reading"
+    :icon "fas fa-map-marker-alt"
+    :purpose "Resume items with a saved reading position, most recently updated first."}
+   {:view :todays-vibe
+    :title "Today’s Vibe"
+    :icon "fas fa-fire"
+    :purpose "Scan recent stories grouped across sources without turning the Reader into a feed."}
+   {:view :gems
+    :title "Gems"
+    :icon "fas fa-gem"
+    :purpose "Find something you kept, browse the archive, or rediscover a forgotten item."}
+   {:view :search
+    :title "Search"
+    :icon "fas fa-search"
+    :purpose "Search the stored archive by words, phrase, source, and fetch age."}])
+
+(defn- tool-view-config [view]
+  (or (some #(when (= view (:view %)) %) +tool-views+)
+      {:view view
+       :title "Reader Tools"
+       :icon "fas fa-tools"
+       :purpose "Use a focused Reader tool."}))
+
 (defn- tool-view-title [view]
-  (case view
-    :saved-overview "Reading Queue"
-    :continue-reading "Continue Reading"
-    :todays-vibe "Today’s Vibe"
-    :gems "Gems"
-    :search "Search"
-    "Reader Tools"))
+  (:title (tool-view-config view)))
 
 (defn- tool-view-icon [view]
-  (case view
-    :saved-overview "fas fa-project-diagram"
-    :continue-reading "fas fa-map-marker-alt"
-    :todays-vibe "fas fa-fire"
-    :gems "fas fa-gem"
-    :search "fas fa-search"
-    "fas fa-tools"))
+  (:icon (tool-view-config view)))
 
 (declare focus-button annotation-button)
 
@@ -545,7 +562,15 @@
            (icon-button {:title "Next item"
                          :aria-label "Next item"
                          :href next-item-href}
-                        "fas fa-step-forward"))])
+                        "fas fa-step-forward"))]
+
+        (= mode :tools)
+        [:span {:class "reader-mobile-actions"}
+         (icon-button {:title "Show Reader and Tools navigation"
+                       :aria-label "Show Reader and Tools navigation"
+                       :data-bs-toggle "collapse"
+                       :href "#groupnav"}
+                      "fas fa-compass")])
 
       [:span {:class "navbar-toggler-title"} short-title]]
      [:div {:class "collapse navbar-collapse"
@@ -615,6 +640,25 @@
    [:span {:class "sidebar-link-icon"} (icon ico)]
    [:span {:class "sidebar-link-label"} label]])
 
+(defn- bookmark-capture-nav []
+  [:form {:class "nav flex-column form-inline"
+          :id "add-thing"}
+   [:div {:class "input-group mb-1"}
+    [:input {:type "text"
+             :class "form-control form-control-sm"
+             :id "add-url-1"
+             :aria-label "Bookmark URL"
+             :placeholder "http://"}]
+    [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
+              :type "submit"
+              :title "Add bookmark with readability engine"
+              :aria-label "Add bookmark with readability engine"
+              :data-bs-title "Add Bookmark with readability engine"
+              :data-url-source "#add-url-1"
+              :data-bs-success "#add-url-1-status"
+              :data-type "readability-bookmark"}
+     (icon "fas fa-newspaper")]]])
+
 (defn group-list
   "Group Item List - Tags, etc."
   [x url-prefix group-items active icons]
@@ -647,33 +691,17 @@
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-left" " mode-" (name (:mode x)))
            :id "groupnav"}
      [:div {:class "sidebar-sticky" :id "left-nav"}
-      [:form {:class "nav flex-column form-inline"
-              :id "add-thing"}
-       [:div {:class "input-group mb-1"}
-        [:input {:type "text"
-                 :class "form-control form-control-sm"
-                 :id "add-url-1"
-                 :aria-label "Bookmark URL"
-                 :placeholder "http://"}]
-        [:button {:class "bookmark-submit form-control-sm btn btn-secondary btn-sm"
-                  :type "submit"
-                  :title "Add bookmark with readability engine"
-                  :aria-label "Add bookmark with readability engine"
-                  :data-bs-title "Add Bookmark with readability engine"
-                  :data-url-source "#add-url-1"
-                  :data-bs-success "#add-url-1-status"
-                  :data-type "readability-bookmark"}
+      (bookmark-capture-nav)
 
-         (icon "fas fa-newspaper")]]]
-
-      [:ul {:class "nav flex-column"}
-       (for [[k [name ico]] +exposed-simple-filter+]
-         [:li {:class "nav-item"}
-          [:a {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
-                                                 (= (:filter x) k))
-                                        " active"))
-               :href (make-site-href [(:uri x)] {:filter k} x)}
-           (sidebar-link-content ico name)]])]
+      (when-not (= :tools (:mode x))
+        [:ul {:class "nav flex-column"}
+         (for [[k [name ico]] +exposed-simple-filter+]
+           [:li {:class "nav-item"}
+            [:a {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
+                                                   (= (:filter x) k))
+                                          " active"))
+                 :href (make-site-href [(:uri x)] {:filter k} x)}
+             (sidebar-link-content ico name)]])])
 
       ;; favorites
       [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
@@ -695,57 +723,41 @@
                         "align-items-center px-3 mt-4 mb-1 text-muted")}
        [:span "Tools"]]
       [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when (= (:view x) :saved-overview) " active"))
-             :href (make-site-href ["/reader/tools/saved-overview"] x)}
-         (sidebar-link-content (tool-view-icon :saved-overview) "Reading Queue")]]]
-      [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when (= (:view x) :continue-reading) " active"))
-             :href (make-site-href ["/reader/tools/continue-reading"] x)}
-         (sidebar-link-content (tool-view-icon :continue-reading) "Continue Reading")]]]
-      [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when (= (:view x) :todays-vibe) " active"))
-             :href (make-site-href ["/reader/tools/todays-vibe"] x)}
-         (sidebar-link-content (tool-view-icon :todays-vibe) "Today’s Vibe")]]]
-      [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when (= (:view x) :gems) " active"))
-             :href (make-site-href ["/reader/tools/gems"] x)}
-         (sidebar-link-content (tool-view-icon :gems) "Gems")]]]
-      [:ul {:class "nav flex-column"}
-       [:li {:class "nav-item"}
-        [:a {:class (str "nav-link" (when (= (:view x) :search) " active"))
-             :href (make-site-href ["/reader/tools/search"] x)}
-         (sidebar-link-content (tool-view-icon :search) "Search")]]]
+       (for [{:keys [view title icon]} +tool-views+]
+         [:li {:class "nav-item"}
+          [:a (cond-> {:class (str "nav-link" (when (= (:view x) view) " active"))
+                       :href (str "/reader/tools/" (name view))}
+                (= (:view x) view) (assoc :aria-current "page"))
+           (sidebar-link-content icon title)]])]
 
-      ;; list style
-      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
-                        "align-items-center px-3 mt-4 mb-1 text-muted")}
-       [:span "List Style"]]
-      [:ul {:class "nav flex-column" :id "view-style-select"}
-       (let [active-style (get-list-style x)]
-         (for [[key {:keys [name ico]}] +list-styles+]
-           [:li {:class "nav-item"}
-            [:a (cond-> {:class (str "nav-link" (when (= key active-style) " active"))
-                         :href (make-site-href [(:uri x)] {:list-style key} x)}
-                  (= key active-style) (assoc :aria-current "page"))
-             (sidebar-link-content ico name)]]))]
+      (when-not (= :tools (:mode x))
+        (list
+         ;; list style
+         [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                           "align-items-center px-3 mt-4 mb-1 text-muted")}
+          [:span "List Style"]]
+         [:ul {:class "nav flex-column" :id "view-style-select"}
+          (let [active-style (get-list-style x)]
+            (for [[key {:keys [name ico]}] +list-styles+]
+              [:li {:class "nav-item"}
+               [:a (cond-> {:class (str "nav-link" (when (= key active-style) " active"))
+                            :href (make-site-href [(:uri x)] {:list-style key} x)}
+                     (= key active-style) (assoc :aria-current "page"))
+                (sidebar-link-content ico name)]]))]
 
-      ;; sort order
-      [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
-                        "align-items-center px-3 mt-4 mb-1 text-muted")}
-       [:span "Sort Order"]]
-      (let [active-sort (get-sort-order x)]
-        [:ul {:class "nav flex-column" :id "sort-order-select"}
-         (for [[key {:keys [name ico]}] +sort-orders+]
-           [:li {:class "nav-item"}
-            [:a {:class (str "nav-link" (when (= key active-sort) " active"))
-                 :href (make-site-href [(:uri x)] {:sort-order key} x)}
-             (sidebar-link-content ico name)]])])
+         ;; sort order
+         [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
+                           "align-items-center px-3 mt-4 mb-1 text-muted")}
+          [:span "Sort Order"]]
+         (let [active-sort (get-sort-order x)]
+           [:ul {:class "nav flex-column" :id "sort-order-select"}
+            (for [[key {:keys [name ico]}] +sort-orders+]
+              [:li {:class "nav-item"}
+               [:a {:class (str "nav-link" (when (= key active-sort) " active"))
+                    :href (make-site-href [(:uri x)] {:sort-order key} x)}
+                (sidebar-link-content ico name)]])])))
 
-      ;; item tags
+      ;; item tags, source tags, and types are destinations, not Tool controls
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
        [:span (icon (:item-tags +group-icons+)) " Item Tags"]]
       [:ul {:class "nav flex-column"}
@@ -754,7 +766,6 @@
                    (when (= active-group :item-tags) active-key)
                    icons)]
 
-      ;; source tags
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
        [:span (icon (:source-tag +group-icons+)) " Source Tags"]]
       [:ul {:class "nav flex-column"}
@@ -763,7 +774,6 @@
                    (when (= active-group :source-tag) active-key)
                    icons)]
 
-      ;; source types
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
        [:span (icon (:type +group-icons+)) " Type"]]
       [:ul {:class "nav flex-column"}
@@ -771,6 +781,18 @@
                    (->> x :sources vals (map :type) (into (sorted-set)))
                    (when (= active-group :type) active-key)
                    icons)]]]))
+
+(defn- tool-workbench [x view]
+  (let [{:keys [title purpose] icon-class :icon} (tool-view-config (:view x))
+        heading-id (str "reader-tool-" (name (or (:view x) :tools)) "-title")]
+    [:section {:class "reader-tool-workbench"
+               :aria-labelledby heading-id}
+     [:header {:class "reader-tool-context"}
+      [:h1 {:class "visually-hidden" :id heading-id}
+       (icon icon-class) " " title]
+      [:p {:class "reader-tool-purpose"} purpose]]
+     [:div {:class "reader-tool-content"}
+      view]]))
 
 (defn source-list-item
   "Source Navigation List Item"
@@ -2976,7 +2998,9 @@
                  [:saved "Saved" (:saved stats)]
                  [:continue-reading "Continue Reading" (:continue-reading stats)]
                  [:unread "Unread" (:unread stats)]]]
-    [:div {:class "reader-queue-filter-nav btn-group btn-group-sm mb-2 me-2" :role "group"}
+    [:div {:class "reader-tool-filters reader-queue-filter-nav btn-group btn-group-sm mb-2 me-2"
+           :role "group"
+           :aria-label "Queue state"}
      (for [[key label n] filters]
        [:a {:class (str "btn btn-outline-secondary"
                         (when (= key active-filter) " active"))
@@ -2996,7 +3020,9 @@
                  [:15-30 "15-30 min" (:15-30 stats)]
                  [:30-60 "30-60 min" (:30-60 stats)]
                  [:60-plus "60+ min" (:60-plus stats)]]]
-    [:div {:class "reader-queue-filter-nav btn-group btn-group-sm mb-3" :role "group"}
+    [:div {:class "reader-tool-filters reader-queue-filter-nav btn-group btn-group-sm mb-3"
+           :role "group"
+           :aria-label "Consumption time"}
      (for [[key label n] filters]
        [:a {:class (str "btn btn-outline-secondary"
                         (when (= key active-time-filter) " active"))
@@ -3011,12 +3037,12 @@
 (defn- render-reading-queue-item
   [x {:keys [id title source-key author ts tags entry url] :as item}]
   [:div {:id (str "item-" id)
-         :class "feed-item"
+         :class "feed-item reader-tool-row"
          :data-id id}
    [:h4 {:class "h4"}
     [:a {:href (queue-item-href x item)}
      (if (string/blank? title) "(no title)" title)]]
-   [:ul {:class "list-inline"}
+   [:ul {:class "list-inline reader-tool-metadata"}
     (for [reason (queue-item-reasons item)
           :let [[label badge-class] (queue-reason-label reason)]]
       [:li {:class "list-inline-item"}
@@ -3064,7 +3090,7 @@
      [:p (human/truncate-ellipsis
           (get-in item [:data :description "text/plain"])
           1200)]]]
-   [:div {:class "btn-toolbar" :role "toolbar"}
+   [:div {:class "reader-tool-actions btn-toolbar" :role "toolbar"}
     [:div {:class "btn-group btn-group-sm me-2" :role "group"}
      (focus-button
       (make-site-href ["/reader/group/default/none/source/all/item/by-id" id "focus"]
@@ -3079,7 +3105,7 @@
   (when (or (pos? offset) has-more?)
     (let [params {:queue-filter (some-> (get-in x [:request-params :queue-filter]) keyword)
                   :queue-time-filter (some-> (get-in x [:request-params :queue-time-filter]) keyword)}]
-      [:nav {:class "reader-queue-pagination d-flex gap-2 my-3"
+      [:nav {:class "reader-tool-pagination reader-queue-pagination d-flex gap-2 my-3"
              :aria-label "Reading queue pages"}
        (when (pos? offset)
          [:a {:class "btn btn-outline-secondary btn-sm"
@@ -3109,12 +3135,8 @@
         filtered-items (filter #(queue-item-matches-filters?
                                  queue-filter queue-time-filter %)
                                items)]
-    [:div
-     [:h1 {:class "visually-hidden"}
-      (icon (tool-view-icon (if continue-only? :continue-reading :saved-overview)))
-      " "
-      (if continue-only? "Continue Reading" "Reading Queue")]
-     [:p {:class "text-secondary"}
+    [:div {:class "reader-tool-view reader-reading-queue"}
+     [:p {:class "reader-tool-status"}
       (if continue-only?
         (format "%s active item%s, most recently updated first."
                 (:total stats) (if (= 1 (:total stats)) "" "s"))
@@ -3127,7 +3149,7 @@
                   (time/format (time/formatter "YYYY-MM-dd HH:mm") last-update)
                   "not yet")))]
      (when-not continue-only?
-       [:p {:class "text-secondary"}
+       [:p {:class "reader-tool-status reader-tool-status-secondary"}
         (format "Saved: %s · Continue reading: %s · Unread: %s"
                 (:saved stats)
                 (:continue-reading stats)
@@ -3135,12 +3157,12 @@
      (when-not continue-only? (queue-filter-nav x queue-filter stats))
      (when-not continue-only? (queue-time-filter-nav x queue-time-filter time-stats))
      (when (zero? (:total stats))
-       [:p {:class "text-secondary"}
+       [:p {:class "reader-tool-empty"}
         (if continue-only?
           "Nothing is in progress. Pin your place in an item to put it here."
           "No saved or partially read items in the queue.")])
      (when (and (pos? (:total stats)) (empty? filtered-items))
-       [:p {:class "text-secondary"}
+       [:p {:class "reader-tool-empty"}
         (format "No %s items for %s on this page."
                 (string/lower-case (queue-filter-label queue-filter))
                 (string/lower-case (queue-time-filter-label queue-time-filter)))])
@@ -3152,7 +3174,7 @@
                                            queue-filter queue-time-filter %)
                                          cluster-items)]
              :when (seq cluster-items)]
-         [:section
+         [:section {:class "reader-tool-section"}
           [:h2
            [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
             [:ol {:class "breadcrumb"}
@@ -3271,7 +3293,7 @@
 
 (defn- render-gem-meta [item]
   (let [consumption-meta (consumption-time-meta item)]
-    [:div {:class "d-flex flex-wrap gap-2 small text-secondary"}
+    [:div {:class "reader-tool-metadata d-flex flex-wrap gap-2 small text-secondary"}
      [:span (icon "fas fa-rss") " " (:source-key item)]
      [:span {:class "timestamp" :title (:ts item)}
       (human/datetime-ago-short (:ts item))]
@@ -3297,7 +3319,7 @@
                       (get-in item [:entry :lead-image-url]))
         description (get-in item [:data :description "text/plain"])]
     [:article {:id (str "item-" (:id item))
-               :class (str "card gem-card mb-3"
+               :class (str "card reader-tool-card gem-card mb-3"
                            (when (:offer-id item) " result-offer"))
                :data-offer-id (:offer-id item)}
      [:div {:class "card-body"}
@@ -3315,7 +3337,7 @@
          [:img {:class "gem-card-image rounded"
                 :src image-url
                 :alt ""}])]
-      [:div {:class "d-flex align-items-center gap-2 mt-2"}
+      [:div {:class "reader-tool-actions d-flex align-items-center gap-2 mt-2"}
        [:a {:class "btn btn-sm btn-primary" :href (gem-open-href item)} "Open"]
        [:a {:class "btn btn-sm btn-outline-secondary"
             :href (gems-href {:related-to (:id item)})}
@@ -3329,7 +3351,7 @@
 
 (defn- render-gem-result [params item]
   [:article {:id (str "item-" (:id item))
-             :class (str "gem-result py-3 border-bottom"
+             :class (str "reader-tool-row gem-result py-3 border-bottom"
                          (when (:offer-id item) " result-offer"))
              :data-offer-id (:offer-id item)}
    [:div {:class "d-flex justify-content-between gap-2"}
@@ -3361,7 +3383,7 @@
      [:div {:class "list-group list-group-flush"}
       (for [row visible] (gem-facet-link params key row))]
      (when (seq remaining)
-       [:details {:class "mt-2"}
+       [:details {:class "reader-tool-disclosure mt-2"}
         [:summary {:class "small text-secondary"} "Show all"]
         [:div {:class "list-group list-group-flush mt-2"}
          (for [row remaining] (gem-facet-link params key row))]])]))
@@ -3391,7 +3413,8 @@
   (let [offset (:offset params)
         page-size 50]
     (when (or (pos? offset) (> total (+ offset page-size)))
-      [:nav {:class "d-flex gap-2 mt-3" :aria-label "Gems result pages"}
+      [:nav {:class "reader-tool-pagination d-flex gap-2 mt-3"
+             :aria-label "Gems result pages"}
        (when (pos? offset)
          [:a {:class "btn btn-outline-secondary btn-sm"
               :href (gems-href (assoc params :offset (max 0 (- offset page-size))))}
@@ -3421,7 +3444,7 @@
     (persistency/get-gem-items frontend-db params)))
 
 (defn- render-gem-results [params {:keys [total items]} heading]
-  [:section
+  [:section {:class "reader-tool-section"}
    [:div {:class "d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"}
     [:div
      [:h2 {:class "h4 mb-1"} heading]
@@ -3438,7 +3461,7 @@
          label])])
    (if (seq items)
      [:div (for [result items] (render-gem-result params result))]
-     [:div {:class "alert alert-light border"} "No gems match this search."])
+     [:div {:class "reader-tool-empty"} "No gems match this search."])
    (render-gem-pagination params total)])
 
 (defn- render-gems [x]
@@ -3446,15 +3469,10 @@
         facets (persistency/get-gem-facets frontend-db {})
         result-mode? (or (:query params) (:tag params) (:source params)
                          (:browse? params) (:related-to params))]
-    [:div {:class "gems-view px-2"}
-     [:h1 {:class "visually-hidden"} (icon (tool-view-icon :gems)) " Gems"]
-     [:div {:class "d-flex justify-content-between align-items-start gap-3 mb-2"}
-      [:div
-       [:p {:class "text-secondary mb-1"}
-        "Find something you kept, browse the collection, or rediscover a forgotten gem."]]
-      [:div {:class "text-end text-secondary small"}
-       [:strong (:total facets)] " gems"
-       [:br] (:topic-count facets) " topics · " (:source-count facets) " sources"]]
+    [:div {:class "reader-tool-view gems-view"}
+     [:div {:class "reader-tool-status reader-tool-status-end"}
+      [:strong (:total facets)] " gems"
+      [:br] (:topic-count facets) " topics · " (:source-count facets) " sources"]
      (render-gem-search params)
      (cond
        (:related-to params)
@@ -3464,7 +3482,8 @@
                                    {:seed-item-id (:related-to params)})]
            (render-gem-results params {:total (count results) :items results}
                                (str "Related to “" (:title item) "”")))
-         [:div {:class "alert alert-warning"} "That archived gem was not found."])
+         [:div {:class "reader-tool-message reader-tool-message-error"}
+          "That archived gem was not found."])
 
        result-mode?
        (try
@@ -3472,7 +3491,7 @@
                              (if (:query params) "Search results" "Browse Gems"))
          (catch Exception exception
            (log/warn exception "Gems search failed" (select-keys params [:query :tag :source]))
-           [:div {:class "alert alert-warning"}
+           [:div {:class "reader-tool-message reader-tool-message-error"}
             "Search failed. Check the query and try again."]))
 
        :else
@@ -3500,7 +3519,7 @@
                "Another set"])]
            (if (seq items)
              (for [gem items] (render-gem-card params gem))
-             [:div {:class "alert alert-light border"}
+             [:div {:class "reader-tool-empty"}
               "Archive an item to make it a Gem."])]
           (when (pos? total)
             [:section
@@ -3619,7 +3638,7 @@
   (let [ordered (ordered-cluster-items cluster)
         representative (first ordered)
         offer-by-item (into {} (map (juxt :item-id :id) offers))]
-    [:article {:class "card mb-3"
+    [:article {:class "card reader-tool-card mb-3"
                :data-vibe-cluster-id (:id cluster)
                :data-vibe-source-count (:source-count cluster)
                :data-vibe-match-score (:match-score cluster)
@@ -3635,7 +3654,7 @@
          (:source-key representative)]]
        [:span {:class "timestamp text-secondary" :title (:latest-ts cluster)}
         (human/datetime-ago-short (:latest-ts cluster))]]
-      [:p {:class "text-secondary"}
+      [:p {:class "reader-tool-metadata"}
        (:source-count cluster) " sources · " (:article-count cluster) " articles · "
        (:unseen-count cluster) " unseen"
        (when-let [match-score (:match-score cluster)]
@@ -3650,7 +3669,7 @@
        [:button {:class "btn btn-sm btn-outline-secondary" :type "submit"}
         "Mark story seen"]]
       (when (> (count ordered) 1)
-        [:details {:class "mt-3"}
+        [:details {:class "reader-tool-disclosure mt-3"}
          [:summary "Show all reports"]
          [:div {:class "list-group list-group-flush mt-2"}
           (for [item (rest ordered)
@@ -3664,10 +3683,8 @@
 (defn- render-todays-vibe [x include-seen?]
   (let [snapshot @vibe/current-vibe]
     (if (= vibe/not-compiled snapshot)
-      [:div
-       [:h1 {:class "visually-hidden"}
-        (icon (tool-view-icon :todays-vibe)) " Today’s Vibe"]
-       [:p {:class "text-secondary"}
+      [:div {:class "reader-tool-view reader-vibe-view"}
+       [:p {:class "reader-tool-message reader-tool-message-loading"}
         "The first clustering run has not completed yet."]]
       (let [clusters (if include-seen?
                        (:clusters snapshot)
@@ -3693,10 +3710,8 @@
                                   result))
             offer-map (into {} (map (fn [[cluster offers]] [(:id cluster) offers])
                                     offers-by-cluster))]
-        [:div
-         [:h1 {:class "visually-hidden"}
-          (icon (tool-view-icon :todays-vibe)) " Today’s Vibe"]
-         [:p {:class "text-secondary"} "Generated "
+        [:div {:class "reader-tool-view reader-vibe-view"}
+         [:p {:class "reader-tool-status"} "Generated "
           [:span {:class "timestamp" :title (:generated-at snapshot)}
            (human/datetime-ago-short (:generated-at snapshot))]
           " · "
@@ -3704,7 +3719,7 @@
                                      {:include-seen (when-not include-seen? true)}
                                      x)}
            (if include-seen? "Hide fully seen" "Include fully seen")]]
-         [:p {:class "text-secondary small"}
+         [:p {:class "reader-tool-status reader-tool-status-secondary"}
           "Showing " shown-count " of " total-count
           " quality-ranked clusters (maximum "
           (:max-clusters (merge {:max-clusters 12} (rc/rc [:reader :vibe]))) ")."]
@@ -3712,7 +3727,7 @@
          (if (seq multi-source)
            (for [cluster multi-source]
              (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))
-           [:p {:class "text-secondary"} "No cross-source stories in this window."])
+           [:p {:class "reader-tool-empty"} "No cross-source stories in this window."])
          [:h2 {:class "mt-4"} "Other recent stories"]
          (for [cluster other]
            (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))]))))
@@ -3764,9 +3779,10 @@
         results (:results search-result)
         error (:error search-result)]
 
-    [:div {:class "px-3"}
-     [:h1 {:class "visually-hidden"} (icon (tool-view-icon :search)) " Search"]
-     [:form {:action "/reader/tools/search" :method "get"}
+    [:div {:class "reader-tool-view reader-search-view"}
+     [:form {:class "reader-tool-panel reader-search-form"
+             :action "/reader/tools/search"
+             :method "get"}
       [:div {:class "row mb-3"}
        [:label {:for "query" :class "col-sm-4 col-form-label"}
         "Query"]
@@ -3807,11 +3823,12 @@
        [:button {:type "submit" :class "btn btn-primary col-sm-2"} "Search"]]]
 
      (when error
-       [:div {:class "alert alert-warning" :role "alert"}
+       [:div {:class "reader-tool-message reader-tool-message-error" :role "alert"}
         (format "Search failed: %s" error)])
 
-     [:h3 "Results"]
-     [:p "Found: " (count results)]
+     [:div {:class "reader-tool-section-heading"}
+      [:h2 {:class "h4 mb-0"} "Results"]
+      [:p {:class "reader-tool-status mb-0"} "Found: " (count results)]]
 
      [:p {:class "word-cloud"}
       (let [freqs (->> (map :key results)
@@ -3837,29 +3854,30 @@
                                                 :days-ago days-ago}))}
             "All sources"]])
 
-     [:table {:class "table table-borderless"}
-      [:thead
-       [:tr
-        [:th {:scope "col"} "Title"]
-        [:th {:scope "col"} "Source"]
-        [:th {:scope "col"} "Fetched"]]]
-      [:tbody
-       (for [{:keys [title key rank id ts headline]} results]
-         [:tr
-          [:td
-           [:a {:class "link-dark link-offset-1"
-                :href (make-site-href
-                       ["/reader/group/default/none/source/all/item/by-id" id]
-                       {:mark :read}
-                       x)}
-            title]
-           (when-not (string/blank? headline)
-             [:div {:class "text-secondary small search-headline"}
-              (render-search-headline headline)])
-           [:div {:class "text-secondary small"} (format "Rank %.2f" rank)]]
-          [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
-                key]]
-          [:td [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]])]]]))
+     [:div {:class "reader-tool-table-wrap"}
+      [:table {:class "table table-borderless reader-tool-table"}
+       [:thead
+        [:tr
+         [:th {:scope "col"} "Title"]
+         [:th {:scope "col"} "Source"]
+         [:th {:scope "col"} "Fetched"]]]
+       [:tbody
+        (for [{:keys [title key rank id ts headline]} results]
+          [:tr
+           [:td
+            [:a {:class "link-dark link-offset-1"
+                 :href (make-site-href
+                        ["/reader/group/default/none/source/all/item/by-id" id]
+                        {:mark :read}
+                        x)}
+             title]
+            (when-not (string/blank? headline)
+              [:div {:class "text-secondary small search-headline"}
+               (render-search-headline headline)])
+            [:div {:class "text-secondary small"} (format "Rank %.2f" rank)]]
+           [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
+                 key]]
+           [:td [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]])]]]]))
 
 (defn reader-tools-index
   "Reader Entrypoint"
@@ -3882,9 +3900,9 @@
                    (doall (persistency/get-sources frontend-db (config/get-sources))))
 
          params (merge params {:sources sources
+                               :item-tags @item-tags
                                :group-group :tools
                                :group-key (:view params)
-                               :item-tags @item-tags
                                :mode :tools
                                :filter orig-fltr})
          nav-bar (nav-bar params)
@@ -3902,9 +3920,8 @@
                      [:div {:class "row"}
                       group-nav
                       [:main {:role "main"
-                              :class "col-12 col-md-9 col-lg-10"}
-                       [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
-                        view]]]]]
+                              :class "reader-tool-main col-12 col-md-9 col-lg-10"}
+                       (tool-workbench params view)]]]]
                    (html-footer))]))]
      html)))
 

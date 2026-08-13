@@ -481,6 +481,49 @@
         (is (re-find #"breadcrumb-item active" rendered))
         (is (not (re-find #">all</a>" rendered)))))))
 
+(deftest tool-workbench-keeps-context-compact-and-consistent
+  (doseq [[view title purpose] [[:saved-overview "Reading Queue" "Review items you saved or paused"]
+                                [:continue-reading "Continue Reading" "Resume items with a saved reading position"]
+                                [:todays-vibe "Today’s Vibe" "Scan recent stories grouped across sources"]
+                                [:gems "Gems" "Find something you kept"]
+                                [:search "Search" "Search the stored archive"]]]
+    (let [rendered (str (h/html (#'uut/tool-workbench {:view view} [:div "Tool body"])))]
+      (is (string/includes? rendered "reader-tool-workbench"))
+      (is (string/includes? rendered "reader-tool-purpose"))
+      (is (string/includes? rendered title))
+      (is (string/includes? rendered purpose))
+      (is (= 1 (count (re-seq #"<h1" rendered)))))))
+
+(deftest tool-navigation-keeps-destinations-and-excludes-list-only-controls
+  (with-redefs [rc/rc (fn [path]
+                        (when (= path [:reader :favorites])
+                          [[:hackernews :source-tag]
+                           [:in-progress :item-tags]]))]
+    (let [rendered (str (h/html (uut/group-nav {:mode :tools
+                                                :view :search
+                                                :group-name :default
+                                                :group-item :all
+                                                :item-tags [:archive :saved]
+                                                :sources {:one {:tags #{:hackernews :tech}
+                                                                :type :feed}}})))]
+      (is (string/includes? rendered "id=\"groupnav\""))
+      (is (string/includes? rendered "hackernews"))
+      (is (string/includes? rendered "aria-current=\"page\""))
+      (is (string/includes? rendered "Reading Queue"))
+      (is (string/includes? rendered "Continue Reading"))
+      (is (not (string/includes? rendered "view-style-select")))
+      (is (not (string/includes? rendered "sort-order-select")))
+      (is (not (string/includes? rendered ">all<")))
+      (is (not (string/includes? rendered ">unread<")))
+      (is (not (string/includes? rendered ">today<")))
+      (is (string/includes? rendered "Item Tags"))
+      (is (string/includes? rendered "/reader/group/item-tags/archive/source/all/items"))
+      (is (string/includes? rendered "Source Tags"))
+      (is (string/includes? rendered "/reader/group/source-tag/tech/source/all/items"))
+      (is (string/includes? rendered ">Type<"))
+      (is (string/includes? rendered "/reader/group/type/feed/source/all/items"))
+      (is (not (string/includes? rendered ">in-progress<"))))))
+
 (deftest related-breadcrumb-extends-the-originating-item-path
   (with-redefs [rc/rc (constantly nil)]
     (let [rendered (str (h/html (uut/nav-bar
@@ -747,7 +790,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-l03-05\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t01-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime
@@ -1218,6 +1261,6 @@
                           (tree-seq coll? seq view))
           rendered (str (h/html view))]
       (is (true? (:checked (second any-radio))))
-      (is (re-find #"<p>Found: 0</p>" rendered))
+      (is (re-find #">Found: 0</p>" rendered))
       (is (re-find #"<th scope=\"col\">Title</th>" rendered))
       (is (not (re-find #"<p>Found: <td" rendered))))))

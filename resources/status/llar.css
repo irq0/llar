@@ -1110,6 +1110,12 @@ details[open]
   cursor: pointer;
 }
 
+.reader-tool-disclosure > summary {
+  color: var(--llar-ink-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
 .clojure-inspector-content details > summary {
   cursor: pointer;
   list-style: none;
@@ -1165,9 +1171,155 @@ figure {
   padding: 0.5em;
 }
 
-.gems-view {
+.reader-tool-main {
+  min-width: 0;
+}
+
+.reader-tool-workbench {
+  width: 100%;
+  max-width: 88rem;
+  margin-inline: auto;
+  padding: var(--llar-space-3) clamp(0.75rem, 2vw, 1.5rem) var(--llar-space-5);
+}
+
+.reader-tool-context {
+  margin-bottom: var(--llar-space-4);
+  padding-bottom: var(--llar-space-2);
+  border-bottom: 1px solid var(--llar-border);
+}
+
+.reader-tool-purpose,
+.reader-tool-status {
+  margin: 0;
+  color: var(--llar-ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.reader-tool-purpose {
+  max-width: 72ch;
+}
+
+.reader-tool-content,
+.reader-tool-view {
+  min-width: 0;
+}
+
+.reader-tool-status-secondary {
+  margin-top: var(--llar-space-1);
+  color: var(--llar-ink-faint);
+  font-size: 0.76rem;
+}
+
+.reader-tool-status-end {
+  margin-bottom: var(--llar-space-3);
+  text-align: end;
+}
+
+.reader-tool-panel {
+  margin-bottom: var(--llar-space-4);
+  padding: var(--llar-space-4);
+  border: 1px solid var(--llar-border);
+  border-radius: var(--llar-radius);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-tool-card {
+  border-color: var(--llar-border);
+}
+
+.reader-tool-row {
+  min-width: 0;
+}
+
+.reader-tool-metadata {
+  color: var(--llar-ink-muted);
+  font-size: 0.78rem;
+}
+
+.reader-tool-actions {
+  flex-wrap: wrap;
+  gap: var(--llar-space-1);
+  align-items: center;
+}
+
+.reader-tool-section {
+  margin-top: var(--llar-space-4);
+}
+
+.reader-tool-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--llar-space-2) var(--llar-space-4);
+  align-items: baseline;
+  justify-content: space-between;
+  margin-block: var(--llar-space-4) var(--llar-space-2);
+  padding-bottom: var(--llar-space-2);
+  border-bottom: 1px solid var(--llar-border);
+}
+
+.reader-tool-empty,
+.reader-tool-message {
+  margin-block: var(--llar-space-3);
+  padding: var(--llar-space-3) var(--llar-space-4);
+  border: 1px solid var(--llar-border);
+  border-radius: var(--llar-radius);
+  color: var(--llar-ink-muted);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-tool-message-error {
+  border-color: var(--bs-warning-border-subtle);
+  color: var(--bs-warning-text-emphasis);
+  background: var(--bs-warning-bg-subtle);
+}
+
+.reader-tool-message-loading {
+  border-style: dashed;
+}
+
+.reader-tool-filters {
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: top;
+}
+
+.reader-tool-pagination {
+  padding-top: var(--llar-space-2);
+  border-top: 1px solid var(--llar-border);
+}
+
+.reader-tool-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.reader-tool-table {
+  min-width: 38rem;
+  vertical-align: top;
+}
+
+.reader-search-view {
   max-width: 72rem;
-  margin: 0 auto;
+  margin-inline: auto;
+}
+
+@media (width <= 576px) {
+  .reader-tool-workbench {
+    padding-inline: var(--llar-space-3);
+  }
+
+  .reader-tool-context {
+    margin-bottom: var(--llar-space-3);
+  }
+
+  .reader-tool-panel {
+    padding: var(--llar-space-3);
+  }
+
+  .reader-tool-status-end {
+    text-align: start;
+  }
 }
 
 .min-width-0 {
