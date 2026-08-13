@@ -34,10 +34,49 @@
       (let [rendered (str (h/html (reader/tools-view-handler
                                    {:view :todays-vibe :request-params {}})))]
         (is (re-find #"Election result" rendered))
-        (is (re-find #"<small class=\"text-secondary ms-2\">a</small>" rendered))
+        (is (re-find #"reader-vibe-representative-source\">a</span>" rendered))
         (is (re-find #"data-vibe-cluster-id=\"0\"" rendered))
-        (is (re-find #"75% lexical match" rendered))
+        (is (re-find #"75% lexical agreement" rendered))
         (is (re-find #"data-vibe-terms=\"election\"" rendered))
+        (is (re-find #"Coverage</span>a · b" rendered))
+        (is (re-find #"Story signals</span>election" rendered))
+        (is (re-find #"1 alternate report" rendered))
+        (is (re-find #"latest &lt;1h" rendered))
         (is (re-find #"data-offer-id=\"101\"" rendered))
+        (is (re-find #"data-offer-id=\"102\"" rendered))
         (is (re-find #"action=\"/reader/tools/todays-vibe/seen\"" rendered))
+        (is (re-find #"name=\"run-id\" type=\"hidden\" value=\"run-1\"" rendered))
+        (is (re-find #"name=\"cluster-id\" type=\"hidden\" value=\"0\"" rendered))
+        (is (re-find #"Mark every report in this story seen" rendered))
         (is (not (re-find #"Fully seen" rendered)))))))
+
+(deftest todays-vibe-included-seen-story-has-status-without-dead-action
+  (let [now (time/zoned-date-time)
+        snapshot {:run-id "run-seen"
+                  :generated-at now
+                  :window-hours 24
+                  :clusters [{:id 2 :representative-id 7
+                              :source-count 1 :article-count 1 :unseen-count 0
+                              :latest-ts now :terms []
+                              :items [{:id 7 :title "Already read" :source-key "source"
+                                       :ts now :tags []}]}]}]
+    (with-redefs [vibe/current-vibe (atom snapshot)
+                  reader/frontend-db :db
+                  persistency/record-results-offered!
+                  (fn [_ items _]
+                    (mapv (fn [item] {:id 201 :item-id (:id item)}) items))]
+      (let [rendered (str (h/html (reader/tools-view-handler
+                                   {:view :todays-vibe
+                                    :request-params {:include-seen "true"}})))]
+        (is (re-find #"Already read" rendered))
+        (is (re-find #"Fully seen" rendered))
+        (is (re-find #"including fully seen" rendered))
+        (is (re-find #"24h window" rendered))
+        (is (not (re-find #"reader-vibe-seen-form" rendered)))))))
+
+(deftest mark-story-seen-rejects-a-stale-vibe-snapshot
+  (with-redefs [vibe/current-vibe (atom {:run-id "current-run"
+                                         :clusters []})]
+    (is (= {:status 409
+            :body "This Vibe snapshot is stale; reload and try again."}
+           (reader/reader-mark-story-seen "stale-run" 0)))))

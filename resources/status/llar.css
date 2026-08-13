@@ -1581,6 +1581,165 @@ figure {
   object-fit: contain;
 }
 
+.reader-vibe-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--llar-space-2) var(--llar-space-4);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--llar-space-3);
+  border-bottom: 1px solid var(--llar-border);
+}
+
+.reader-vibe-summary > p {
+  margin: 0;
+}
+
+.reader-vibe-generated {
+  color: var(--llar-ink-muted);
+  font-size: 0.78rem;
+}
+
+.reader-vibe-section-heading > h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 1.8vw, 1.4rem);
+}
+
+.reader-vibe-section-heading > span {
+  color: var(--llar-ink-faint);
+  font-size: 0.76rem;
+}
+
+.reader-vibe-story {
+  position: relative;
+  padding: var(--llar-space-4) var(--llar-space-3) var(--llar-space-4)
+    var(--llar-space-4);
+  border-bottom: 1px solid var(--llar-border);
+}
+
+.reader-vibe-story-cross-source::before {
+  position: absolute;
+  top: var(--llar-space-4);
+  bottom: var(--llar-space-4);
+  left: 0;
+  width: 2px;
+  border-radius: 500rem;
+  background: var(--llar-primary);
+  content: "";
+}
+
+.reader-vibe-story-heading {
+  display: flex;
+  gap: var(--llar-space-4);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.reader-vibe-story-title {
+  min-width: 0;
+  margin: 0;
+  font-size: clamp(1.05rem, 1.6vw, 1.28rem);
+  font-weight: 600;
+  line-height: 1.32;
+}
+
+.reader-vibe-story-title-main {
+  display: inline;
+}
+
+.reader-vibe-representative-source {
+  margin-left: var(--llar-space-2);
+  color: var(--llar-ink-muted);
+  font-size: 0.76em;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.reader-vibe-story-age {
+  flex: 0 0 auto;
+  color: var(--llar-ink-faint);
+  font-family: var(--llar-font-data);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.reader-vibe-scope {
+  margin: var(--llar-space-2) 0 0;
+  color: var(--llar-ink-muted);
+  font-size: 0.76rem;
+}
+
+.reader-vibe-scope .list-inline-item {
+  margin-right: var(--llar-space-3);
+}
+
+.reader-vibe-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--llar-space-1) var(--llar-space-2);
+  margin: var(--llar-space-2) 0 0;
+  color: var(--llar-ink-muted);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.reader-vibe-evidence-label {
+  margin-right: var(--llar-space-2);
+  color: var(--llar-ink-faint);
+  font-family: var(--llar-font-data);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reader-vibe-evidence-separator {
+  color: var(--llar-border);
+}
+
+.reader-vibe-story-footer {
+  display: flex;
+  gap: var(--llar-space-2);
+  align-items: center;
+  min-height: var(--llar-control-height);
+  margin-top: var(--llar-space-2);
+}
+
+.reader-vibe-reports {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.reader-vibe-report-list {
+  margin-top: var(--llar-space-2);
+  padding-left: var(--llar-space-3);
+  border-left: 1px solid var(--llar-border);
+}
+
+.reader-vibe-report {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--llar-space-3);
+  align-items: baseline;
+  padding-block: var(--llar-space-2);
+}
+
+.reader-vibe-report-title {
+  color: var(--llar-ink);
+  font-size: 0.86rem;
+  text-decoration: none;
+}
+
+.reader-vibe-report-provenance {
+  color: var(--llar-ink-faint);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.reader-vibe-seen-form {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 @media (width <= 576px) {
   .reader-tool-workbench {
     padding-inline: var(--llar-space-3);
@@ -1614,6 +1773,28 @@ figure {
   .reader-continue-progress-row {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--llar-space-1);
+  }
+
+  .reader-vibe-story {
+    padding-inline: var(--llar-space-3);
+  }
+
+  .reader-vibe-story-cross-source::before {
+    left: -1px;
+  }
+
+  .reader-vibe-story-heading {
+    gap: var(--llar-space-2);
+    align-items: start;
+  }
+
+  .reader-vibe-report {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .reader-vibe-report-provenance {
+    white-space: normal;
   }
 }
 
@@ -1653,6 +1834,11 @@ figure {
   text-decoration: none;
 }
 
+.reader-vibe-story-title a {
+  color: var(--llar-ink);
+  text-decoration: none;
+}
+
 div.item-content-body a {
   color: var(--llar-ink);
   text-decoration: none;
@@ -1661,6 +1847,13 @@ div.item-content-body a {
 .feed-item a:hover {
   color: var(--llar-ink);
   text-decoration: none;
+}
+
+.reader-vibe-story-title a:hover,
+.reader-vibe-report-title:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--llar-primary-control);
+  text-underline-offset: 0.15em;
 }
 
 .reader-continue-title > a:hover {

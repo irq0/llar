@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t03-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t04-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-t03-01"}]])
+   [:script {:src "/static/llar.js?v=reader-t04-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -3817,51 +3817,98 @@
                   {:mark :read :offer offer-id}
                   x))
 
+(defn- vibe-story-scope [{:keys [source-count article-count unseen-count match-score]}]
+  [:ul {:class "list-inline reader-vibe-scope"}
+   [:li {:class "list-inline-item"}
+    (format "%s source%s" source-count (if (= source-count 1) "" "s"))]
+   [:li {:class "list-inline-item"}
+    (format "%s report%s" article-count (if (= article-count 1) "" "s"))]
+   [:li {:class "list-inline-item"}
+    (if (pos? unseen-count)
+      (format "%s unseen" unseen-count)
+      "Fully seen")]
+   (when match-score
+     [:li {:class "list-inline-item"
+           :title "Average lexical similarity among the reports in this story cluster"}
+      (format "%.0f%% lexical agreement" (* 100 match-score))])])
+
+(defn- vibe-story-evidence [ordered terms]
+  (let [sources (distinct (keep :source-key ordered))]
+    (when (or (seq sources) (seq terms))
+      [:p {:class "reader-vibe-evidence"}
+       (when (seq sources)
+         [:span
+          [:span {:class "reader-vibe-evidence-label"} "Coverage"]
+          (string/join " · " sources)])
+       (when (and (seq sources) (seq terms))
+         [:span {:class "reader-vibe-evidence-separator" :aria-hidden "true"} "—"])
+       (when (seq terms)
+         [:span
+          [:span {:class "reader-vibe-evidence-label"} "Story signals"]
+          (string/join " · " terms)])])))
+
+(defn- vibe-mark-seen-form [snapshot cluster]
+  (when (pos? (:unseen-count cluster))
+    [:form {:method "post"
+            :action "/reader/tools/todays-vibe/seen"
+            :class "reader-vibe-seen-form"}
+     [:input {:type "hidden" :name "run-id" :value (:run-id snapshot)}]
+     [:input {:type "hidden" :name "cluster-id" :value (:id cluster)}]
+     [:button {:class "btn reader-icon-button"
+               :type "submit"
+               :title "Mark every report in this story seen"
+               :aria-label "Mark every report in this story seen"}
+      (action-icon "fas fa-glasses")]]))
+
 (defn- render-vibe-cluster [x snapshot cluster offers]
   (let [ordered (ordered-cluster-items cluster)
         representative (first ordered)
-        offer-by-item (into {} (map (juxt :item-id :id) offers))]
-    [:article {:class "card reader-tool-card mb-3"
+        offer-by-item (into {} (map (juxt :item-id :id) offers))
+        alternate-count (dec (count ordered))]
+    [:article {:class (str "reader-vibe-story reader-tool-row"
+                           (when (>= (:source-count cluster) 2)
+                             " reader-vibe-story-cross-source"))
                :data-vibe-cluster-id (:id cluster)
                :data-vibe-source-count (:source-count cluster)
                :data-vibe-match-score (:match-score cluster)
                :data-vibe-terms (string/join "," (:terms cluster))}
-     [:div {:class "card-body"}
-      [:div {:class "d-flex justify-content-between"}
-       [:h4 {:class "card-title"}
+     [:div {:class "reader-vibe-story-heading"}
+      [:h3 {:class "reader-vibe-story-title"}
+       [:span {:class "reader-vibe-story-title-main"}
         [:a {:class "link-dark result-offer"
              :data-offer-id (offer-by-item (:id representative))
              :href (vibe-item-link x representative (offer-by-item (:id representative)))}
-         (:title representative)]
-        [:small {:class "text-secondary ms-2"}
-         (:source-key representative)]]
-       [:span {:class "timestamp text-secondary" :title (:latest-ts cluster)}
-        (human/datetime-ago-short (:latest-ts cluster))]]
-      [:p {:class "reader-tool-metadata"}
-       (:source-count cluster) " sources · " (:article-count cluster) " articles · "
-       (:unseen-count cluster) " unseen"
-       (when-let [match-score (:match-score cluster)]
-         (format " · %.0f%% lexical match" (* 100 match-score)))]
-      [:p (for [term (:terms cluster)]
-            [:span {:class "badge bg-light text-dark me-1"} term])]
-      [:p (for [source (distinct (map :source-key (:items cluster)))]
-            [:span {:class "badge bg-secondary me-1"} source])]
-      [:form {:method "post" :action "/reader/tools/todays-vibe/seen" :class "d-inline"}
-       [:input {:type "hidden" :name "run-id" :value (:run-id snapshot)}]
-       [:input {:type "hidden" :name "cluster-id" :value (:id cluster)}]
-       [:button {:class "btn btn-sm btn-outline-secondary" :type "submit"}
-        "Mark story seen"]]
-      (when (> (count ordered) 1)
-        [:details {:class "reader-tool-disclosure mt-3"}
-         [:summary "Show all reports"]
-         [:div {:class "list-group list-group-flush mt-2"}
+         (if (string/blank? (:title representative)) "(no title)" (:title representative))]
+        (when (string? (:source-key representative))
+          [:span {:class "reader-vibe-representative-source"}
+           (:source-key representative)])]]
+      [:time {:class "timestamp reader-vibe-story-age"
+              :datetime (str (:latest-ts cluster))
+              :title (str "Latest report: " (:latest-ts cluster))}
+       "latest " (human/datetime-ago-short (:latest-ts cluster))]]
+     (vibe-story-scope cluster)
+     (vibe-story-evidence ordered (:terms cluster))
+     [:div {:class "reader-vibe-story-footer"}
+      (when (pos? alternate-count)
+        [:details {:class "reader-tool-disclosure reader-vibe-reports"}
+         [:summary
+          (format "%s alternate report%s"
+                  alternate-count (if (= alternate-count 1) "" "s"))]
+         [:div {:class "reader-vibe-report-list"}
           (for [item (rest ordered)
                 :let [offer-id (offer-by-item (:id item))]]
-            [:a {:class "list-group-item list-group-item-action result-offer"
-                 :data-offer-id offer-id
-                 :href (vibe-item-link x item offer-id)}
-             [:span (:title item)]
-             [:small {:class "text-secondary ms-2"} (:source-key item)]])]])]]))
+            [:div {:class "reader-vibe-report"}
+             [:a {:class "result-offer reader-vibe-report-title"
+                  :data-offer-id offer-id
+                  :href (vibe-item-link x item offer-id)}
+              (if (string/blank? (:title item)) "(no title)" (:title item))]
+             [:span {:class "reader-vibe-report-provenance"}
+              (:source-key item)
+              (when (:ts item)
+                [:time {:datetime (str (:ts item))
+                        :title (str (:ts item))}
+                 " · " (human/datetime-ago-short (:ts item))])]])]])
+      (vibe-mark-seen-form snapshot cluster)]]))
 
 (defn- render-todays-vibe [x include-seen?]
   (let [snapshot @vibe/current-vibe]
@@ -3894,26 +3941,43 @@
             offer-map (into {} (map (fn [[cluster offers]] [(:id cluster) offers])
                                     offers-by-cluster))]
         [:div {:class "reader-tool-view reader-vibe-view"}
-         [:p {:class "reader-tool-status"} "Generated "
-          [:span {:class "timestamp" :title (:generated-at snapshot)}
-           (human/datetime-ago-short (:generated-at snapshot))]
-          " · "
-          [:a {:href (make-site-href ["/reader/tools/todays-vibe"]
-                                     {:include-seen (when-not include-seen? true)}
-                                     x)}
-           (if include-seen? "Hide fully seen" "Include fully seen")]]
-         [:p {:class "reader-tool-status reader-tool-status-secondary"}
-          "Showing " shown-count " of " total-count
-          " quality-ranked clusters (maximum "
-          (:max-clusters (merge {:max-clusters 12} (rc/rc [:reader :vibe]))) ")."]
-         [:h2 "Reported across sources"]
-         (if (seq multi-source)
-           (for [cluster multi-source]
-             (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))
-           [:p {:class "reader-tool-empty"} "No cross-source stories in this window."])
-         [:h2 {:class "mt-4"} "Other recent stories"]
-         (for [cluster other]
-           (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))]))))
+         [:div {:class "reader-vibe-summary"}
+          [:p {:class "reader-tool-status"}
+           [:strong "Showing " shown-count " of " total-count]
+           " " (if (= total-count 1) "cluster" "clusters")
+           (when-let [hours (:window-hours snapshot)]
+             (str " · " hours "h window"))
+           " · " (if include-seen? "including fully seen" "unseen only")]
+          [:p {:class "reader-tool-status reader-vibe-generated"}
+           "Generated "
+           [:time {:class "timestamp"
+                   :datetime (str (:generated-at snapshot))
+                   :title (str (:generated-at snapshot))}
+            (human/datetime-ago-short (:generated-at snapshot)) " ago"]
+           " · "
+           [:a {:href (make-site-href ["/reader/tools/todays-vibe"]
+                                      {:include-seen (when-not include-seen? true)}
+                                      x)}
+            (if include-seen? "Show unseen only" "Include fully seen")]]]
+         [:section {:class "reader-tool-section reader-vibe-section"}
+          [:div {:class "reader-tool-section-heading reader-vibe-section-heading"}
+           [:h2 "Reported across sources"]
+           [:span (format "%s stor%s · grouped from 2+ sources"
+                          (count multi-source)
+                          (if (= 1 (count multi-source)) "y" "ies"))]]
+          (if (seq multi-source)
+            (for [cluster multi-source]
+              (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))
+            [:p {:class "reader-tool-empty"} "No cross-source stories in this window."])]
+         (when (seq other)
+           [:section {:class "reader-tool-section reader-vibe-section"}
+            [:div {:class "reader-tool-section-heading reader-vibe-section-heading"}
+             [:h2 "Other recent stories"]
+             [:span (format "%s stor%s · one source"
+                            (count other)
+                            (if (= 1 (count other)) "y" "ies"))]]
+            (for [cluster other]
+              (render-vibe-cluster x snapshot cluster (offer-map (:id cluster))))])]))))
 
 (defmethod tools-view-handler
   :todays-vibe
