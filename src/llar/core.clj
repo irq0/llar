@@ -29,6 +29,7 @@
    [llar.podcast :as podcast]
    [llar.bookmark-capture :as bookmark-capture]
    [llar.digest :as digest]
+   [llar.shutdown :as shutdown]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [migratus.core :as migratus]
@@ -111,6 +112,7 @@
 (defn -main [& args]
   ;; otherwise date time parsers will fail!
   (java.util.Locale/setDefault java.util.Locale/ENGLISH)
+  (shutdown/install-hook!)
 
   (let [{:keys [options summary errors]} (parse-opts args cli-options)]
     (when (or errors (:help options))
@@ -138,13 +140,6 @@
      (mount/start))
 
     (s/check-asserts true)
-
-    (.addShutdownHook
-     (Runtime/getRuntime)
-     (Thread.
-      (fn []
-        (log/info "shutting down...")
-        (mount/stop))))
 
     (cond
       (:init-db options)
