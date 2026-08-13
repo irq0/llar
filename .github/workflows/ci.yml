@@ -95,6 +95,10 @@ jobs:
       run: npm install
     - name: Run metadata extraction tests
       run: npm test
+    - name: Install browser test assets
+      run: make jquery datatables
+    - name: Run frontend browser integration tests
+      run: npm run test:browser
     - name: Install dependencies
       run: lein deps
     - name: Run tests with coverage

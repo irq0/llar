@@ -313,7 +313,7 @@
    [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-l03-05"}]])
 
 (defn html-footer []
-  [[:script {:src "/static/jquery/jquery.min.js"}]
+  [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
    [:script {:src "/static/llar.js?v=reader-l03-05"}]])

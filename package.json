@@ -1,6 +1,7 @@
 {
   "scripts": {
     "test": "node --test tools/readability/test/*.test.js tools/value-inspector/test/*.test.js",
+    "test:browser": "node --test tools/frontend/test/*.test.mjs",
     "demo:screenshots": "node demo/media/capture-screenshots.mjs"
   },
   "dependencies": {

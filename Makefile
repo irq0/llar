@@ -18,8 +18,12 @@ ibmplex_packages := \
 fontawesome_version := 7.3.1
 bootstrap_version := 5.3.8
 jquery_version := 4.0.0
+jquery_dir := resources/status/jquery
+jquery_stamp := $(jquery_dir)/.version-$(jquery_version)
 chartjs_version := 4.5.1
 datatables_version := 3.0.1
+datatables_dir := resources/status/datatables
+datatables_stamp := $(datatables_dir)/.version-$(datatables_version)
 llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
 DOCS_OUT ?= target/docs
 
@@ -67,22 +71,22 @@ resources/status/bootstrap/js/bootstrap.bundle.min.js:
 bootstrap: resources/status/bootstrap/js/bootstrap.bundle.min.js
 resources/status/bootstrap/css/bootstrap.min.css: resources/status/bootstrap/js/bootstrap.bundle.min.js
 
-resources/status/jquery/jquery.min.js:
-	mkdir -p resources/status/jquery
-	wget --quiet -nc -O resources/status/jquery/jquery.min.js "https://code.jquery.com/jquery-$(jquery_version).min.js"
-jquery: resources/status/jquery/jquery.min.js
+$(jquery_stamp):
+	rm -rf "$(jquery_dir)"
+	mkdir -p "$(jquery_dir)"
+	wget --quiet -O "$(jquery_dir)/jquery.min.js" "https://code.jquery.com/jquery-$(jquery_version).min.js"
+	touch "$@"
+jquery: $(jquery_stamp)
 
-resources/status/datatables/dataTables.bootstrap5.min.css:
-	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.css "https://cdn.datatables.net/$(datatables_version)/css/dataTables.bootstrap5.min.css"
-resources/status/datatables/dataTables.min.js:
-	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.min.js "https://cdn.datatables.net/$(datatables_version)/js/dataTables.min.js"
-resources/status/datatables/dataTables.bootstrap5.min.js:
-	mkdir -p resources/status/datatables
-	wget --quiet -nc -O resources/status/datatables/dataTables.bootstrap5.min.js "https://cdn.datatables.net/$(datatables_version)/js/dataTables.bootstrap5.min.js"
+$(datatables_stamp):
+	rm -rf "$(datatables_dir)"
+	mkdir -p "$(datatables_dir)"
+	wget --quiet -O "$(datatables_dir)/dataTables.bootstrap5.min.css" "https://cdn.datatables.net/$(datatables_version)/css/dataTables.bootstrap5.min.css"
+	wget --quiet -O "$(datatables_dir)/dataTables.min.js" "https://cdn.datatables.net/$(datatables_version)/js/dataTables.min.js"
+	wget --quiet -O "$(datatables_dir)/dataTables.bootstrap5.min.js" "https://cdn.datatables.net/$(datatables_version)/js/dataTables.bootstrap5.min.js"
+	touch "$@"
 
-datatables: resources/status/datatables/dataTables.bootstrap5.min.css resources/status/datatables/dataTables.min.js resources/status/datatables/dataTables.bootstrap5.min.js
+datatables: $(datatables_stamp)
 
 resources/status/chartjs/chart.umd.min.js:
 	mkdir -p resources/status/chartjs

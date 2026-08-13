@@ -750,6 +750,10 @@
       (is (re-find #"<script src=\"/static/llar.js\?v=reader-l03-05\"></script></body></html>$"
                    shell)))))
 
+(deftest reader-loads-the-current-jquery-runtime
+  (let [footer (apply str (map #(str (h/html %)) (uut/html-footer)))]
+    (is (string/includes? footer "/static/jquery/jquery.min.js?v=4.0.0"))))
+
 (deftest item-inspector-leads-with-provenance-signals-and-representations
   (let [ts (time/zoned-date-time 2026 8 11 12 0 0 0 "Europe/Berlin")
         rendered (str

@@ -1,5 +1,6 @@
 (ns llar.apis.dashboard-test
   (:require
+   [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing]]
    [hiccup2.core :as h]
@@ -208,9 +209,18 @@
       (is (not (string/includes? body "Inspect value"))))))
 
 (deftest dashboard-loads-the-shipped-datatables-runtime
-  (let [body (apply str (map #(str (h/html %)) (uut/html-footer)))]
-    (is (string/includes? body "/static/datatables/jquery.dataTables.min.js"))
-    (is (not (string/includes? body "/static/datatables/dataTables.min.js")))))
+  (let [header (str (h/html (uut/html-header)))
+        body (apply str (map #(str (h/html %)) (uut/html-footer)))
+        javascript (slurp (io/resource "status/llar-status.js"))]
+    (is (string/includes? header "/static/datatables/dataTables.bootstrap5.min.css?v=3.0.1"))
+    (is (string/includes? body "/static/jquery/jquery.min.js?v=4.0.0"))
+    (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.0.1"))
+    (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"))
+    (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
+    (is (string/includes? body "/static/llar-status.js?v=datatables-3-01"))
+    (is (string/includes? javascript "DataTable.isDataTable"))
+    (is (string/includes? javascript "new DataTable"))
+    (is (not (re-find #"[.$]DataTable\(" javascript)))))
 
 (deftest source-staleness-follows-the-advertised-schedule-deadline
   (let [now (time/zoned-date-time 2026 8 8 12 0 0 0 "UTC")

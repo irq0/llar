@@ -51,6 +51,14 @@ function sources_row_actions_html(source_key) {
 <span class="visually-hidden">Show or hide state details</span></button>`;
 }
 
+function datatable_for(selector) {
+  var table = document.querySelector(selector);
+
+  if (!table || !DataTable.isDataTable(table)) return null;
+
+  return new DataTable(table, { retrieve: true });
+}
+
 function initialize_datatables(container) {
   var sources_table = $(container).find("#sources-datatable");
 
@@ -81,8 +89,8 @@ function initialize_datatables(container) {
   $(container)
     .find(".datatable")
     .each(function () {
-      if (!$.fn.DataTable.isDataTable(this)) {
-        $(this).DataTable({
+      if (!DataTable.isDataTable(this)) {
+        new DataTable(this, {
           paging: true,
           pageLength: 100,
           deferRender: true,
@@ -91,8 +99,8 @@ function initialize_datatables(container) {
     });
 
   var threads_table = $(container).find("#threads-datatable");
-  if (threads_table.length && !$.fn.DataTable.isDataTable(threads_table[0])) {
-    threads_table.DataTable({
+  if (threads_table.length && !DataTable.isDataTable(threads_table[0])) {
+    new DataTable(threads_table[0], {
       paging: true,
       pageLength: 100,
       deferRender: true,
@@ -1121,17 +1129,14 @@ function load_dashboard_tab(target_selector) {
 function reload_dashboard_tab(target_selector) {
   var pane = $(target_selector);
   var tab_name = pane.data("tab-name");
+  var sources_datatable = datatable_for("#sources-datatable");
 
   if (!tab_name) {
     return;
   }
 
-  if (
-    tab_name === "sources" &&
-    $("#sources-datatable").length &&
-    $.fn.DataTable.isDataTable($("#sources-datatable")[0])
-  ) {
-    $("#sources-datatable").DataTable().ajax.reload();
+  if (tab_name === "sources" && sources_datatable) {
+    sources_datatable.ajax.reload();
     return;
   }
 
@@ -1182,8 +1187,9 @@ $(document).ready(function () {
       var k = $(this).data("source-key");
       var toggle = $(this);
       var tr = $(this).closest("tr");
-      var sources_datatable = $("#sources-datatable").DataTable();
-      var row = sources_datatable.row(tr);
+      var sources_datatable = datatable_for("#sources-datatable");
+      if (!sources_datatable) return;
+      var row = sources_datatable.row(tr[0]);
       if (row.child.isShown()) {
         row.child.hide();
         toggle.attr("aria-expanded", "false");
@@ -1218,8 +1224,9 @@ $(document).ready(function () {
     var k = $(this).data("source-key");
     var overwrite = $(this).data("overwrite");
     var tr = $(this).closest("tr");
-    var sources_datatable = $("#sources-datatable").DataTable();
-    var row = sources_datatable.row(tr);
+    var sources_datatable = datatable_for("#sources-datatable");
+    if (!sources_datatable) return;
+    var row = sources_datatable.row(tr[0]);
     var status_url = "/api/source/" + k;
 
     $.post("/api/update/" + k, { overwrite: overwrite })
@@ -1245,8 +1252,9 @@ $(document).ready(function () {
   $(document).on("click", "#threads-datatable td.details-control", function () {
     console.log("Clicked");
     var tr = $(this).closest("tr");
-    var threads_datatable = $("#threads-datatable").DataTable();
-    var row = threads_datatable.row(tr);
+    var threads_datatable = datatable_for("#threads-datatable");
+    if (!threads_datatable) return;
+    var row = threads_datatable.row(tr[0]);
     if (row.child.isShown()) {
       row.child.hide();
       tr.removeClass("shown");
