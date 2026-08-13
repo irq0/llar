@@ -1304,6 +1304,182 @@ figure {
   margin-inline: auto;
 }
 
+.reader-reading-queue {
+  max-width: 80rem;
+  margin-inline: auto;
+}
+
+.reader-queue-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--llar-space-2);
+  margin-block: var(--llar-space-4);
+  padding-top: var(--llar-space-2);
+}
+
+.reader-queue-cluster-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--llar-space-2) var(--llar-space-4);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--llar-space-1);
+  padding: var(--llar-space-3) var(--llar-space-4);
+  border-left: 0.2rem solid var(--llar-primary);
+  border-radius: 0 var(--llar-radius) var(--llar-radius) 0;
+  background: var(--llar-surface-subtle);
+}
+
+.reader-queue-cluster-index {
+  margin-bottom: var(--llar-space-5);
+  border: 1px solid var(--llar-border);
+  border-radius: var(--llar-radius);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-queue-cluster-index-heading {
+  display: flex;
+  gap: var(--llar-space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--llar-space-2) var(--llar-space-3);
+  color: var(--llar-ink-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.reader-queue-cluster-index-count {
+  min-width: 1.5rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 500rem;
+  color: var(--llar-ink);
+  background: var(--llar-surface);
+  font-family: var(--llar-font-data);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.reader-queue-cluster-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 1px;
+  border-top: 1px solid var(--llar-border);
+  background: var(--llar-border);
+  list-style: none;
+}
+
+.reader-queue-cluster-link-item {
+  min-width: 0;
+  background: var(--llar-surface);
+}
+
+.reader-queue-cluster-link {
+  display: flex;
+  gap: var(--llar-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  padding: var(--llar-space-2) var(--llar-space-3);
+  color: var(--llar-ink);
+  text-decoration: none;
+}
+
+.reader-queue-cluster-link:hover {
+  background: var(--llar-primary-subtle);
+}
+
+.reader-queue-cluster-link-label {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-queue-cluster-link-meta {
+  flex: 0 0 auto;
+  color: var(--llar-ink-faint);
+  font-family: var(--llar-font-data);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.reader-queue-cluster {
+  margin-top: var(--llar-space-5);
+  scroll-margin-top: 7.5rem;
+}
+
+.reader-queue-cluster-title {
+  margin: 0;
+  color: var(--llar-ink);
+  font-size: 1.04rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.reader-queue-cluster-prefix {
+  display: block;
+  margin-bottom: 0.1rem;
+  color: var(--llar-ink-faint);
+  font-family: var(--llar-font-data);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.055em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.reader-queue-cluster-terms {
+  display: block;
+}
+
+.reader-queue-cluster-meta {
+  color: var(--llar-ink-faint);
+  font-family: var(--llar-font-data);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.reader-queue-preview {
+  padding-block: var(--llar-space-4);
+}
+
+.reader-queue-position {
+  color: var(--llar-primary);
+  font-size: 0.76rem;
+}
+
+.reader-queue-description {
+  max-width: 78ch;
+  margin-block: var(--llar-space-2) var(--llar-space-3);
+  color: var(--llar-ink-muted);
+  font-family: var(--llar-font-reading);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.reader-queue-excerpt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.reader-queue-description-more {
+  margin-top: var(--llar-space-1);
+  font-family: var(--llar-font-ui);
+}
+
+.reader-queue-description-more > p {
+  margin: var(--llar-space-2) 0 0;
+}
+
 @media (width <= 576px) {
   .reader-tool-workbench {
     padding-inline: var(--llar-space-3);
@@ -1319,6 +1495,14 @@ figure {
 
   .reader-tool-status-end {
     text-align: start;
+  }
+
+  .reader-queue-cluster-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reader-queue-cluster-meta {
+    white-space: normal;
   }
 }
 

@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t01-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t02-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-t01-01"}]])
+   [:script {:src "/static/llar.js?v=reader-t02-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -2044,90 +2044,98 @@
 
 (defn main-list-item
   "Main Item List - Semantic Fingerprint Style"
-  [x link-prefix item]
-  (let [{:keys [sources]} x
-        {:keys [id source-key title ts author tags entry url]} item
-        source (get sources (keyword source-key))
-        options (set (:options source))]
-    [:div {:id (str "item-" id)
-           :data-id id
-           :data-unread (str (boolean (some #(= % "unread") tags)))
-           :class (str "feed-item "
-                       (string/join " "
-                                    (map #(str "option-" (name %)) options)))}
-     [:h4 {:class "h4"}
-      [:a {:href (make-site-href [link-prefix "item/by-id" id]
-                                 (cond-> {:mark :read}
-                                   (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
-                                 x)}
-       (if (string/blank? title)
-         "(no title)"
-         title)]]
+  ([x link-prefix item]
+   (main-list-item x link-prefix item {}))
+  ([x link-prefix item {:keys [extra-class metadata-before render-description]}]
+   (let [{:keys [sources]} x
+         {:keys [id source-key title ts author tags entry url]} item
+         source (get sources (keyword source-key))
+         options (set (:options source))]
+     [:div {:id (str "item-" id)
+            :data-id id
+            :data-unread (str (boolean (some #(= % "unread") tags)))
+            :class (string/join
+                    " "
+                    (remove string/blank?
+                            (concat ["feed-item" extra-class]
+                                    (map #(str "option-" (name %)) options))))}
+      [:h4 {:class "h4"}
+       [:a {:href (make-site-href [link-prefix "item/by-id" id]
+                                  (cond-> {:mark :read}
+                                    (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                  x)}
+        (if (string/blank? title)
+          "(no title)"
+          title)]]
 
-     [:ul {:class "list-inline"}
-      [:li {:class "list-inline-item"}
-       (icon "far fa-calendar")
-       "\u00a0"
-       [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
-       [:span " - "]
-       [:span {:class "timestamp"} (human/datetime-ago ts)]]
-      (when-let [consumption-meta (consumption-time-meta item)]
-        [:li {:class "list-inline-item" :title (:title consumption-meta)}
-         (icon (:icon consumption-meta))
-         [:span (:label consumption-meta)]])
-      (when (contains? options :mark-read-on-view)
-        [:li {:class "list-inline-item"}
-         (icon "fas fa-glasses")])
+      [:ul {:class "list-inline"}
+       metadata-before
+       [:li {:class "list-inline-item"}
+        (icon "far fa-calendar")
+        "\u00a0"
+        [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
+        [:span " - "]
+        [:span {:class "timestamp"} (human/datetime-ago ts)]]
+       (when-let [consumption-meta (consumption-time-meta item)]
+         [:li {:class "list-inline-item" :title (:title consumption-meta)}
+          (icon (:icon consumption-meta))
+          [:span (:label consumption-meta)]])
+       (when (contains? options :mark-read-on-view)
+         [:li {:class "list-inline-item"}
+          (icon "fas fa-glasses")])
 
-      (when (string? source-key)
-        [:li {:class "list-inline-item"}
-         "\u00a0"
-         (icon "fas fa-rss") source-key
-         (when (= (:type item) :item-type/link)
-           [:span "\u00a0"
-            (when-let [comments-url (:comments-url entry)]
-              [:a {:href comments-url} "(comments)"])
-            " → " (human/host-identifier url)])
-         (when (and (string? url) (string? (:url source))
-                    (not= (human/host-identifier url)
-                          (human/host-identifier (:url source))))
-           [:span " → " (human/host-identifier url)])])
+       (when (string? source-key)
+         [:li {:class "list-inline-item"}
+          "\u00a0"
+          (icon "fas fa-rss") source-key
+          (when (= (:type item) :item-type/link)
+            [:span "\u00a0"
+             (when-let [comments-url (:comments-url entry)]
+               [:a {:href comments-url} "(comments)"])
+             (when (string? url)
+               [:span " → " (human/host-identifier url)])])
+          (when (and (string? url) (string? (:url source))
+                     (not= (human/host-identifier url)
+                           (human/host-identifier (:url source))))
+            [:span " → " (human/host-identifier url)])])
 
-      (when-not (string/blank? author)
-        [:li {:class "list-inline-item"}
-         "\u00a0"
-         (icon "far fa-user") author])]
+       (when-not (string/blank? author)
+         [:li {:class "list-inline-item"}
+          "\u00a0"
+          (icon "far fa-user") author])]
 
-     [:div {:class "reader-preview-body"}
-      (render-special-item-content item (conj options ::compact-media))
-      (render-preview-description item)
-      (render-preview-fingerprint item)]
+      [:div {:class "reader-preview-body"}
+       (render-special-item-content item (conj options ::compact-media))
+       (if render-description
+         (render-description item)
+         (render-preview-description item))
+       (render-preview-fingerprint item)]
 
-     (when-let [highlight (get-in item [:entry :highlight])]
-       (html [:p {:class "highlight"}
-              (format "Highlighted by %s: %s" (:type highlight)
-                      (string/join ", " (:matches highlight)))]))
+      (when-let [highlight (get-in item [:entry :highlight])]
+        (html [:p {:class "highlight"}
+               (format "Highlighted by %s: %s" (:type highlight)
+                       (string/join ", " (:matches highlight)))]))
 
-     [:div {:class "reader-list-item-toolbar" :role "toolbar"
-            :aria-label "Item actions"}
-      [:div {:class "reader-list-item-utility-actions btn-group btn-group-sm"
-             :role "group"}
-       (external-link-button url)
-       (related-button x id)
-       (dump-button (make-site-href [link-prefix "item/by-id" id "dump"] x))
-       (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
-                                                                            :content-type "text/html"} x))
-       (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
-                                                                                  :content-type "text/html"} x))]
+      [:div {:class "reader-list-item-toolbar" :role "toolbar"
+             :aria-label "Item actions"}
+       [:div {:class "reader-list-item-utility-actions btn-group btn-group-sm"
+              :role "group"}
+        (external-link-button url)
+        (related-button x id)
+        (dump-button (make-site-href [link-prefix "item/by-id" id "dump"] x))
+        (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
+                                                                             :content-type "text/html"} x))
+        (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
+                                                                                   :content-type "text/html"} x))]
 
-      [:div {:class "reader-list-item-tags"}
-       (tags-button-group id tags)]
+       [:div {:class "reader-list-item-tags"}
+        (tags-button-group id tags)]
 
-      [:div {:class "item-action-buttons btn-group btn-group-sm" :role "group"}
-       (state-buttons id tags)
-       (item-tag-buttons id tags)
-       (done-button item)]]
-     (tags-button-modal id tags)]))
+       [:div {:class "item-action-buttons btn-group btn-group-sm" :role "group"}
+        (state-buttons id tags)
+        (item-tag-buttons id tags)
+        (done-button item)]]
+      (tags-button-modal id tags)])))
 
 (defn- safe-host-identifier [url]
   (when (string? url)
@@ -2979,19 +2987,134 @@
     :60-plus "60+ minutes"
     "All Times"))
 
+(defn- queue-item-context [x item]
+  (let [[group-name group-item] (if (item-has-tag? item :saved)
+                                  [:item-tags :saved]
+                                  [:default :none])]
+    (assoc x
+           :group-name group-name
+           :group-item group-item
+           :source-key (keyword (or (:source-key item) "all")))))
+
+(defn- queue-item-link-prefix [item]
+  (let [[group-name group-item] (if (item-has-tag? item :saved)
+                                  [:item-tags :saved]
+                                  [:default :none])]
+    (format "/reader/group/%s/%s/source/%s"
+            (name group-name)
+            (name group-item)
+            (or (:source-key item) "all"))))
+
 (defn- queue-item-href [x item]
-  (let [{:keys [id source-key]} item
-        source-key (or source-key "all")
-        group (cond
-                (item-has-tag? item :saved) [:item-tags :saved]
-                :else [:default :none])]
-    (make-site-href [(format "/reader/group/%s/%s/source/%s/item/by-id"
-                             (name (first group))
-                             (name (second group))
-                             source-key)
-                     id]
-                    {:mark :read}
-                    x)))
+  (make-site-href [(queue-item-link-prefix item) "item/by-id" (:id item)]
+                  {:mark :read}
+                  x))
+
+(defn- queue-duration-label [minutes]
+  (let [minutes (long (Math/ceil (double minutes)))
+        hours (quot minutes 60)
+        minutes (mod minutes 60)]
+    (cond
+      (zero? hours) (str minutes " min")
+      (zero? minutes) (str hours " h")
+      :else (str hours " h " minutes " min"))))
+
+(defn- queue-cluster-time-meta [items]
+  (let [consumptions (map item/consumption-time items)
+        timed (filter :minutes consumptions)]
+    (when (seq timed)
+      {:label (str (when (some :estimated? timed) "≈ ")
+                   (queue-duration-label (reduce + (map :minutes timed)))
+                   (when (< (count timed) (count items))
+                     (format " for %s of %s" (count timed) (count items))))
+       :complete? (= (count timed) (count items))
+       :estimated? (boolean (some :estimated? timed))})))
+
+(def ^:private +queue-excerpt-character-limit+ 420)
+(def ^:private +queue-expanded-description-character-limit+ 1600)
+
+(defn- queue-item-description [{:keys [title] :as item}]
+  (let [description (normalized-preview-text
+                     (get-in item [:data :description "text/plain"]))
+        normalized-title (some-> title normalized-preview-text string/lower-case)]
+    (when (and description
+               (not= (string/lower-case description) normalized-title))
+      description)))
+
+(defn- render-queue-description [item]
+  (when-let [description (queue-item-description item)]
+    [:div {:class "reader-queue-description"}
+     [:p {:class "reader-queue-excerpt"}
+      (human/truncate-ellipsis description +queue-excerpt-character-limit+)]
+     (when (> (count description) +queue-excerpt-character-limit+)
+       [:details {:class "reader-tool-disclosure reader-queue-description-more"}
+        [:summary "More"]
+        [:p (human/truncate-ellipsis
+             description +queue-expanded-description-character-limit+)]])]))
+
+(defn- queue-preview-metadata [item]
+  (let [checkpoint (item-state/checkpoint item)]
+    (concat
+     (for [reason (queue-item-reasons item)
+           :let [[label badge-class] (queue-reason-label reason)]]
+       [:li {:class "list-inline-item"}
+        [:span {:class (str "badge " badge-class)} label]])
+     (remove nil?
+             [(when (item-has-tag? item :unread)
+                [:li {:class "list-inline-item"}
+                 [:span {:class "badge text-bg-light"} "Unread"]])
+              (when checkpoint
+                [:li {:class "list-inline-item reader-queue-position"}
+                 (format "Saved place %.0f%%" (* 100.0 (:progress checkpoint)))])]))))
+
+(defn- queue-cluster-heading [{:keys [id words]} items]
+  (let [time-meta (queue-cluster-time-meta items)]
+    [:header {:class "reader-queue-cluster-heading"}
+     [:h2 {:class "reader-queue-cluster-title"}
+      (if (= id :unclustered)
+        "Unclustered"
+        (if (seq words)
+          [:span
+           [:span {:class "reader-queue-cluster-prefix"} "Related by"]
+           [:span {:class "reader-queue-cluster-terms"}
+            (string/join " · " words)]]
+          "Related items"))]
+     [:div {:class "reader-queue-cluster-meta"}
+      (count items) " item" (when (not= 1 (count items)) "s")
+      (when time-meta
+        [:span " · " (:label time-meta)])]]))
+
+(defn- queue-cluster-id [{:keys [id]} cluster-index]
+  (str "queue-cluster-"
+       (if (some? id)
+         (if (keyword? id) (name id) (str id))
+         cluster-index)))
+
+(defn- queue-cluster-label [{:keys [id words]}]
+  (cond
+    (= id :unclustered) "Unclustered"
+    (seq words) (string/join " · " words)
+    :else "Related items"))
+
+(defn- queue-cluster-index [visible-clusters]
+  (when (> (count visible-clusters) 1)
+    [:nav {:class "reader-queue-cluster-index"
+           :aria-label "Reading Queue clusters"}
+     [:div {:class "reader-queue-cluster-index-heading"}
+      [:span "Jump to cluster"]
+      [:span {:class "reader-queue-cluster-index-count"}
+       (count visible-clusters)]]
+     [:ol {:class "reader-queue-cluster-links"}
+      (for [[cluster-index [cluster items]] (map-indexed vector visible-clusters)
+            :let [time-meta (queue-cluster-time-meta items)]]
+        [:li {:class "reader-queue-cluster-link-item"}
+         [:a {:class "reader-queue-cluster-link"
+              :href (str "#" (queue-cluster-id cluster cluster-index))}
+          [:span {:class "reader-queue-cluster-link-label"}
+           (queue-cluster-label cluster)]
+          [:span {:class "reader-queue-cluster-link-meta"}
+           (count items)
+           (when time-meta (str " · " (:label time-meta)))]]])]]))
 
 (defn- queue-filter-nav [x active-filter stats]
   (let [filters [[nil "All" (:total stats)]
@@ -3002,14 +3125,15 @@
            :role "group"
            :aria-label "Queue state"}
      (for [[key label n] filters]
-       [:a {:class (str "btn btn-outline-secondary"
-                        (when (= key active-filter) " active"))
-            :href (make-site-href ["/reader/tools/saved-overview"]
-                                  {:queue-filter key
-                                   :queue-time-filter (normalize-queue-time-filter
-                                                       (some-> (get-in x [:request-params :queue-time-filter])
-                                                               keyword))}
-                                  x)}
+       [:a (cond-> {:class (str "btn btn-outline-secondary"
+                                (when (= key active-filter) " active"))
+                    :href (make-site-href ["/reader/tools/saved-overview"]
+                                          {:queue-filter key
+                                           :queue-time-filter (normalize-queue-time-filter
+                                                               (some-> (get-in x [:request-params :queue-time-filter])
+                                                                       keyword))}
+                                          x)}
+             (= key active-filter) (assoc :aria-current "page"))
         label
         [:span {:class "badge text-bg-light ms-1"} n]])]))
 
@@ -3024,13 +3148,14 @@
            :role "group"
            :aria-label "Consumption time"}
      (for [[key label n] filters]
-       [:a {:class (str "btn btn-outline-secondary"
-                        (when (= key active-time-filter) " active"))
-            :href (make-site-href ["/reader/tools/saved-overview"]
-                                  {:queue-filter (some-> (get-in x [:request-params :queue-filter])
-                                                         keyword)
-                                   :queue-time-filter key}
-                                  x)}
+       [:a (cond-> {:class (str "btn btn-outline-secondary"
+                                (when (= key active-time-filter) " active"))
+                    :href (make-site-href ["/reader/tools/saved-overview"]
+                                          {:queue-filter (some-> (get-in x [:request-params :queue-filter])
+                                                                 keyword)
+                                           :queue-time-filter key}
+                                          x)}
+             (= key active-time-filter) (assoc :aria-current "page"))
         label
         [:span {:class "badge text-bg-light ms-1"} n]])]))
 
@@ -3134,13 +3259,23 @@
                                              items))
         filtered-items (filter #(queue-item-matches-filters?
                                  queue-filter queue-time-filter %)
-                               items)]
+                               items)
+        visible-clusters (when-not continue-only?
+                           (->> clusters
+                                (keep (fn [[cluster cluster-items]]
+                                        (let [cluster-items
+                                              (filter #(queue-item-matches-filters?
+                                                        queue-filter queue-time-filter %)
+                                                      cluster-items)]
+                                          (when (seq cluster-items)
+                                            [cluster cluster-items]))))
+                                vec))]
     [:div {:class "reader-tool-view reader-reading-queue"}
      [:p {:class "reader-tool-status"}
       (if continue-only?
         (format "%s active item%s, most recently updated first."
                 (:total stats) (if (= 1 (:total stats)) "" "s"))
-        (format "Showing %s queue item%s in %s cluster%s. Last clustered: %s."
+        (format "Loaded page: %s queue item%s across %s cluster%s. Last clustered: %s."
                 (:total stats)
                 (if (= 1 (:total stats)) "" "s")
                 (count clusters)
@@ -3154,8 +3289,13 @@
                 (:saved stats)
                 (:continue-reading stats)
                 (:unread stats))])
-     (when-not continue-only? (queue-filter-nav x queue-filter stats))
-     (when-not continue-only? (queue-time-filter-nav x queue-time-filter time-stats))
+     (when-not continue-only?
+       [:div {:class "reader-queue-controls"
+              :aria-label "Reading Queue filters"}
+        (queue-filter-nav x queue-filter stats)
+        (queue-time-filter-nav x queue-time-filter time-stats)])
+     (when-not continue-only?
+       (queue-cluster-index visible-clusters))
      (when (zero? (:total stats))
        [:p {:class "reader-tool-empty"}
         (if continue-only?
@@ -3169,19 +3309,18 @@
      (if continue-only?
        (for [item filtered-items]
          (render-reading-queue-item x item))
-       (for [[{:keys [words]} cluster-items] clusters
-             :let [cluster-items (filter #(queue-item-matches-filters?
-                                           queue-filter queue-time-filter %)
-                                         cluster-items)]
-             :when (seq cluster-items)]
-         [:section {:class "reader-tool-section"}
-          [:h2
-           [:nav {:class "fst-italic" :style "--bs-breadcrumb-divider: '·'"}
-            [:ol {:class "breadcrumb"}
-             (for [word words]
-               [:li {:class "breadcrumb-item"} word])]]]
+       (for [[cluster-index [cluster cluster-items]] (map-indexed vector visible-clusters)]
+         [:section {:class "reader-tool-section reader-queue-cluster"
+                    :id (queue-cluster-id cluster cluster-index)}
+          (queue-cluster-heading cluster cluster-items)
           (for [item cluster-items]
-            (render-reading-queue-item x item))]))
+            (main-list-item
+             (queue-item-context x item)
+             (queue-item-link-prefix item)
+             item
+             {:extra-class "reader-queue-preview"
+              :metadata-before (queue-preview-metadata item)
+              :render-description render-queue-description}))]))
      (when-not continue-only?
        (queue-pagination x offset page-size has-more?))]))
 

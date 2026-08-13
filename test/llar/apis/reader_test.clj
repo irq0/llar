@@ -520,7 +520,7 @@
       (is (string/includes? rendered "/reader/group/item-tags/archive/source/all/items"))
       (is (string/includes? rendered "Source Tags"))
       (is (string/includes? rendered "/reader/group/source-tag/tech/source/all/items"))
-      (is (string/includes? rendered ">Type<"))
+      (is (string/includes? rendered " Type</span>"))
       (is (string/includes? rendered "/reader/group/type/feed/source/all/items"))
       (is (not (string/includes? rendered ">in-progress<"))))))
 
@@ -790,7 +790,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t01-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t02-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime
@@ -1183,6 +1183,126 @@
                             {:view :continue-reading :request-params {}}))]
       (is (re-find #"Nothing is in progress" rendered))
       (is (not (re-find #"cluster" rendered))))))
+
+(deftest reading-queue-extends-the-regular-preview-item
+  (let [now (time/zoned-date-time)
+        description (apply str (repeat 80 "A useful queue description. "))
+        item {:id 42
+              :title "A saved item"
+              :author "Reader"
+              :source-key "feed"
+              :ts now
+              :type :item-type/link
+              :url "https://example.com/story"
+              :entry {:thumbnail "https://example.com/image.png"
+                      :comments-url "https://example.com/comments"}
+              :tags ["saved" "unread"]
+              :checkpoint-progress 0.42
+              :nwords 1200
+              :data {:description {"text/plain" description}}}
+        x (#'uut/queue-item-context {:request-params {}} item)
+        rendered (str (h/html (uut/main-list-item
+                               x
+                               (#'uut/queue-item-link-prefix item)
+                               item
+                               {:extra-class "reader-queue-preview"
+                                :metadata-before (#'uut/queue-preview-metadata item)
+                                :render-description #'uut/render-queue-description})))]
+    (is (string/includes? rendered "feed-item reader-queue-preview"))
+    (is (string/includes? rendered "reader-preview-body"))
+    (is (string/includes? rendered "item-preview-small float-end"))
+    (is (string/includes? rendered "alt=\"Preview for A saved item\""))
+    (is (not (string/includes? rendered "reader-queue-open")))
+    (is (string/includes? rendered "Saved place 42%"))
+    (is (string/includes? rendered "reader-queue-excerpt"))
+    (is (string/includes? rendered "reader-queue-description-more"))
+    (is (string/includes? rendered "<summary>More</summary>"))
+    (is (string/includes? rendered "comments"))
+    (is (string/includes? rendered "reader-list-item-toolbar"))
+    (is (string/includes? rendered "reader-list-item-utility-actions"))
+    (is (string/includes? rendered "reader-list-item-tags"))
+    (is (string/includes? rendered "btn-state-saved"))
+    (is (string/includes? rendered "btn-item-done"))))
+
+(deftest reading-queue-no-title-and-no-image-remain-compact
+  (let [item {:id 7
+              :title ""
+              :source-key "feed"
+              :ts (time/zoned-date-time)
+              :type :item-type/link
+              :url "https://example.com/story"
+              :entry {:thumbnail "default"}
+              :tags ["saved"]
+              :nwords 200}
+        x (#'uut/queue-item-context {:request-params {}} item)
+        rendered (str (h/html (uut/main-list-item
+                               x
+                               (#'uut/queue-item-link-prefix item)
+                               item
+                               {:extra-class "reader-queue-preview"
+                                :metadata-before (#'uut/queue-preview-metadata item)
+                                :render-description #'uut/render-queue-description})))]
+    (is (string/includes? rendered "(no title)"))
+    (is (not (string/includes? rendered "reader-queue-open")))
+    (is (not (string/includes? rendered "<img")))
+    (is (not (string/includes? rendered "reader-queue-description")))))
+
+(deftest reading-queue-cluster-heading-explains-scope-and-time
+  (let [items [{:type :item-type/link :tags ["saved"] :nwords 400}
+               {:type :item-type/link :tags ["saved"] :nwords 800}
+               {:type :item-type/link :tags ["saved"]}]
+        rendered (str (h/html (#'uut/queue-cluster-heading
+                               {:id 1 :words ["software" "performance"]}
+                               items)))]
+    (is (string/includes? rendered ">Related by<"))
+    (is (string/includes? rendered "reader-queue-cluster-terms"))
+    (is (string/includes? rendered "software · performance"))
+    (is (string/includes? rendered "3 items"))
+    (is (string/includes? rendered "≈ 9 min for 2 of 3"))))
+
+(deftest reading-queue-cluster-index-links-visible-clusters
+  (let [clusters [[{:id 10 :words ["distributed" "systems"]}
+                   [{:type :item-type/link :tags ["saved"] :nwords 400}]]
+                  [{:id :unclustered :words ["Unclustered"]}
+                   [{:type :item-type/link :tags ["saved"]}]]]
+        rendered (str (h/html (#'uut/queue-cluster-index clusters)))]
+    (is (string/includes? rendered "Jump to cluster"))
+    (is (not (string/includes? rendered "<details")))
+    (is (string/includes? rendered "reader-queue-cluster-index-count\">2"))
+    (is (string/includes? rendered "href=\"#queue-cluster-10\""))
+    (is (string/includes? rendered "distributed · systems"))
+    (is (string/includes? rendered "href=\"#queue-cluster-unclustered\""))
+    (is (string/includes? rendered "Unclustered"))))
+
+(deftest reading-queue-cluster-index-stays-hidden-for-one-cluster
+  (is (nil? (#'uut/queue-cluster-index
+             [[{:id 1 :words ["only"]}
+               [{:type :item-type/link :tags ["saved"]}]]]))))
+
+(deftest reading-queue-uses-preview-extensions-without-changing-continue-reading
+  (let [item {:id 7
+              :title "Resume later"
+              :source-key "feed"
+              :ts (time/zoned-date-time)
+              :type :item-type/link
+              :url "https://example.com/story"
+              :tags []
+              :checkpoint-progress 0.2
+              :nwords 200}
+        queue (str (h/html (#'uut/render-reading-queue
+                            {:request-params {}}
+                            {:clusters {{:id 1 :words ["topic"]} [item]}
+                             :offset 0
+                             :page-size 100
+                             :has-more? false})))
+        continue (str (h/html (#'uut/render-reading-queue
+                               {:request-params {}}
+                               {:items [item] :continue-only? true})))]
+    (is (string/includes? queue "reader-queue-preview"))
+    (is (string/includes? queue "id=\"queue-cluster-1\""))
+    (is (string/includes? queue "class=\"feed-item reader-queue-preview"))
+    (is (string/includes? continue "class=\"feed-item"))
+    (is (not (string/includes? continue "reader-queue-preview")))))
 
 (deftest reading-queue-filters
   (let [saved {:tags ["saved"] :type :item-type/link}
