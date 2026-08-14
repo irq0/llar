@@ -166,12 +166,12 @@ body {
 }
 
 .llar-reader[data-bs-theme="dark"] .btn-close {
-  filter: var(--bs-btn-close-white-filter);
+  filter: invert(1) grayscale(100%) brightness(200%);
 }
 
 @media (prefers-color-scheme: dark) {
   .llar-reader:not([data-bs-theme="light"]) .btn-close {
-    filter: var(--bs-btn-close-white-filter);
+    filter: invert(1) grayscale(100%) brightness(200%);
   }
 }
 
