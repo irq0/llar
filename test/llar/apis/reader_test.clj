@@ -461,6 +461,56 @@
       (is (re-find #"id=\"btn-next-item\"[^>]*>\s*<i[^>]*fa-step-forward" rendered))
       (is (not (re-find #"fa-arrow-down|btn-state-archived|item-tag-toggle" rendered))))))
 
+(deftest mobile-navbar-opens-destination-drawers-without-duplicating-the-navbar
+  (with-redefs [rc/rc (constantly nil)]
+    (let [rendered (str (h/html (uut/nav-bar
+                                 {:mode :list-items
+                                  :uri "/reader/group/default/all/source/all/items"
+                                  :group-name :default
+                                  :group-item :all
+                                  :source-key :all
+                                  :selected-sources []
+                                  :items [{:id 42 :source-key "feed" :title "Current" :tags []}]
+                                  :has-more? true})))
+          tool-rendered (str (h/html (uut/nav-bar
+                                      {:mode :tools
+                                       :view :search
+                                       :uri "/reader/tools/search"
+                                       :group-name :default
+                                       :group-item :all
+                                       :source-key :all
+                                       :items []})))]
+      (is (re-find #"reader-mobile-navigation-toggle[^>]*data-bs-target=\"#groupnav\"" rendered))
+      (is (re-find #"reader-mobile-sources-toggle[^>]*data-bs-target=\"#sourcenav\"" rendered))
+      (is (not (string/includes? rendered "data-bs-target=\"#navbar\"")))
+      (is (string/includes? rendered "navbar-collapse d-none d-md-flex"))
+      (is (= 1 (count (re-seq #"btn-reload-current-view" rendered))))
+      (is (not (string/includes? tool-rendered "reader-mobile-actions"))))))
+
+(deftest annotation-mode-renders-a-readable-explicit-workspace
+  (with-redefs [appconfig/credentials (constantly nil)
+                rc/rc (constantly nil)]
+    (let [article (str (h/html (uut/main-show-item
+                                {:items [{:id 42
+                                          :url "https://example.com"
+                                          :tags []
+                                          :entry {:language "en"}
+                                          :data {:description
+                                                 {"text/html" "<p>Annotate me</p>"}}}]})))
+          button (str (h/html (uut/annotation-button)))
+          javascript (slurp (io/resource "status/llar.js"))]
+      (is (string/includes? button "aria-pressed=\"false\""))
+      (is (string/includes? article "aria-label=\"Annotation tools\""))
+      (is (string/includes? article "id=\"annotation-mode-status\""))
+      (is (string/includes? article "aria-live=\"polite\""))
+      (is (string/includes? article "btn-close-annotation-mode"))
+      (is (string/includes? article "reader-annotation-notes"))
+      (is (string/includes? article "placeholder=\"Write an item note\""))
+      (is (string/includes? javascript "selectionchange.annotation"))
+      (is (string/includes? javascript "reader-annotation-delete"))
+      (is (string/includes? javascript "unavailable highlight"))
+      (is (not (string/includes? javascript "click.annotation-delete"))))))
+
 (deftest tool-breadcrumb-names-the-current-tool-instead-of-all
   (with-redefs [rc/rc (constantly nil)]
     (doseq [[view title icon-class] [[:saved-overview "Reading Queue" "fas fa-project-diagram"]
@@ -592,7 +642,7 @@
   (let [css (slurp (io/resource "status/llar.css"))]
     (is (re-find #"--llar-primary: #f2711c" css))
     (is (re-find #"--llar-primary-control: #ff9a57" css))
-    (is (re-find #"::highlight\(llar-annotation\) \{[^}]*var\(--llar-primary-control\)"
+    (is (re-find #"::highlight\(llar-annotation\) \{[^}]*var\(--llar-annotation-bg\)"
                  css))
     (is (re-find #"\.llar-reader ::selection \{[^}]*var\(--llar-primary-control\)"
                  css))
@@ -833,7 +883,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t06-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime

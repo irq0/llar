@@ -33,6 +33,8 @@ body {
   --llar-primary-control: #ff9a57;
   --llar-primary-control-hover: #f98537;
   --llar-primary-subtle: #feeadc;
+  --llar-annotation-bg: rgb(242 113 28 / 20%);
+  --llar-annotation-border: rgb(242 113 28 / 42%);
   --llar-state-current: var(--llar-primary);
   --llar-state-saved: var(--llar-primary);
   --llar-state-unread: var(--llar-ink);
@@ -96,6 +98,8 @@ body {
   --llar-link-rgb: 110, 168, 254;
   --llar-link-hover-rgb: 139, 185, 254;
   --llar-primary-subtle: #4b2c1c;
+  --llar-annotation-bg: rgb(255 154 87 / 26%);
+  --llar-annotation-border: rgb(255 154 87 / 52%);
   --llar-syntax-keyword: #d2a8ff;
   --llar-syntax-string: #7ee787;
   --llar-syntax-number: #79c0ff;
@@ -126,6 +130,8 @@ body {
     --llar-link-rgb: 110, 168, 254;
     --llar-link-hover-rgb: 139, 185, 254;
     --llar-primary-subtle: #4b2c1c;
+    --llar-annotation-bg: rgb(255 154 87 / 26%);
+    --llar-annotation-border: rgb(255 154 87 / 52%);
     --llar-syntax-keyword: #d2a8ff;
     --llar-syntax-string: #7ee787;
     --llar-syntax-number: #79c0ff;
@@ -241,6 +247,10 @@ body {
   padding-top: var(--llar-space-2);
   border-inline: 1px solid var(--llar-border);
   background: var(--llar-surface);
+}
+
+.reading-annotation-mode main {
+  padding-bottom: 8rem;
 }
 
 .llar-reader.reader-mode-focus-item main {
@@ -2759,6 +2769,8 @@ div.item-preview-small img {
 }
 
 .reader-mobile-navbar {
+  flex: 1 1 auto;
+  gap: var(--llar-space-1);
   min-width: 0;
   min-height: 48px;
   padding-inline: var(--llar-space-1);
@@ -2776,6 +2788,8 @@ div.item-preview-small img {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  color: var(--llar-ink-muted);
+  font-size: 0.82rem;
   text-overflow: ellipsis;
 }
 
@@ -2783,6 +2797,12 @@ div.item-preview-small img {
   display: flex;
   flex: 0 0 auto;
   order: 2;
+}
+
+.reader-mobile-navigation-toggle[aria-expanded="true"],
+.reader-mobile-sources-toggle[aria-expanded="true"] {
+  color: var(--llar-primary) !important;
+  background: var(--llar-primary-subtle) !important;
 }
 
 div.item-content .orig-content {
@@ -3060,19 +3080,36 @@ div.item-content-body p > code {
   margin-bottom: var(--llar-space-2);
 }
 
-@media (width <= 768px) {
-  nav {
-    z-index: 10000;
+@media (width < 768px) {
+  body.reader-mobile-navigation-open {
+    overflow: hidden;
+  }
+
+  .llar-reader #top-nav {
+    z-index: 1030;
+  }
+
+  .sidebar-right,
+  .sidebar-left {
+    position: fixed;
+    z-index: 1020;
+    top: 48px;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    padding-top: var(--llar-space-2);
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+    background: var(--llar-surface-subtle);
+    box-shadow: 0 0.35rem 0.8rem var(--llar-shadow);
   }
 
   .sidebar-right {
-    padding-top: 0.5rem;
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    overflow: hidden auto;
     right: 0;
-    background: var(--llar-surface-subtle);
+  }
+
+  .sidebar-left {
+    left: 0;
   }
 
   .sidebar-right #right-nav {
@@ -3083,54 +3120,13 @@ div.item-content-body p > code {
     overflow-x: hidden;
   }
 
-  .sidebar-left {
-    padding-top: 0.5rem;
-    position: fixed;
-    width: 100%;
-    background: var(--llar-surface-subtle);
-    height: 100%;
-    overflow-y: auto;
-  }
-
   .sidebar-left #left-nav {
     padding-bottom: 4em;
   }
 }
 
-/* tablet */
-@media (width >= 500px) and (width <= 800px) {
-  .sidebar-right {
-    z-index: 100;
-    padding: 0;
-    box-shadow: inset -1px 0 0 var(--llar-border);
-    position: fixed;
-    height: calc(100vh - 48px);
-    padding-top: 0.5rem;
-    overflow: hidden auto;
-    padding-bottom: 32px;
-    width: 30%;
-    right: 0;
-  }
-
-  main {
-    overflow-x: hidden;
-  }
-
-  .sidebar-left {
-    z-index: 100;
-    padding: 0;
-    box-shadow: inset -1px 0 0 var(--llar-border);
-    position: fixed;
-    height: calc(100vh - 48px);
-    padding-top: 0.5rem;
-    overflow: hidden auto;
-    padding-bottom: 32px;
-    width: 30%;
-  }
-}
-
 /* standard desktop */
-@media (width >= 800px) {
+@media (width >= 768px) {
   .sidebar-right {
     position: fixed;
     bottom: 0;
@@ -3305,7 +3301,7 @@ div.item-content-body p > code {
   text-overflow: ellipsis;
 }
 
-@media (width <= 768px) {
+@media (width < 768px) {
   #navbar .path {
     height: unset;
   }
@@ -3515,7 +3511,7 @@ div.item-content-body p > code {
   font-family: var(--llar-font-reading);
 }
 
-@media (width <= 768px) {
+@media (width < 768px) {
   .reader-navbar-context {
     flex-direction: column;
     width: 100%;
@@ -3553,8 +3549,12 @@ div.item-content-body p > code {
 
 /* Annotation highlights (CSS Custom Highlight API) */
 ::highlight(llar-annotation) {
-  background-color: var(--llar-primary-control);
-  color: #212529;
+  color: inherit;
+  background-color: var(--llar-annotation-bg);
+  text-decoration: underline;
+  text-decoration-color: var(--llar-primary);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.12em;
 }
 
 ::highlight(llar-checkpoint-flash) {
@@ -3562,22 +3562,213 @@ div.item-content-body p > code {
   color: #212529;
 }
 
-#annotation-bottom-bar {
+.reader-annotation-tray-shell {
   z-index: 1030;
+  padding: 0 var(--llar-space-3) var(--llar-space-3);
+  pointer-events: none;
 }
 
-.btn-annotation-mode.active {
+.reader-annotation-tray {
+  width: min(64rem, 100%);
+  margin-inline: auto;
+  padding: var(--llar-space-2) var(--llar-space-3);
+  border: 1px solid var(--llar-annotation-border);
+  border-radius: calc(var(--llar-radius) + 0.15rem);
+  color: var(--llar-ink);
+  background: var(--llar-surface-raised);
+  box-shadow: 0 0.35rem 1rem var(--llar-shadow);
+  pointer-events: auto;
+}
+
+.reader-annotation-tray-heading,
+.reader-annotation-compose,
+.reader-annotation-note-compose,
+.reader-annotation-notes-heading,
+.reader-annotation-note,
+.reader-annotation-highlight-item {
+  display: flex;
+  align-items: center;
+}
+
+.reader-annotation-tray-heading {
+  gap: var(--llar-space-3);
+  justify-content: space-between;
+  min-height: var(--llar-control-height);
+}
+
+.reader-annotation-mode-copy {
+  display: flex;
+  gap: var(--llar-space-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.reader-annotation-mode-title {
+  flex: 0 0 auto;
   color: var(--llar-primary);
+  font-size: 0.82rem;
+}
+
+#annotation-mode-status,
+#annotation-note-count {
+  overflow: hidden;
+  color: var(--llar-ink-muted);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-annotation-compose {
+  gap: var(--llar-space-2);
+}
+
+.reader-annotation-note-compose {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--llar-border);
+  border-radius: var(--llar-radius);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-annotation-note-compose:focus-within {
+  border-color: var(--llar-primary-control);
+  box-shadow: 0 0 0 0.18rem rgb(var(--llar-primary-rgb) / 18%);
+}
+
+#annotation-note-input {
+  min-width: 0;
+  min-height: var(--llar-control-height);
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.llar-reader .reader-icon-button.reader-annotation-highlight-action {
+  color: var(--llar-primary) !important;
+  background: var(--llar-primary-subtle) !important;
+}
+
+.reader-annotation-highlight-list {
+  display: flex;
+  gap: var(--llar-space-2);
+  margin-block: var(--llar-space-1) var(--llar-space-2);
+  padding-bottom: var(--llar-space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.reader-annotation-highlight-item {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--llar-annotation-border);
+  border-radius: 500rem;
+  background: var(--llar-annotation-bg);
+}
+
+.llar-reader a.reader-annotation-jump,
+.llar-reader span.reader-annotation-jump {
+  max-width: 18rem;
+  padding: 0.25rem 0 0.25rem var(--llar-space-2);
+  overflow: hidden;
+  color: var(--llar-ink);
+  font-size: 0.72rem;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.llar-reader .reader-annotation-highlight-item.is-unresolved {
+  border-color: var(--llar-border);
+  background: var(--llar-surface-subtle);
+}
+
+.llar-reader span.reader-annotation-jump {
+  color: var(--llar-ink-muted);
+}
+
+.llar-reader .reader-icon-button.reader-annotation-delete {
+  width: 1.75rem !important;
+  min-width: 1.75rem !important;
+  min-height: 1.75rem !important;
+  color: var(--llar-ink-faint) !important;
+  font-size: 0.7rem;
+}
+
+.llar-reader .reader-icon-button.reader-annotation-delete:hover,
+.llar-reader .reader-icon-button.reader-annotation-delete:focus {
+  color: var(--bs-danger) !important;
+  background: var(--llar-surface-subtle);
+}
+
+.reader-annotation-notes {
+  width: min(var(--llar-reading-measure), calc(100% - 1.5rem));
+  margin: var(--llar-space-2) auto var(--llar-space-4);
+  padding: var(--llar-space-3);
+  border: 1px solid var(--llar-annotation-border);
+  border-radius: var(--llar-radius);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-annotation-notes-heading {
+  justify-content: space-between;
+  margin-bottom: var(--llar-space-2);
+}
+
+#annotation-notes-title {
+  margin: 0;
+  color: var(--llar-primary);
+  font-size: 0.82rem;
+}
+
+.reader-annotation-note {
+  gap: var(--llar-space-2);
+  align-items: flex-start;
+  padding-block: var(--llar-space-2);
+  border-top: 1px solid var(--llar-annotation-border);
+}
+
+.reader-annotation-note .reader-annotation-note-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.llar-reader .btn-annotation-mode.active {
+  color: var(--llar-primary);
+  background: var(--llar-primary-subtle);
 }
 
 .annotation-mode-active {
   columns: unset !important;
 }
 
-#annotation-highlight-list a {
-  font-family: "IBM Plex Sans", sans-serif;
-  font-size: 0.75rem;
-  text-decoration: none;
+@media (width < 576px) {
+  .reader-annotation-tray-shell {
+    padding: 0 var(--llar-space-2) var(--llar-space-2);
+  }
+
+  .reader-annotation-tray {
+    padding-inline: var(--llar-space-2);
+  }
+
+  .reader-annotation-mode-copy {
+    display: block;
+  }
+
+  #annotation-mode-status {
+    display: block;
+    max-width: calc(100vw - 6rem);
+    margin-top: 0.1rem;
+  }
+
+  .llar-reader a.reader-annotation-jump,
+  .llar-reader span.reader-annotation-jump {
+    max-width: 13rem;
+  }
 }
 
 #saved-items a {
@@ -4128,7 +4319,7 @@ table.exception-chain tr {
   }
 }
 
-@media (width <= 768px) {
+@media (width < 768px) {
   nav {
     font-family: "IBM Plex Sans Condensed", sans-serif;
   }

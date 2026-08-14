@@ -876,6 +876,11 @@ function keepCurrentItemUnread(onComplete) {
 // Keyboard navigation
 $("body").on("keydown", function (event) {
   if ($("body").hasClass("modal-open")) return;
+  if (event.key === "Escape" && annotationModeActive) {
+    event.preventDefault();
+    toggleAnnotationMode();
+    return;
+  }
   if ($(event.target).is("input, textarea, select, [contenteditable]")) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   if (!readingNavigation.container) return;
@@ -1352,8 +1357,13 @@ $(document).ready(function () {
   });
 
   // annotation mode
-  $(".btn-annotation-mode").on("click", function () {
+  $(".btn-annotation-mode").on("click", function (event) {
+    event.preventDefault();
     toggleAnnotationMode();
+  });
+
+  $(".btn-close-annotation-mode").on("click", function () {
+    if (annotationModeActive) toggleAnnotationMode();
   });
 
   $("#btn-highlight-selection").on("click", function () {
@@ -1362,6 +1372,13 @@ $(document).ready(function () {
 
   $("#btn-add-item-note").on("click", function () {
     createItemNote();
+  });
+
+  $("#annotation-note-input").on("keydown", function (event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      createItemNote();
+    }
   });
 
   // export buttons
@@ -1375,6 +1392,50 @@ $(document).ready(function () {
   });
 });
 
+// Mobile uses the sidebars as mutually exclusive destination drawers. The
+// desktop context bar remains visible at md and above, so no action set is
+// duplicated inside a collapsed navbar.
+$(function () {
+  var drawers = $("#groupnav, #sourcenav");
+  if (!drawers.length) return;
+
+  function usesMobileNavigation() {
+    return window.matchMedia("(max-width: 767.98px)").matches;
+  }
+
+  function syncMobileNavigationState() {
+    if (!usesMobileNavigation()) {
+      $("body").removeClass("reader-mobile-navigation-open");
+      return;
+    }
+    $("body").toggleClass(
+      "reader-mobile-navigation-open",
+      drawers.filter(".show").length > 0,
+    );
+  }
+
+  drawers.on("show.bs.collapse", function () {
+    if (!usesMobileNavigation()) return;
+    var opening = this;
+    drawers.filter(".show").each(function () {
+      if (this !== opening && window.bootstrap) {
+        window.bootstrap.Collapse.getOrCreateInstance(this).hide();
+      }
+    });
+  });
+  drawers.on("shown.bs.collapse hidden.bs.collapse", syncMobileNavigationState);
+
+  $(document).on("keydown.reader-mobile-navigation", function (event) {
+    if (event.key !== "Escape" || !usesMobileNavigation()) return;
+    drawers.filter(".show").each(function () {
+      if (window.bootstrap) {
+        window.bootstrap.Collapse.getOrCreateInstance(this).hide();
+      }
+    });
+  });
+  $(window).on("resize.reader-mobile-navigation", syncMobileNavigationState);
+});
+
 //
 // Annotation Mode
 //
@@ -1383,6 +1444,38 @@ var annotationModeActive = false;
 var annotations = [];
 var pendingSelector = null;
 var highlightRanges = new Map();
+
+function annotationCounts() {
+  return {
+    highlights: annotations.filter(function (annotation) {
+      return annotation.selector != null;
+    }).length,
+    notes: annotations.filter(function (annotation) {
+      return annotation.selector == null && annotation.body != null;
+    }).length,
+  };
+}
+
+function setAnnotationStatus(message) {
+  $("#annotation-mode-status").text(message);
+}
+
+function updateAnnotationStatus() {
+  var counts = annotationCounts();
+  var saved = [];
+  if (counts.highlights) {
+    saved.push(
+      counts.highlights + " highlight" + (counts.highlights === 1 ? "" : "s"),
+    );
+  }
+  if (counts.notes) {
+    saved.push(counts.notes + " note" + (counts.notes === 1 ? "" : "s"));
+  }
+  setAnnotationStatus(
+    "Select text to highlight or write a note" +
+      (saved.length ? " · " + saved.join(" · ") : ""),
+  );
+}
 
 function getItemId() {
   return $("#item-meta").data("id");
@@ -1394,21 +1487,30 @@ function toggleAnnotationMode() {
   var btn = $(".btn-annotation-mode");
 
   if (annotationModeActive) {
-    btn.addClass("active");
+    btn
+      .addClass("active")
+      .attr("aria-pressed", "true")
+      .attr("title", "Close annotation mode (a)")
+      .attr("aria-label", "Close annotation mode (a)");
     $("#annotation-bottom-bar").show();
     $("#item-content-body").addClass("annotation-mode-active");
+    setAnnotationStatus("Loading annotations…");
     loadAnnotations();
     $("#item-content-body").on("mouseup.annotation", onTextSelected);
-    $("#item-content-body").on("click.annotation-delete", onHighlightClick);
+    $(document).on("selectionchange.annotation", onAnnotationSelectionChanged);
   } else {
-    btn.removeClass("active");
+    btn
+      .removeClass("active")
+      .attr("aria-pressed", "false")
+      .attr("title", "Annotation Mode (a)")
+      .attr("aria-label", "Annotation Mode (a)");
     $("#annotation-bottom-bar").hide();
     $("#annotation-item-notes").hide();
     $("#annotation-selection-actions").hide();
     $("#item-content-body").removeClass("annotation-mode-active");
     clearHighlights();
     $("#item-content-body").off("mouseup.annotation");
-    $("#item-content-body").off("click.annotation-delete");
+    $(document).off("selectionchange.annotation");
     pendingSelector = null;
   }
   $("body").toggleClass("reading-annotation-mode", annotationModeActive);
@@ -1430,6 +1532,9 @@ function loadAnnotations() {
     annotations = data.annotations || [];
     renderHighlights();
     renderNotes();
+    updateAnnotationStatus();
+  }).fail(function () {
+    setAnnotationStatus("Could not load annotations");
   });
 }
 
@@ -1468,23 +1573,39 @@ function getContainerText(container) {
   return text;
 }
 
+function onAnnotationSelectionChanged() {
+  var selection = window.getSelection();
+  if (annotationModeActive && selection && !selection.isCollapsed) {
+    onTextSelected();
+  }
+}
+
+function clearPendingAnnotationSelection() {
+  $("#annotation-selection-actions").hide();
+  pendingSelector = null;
+  if (annotationModeActive) updateAnnotationStatus();
+}
+
 function onTextSelected() {
   var sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
-    $("#annotation-selection-actions").hide();
-    pendingSelector = null;
+    clearPendingAnnotationSelection();
     return;
   }
 
   var range = sel.getRangeAt(0);
   var container = document.getElementById("item-content-body");
-  if (!container || !container.contains(range.startContainer)) {
+  if (
+    !container ||
+    !container.contains(range.startContainer) ||
+    !container.contains(range.endContainer)
+  ) {
+    clearPendingAnnotationSelection();
     return;
   }
 
   if (sel.toString().trim().length === 0) {
-    $("#annotation-selection-actions").hide();
-    pendingSelector = null;
+    clearPendingAnnotationSelection();
     return;
   }
 
@@ -1507,6 +1628,7 @@ function onTextSelected() {
   };
 
   $("#annotation-selection-actions").show();
+  setAnnotationStatus("Selection ready to highlight");
 }
 
 //
@@ -1516,6 +1638,7 @@ function onTextSelected() {
 function createHighlight() {
   if (!pendingSelector) return;
   var itemId = getItemId();
+  var button = $("#btn-highlight-selection").prop("disabled", true);
   $.post(
     "/reader/annotation/" + itemId,
     { selector: JSON.stringify(pendingSelector) },
@@ -1525,10 +1648,16 @@ function createHighlight() {
       pendingSelector = null;
       $("#annotation-selection-actions").hide();
       renderHighlights();
+      updateAnnotationStatus();
     },
-  ).fail(function (xhr) {
-    console.error("[annotations] highlight create failed:", xhr.status);
-  });
+  )
+    .fail(function (xhr) {
+      console.error("[annotations] highlight create failed:", xhr.status);
+      setAnnotationStatus("Could not save highlight");
+    })
+    .always(function () {
+      button.prop("disabled", false);
+    });
 }
 
 function createItemNote() {
@@ -1536,13 +1665,20 @@ function createItemNote() {
   var text = input.val();
   if (!text || text.trim().length === 0) return;
   var itemId = getItemId();
+  var button = $("#btn-add-item-note").prop("disabled", true);
   $.post("/reader/annotation/" + itemId, { body: text }, function (data) {
     annotations.push(data.annotation);
     input.val("");
     renderNotes();
-  }).fail(function (xhr) {
-    console.error("[annotations] note create failed:", xhr.status);
-  });
+    updateAnnotationStatus();
+  })
+    .fail(function (xhr) {
+      console.error("[annotations] note create failed:", xhr.status);
+      setAnnotationStatus("Could not save note");
+    })
+    .always(function () {
+      button.prop("disabled", false);
+    });
 }
 
 function deleteAnnotation(id) {
@@ -1555,9 +1691,11 @@ function deleteAnnotation(id) {
       });
       renderHighlights();
       renderNotes();
+      updateAnnotationStatus();
     },
     error: function (xhr) {
       console.error("[annotations] delete failed:", xhr.status);
+      setAnnotationStatus("Could not delete annotation");
     },
   });
 }
@@ -1567,7 +1705,9 @@ function deleteAnnotation(id) {
 //
 
 function clearHighlights() {
-  CSS.highlights.delete("llar-annotation");
+  if (window.CSS && CSS.highlights) {
+    CSS.highlights.delete("llar-annotation");
+  }
   highlightRanges.clear();
 }
 
@@ -1989,7 +2129,12 @@ function renderHighlights() {
     }
   });
 
-  if (ranges.length > 0) {
+  if (
+    ranges.length > 0 &&
+    window.CSS &&
+    CSS.highlights &&
+    typeof Highlight !== "undefined"
+  ) {
     var highlight = new Highlight(...ranges);
     CSS.highlights.set("llar-annotation", highlight);
   }
@@ -2001,49 +2146,51 @@ function renderHighlightLinks() {
   list.empty();
   var idx = 0;
   annotations.forEach(function (ann) {
-    if (!ann.selector || !highlightRanges.has(ann.id)) return;
+    if (!ann.selector) return;
     idx++;
     var raw = ann.selector.quote ? ann.selector.quote.exact : "";
     var text = raw.replace(/\s+/g, " ").substring(0, 30);
-    var link = $("<a>")
-      .addClass("badge bg-warning text-dark me-1")
-      .attr("href", "#")
-      .text(idx + ": " + text + (text.length >= 30 ? "\u2026" : ""))
-      .on("click", function (e) {
-        e.preventDefault();
-        var range = highlightRanges.get(ann.id);
-        if (range) {
+    var item = $("<span>").addClass("reader-annotation-highlight-item");
+    var range = highlightRanges.get(ann.id);
+    var excerpt = text
+      ? text + (text.length >= 30 ? "\u2026" : "")
+      : "unavailable highlight";
+    var label = idx + ": " + excerpt;
+    var link;
+    if (range) {
+      link = $("<a>")
+        .addClass("reader-annotation-jump")
+        .attr("href", "#")
+        .text(label)
+        .on("click", function (e) {
+          e.preventDefault();
           var rect = range.getBoundingClientRect();
           window.scrollTo({
             top: window.scrollY + rect.top - 80,
             behavior: "smooth",
           });
-        }
+        });
+    } else {
+      item.addClass("is-unresolved");
+      link = $("<span>")
+        .addClass("reader-annotation-jump")
+        .attr("title", "The saved text no longer matches this representation")
+        .text(label);
+    }
+    var deleteButton = $("<button>")
+      .addClass("btn reader-icon-button reader-annotation-delete")
+      .attr("type", "button")
+      .attr("title", "Delete highlight")
+      .attr("aria-label", "Delete highlight " + idx)
+      .html('<i class="fas fa-times" aria-hidden="true"></i>')
+      .on("click", function () {
+        deleteAnnotation(ann.id);
       });
-    list.append(link);
+    item.append(link).append(deleteButton);
+    list.append(item);
   });
   if (idx > 0) list.show();
   else list.hide();
-}
-
-function onHighlightClick(event) {
-  if (!window.getSelection().isCollapsed) return;
-
-  var caretPos = document.caretPositionFromPoint
-    ? document.caretPositionFromPoint(event.clientX, event.clientY)
-    : document.caretRangeFromPoint(event.clientX, event.clientY);
-
-  if (!caretPos) return;
-
-  var clickNode = caretPos.offsetNode || caretPos.startContainer;
-  var clickOffset = caretPos.offset || caretPos.startOffset;
-
-  for (var [annId, range] of highlightRanges) {
-    if (range.isPointInRange(clickNode, clickOffset)) {
-      deleteAnnotation(annId);
-      return;
-    }
-  }
 }
 
 //
@@ -2059,18 +2206,26 @@ function renderNotes() {
   list.empty();
 
   if (notes.length === 0) {
+    $("#annotation-note-count").text("");
     panel.hide();
     return;
   }
 
+  $("#annotation-note-count").text(
+    notes.length + " note" + (notes.length === 1 ? "" : "s"),
+  );
+
   notes.forEach(function (note) {
-    var noteEl = $("<div>").addClass(
-      "d-flex justify-content-between align-items-start mb-1",
-    );
-    var textEl = $("<span>").text(note.body);
+    var noteEl = $("<div>").addClass("reader-annotation-note");
+    var textEl = $("<p>")
+      .addClass("reader-annotation-note-text")
+      .text(note.body);
     var delBtn = $("<button>")
-      .addClass("btn btn-sm btn-outline-danger ms-2")
-      .html('<i class="fas fa-times"></i>')
+      .addClass("btn reader-icon-button reader-annotation-delete")
+      .attr("type", "button")
+      .attr("title", "Delete note")
+      .attr("aria-label", "Delete note")
+      .html('<i class="fas fa-times" aria-hidden="true"></i>')
       .on("click", function () {
         deleteAnnotation(note.id);
       });

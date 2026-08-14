@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t06-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-t06-01"}]])
+   [:script {:src "/static/llar.js?v=reader-h01-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -527,32 +527,47 @@
     [:nav {:id "top-nav"
            :class "navbar navbar-expand-md sticky-top flex-md-nowrap p-0"}
      [:div {:class "reader-mobile-navbar d-flex align-items-center d-md-none"}
-      (icon-button {:href "#navbar"
+      (icon-button {:class "reader-mobile-navigation-toggle"
+                    :href "#groupnav"
                     :role "button"
                     :data-bs-toggle "collapse"
-                    :data-bs-target "#navbar"
-                    :aria-controls "navbar"
+                    :data-bs-target "#groupnav"
+                    :aria-controls "groupnav"
                     :aria-expanded "false"
-                    :aria-label "Toggle navigation"}
+                    :title "Reader navigation"
+                    :aria-label "Open Reader navigation"}
                    "fas fa-bars")
+      [:span {:class "navbar-toggler-title" :title short-title} short-title]
       (cond
         (= mode :list-items)
-        (into [:span {:class "reader-mobile-actions"}]
+        (into [:span {:class "reader-mobile-actions"
+                      :aria-label "Current view actions"}]
               (concat
-               (list-lifecycle-actions x link-prefix)
-               [(icon-button {:title "Show groups and filters"
-                              :aria-label "Show groups and filters"
+               [(source-update-button x link-prefix)
+                (icon-button {:class "btn-mark-view-read"
+                              :title "Read all in view"
+                              :aria-label "Read all in view"
+                              :href "#"}
+                             "fas fa-glasses")]
+               (when-let [href (next-batch-href x)]
+                 [(icon-button {:class "btn-next-batch"
+                                :title "Next batch"
+                                :aria-label "Next batch"
+                                :href href}
+                               "fas fa-step-forward")])
+               [(icon-button {:class "reader-mobile-sources-toggle"
+                              :title "Filter sources"
+                              :aria-label "Open source filters"
                               :data-bs-toggle "collapse"
-                              :href "#groupnav"}
-                             "fas fa-compass")
-                (icon-button {:title "Show sources"
-                              :aria-label "Show sources"
-                              :data-bs-toggle "collapse"
+                              :data-bs-target "#sourcenav"
+                              :aria-controls "sourcenav"
+                              :aria-expanded "false"
                               :href "#sourcenav"}
                              "fas fa-list")]))
 
         (= mode :show-item)
-        [:span {:class "reader-mobile-actions"}
+        [:span {:class "reader-mobile-actions"
+                :aria-label "Current item actions"}
          (item-state-button id tags :saved)
          (done-button current-item)
          (focus-button focus-item-href)
@@ -562,18 +577,8 @@
            (icon-button {:title "Next item"
                          :aria-label "Next item"
                          :href next-item-href}
-                        "fas fa-step-forward"))]
-
-        (= mode :tools)
-        [:span {:class "reader-mobile-actions"}
-         (icon-button {:title "Show Reader and Tools navigation"
-                       :aria-label "Show Reader and Tools navigation"
-                       :data-bs-toggle "collapse"
-                       :href "#groupnav"}
-                      "fas fa-compass")])
-
-      [:span {:class "navbar-toggler-title"} short-title]]
-     [:div {:class "collapse navbar-collapse"
+                        "fas fa-step-forward"))])]
+     [:div {:class "navbar-collapse d-none d-md-flex"
             :id "navbar"}
       [:a {:class "navbar-brand d-none d-md-flex"
            :href "/reader"
@@ -1077,6 +1082,9 @@
 
 (defn annotation-button []
   (icon-button {:class "btn-annotation-mode"
+                :href "#"
+                :role "button"
+                :aria-pressed "false"
                 :title "Annotation Mode (a)"
                 :aria-label "Annotation Mode (a)"}
                "fas fa-pen-fancy"))
@@ -1322,12 +1330,17 @@
         (related-button x id)]
        (item-more-menu x item)]]
      [:div {:id "annotation-item-notes"
-            :class "container-fluid mb-2"
+            :class "reader-annotation-notes"
+            :role "region"
+            :aria-labelledby "annotation-notes-title"
             :style "display:none;"}
-      [:div {:class "card"}
-       [:div {:class "card-header py-1"}
-        [:small (icon "fas fa-sticky-note") " Notes"]]
-       [:div {:class "card-body p-2 notes-list"}]]]
+      [:header {:class "reader-annotation-notes-heading"}
+       [:h2 {:id "annotation-notes-title"
+             :class "reader-annotation-notes-title"}
+        (icon "fas fa-sticky-note") "Notes"]
+       [:span {:id "annotation-note-count"
+               :class "reader-annotation-count"}]]
+      [:div {:class "notes-list"}]]
      [:div {:id "item-content-body-container" :class "container-fluid"}
       [:div {:class "reading-surface"}
        [:div {:id "item-content-body"
@@ -1355,21 +1368,48 @@
             content
             (render-special-item-content item #{})))]]]
      [:div {:id "annotation-bottom-bar"
-            :class "fixed-bottom bg-light border-top p-2"
+            :class "reader-annotation-tray-shell fixed-bottom"
+            :role "region"
+            :aria-label "Annotation tools"
             :style "display:none;"}
-      [:div {:class "container-fluid"}
-       [:div {:id "annotation-highlight-list" :class "mb-1 small" :style "display:none;"}]
-       [:div {:class "d-flex align-items-center gap-2"}
+      [:div {:class "reader-annotation-tray"}
+       [:div {:class "reader-annotation-tray-heading"}
+        [:div {:class "reader-annotation-mode-copy"}
+         [:strong {:class "reader-annotation-mode-title"}
+          (action-icon "fas fa-pen-fancy") "Annotations"]
+         [:span {:id "annotation-mode-status"
+                 :class "reader-annotation-status"
+                 :aria-live "polite"}
+          "Select text to highlight or write a note"]]
+        [:button {:type "button"
+                  :class "btn reader-icon-button btn-close-annotation-mode"
+                  :title "Close annotation mode"
+                  :aria-label "Close annotation mode"}
+         (action-icon "fas fa-times")]]
+       [:div {:id "annotation-highlight-list"
+              :class "reader-annotation-highlight-list"
+              :aria-label "Saved highlights"
+              :style "display:none;"}]
+       [:div {:class "reader-annotation-compose"}
         [:div {:id "annotation-selection-actions" :style "display:none;"}
-         [:button {:class "btn btn-primary btn-sm" :id "btn-highlight-selection"}
-          (icon "fas fa-highlighter") " Highlight"]]
-        [:div {:class "flex-grow-1"}
-         [:div {:class "input-group input-group-sm"}
-          [:textarea {:class "form-control form-control-sm" :id "annotation-note-input"
-                      :rows "2" :placeholder "Add a note..."}]
-          [:button {:class "btn reader-icon-button" :id "btn-add-item-note"
-                    :aria-label "Add item note" :title "Add item note"}
-           (action-icon "fas fa-sticky-note")]]]]]]]))
+         [:button {:type "button"
+                   :class "btn reader-icon-button reader-annotation-highlight-action"
+                   :id "btn-highlight-selection"
+                   :aria-label "Highlight selected text"
+                   :title "Highlight selected text"}
+          (action-icon "fas fa-highlighter")]]
+        [:div {:class "reader-annotation-note-compose"}
+         [:textarea {:class "form-control form-control-sm"
+                     :id "annotation-note-input"
+                     :rows "1"
+                     :aria-label "Item note"
+                     :placeholder "Write an item note"}]
+         [:button {:type "button"
+                   :class "btn reader-icon-button"
+                   :id "btn-add-item-note"
+                   :aria-label "Add item note"
+                   :title "Add item note"}
+          (action-icon "fas fa-sticky-note")]]]]]]))
 
 (defn- inspect-fact [label value]
   (when (some? value)
