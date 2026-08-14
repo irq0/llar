@@ -790,7 +790,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t05-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t06-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime
@@ -1433,18 +1433,78 @@
   (is (= [:span [:mark "foo"] " and " [:mark "bar"]]
          (#'uut/render-search-headline "[[[foo]]] and [[[bar]]]"))))
 
-(deftest search-defaults-to-any-time-and-renders-valid-result-markup
+(deftest search-defaults-to-any-time-without-running-an-empty-query
+  (let [calls (atom 0)]
+    (with-redefs [uut/frontend-db :db
+                  persistency/search (fn [& _] (swap! calls inc) [])]
+      (let [rendered (str (h/html (uut/tools-view-handler
+                                   {:view :search :request-params {}})))]
+        (is (zero? @calls))
+        (is (re-find #"<option selected=\"selected\" value=\"\">Any time</option>" rendered))
+        (is (re-find #"Search titles, authors, URLs, and stored article text" rendered))
+        (is (not (re-find #"reader-search-results" rendered)))
+        (is (not (re-find #"reader-search-empty" rendered)))))))
+
+(deftest search-renders-dense-results-and-preserves-filter-links
+  (let [seen (atom nil)
+        now (time/zoned-date-time)]
+    (with-redefs [uut/frontend-db :db
+                  persistency/search
+                  (fn [_ query options]
+                    (reset! seen [query options])
+                    [{:id 9 :title "Known article" :key "source-a" :ts now
+                      :rank 0.125 :title-rank 0.05
+                      :headline "A [[[known]]] matching fragment"}
+                     {:id 10 :title "Second article" :key "source-b" :ts now
+                      :rank 0.1 :title-rank 0.0
+                      :headline "Another [[[known]]] result"}])]
+      (let [rendered (str (h/html (uut/tools-view-handler
+                                   {:view :search
+                                    :request-params {:query " known "
+                                                     :syntax "phrase"
+                                                     :days-ago "90"}})))]
+        (is (= "known" (first @seen)))
+        (is (= :phrase (get-in @seen [1 :syntax])))
+        (is (= (time/days 90) (get-in @seen [1 :time-ago-period])))
+        (is (re-find #"2 shown · best matches first" rendered))
+        (is (re-find #"title match" rendered))
+        (is (re-find #"<mark>known</mark>" rendered))
+        (is (re-find #"with-source-key=source-a" rendered))
+        (is (re-find #"days-ago=90" rendered))
+        (is (re-find #"syntax=phrase" rendered))))))
+
+(deftest search-passes-and-clears-an-active-source-filter
+  (let [seen-options (atom nil)]
+    (with-redefs [uut/frontend-db :db
+                  persistency/search
+                  (fn [_ _ options]
+                    (reset! seen-options options)
+                    [])]
+      (let [rendered (str (h/html (uut/tools-view-handler
+                                   {:view :search
+                                    :request-params {:query "known"
+                                                     :syntax "web"
+                                                     :days-ago "7"
+                                                     :with-source-key "source-a"}})))]
+        (is (= "source-a" (:with-source-key @seen-options)))
+        (is (re-find #"name=\"with-source-key\" type=\"hidden\" value=\"source-a\"" rendered))
+        (is (re-find #"href=\"/reader/tools/search\?query=known&amp;syntax=web&amp;days-ago=7\"" rendered))
+        (is (not (re-find #"with-source-key=source-a" rendered)))))))
+
+(deftest search-distinguishes-empty-results-from-query-errors
   (with-redefs [uut/frontend-db :db
                 persistency/search (fn [& _] [])]
-    (let [view (uut/tools-view-handler {:view :search :request-params {}})
-          any-radio (some (fn [node]
-                            (when (and (vector? node)
-                                       (= :input (first node))
-                                       (= "days-ago-any" (:id (second node))))
-                              node))
-                          (tree-seq coll? seq view))
-          rendered (str (h/html view))]
-      (is (true? (:checked (second any-radio))))
-      (is (re-find #">Found: 0</p>" rendered))
-      (is (re-find #"<th scope=\"col\">Title</th>" rendered))
-      (is (not (re-find #"<p>Found: <td" rendered))))))
+    (let [rendered (str (h/html (uut/tools-view-handler
+                                 {:view :search
+                                  :request-params {:query "nothing"}})))]
+      (is (re-find #"No matches for “nothing”" rendered))
+      (is (not (re-find #"Search failed" rendered)))))
+  (with-redefs [uut/frontend-db :db
+                persistency/search (fn [& _] (throw (Exception. "bad tsquery")))]
+    (let [rendered (str (h/html (uut/tools-view-handler
+                                 {:view :search
+                                  :request-params {:query "&amp;"
+                                                   :syntax "advanced"}})))]
+      (is (re-find #"Search failed" rendered))
+      (is (re-find #"bad tsquery" rendered))
+      (is (not (re-find #"No matches" rendered))))))

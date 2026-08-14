@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t05-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t06-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-t05-01"}]])
+   [:script {:src "/static/llar.js?v=reader-t06-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -4067,20 +4067,157 @@
      frontend-db item-id context offer-id)
     body))
 
+(def ^:private +search-time-options+
+  [["" "Any time"]
+   ["7" "Past 7 days"]
+   ["14" "Past 14 days"]
+   ["90" "Past 90 days"]
+   ["180" "Past 6 months"]
+   ["365" "Past year"]])
+
+(def ^:private +search-syntax-options+
+  [[:web "Web"]
+   [:plain "All words"]
+   [:phrase "Exact phrase"]
+   [:advanced "PostgreSQL tsquery"]])
+
+(defn- search-href [{:keys [query syntax days-ago with-source-key]} overrides]
+  (make-site-href ["/reader/tools/search"]
+                  (merge {:query query
+                          :syntax (some-> syntax name)
+                          :days-ago days-ago
+                          :with-source-key with-source-key}
+                         overrides)
+                  {}))
+
+(defn- search-matched-terms [headline]
+  (->> (re-seq #"\[\[\[(.+?)\]\]\]" (or headline ""))
+       (map (comp string/trim second))
+       (remove string/blank?)
+       distinct))
+
+(defn- render-search-form [{:keys [query syntax days-ago with-source-key] :as params}]
+  [:form {:class "reader-search-form"
+          :action "/reader/tools/search"
+          :method "get"}
+   (when-not (string/blank? with-source-key)
+     [:input {:type "hidden" :name "with-source-key" :value with-source-key}])
+   [:div {:class "reader-search-query-control"}
+    [:input {:type "search"
+             :class "form-control reader-search-query-input"
+             :name "query"
+             :id "query"
+             :placeholder "Search the archive"
+             :aria-label "Search the archive"
+             :autofocus true
+             :value (or query "")}]
+    [:button {:type "submit"
+              :class "btn reader-icon-button reader-search-submit"
+              :title "Search"
+              :aria-label "Search"}
+     (action-icon "fas fa-search")]]
+   [:div {:class "reader-search-filters"
+          :aria-label "Search options"}
+    [:label {:for "syntax"} "Mode"]
+    [:select {:class "form-select form-select-sm reader-search-filter-select"
+              :name "syntax"
+              :id "syntax"}
+     (for [[value label] +search-syntax-options+]
+       [:option (cond-> {:value (name value)}
+                  (= value syntax) (assoc :selected "selected"))
+        label])]
+    [:label {:for "days-ago"} "Fetched"]
+    [:select {:class "form-select form-select-sm reader-search-filter-select"
+              :name "days-ago"
+              :id "days-ago"}
+     (for [[value label] +search-time-options+]
+       [:option (cond-> {:value value}
+                  (= value (or days-ago "")) (assoc :selected "selected"))
+        label])]
+    (when-not (string/blank? with-source-key)
+      [:a {:class "reader-search-source-filter"
+           :href (search-href params {:with-source-key nil})
+           :title "Search all sources"
+           :aria-label (str "Clear source filter " with-source-key)}
+       (icon "fas fa-rss") with-source-key (icon "fas fa-times")])]
+   [:details {:class "reader-tool-disclosure reader-search-help"}
+    [:summary "Query help"]
+    [:p
+     "Web mode supports " [:code "\"exact phrase\""] ", "
+     [:code "cats OR dogs"] ", and " [:code "-excluded"] ". "
+     "All words and Exact phrase avoid special syntax; PostgreSQL tsquery exposes operators directly."]]])
+
+(defn- render-search-source-distribution [params results]
+  (let [sources (->> results
+                     (map :key)
+                     (remove string/blank?)
+                     frequencies
+                     (sort-by (juxt (comp - val) key)))]
+    (when (seq sources)
+      [:div {:class "reader-search-sources" :aria-label "Sources in these results"}
+       [:span {:class "reader-search-sources-label"} "Sources"]
+       (for [[source count] sources]
+         [:a (cond-> {:class "reader-search-source"
+                      :href (search-href params {:with-source-key source})}
+               (= source (:with-source-key params)) (assoc :aria-current "true"))
+          source [:span {:class "reader-search-source-count"} count]])])))
+
+(defn- render-search-result [x {:keys [title key rank title-rank id ts headline]}]
+  (let [matched-terms (search-matched-terms headline)]
+    [:article {:class "reader-search-result reader-tool-row"}
+     [:div {:class "reader-search-result-heading"}
+      [:h3 {:class "reader-search-result-title"}
+       [:a {:class "reader-search-result-link"
+            :href (make-site-href
+                   ["/reader/group/default/none/source/all/item/by-id" id]
+                   {:mark :read}
+                   x)}
+        (if (string/blank? title) "(no title)" title)]]
+      (when ts
+        [:time {:class "reader-search-result-age timestamp"
+                :datetime (str ts)
+                :title ts}
+         (human/datetime-ago-short ts)])]
+     [:div {:class "reader-search-result-meta"}
+      [:a {:class "reader-search-result-source"
+           :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
+       (icon "fas fa-rss") key]
+      [:span {:title "PostgreSQL normalized full-text relevance rank"}
+       (icon "fas fa-wave-square") (format "rank %.3f" (double (or rank 0.0)))]
+      (when (pos? (double (or title-rank 0.0)))
+        [:span {:class "reader-search-title-match"
+                :title "At least one query term matched the title"}
+         (icon "fas fa-heading") "title match"])]
+     (when (seq matched-terms)
+       [:div {:class "reader-search-matched-terms" :aria-label "Matched terms"}
+        (for [term matched-terms]
+          [:span {:class "reader-search-matched-term"} term])])
+     (when-not (string/blank? headline)
+       [:div {:class "reader-search-headline search-headline"}
+        (render-search-headline headline)])]))
+
 (defmethod tools-view-handler
   :search
   [x]
-  (let [query (get-in x [:request-params :query])
-        with-source-key (get-in x [:request-params :with-source-key])
+  (let [query (some-> (get-in x [:request-params :query]) string/trim)
+        with-source-key (some-> (get-in x [:request-params :with-source-key]) string/trim)
         days-ago (get-in x [:request-params :days-ago])
         syntax (db-search/normalize-search-syntax (get-in x [:request-params :syntax]))
+        params {:query query
+                :with-source-key with-source-key
+                :days-ago days-ago
+                :syntax syntax}
+        searched? (not (string/blank? query))
         search-result (try
-                        {:results (persistency/search frontend-db query {:syntax syntax
-                                                                         :with-source-key (when-not (string/blank? with-source-key)
-                                                                                            with-source-key)
-                                                                         :time-ago-period (when-not (string/blank? days-ago)
-                                                                                            (time/days (some-> days-ago
-                                                                                                               Integer/parseInt)))})}
+                        {:results (if searched?
+                                    (persistency/search
+                                     frontend-db query
+                                     {:syntax syntax
+                                      :with-source-key (when-not (string/blank? with-source-key)
+                                                         with-source-key)
+                                      :time-ago-period (when-not (string/blank? days-ago)
+                                                         (time/days (Integer/parseInt days-ago)))})
+                                    [])}
                         (catch Exception e
                           {:results []
                            :error (ex-message e)}))
@@ -4088,104 +4225,39 @@
         error (:error search-result)]
 
     [:div {:class "reader-tool-view reader-search-view"}
-     [:form {:class "reader-tool-panel reader-search-form"
-             :action "/reader/tools/search"
-             :method "get"}
-      [:div {:class "row mb-3"}
-       [:label {:for "query" :class "col-sm-4 col-form-label"}
-        "Query"]
-       [:div {:class "col-sm-8"}
-        [:input {:type "text" :class "form-control"
-                 :name "query" :id "query" :placeholder "fat rats, \"fat rat\", rats OR cats, -crab"
-                 :value (or query "")}]]]
-      [:div {:class "row mb-3"}
-       [:label {:for "syntax" :class "col-sm-4 col-form-label"} "Mode"]
-       [:div {:class "col-sm-8"}
-        [:select {:class "form-select" :name "syntax" :id "syntax"}
-         (for [[value label] [[:web "Web"]
-                              [:plain "All Words"]
-                              [:phrase "Phrase"]
-                              [:advanced "PostgreSQL tsquery"]]]
-           [:option (cond-> {:value (name value)}
-                      (= value syntax) (assoc :selected "selected"))
-            label])]]]
-      [:fieldset {:class "row mb-3"}
-       [:legend {:class "col-sm-4 col-form-label"} "Fetched in the last"]
-       [:div {:class "col-sm-8"}
-        (for [[name days] [["any" ""]
-                           ["7d" "7"]
-                           ["14d" "14"]
-                           ["90d" "90"]
-                           ["180d" "180"]
-                           ["1y" "365"]]]
-          [:div {:class "form-check"}
-           [:input (assoc {:class "form-check-input"
-                           :type "radio"
-                           :name "days-ago"
-                           :id (str "days-ago-" name)
-                           :value days}
-                          :checked (= (or days-ago "") days))]
-           [:label {:class "form-check-label" :for (str "days-ago-" name)} name]])]]
-      [:div {:class "row mb-3"}
-       [:label {:class "col-sm-4 col-form-label"} "Actions"]
-       [:button {:type "submit" :class "btn btn-primary col-sm-2"} "Search"]]]
+     (render-search-form params)
 
      (when error
        [:div {:class "reader-tool-message reader-tool-message-error" :role "alert"}
-        (format "Search failed: %s" error)])
+        [:strong "Search failed. "] error
+        [:div {:class "reader-tool-status reader-tool-status-secondary"}
+         "Revise the query or switch to Web mode for forgiving syntax."]])
 
-     [:div {:class "reader-tool-section-heading"}
-      [:h2 {:class "h4 mb-0"} "Results"]
-      [:p {:class "reader-tool-status mb-0"} "Found: " (count results)]]
+     (cond
+       error nil
 
-     [:p {:class "word-cloud"}
-      (let [freqs (->> (map :key results)
-                       frequencies
-                       (sort-by second)
-                       reverse)
-            min-freq (-> freqs last second)
-            max-freq (-> freqs first second)]
-        (for [[word freq] freqs
-              :let [size (word-cloud-fontsize freq min-freq max-freq)]]
-          [:span {:class (str "border source-key " size)}
-           [:a {:href (make-site-href ["/reader/tools/search"]
-                                      (merge x {:with-source-key word
-                                                :query query
-                                                :syntax syntax
-                                                :days-ago days-ago}))
-                :class (str "text-black " size)} (str word " (" freq ")")]]))]
-     (when-not (string/blank? with-source-key)
-       [:p [:a {:href (make-site-href ["/reader/tools/search"]
-                                      (merge x {:with-source-key nil
-                                                :query query
-                                                :syntax syntax
-                                                :days-ago days-ago}))}
-            "All sources"]])
+       (not searched?)
+       [:div {:class "reader-search-initial"}
+        (icon "fas fa-search reader-search-initial-icon")
+        [:p "Search titles, authors, URLs, and stored article text."]]
 
-     [:div {:class "reader-tool-table-wrap"}
-      [:table {:class "table table-borderless reader-tool-table"}
-       [:thead
-        [:tr
-         [:th {:scope "col"} "Title"]
-         [:th {:scope "col"} "Source"]
-         [:th {:scope "col"} "Fetched"]]]
-       [:tbody
-        (for [{:keys [title key rank id ts headline]} results]
-          [:tr
-           [:td
-            [:a {:class "link-dark link-offset-1"
-                 :href (make-site-href
-                        ["/reader/group/default/none/source/all/item/by-id" id]
-                        {:mark :read}
-                        x)}
-             title]
-            (when-not (string/blank? headline)
-              [:div {:class "text-secondary small search-headline"}
-               (render-search-headline headline)])
-            [:div {:class "text-secondary small"} (format "Rank %.2f" rank)]]
-           [:td [:a {:class "link-dark link-offset-1" :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
-                 key]]
-           [:td [:span {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]])]]]]))
+       (empty? results)
+       [:div {:class "reader-tool-empty reader-search-empty"}
+        [:strong "No matches for “" query "”."]
+        [:p "Try fewer terms, Any time, or clear the source filter."]]
+
+       :else
+       [:section {:class "reader-tool-section reader-search-results"}
+        [:div {:class "reader-tool-section-heading reader-search-results-heading"}
+         [:div
+          [:h2 {:class "reader-search-results-title"} "Results"]
+          [:span {:class "reader-search-results-copy"
+                  :title "Ordered by PostgreSQL normalized full-text rank"}
+           (count results) " shown · best matches first"]]]
+        (render-search-source-distribution params results)
+        [:div {:class "reader-search-result-list"}
+         (for [result results]
+           (render-search-result x result))]])]))
 
 (defn reader-tools-index
   "Reader Entrypoint"
