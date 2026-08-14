@@ -96,7 +96,7 @@ jobs:
     - name: Run metadata extraction tests
       run: npm test
     - name: Install browser test assets
-      run: make jquery datatables
+      run: make bootstrap jquery datatables
     - name: Run frontend browser integration tests
       run: npm run test:browser
     - name: Install dependencies

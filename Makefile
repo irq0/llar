@@ -68,8 +68,12 @@ resources/status/bootstrap/js/bootstrap.bundle.min.js:
 	mkdir -p resources/status/bootstrap
 	wget --quiet -nc -O - "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip" \
 	| bsdtar -xzf- -C resources/status/bootstrap --strip-components 1 "bootstrap-$(bootstrap_version)-dist/"
-bootstrap: resources/status/bootstrap/js/bootstrap.bundle.min.js
+bootstrap: resources/status/bootstrap/js/bootstrap.bundle.min.js resources/status/bootstrap/css/bootstrap.min.css
 resources/status/bootstrap/css/bootstrap.min.css: resources/status/bootstrap/js/bootstrap.bundle.min.js
+	@test -f "$@" || { \
+		wget --quiet -nc -O - "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip" \
+		| bsdtar -xzf- -C resources/status/bootstrap --strip-components 1 "bootstrap-$(bootstrap_version)-dist/"; \
+	}
 
 $(jquery_stamp):
 	rm -rf "$(jquery_dir)"
