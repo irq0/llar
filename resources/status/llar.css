@@ -211,6 +211,29 @@ body {
   outline-offset: 2px;
 }
 
+.reader-skip-link {
+  position: fixed;
+  top: var(--llar-space-2);
+  left: var(--llar-space-2);
+  z-index: 1100;
+  padding: var(--llar-space-2) var(--llar-space-3);
+  border: 1px solid var(--llar-primary);
+  border-radius: var(--llar-radius);
+  color: var(--llar-ink);
+  background: var(--llar-surface-raised);
+  box-shadow: 0 0.25rem 0.75rem var(--llar-shadow);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--llar-space-4)));
+}
+
+.reader-skip-link:focus {
+  transform: none;
+}
+
+#reader-main:focus {
+  outline: none;
+}
+
 .llar-reader .bg-light {
   background-color: var(--llar-surface-subtle) !important;
 }

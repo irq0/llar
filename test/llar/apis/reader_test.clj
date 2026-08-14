@@ -487,6 +487,34 @@
       (is (= 1 (count (re-seq #"btn-reload-current-view" rendered))))
       (is (not (string/includes? tool-rendered "reader-mobile-actions"))))))
 
+(deftest reader-landmarks-support-keyboard-navigation
+  (with-redefs [rc/rc (constantly nil)]
+    (let [skip-link (str (h/html (#'uut/reader-skip-link)))
+          main (str (h/html (uut/main-view {:mode :unknown})))
+          group-navigation (str (h/html (uut/group-nav
+                                         {:mode :list-items
+                                          :uri "/reader/group/default/all/source/all/items"
+                                          :group-name :default
+                                          :group-item :all
+                                          :filter :unread
+                                          :item-tags []
+                                          :sources {}})))
+          source-navigation (str (h/html (uut/source-nav
+                                          {:mode :list-items
+                                           :group-name :default
+                                           :group-item :all
+                                           :source-key :one
+                                           :active-sources [{:key :one
+                                                             :title "One"
+                                                             :item-tags {:all 1}}]})))]
+      (is (string/includes? skip-link "href=\"#reader-main\""))
+      (is (string/includes? main "id=\"reader-main\""))
+      (is (string/includes? main "tabindex=\"-1\""))
+      (is (string/includes? group-navigation "aria-label=\"Reader destinations\""))
+      (is (re-find #"aria-current=\"page\"[^>]*>.*unread" group-navigation))
+      (is (string/includes? source-navigation "aria-label=\"Sources in current view\""))
+      (is (re-find #"aria-current=\"page\"" source-navigation)))))
+
 (deftest annotation-mode-renders-a-readable-explicit-workspace
   (with-redefs [appconfig/credentials (constantly nil)
                 rc/rc (constantly nil)]
@@ -883,7 +911,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-02\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime

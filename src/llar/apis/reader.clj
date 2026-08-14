@@ -279,6 +279,10 @@
   (when-let [id (:id item)]
     (make-site-href (item-detail-path x id) x)))
 
+(defn- reader-skip-link []
+  [:a {:class "reader-skip-link" :href "#reader-main"}
+   "Skip to content"])
+
 (defn html-header [title mode item]
   [:head
    [:meta {:charset "utf-8"}]
@@ -310,13 +314,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-02"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-h01-01"}]])
+   [:script {:src "/static/llar.js?v=reader-h01-02"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -677,9 +681,10 @@
                        (coll? ks)
                        (name (first ks)))]]
     [:li {:class "nav-item"}
-     [:a {:class (str "nav-link" (when (= str-ks active) " active"))
-          :title (format "Show %s items" str-ks)
-          :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
+     [:a (cond-> {:class (str "nav-link" (when (= str-ks active) " active"))
+                  :title (format "Show %s items" str-ks)
+                  :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
+           (= str-ks active) (assoc :aria-current "page"))
       (if-let [ico (get icons (keyword str-ks) +tag-icon-default+)]
         (sidebar-link-content ico str-ks)
         str-ks)]]))
@@ -694,7 +699,8 @@
                           [tag (string/replace icon-set #"icon-is-set" "")]))
                +tag-icons-without-buttons+)]
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-left" " mode-" (name (:mode x)))
-           :id "groupnav"}
+           :id "groupnav"
+           :aria-label "Reader destinations"}
      [:div {:class "sidebar-sticky" :id "left-nav"}
       (bookmark-capture-nav)
 
@@ -702,10 +708,12 @@
         [:ul {:class "nav flex-column"}
          (for [[k [name ico]] +exposed-simple-filter+]
            [:li {:class "nav-item"}
-            [:a {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
-                                                   (= (:filter x) k))
-                                          " active"))
-                 :href (make-site-href [(:uri x)] {:filter k} x)}
+            [:a (cond-> {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
+                                                           (= (:filter x) k))
+                                                  " active"))
+                         :href (make-site-href [(:uri x)] {:filter k} x)}
+                  (and (not (get +filter-overrides+ (:group-item x)))
+                       (= (:filter x) k)) (assoc :aria-current "page"))
              (sidebar-link-content ico name)]])])
 
       ;; favorites
@@ -716,11 +724,13 @@
        (for [[key group] (rc/rc [:reader :favorites])
              :when (not= [key group] [:in-progress :item-tags])]
          [:li {:class "nav-item"}
-          [:a {:class (str "nav-link" (when (and
-                                             (= active-group group)
-                                             (= (keyword active-key) key)) " active"))
-               :title (format "Show items with %s %s" (name group) (name key))
-               :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
+          [:a (cond-> {:class (str "nav-link" (when (and
+                                                     (= active-group group)
+                                                     (= (keyword active-key) key)) " active"))
+                       :title (format "Show items with %s %s" (name group) (name key))
+                       :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
+                (and (= active-group group)
+                     (= (keyword active-key) key)) (assoc :aria-current "page"))
            (sidebar-link-content (get icons key +tag-icon-default+) (name key))]])]
 
       ;; tools
@@ -758,8 +768,9 @@
            [:ul {:class "nav flex-column" :id "sort-order-select"}
             (for [[key {:keys [name ico]}] +sort-orders+]
               [:li {:class "nav-item"}
-               [:a {:class (str "nav-link" (when (= key active-sort) " active"))
-                    :href (make-site-href [(:uri x)] {:sort-order key} x)}
+               [:a (cond-> {:class (str "nav-link" (when (= key active-sort) " active"))
+                            :href (make-site-href [(:uri x)] {:sort-order key} x)}
+                     (= key active-sort) (assoc :aria-current "page"))
                 (sidebar-link-content ico name)]])])))
 
       ;; item tags, source tags, and types are destinations, not Tool controls
@@ -810,11 +821,12 @@
               (when (pos? nitems) nitems)]]
 
     [:li {:class "nav-item"}
-     [:a {:class (str
-                  (if grey-out? "nav-link nav-link-secondary" "nav-link")
-                  (when (= key active-key) " active "))
-          :title (format "Filter by source %s" (name (or key :unknown)))
-          :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
+     [:a (cond-> {:class (str
+                          (if grey-out? "nav-link nav-link-secondary" "nav-link")
+                          (when (= key active-key) " active "))
+                  :title (format "Filter by source %s" (name (or key :unknown)))
+                  :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
+           (= key active-key) (assoc :aria-current "page"))
       (cond
         (= (:type source) :item-type/bookmark)
         (let [bookmark-name (or (:name source) (:title source) (:key source))
@@ -840,7 +852,8 @@
         active-key (:group-item x)
         active-source (:source-key x)]
     [:nav {:class (str "collapse col-md-3 col-lg-2 sidebar sidebar-right" " mode-" (name (:mode x)))
-           :id "sourcenav"}
+           :id "sourcenav"
+           :aria-label "Sources in current view"}
      [:div {:class "sidebar-sticky" :id "right-nav"}
       [:ul {:class "nav flex-column"}
        (for [src (->> (:active-sources x) (sort-by :key))]
@@ -2567,7 +2580,9 @@
   "Generate Main Items View, depending on selected style"
   [x]
   (let [{:keys [mode]} x]
-    [:main {:role "main"
+    [:main {:id "reader-main"
+            :role "main"
+            :tabindex "-1"
             :class (if (= mode :focus-item) "" "col-12 col-md-6 col-lg-8")}
      [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
       (case (:mode x)
@@ -2883,7 +2898,7 @@
      (html-header title (:mode params) (first (:items params)))
      [:body {:class (str "llar-reader reader-mode-" (name (:mode params)))}
       (concat
-       [nav-bar]
+       [(reader-skip-link) nav-bar]
        [reading-overlay]
        [[:div {:class "container-fluid"}
          [:div {:class "row"}
@@ -3873,7 +3888,10 @@
                                          :mode :show-item}))
                          :breadcrumb-suffix {:icon "fas fa-project-diagram"
                                              :label "related"})
-           view [:main {:role "main" :class "col-12 col-md-6 col-lg-8"}
+           view [:main {:id "reader-main"
+                        :role "main"
+                        :tabindex "-1"
+                        :class "col-12 col-md-6 col-lg-8"}
                  [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
                   [:h1 {:class "visually-hidden"} "Related to “" (:title item) "”"]
                   [:p {:class "text-secondary"}
@@ -4352,11 +4370,13 @@
                  (html-header title (:mode params) (some-> params :items first))
                  [:body {:class "llar-reader reader-mode-tools"}
                   (concat
-                   [nav-bar]
+                   [(reader-skip-link) nav-bar]
                    [[:div {:class "container-fluid"}
                      [:div {:class "row"}
                       group-nav
-                      [:main {:role "main"
+                      [:main {:id "reader-main"
+                              :role "main"
+                              :tabindex "-1"
                               :class "reader-tool-main col-12 col-md-9 col-lg-10"}
                        (tool-workbench params view)]]]]
                    (html-footer))]))]
@@ -4370,7 +4390,10 @@
     (html-header "preview" "preview" nil)
     [:body {:class "llar-reader reader-mode-preview"}
      (concat
-      [[:main {:role "main"
+      [(reader-skip-link)
+       [:main {:id "reader-main"
+               :role "main"
+               :tabindex "-1"
                :class "col-12 col-md-6 col-lg-8"}
         [:div {:class "justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3"}
          (for [item @+current-fetch-preview+]

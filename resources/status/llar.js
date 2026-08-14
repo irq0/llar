@@ -1399,11 +1399,31 @@ $(function () {
   var drawers = $("#groupnav, #sourcenav");
   if (!drawers.length) return;
 
+  function drawerToggle(drawer) {
+    return $('[aria-controls="' + drawer.id + '"]').first();
+  }
+
+  function drawerName(drawer) {
+    return drawer.id === "sourcenav" ? "source filters" : "Reader navigation";
+  }
+
+  function syncDrawerToggle(drawer) {
+    var expanded = $(drawer).hasClass("show");
+    var label = (expanded ? "Close " : "Open ") + drawerName(drawer);
+    drawerToggle(drawer)
+      .attr("aria-expanded", expanded ? "true" : "false")
+      .attr("aria-label", label)
+      .attr("title", label);
+  }
+
   function usesMobileNavigation() {
     return window.matchMedia("(max-width: 767.98px)").matches;
   }
 
   function syncMobileNavigationState() {
+    drawers.each(function () {
+      syncDrawerToggle(this);
+    });
     if (!usesMobileNavigation()) {
       $("body").removeClass("reader-mobile-navigation-open");
       return;
@@ -1423,17 +1443,28 @@ $(function () {
       }
     });
   });
-  drawers.on("shown.bs.collapse hidden.bs.collapse", syncMobileNavigationState);
+  drawers.on("shown.bs.collapse", function () {
+    syncMobileNavigationState();
+    if (!usesMobileNavigation()) return;
+    $(this).find(".nav-link:visible").first().trigger("focus");
+  });
+  drawers.on("hidden.bs.collapse", syncMobileNavigationState);
 
   $(document).on("keydown.reader-mobile-navigation", function (event) {
     if (event.key !== "Escape" || !usesMobileNavigation()) return;
+    event.preventDefault();
     drawers.filter(".show").each(function () {
       if (window.bootstrap) {
+        var toggle = drawerToggle(this);
+        $(this).one("hidden.bs.collapse", function () {
+          toggle.trigger("focus");
+        });
         window.bootstrap.Collapse.getOrCreateInstance(this).hide();
       }
     });
   });
   $(window).on("resize.reader-mobile-navigation", syncMobileNavigationState);
+  syncMobileNavigationState();
 });
 
 //
