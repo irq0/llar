@@ -292,6 +292,20 @@
   [:a {:class "reader-skip-link" :href "#reader-main"}
    "Skip to content"])
 
+(defn- reader-global-status []
+  [:div {:id "reader-global-status"
+         :class "reader-global-status"
+         :role "alert"
+         :aria-live "assertive"
+         :aria-atomic "true"
+         :hidden true}
+   [:span {:class "reader-global-status-message"}]
+   [:button {:class "btn reader-icon-button reader-global-status-dismiss"
+             :type "button"
+             :title "Dismiss message"
+             :aria-label "Dismiss message"}
+    (action-icon "fas fa-times")]])
+
 (defn html-header [title mode item]
   [:head
    [:meta {:charset "utf-8"}]
@@ -323,13 +337,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-03"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-04"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-h01-03"}]])
+   [:script {:src "/static/llar.js?v=reader-h01-04"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -2912,7 +2926,7 @@
      (html-header title (:mode params) (first (:items params)))
      [:body {:class (str "llar-reader reader-mode-" (name (:mode params)))}
       (concat
-       [(reader-skip-link) nav-bar]
+       [(reader-skip-link) nav-bar (reader-global-status)]
        [reading-overlay]
        [[:div {:class "container-fluid"}
          [:div {:class "row"}
@@ -4394,7 +4408,7 @@
                  (html-header title (:mode params) (some-> params :items first))
                  [:body {:class "llar-reader reader-mode-tools"}
                   (concat
-                   [(reader-skip-link) nav-bar]
+                   [(reader-skip-link) nav-bar (reader-global-status)]
                    [[:div {:class "container-fluid"}
                      [:div {:class "row"}
                       group-nav
@@ -4415,6 +4429,7 @@
     [:body {:class "llar-reader reader-mode-preview"}
      (concat
       [(reader-skip-link)
+       (reader-global-status)
        [:main {:id "reader-main"
                :role "main"
                :tabindex "-1"

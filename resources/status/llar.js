@@ -162,6 +162,43 @@ function requestItemState(id, action, data) {
   });
 }
 
+var readerStatusReturnFocus = null;
+
+function clearReaderStatus() {
+  $("#reader-global-status")
+    .prop("hidden", true)
+    .removeAttr("data-state")
+    .find(".reader-global-status-message")
+    .empty();
+  readerStatusReturnFocus = null;
+}
+
+function dismissReaderStatus() {
+  var returnFocus = readerStatusReturnFocus;
+  clearReaderStatus();
+  if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+}
+
+function showReaderError(message, context, xhr) {
+  var status = xhr && xhr.status;
+  console.error("[" + context + "] request failed:", status || "unknown");
+  $("#reader-global-status")
+    .attr("data-state", "error")
+    .prop("hidden", false)
+    .find(".reader-global-status-message")
+    .text(message);
+}
+
+function setStateControlPending(control, pending) {
+  if (pending && control.length) readerStatusReturnFocus = control[0];
+  control
+    .data("state-request-pending", pending)
+    .toggleClass("disabled", pending)
+    .attr("aria-disabled", pending ? "true" : null)
+    .attr("aria-busy", pending ? "true" : null);
+  if (control.is("button, input")) control.prop("disabled", pending);
+}
+
 function makeAnimatedDots(extraClass) {
   var dots = $("<span>")
     .addClass("reader-lifecycle-indicator reader-lifecycle-dots")
@@ -950,6 +987,8 @@ $(function () {
 });
 
 $(document).ready(function () {
+  $(".reader-global-status-dismiss").on("click", dismissReaderStatus);
+
   function runItemStateBatch(ids, action, onComplete) {
     var remaining = ids.length;
     var successful = [];
@@ -1248,13 +1287,18 @@ $(document).ready(function () {
     var button = $(this);
     if (button.data("state-request-pending")) return;
     var action = button.data("is-set") ? "remove-tag" : "add-tag";
-    button.data("state-request-pending", true).addClass("disabled");
+    clearReaderStatus();
+    setStateControlPending(button, true);
     requestItemState(button.data("id"), action, { tag: button.data("tag") })
       .fail(function (xhr) {
-        console.error("[item-tag] transition failed:", xhr.status);
+        showReaderError(
+          "Could not update tags. Nothing changed.",
+          "item-tag",
+          xhr,
+        );
       })
       .always(function () {
-        button.data("state-request-pending", false).removeClass("disabled");
+        setStateControlPending(button, false);
       });
   });
 
@@ -1265,13 +1309,18 @@ $(document).ready(function () {
     var action = button.data("is-set")
       ? button.data("action-unset")
       : button.data("action-set");
-    button.data("state-request-pending", true).addClass("disabled");
+    clearReaderStatus();
+    setStateControlPending(button, true);
     requestItemState(button.data("id"), action)
       .fail(function (xhr) {
-        console.error("[item-state] transition failed:", xhr.status);
+        showReaderError(
+          "Could not update this item. Nothing changed.",
+          "item-state",
+          xhr,
+        );
       })
       .always(function () {
-        button.data("state-request-pending", false).removeClass("disabled");
+        setStateControlPending(button, false);
       });
   });
 
@@ -1279,13 +1328,18 @@ $(document).ready(function () {
     event.preventDefault();
     var button = $(this);
     if (button.data("state-request-pending")) return;
-    button.data("state-request-pending", true).addClass("disabled");
+    clearReaderStatus();
+    setStateControlPending(button, true);
     requestItemState(button.data("id"), button.data("action"))
       .fail(function (xhr) {
-        console.error("[item-state] action failed:", xhr.status);
+        showReaderError(
+          "Could not update this item. Nothing changed.",
+          "item-state",
+          xhr,
+        );
       })
       .always(function () {
-        button.data("state-request-pending", false).removeClass("disabled");
+        setStateControlPending(button, false);
       });
   });
 
@@ -1345,14 +1399,24 @@ $(document).ready(function () {
     event.preventDefault();
     var form = $(this);
     var input = form.find("input:first");
+    var submit = form.find('[type="submit"]');
     var tag = input.val().trim();
-    if (!tag) return;
+    if (!tag || submit.data("state-request-pending")) return;
+    clearReaderStatus();
+    setStateControlPending(submit, true);
     requestItemState(form.data("id"), "add-tag", { tag: tag })
       .done(function () {
         input.val("");
       })
       .fail(function (xhr) {
-        console.error("[item-tag] add failed:", xhr.status);
+        showReaderError(
+          "Could not add the tag. Nothing changed.",
+          "item-tag",
+          xhr,
+        );
+      })
+      .always(function () {
+        setStateControlPending(submit, false);
       });
   });
 
@@ -1962,7 +2026,7 @@ function updateCheckpointControls(state) {
       .attr("aria-label", "Scroll to the saved reading position")
       .data("selector", checkpoint.selector)
       .data("progress", checkpoint.progress)
-      .html('<i class="fas fa-map-marker-alt">\u2009</i>')
+      .html('<i class="fas fa-map-marker-alt" aria-hidden="true">\u2009</i>')
       .on("click", resumeReadingCheckpoint);
     controls.prepend(resume);
   }
@@ -1973,7 +2037,7 @@ function updateCheckpointControls(state) {
     .attr("type", "button")
     .attr("title", "Clear the Continue Reading checkpoint")
     .attr("aria-label", "Clear saved place")
-    .html('<i class="fas fa-times">\u2009</i>')
+    .html('<i class="fas fa-times" aria-hidden="true">\u2009</i>')
     .on("click", clearReadingCheckpoint)
     .appendTo(controls);
 }
@@ -1985,7 +2049,8 @@ function saveReadingCheckpoint(event) {
   var checkpoint = container && readingCheckpointSelector(container);
   if (!checkpoint) return;
   var id = button.closest(".reading-checkpoint-tools").data("id");
-  button.prop("disabled", true);
+  clearReaderStatus();
+  setStateControlPending(button, true);
   requestItemState(id, "save-checkpoint", {
     selector: JSON.stringify(checkpoint.selector),
     progress: checkpoint.progress,
@@ -1994,10 +2059,14 @@ function saveReadingCheckpoint(event) {
       flashReadingLocation(container, checkpoint.selector);
     })
     .fail(function (xhr) {
-      console.error("[reading-checkpoint] save failed:", xhr.status);
+      showReaderError(
+        "Could not save your place. Your previous place is unchanged.",
+        "reading-checkpoint",
+        xhr,
+      );
     })
     .always(function () {
-      button.prop("disabled", false);
+      setStateControlPending(button, false);
     });
 }
 
@@ -2053,13 +2122,18 @@ function clearReadingCheckpoint(event) {
   event.preventDefault();
   var button = $(event.currentTarget);
   var id = button.closest(".reading-checkpoint-tools").data("id");
-  button.prop("disabled", true);
+  clearReaderStatus();
+  setStateControlPending(button, true);
   requestItemState(id, "clear-checkpoint")
     .fail(function (xhr) {
-      console.error("[reading-checkpoint] clear failed:", xhr.status);
+      showReaderError(
+        "Could not clear your saved place. Nothing changed.",
+        "reading-checkpoint",
+        xhr,
+      );
     })
     .always(function () {
-      button.prop("disabled", false);
+      setStateControlPending(button, false);
     });
 }
 
@@ -2273,40 +2347,46 @@ function renderNotes() {
 // Export Functions
 //
 
+function exportFailureMessage(xhr) {
+  try {
+    return JSON.parse(xhr.responseText).error || "Export failed";
+  } catch (e) {
+    return "Export failed";
+  }
+}
+
 function exportToZotero() {
   var itemId = getItemId();
   if (!itemId) return;
   var btn = $("#btn-export-zotero");
-  btn.addClass("disabled");
+  clearReaderStatus();
+  setStateControlPending(btn, true);
   $.post("/reader/export/" + itemId + "/zotero", function () {
-    btn.removeClass("disabled");
     showExportFlash("success", "Exported to Zotero");
-  }).fail(function (xhr) {
-    btn.removeClass("disabled");
-    var msg = "Export failed";
-    try {
-      msg = JSON.parse(xhr.responseText).error;
-    } catch (e) {
-      /* ignore parse error */
-    }
-    showExportFlash("danger", msg);
-  });
+  })
+    .fail(function (xhr) {
+      showReaderError(exportFailureMessage(xhr), "item-export", xhr);
+    })
+    .always(function () {
+      setStateControlPending(btn, false);
+    });
 }
 
 function exportToUrlHandler() {
   var itemId = getItemId();
   if (!itemId) return;
+  var btn = $("#btn-export-url-handler");
+  clearReaderStatus();
+  setStateControlPending(btn, true);
   $.getJSON("/reader/export/" + itemId + "/url-handler", function (data) {
     if (data.url) window.open(data.url, "_blank");
-  }).fail(function (xhr) {
-    var msg = "Export failed";
-    try {
-      msg = JSON.parse(xhr.responseText).error;
-    } catch (e) {
-      /* ignore parse error */
-    }
-    showExportFlash("danger", msg);
-  });
+  })
+    .fail(function (xhr) {
+      showReaderError(exportFailureMessage(xhr), "item-export", xhr);
+    })
+    .always(function () {
+      setStateControlPending(btn, false);
+    });
 }
 
 function showExportFlash(type, message) {

@@ -946,8 +946,18 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-03\"></script></body></html>$"
+      (is (string/includes? shell "id=\"reader-global-status\""))
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-04\"></script></body></html>$"
                    shell)))))
+
+(deftest reader-global-status-is-a-calm-dismissible-error-region
+  (let [rendered (str (h/html (#'uut/reader-global-status)))]
+    (is (re-find #"id=\"reader-global-status\"[^>]*role=\"alert\"" rendered))
+    (is (string/includes? rendered "aria-live=\"assertive\""))
+    (is (string/includes? rendered "aria-atomic=\"true\""))
+    (is (string/includes? rendered "hidden"))
+    (is (string/includes? rendered "reader-global-status-dismiss"))
+    (is (string/includes? rendered "aria-label=\"Dismiss message\""))))
 
 (deftest reader-loads-the-current-jquery-runtime
   (let [footer (apply str (map #(str (h/html %)) (uut/html-footer)))]

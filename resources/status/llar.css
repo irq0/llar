@@ -258,6 +258,43 @@ body {
   transform: none;
 }
 
+.reader-global-status {
+  position: fixed;
+  z-index: 1040;
+  top: calc(48px + var(--llar-space-2));
+  left: 50%;
+  display: flex;
+  gap: var(--llar-space-2);
+  align-items: center;
+  width: max-content;
+  max-width: calc(100vw - var(--llar-space-3) - var(--llar-space-3));
+  padding: var(--llar-space-2) var(--llar-space-2) var(--llar-space-2)
+    var(--llar-space-3);
+  overflow-wrap: anywhere;
+  border: 1px solid var(--bs-danger-border-subtle);
+  border-radius: var(--llar-radius);
+  color: var(--bs-danger-text-emphasis);
+  background: var(--bs-danger-bg-subtle);
+  box-shadow: 0 0.25rem 0.75rem var(--llar-shadow);
+  transform: translateX(-50%);
+}
+
+.reader-global-status[hidden] {
+  display: none;
+}
+
+.reader-global-status-message {
+  min-width: 0;
+}
+
+.reader-global-status-dismiss {
+  flex: 0 0 auto;
+}
+
+.reader-mode-focus-item .reader-global-status {
+  top: var(--llar-space-2);
+}
+
 #reader-main:focus {
   outline: none;
 }
