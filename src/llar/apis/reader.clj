@@ -211,10 +211,19 @@
     (rc/rc [:digest :enabled?]) (conj +digest-tag-button+)))
 
 (defn icon [ico & args]
-  [:i (assoc (apply hash-map args) :class ico) "\u2009"])
+  [:i (merge {:aria-hidden "true"}
+             (apply hash-map args)
+             {:class ico})
+   "\u2009"])
 
 (defn- action-icon [ico]
   [:i {:class ico :aria-hidden "true"}])
+
+(defn- semantic-time [ts attrs & content]
+  (into [:time (merge {:datetime (str ts)
+                       :title (str ts)}
+                      attrs)]
+        content))
 
 (defn icon-button
   "Render the common Reader icon-only button markup."
@@ -545,6 +554,7 @@
       (cond
         (= mode :list-items)
         (into [:span {:class "reader-mobile-actions"
+                      :role "group"
                       :aria-label "Current view actions"}]
               (concat
                [(source-update-button x link-prefix)
@@ -571,6 +581,7 @@
 
         (= mode :show-item)
         [:span {:class "reader-mobile-actions"
+                :role "group"
                 :aria-label "Current item actions"}
          (item-state-button id tags :saved)
          (done-button current-item)
@@ -629,7 +640,9 @@
            (:label breadcrumb-suffix)])]
 
        (when-not (= mode :tools)
-         [:div {:class "reader-navbar-actions" :aria-label "Current view actions"}
+         [:div {:class "reader-navbar-actions"
+                :role "group"
+                :aria-label "Current view actions"}
           (cond
             (= mode :list-items)
             (list-lifecycle-actions x link-prefix)
@@ -1334,10 +1347,12 @@
                   (number? nwords) (not (neg? nwords)))
          [:span (action-icon "far fa-file-word") nwords " words"])
        (when (some? ts)
-         [:span (action-icon "far fa-calendar") (human/datetime-ago ts)])]
+         [:span (action-icon "far fa-calendar")
+          (semantic-time ts {} (human/datetime-ago ts))])]
       [:div {:class "reader-item-primary-actions"}
        (tags-button-group id tags)
        [:div {:class "reader-item-document-actions"
+              :role "group"
               :aria-label "Document actions"}
         (external-link-button url "_blank")
         (related-button x id)]
@@ -2140,9 +2155,10 @@
        [:li {:class "list-inline-item"}
         (icon "far fa-calendar")
         "\u00a0"
-        [:span {:class "timestamp"} (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)]
-        [:span " - "]
-        [:span {:class "timestamp"} (human/datetime-ago ts)]]
+        (semantic-time ts {:class "timestamp"}
+                       (time/format (time/formatter "YYYY-MM-dd 'KW'ww HH:mm") ts)
+                       [:span " - "]
+                       (human/datetime-ago ts))]
        (when-let [consumption-meta (consumption-time-meta item)]
          [:li {:class "list-inline-item" :title (:title consumption-meta)}
           (icon (:icon consumption-meta))
@@ -2322,7 +2338,7 @@
                 :aria-label (or (:title consumption-meta) "Consumption time unavailable")}
            (or consumption-label "—")]
           [:td {:class "reader-headline-age"}
-           [:span {:class "timestamp" :title ts} age-label]]
+           (semantic-time ts {:class "timestamp"} age-label)]
           [:td {:class "reader-headline-actions"}
            (annotation-cue x link-prefix item)
            (done-button item)
@@ -2444,8 +2460,8 @@
            (action-icon (str (:icon consumption-meta)
                              " reader-gallery-consumption-icon"))
            (str (:minutes consumption-meta) "m")])
-        [:span {:class "reader-gallery-age" :title ts}
-         (human/datetime-ago-short ts)]]
+        (semantic-time ts {:class "reader-gallery-age"}
+                       (human/datetime-ago-short ts))]
        [:div {:class "reader-gallery-action-buttons"
               :role "group"
               :aria-label "Item state and actions"}
@@ -2537,10 +2553,9 @@
     [:footer {:class "reader-batch-footer"
               :aria-label "Current batch"}
      [:div {:class "reader-batch-metadata"}
-      [:span {:class "reader-batch-metadata-item timestamp"
-              :title snapshot-ts}
-       (action-icon "far fa-clock")
-       "Snapshot " (time/format (time/formatter "yyyy-MM-dd HH:mm") snapshot-ts)]
+      (semantic-time snapshot-ts {:class "reader-batch-metadata-item timestamp"}
+                     (action-icon "far fa-clock")
+                     "Snapshot " (time/format (time/formatter "yyyy-MM-dd HH:mm") snapshot-ts))
       [:span {:class "reader-batch-metadata-item"}
        (format "%d item%s" item-count (if (= item-count 1) "" "s"))]
       [:span {:class "reader-batch-metadata-item"}
@@ -2551,12 +2566,11 @@
                         "fas fa-filter"))
        (current-filter-label x)]
       (when last-fetch
-        [:span {:class "reader-batch-metadata-item"
-                :title (:last-success last-fetch)}
-         (action-icon "fas fa-download")
-         "Last fetch " (human/datetime-ago-short (:last-success last-fetch))
-         ": " (get-in last-fetch [:stats :fetched]) " fetched"
-         " · " (get-in last-fetch [:stats :db]) " new"])
+        (semantic-time (:last-success last-fetch) {:class "reader-batch-metadata-item"}
+                       (action-icon "fas fa-download")
+                       "Last fetch " (human/datetime-ago-short (:last-success last-fetch))
+                       ": " (get-in last-fetch [:stats :fetched]) " fetched"
+                       " · " (get-in last-fetch [:stats :db]) " new"))
       (when (pos? mark-on-scroll-count)
         [:span {:class "reader-batch-metadata-item reader-mark-on-scroll-policy"
                 :title "Items from these sources are marked read after you scroll past them"}
@@ -3405,6 +3419,7 @@
                 (:unread stats))])
      (when-not continue-only?
        [:div {:class "reader-queue-controls"
+              :role "group"
               :aria-label "Reading Queue filters"}
         (queue-filter-nav x queue-filter stats)
         (queue-time-filter-nav x queue-time-filter time-stats)])
@@ -3554,7 +3569,8 @@
         (icon "fas fa-rss") (:source-key item)])
      (when (:ts item)
        [:li {:class "list-inline-item timestamp" :title (:ts item)}
-        (icon "far fa-calendar-alt") (human/datetime-ago-short (:ts item))])
+        (icon "far fa-calendar-alt")
+        (semantic-time (:ts item) {} (human/datetime-ago-short (:ts item)))])
      (when consumption-meta
        [:li {:class "list-inline-item" :title (:title consumption-meta)}
         (icon (:icon consumption-meta)) (:label consumption-meta)])
@@ -3624,7 +3640,9 @@
          (if (string/blank? (:title item)) "(no title)" (:title item))]]
        (render-gem-meta item)
        (when (seq (gem-topic-tags item))
-         [:div {:class "reader-gem-topics" :aria-label "Topics"}
+         [:div {:class "reader-gem-topics"
+                :role "group"
+                :aria-label "Topics"}
           (gem-tag-links params item)])
        (when-not (string/blank? description)
          [:p {:class "reader-gem-description"}
@@ -3752,7 +3770,9 @@
     [:a {:class "reader-gem-return" :href (gems-href)}
      (icon "fas fa-arrow-left") "Rediscover"]]
    [:div {:class "reader-gem-result-controls"}
-    [:div {:class "reader-gem-active-filters" :aria-label "Active filters"}
+    [:div {:class "reader-gem-active-filters"
+           :role "group"
+           :aria-label "Active filters"}
      (gem-active-filter params :tag "Topic")
      (gem-active-filter params :source "Source")]
     (when (:query params)
@@ -3912,7 +3932,8 @@
                                       {:mark :read :offer offer-id}
                                       params)}
                            title]]
-                         [:small {:class "timestamp" :title ts} (human/datetime-ago-short ts)]]
+                         (semantic-time ts {:class "timestamp small"}
+                                        (human/datetime-ago-short ts))]
                         [:div {:class "d-flex flex-wrap gap-1 align-items-center small mb-1"}
                          [:span {:class "badge bg-primary"
                                  :title "Lexical score relative to the strongest result shown"}
@@ -4192,6 +4213,7 @@
               :aria-label "Search"}
      (action-icon "fas fa-search")]]
    [:div {:class "reader-search-filters"
+          :role "group"
           :aria-label "Search options"}
     [:label {:for "syntax"} "Mode"]
     [:select {:class "form-select form-select-sm reader-search-filter-select"
@@ -4229,12 +4251,12 @@
                      frequencies
                      (sort-by (juxt (comp - val) key)))]
     (when (seq sources)
-      [:div {:class "reader-search-sources" :aria-label "Sources in these results"}
+      [:nav {:class "reader-search-sources" :aria-label "Sources in these results"}
        [:span {:class "reader-search-sources-label"} "Sources"]
        (for [[source count] sources]
          [:a (cond-> {:class "reader-search-source"
                       :href (search-href params {:with-source-key source})}
-               (= source (:with-source-key params)) (assoc :aria-current "true"))
+               (= source (:with-source-key params)) (assoc :aria-current "page"))
           source [:span {:class "reader-search-source-count"} count]])])))
 
 (defn- render-search-result [x {:keys [title key rank title-rank id ts headline]}]
@@ -4264,7 +4286,9 @@
                 :title "At least one query term matched the title"}
          (icon "fas fa-heading") "title match"])]
      (when (seq matched-terms)
-       [:div {:class "reader-search-matched-terms" :aria-label "Matched terms"}
+       [:div {:class "reader-search-matched-terms"
+              :role "group"
+              :aria-label "Matched terms"}
         (for [term matched-terms]
           [:span {:class "reader-search-matched-term"} term])])
      (when-not (string/blank? headline)

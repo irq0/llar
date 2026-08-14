@@ -112,6 +112,7 @@
     (is (string/includes? card
                           "reader-gallery-card-image reader-defensive-image is-contain"))
     (is (string/includes? card "data-unread=\"true\""))
+    (is (re-find #"<time class=\"reader-gallery-age\" datetime=" card))
     (is (string/includes? grid
                           "row-cols-1 row-cols-sm-2 row-cols-xl-3"))
     (is (< (string/index-of grid "Direct photo")
@@ -409,6 +410,7 @@
           footer (str (h/html (#'uut/batch-footer x)))
           final-footer (str (h/html (#'uut/batch-footer (assoc x :has-more? false))))]
       (is (string/includes? footer "Snapshot 2026-08-11 14:32"))
+      (is (= 2 (count (re-seq #"<time[^>]+datetime=" footer))))
       (is (string/includes? footer "1 item"))
       (is (string/includes? footer "Newest First"))
       (is (string/includes? footer "unread"))
@@ -514,6 +516,38 @@
       (is (re-find #"aria-current=\"page\"[^>]*>.*unread" group-navigation))
       (is (string/includes? source-navigation "aria-label=\"Sources in current view\""))
       (is (re-find #"aria-current=\"page\"" source-navigation)))))
+
+(deftest reader-metadata-and-control-groups-have-consistent-semantics
+  (with-redefs [appconfig/credentials (constantly nil)
+                rc/rc (constantly nil)]
+    (let [ts (time/zoned-date-time 2026 8 14 12 30 0 0 "Z")
+          item {:id 42
+                :source-key "feed"
+                :title "Semantic metadata"
+                :ts ts
+                :tags ["unread"]
+                :url "https://example.com/article"
+                :entry {:language "en"}
+                :data {:content {"text/plain" "Readable content"}}}
+          context {:group-name :default
+                   :group-item :all
+                   :source-key :all
+                   :sources {:feed {:title "Feed" :options #{}}}
+                   :items [item]}
+          preview (str (h/html (uut/main-list-item
+                                context "/reader/group/default/all/source/all" item)))
+          article (str (h/html (uut/main-show-item context)))
+          headlines (str (h/html (uut/headlines-list-items context)))
+          source-facets (str (h/html (#'uut/render-search-source-distribution
+                                      {:query "semantic" :with-source-key "feed"}
+                                      [{:key "feed"} {:key "other"}])))
+          decorative-icon (str (h/html (uut/icon "fas fa-rss")))]
+      (is (string/includes? decorative-icon "aria-hidden=\"true\""))
+      (doseq [rendered [preview article headlines]]
+        (is (re-find #"<time[^>]+datetime=\"2026-08-14T12:30" rendered)))
+      (is (re-find #"reader-item-document-actions[^>]*role=\"group\"" article))
+      (is (re-find #"<nav[^>]*reader-search-sources" source-facets))
+      (is (re-find #"aria-current=\"page\"" source-facets)))))
 
 (deftest annotation-mode-renders-a-readable-explicit-workspace
   (with-redefs [appconfig/credentials (constantly nil)
@@ -740,6 +774,7 @@
     (is (re-find #"reader-headline-source-key\">feed</span>" rendered))
     (is (re-find #"reader-headline-host\"> → example.com</span>" rendered))
     (is (re-find #"class=\"reader-headline-consumption\"[^>]*>1m</td>" rendered))
+    (is (re-find #"<time class=\"timestamp\" datetime=" rendered))
     (is (re-find #"btn-item-done" rendered))
     (is (re-find #"data-action-set=\"done\"" rendered))
     (is (re-find #"data-action-unset=\"mark-unread\"" rendered))
