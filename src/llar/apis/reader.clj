@@ -310,13 +310,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t04-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-t05-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-t04-01"}]])
+   [:script {:src "/static/llar.js?v=reader-t05-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -3476,18 +3476,28 @@
 
 (defn- render-gem-meta [item]
   (let [consumption-meta (consumption-time-meta item)]
-    [:div {:class "reader-tool-metadata d-flex flex-wrap gap-2 small text-secondary"}
-     [:span (icon "fas fa-rss") " " (:source-key item)]
-     [:span {:class "timestamp" :title (:ts item)}
-      (human/datetime-ago-short (:ts item))]
+    [:ul {:class "list-inline reader-tool-metadata reader-gem-metadata"}
+     (when (:source-key item)
+       [:li {:class "list-inline-item"}
+        (icon "fas fa-rss") (:source-key item)])
+     (when (:ts item)
+       [:li {:class "list-inline-item timestamp" :title (:ts item)}
+        (icon "far fa-calendar-alt") (human/datetime-ago-short (:ts item))])
      (when consumption-meta
-       [:span {:title (:title consumption-meta)}
-        (icon (:icon consumption-meta)) " " (:label consumption-meta)])
-     [:span (icon "fas fa-shapes") " " (name (:type item))]]))
+       [:li {:class "list-inline-item" :title (:title consumption-meta)}
+        (icon (:icon consumption-meta)) (:label consumption-meta)])
+     (when (:type item)
+       [:li {:class "list-inline-item"}
+        (icon "fas fa-shapes") (name (:type item))])
+     (when (and (not (string/blank? (:author item)))
+                (not= (some-> (:source-key item) str string/lower-case)
+                      (some-> (:author item) string/lower-case)))
+       [:li {:class "list-inline-item"}
+        (icon "far fa-user") (:author item)])]))
 
 (defn- gem-tag-links [params item]
-  (for [tag (take 3 (gem-topic-tags item))]
-    [:a {:class "badge text-bg-light text-decoration-none me-1"
+  (for [tag (take 4 (gem-topic-tags item))]
+    [:a {:class "reader-gem-topic"
          :href (gems-href (assoc params :tag tag :browse "true"
                                  :offset nil :related-to nil))}
      tag]))
@@ -3495,117 +3505,144 @@
 (defn- gem-archive-button [item]
   (for [{:keys [tag] :as button} +state-buttons+
         :when (= :archive tag)]
-    (state-button (:id item) (assoc button :is-set? true))))
+    (-> (state-button (:id item) (assoc button
+                                        :is-set? true
+                                        :icon-set "fas fa-archive"))
+        (update-in [1 :class] str " reader-gem-archive"))))
 
-(defn- render-gem-card [params item]
-  (let [image-url (or (get-in item [:entry :thumbnail])
-                      (get-in item [:entry :lead-image-url]))
-        description (get-in item [:data :description "text/plain"])]
+(defn- gem-history-label [item]
+  (let [history (remove nil?
+                        [(when-let [last-resurfaced (:last-resurfaced item)]
+                           (str "Resurfaced "
+                                (human/datetime-ago-short last-resurfaced) " ago"))
+                         (when-let [last-opened (:last-opened item)]
+                           (str "Opened " (human/datetime-ago-short last-opened) " ago"))])]
+    [:span {:class "reader-gem-history"
+            :title (if (seq history)
+                     "Earlier activity used to choose today’s rediscovery set"
+                     "No earlier Gems impression or item-open event was recorded")}
+     (icon "fas fa-history")
+     (if (seq history)
+       (string/join " · " history)
+       "First rediscovery")]))
+
+(defn- gem-related-button [item]
+  (icon-button {:class "reader-gem-related"
+                :title "Find related gems"
+                :aria-label "Find related gems"
+                :href (gems-href {:related-to (:id item)})}
+               "fas fa-project-diagram"))
+
+(defn- render-gem-item [params item rediscovery?]
+  (let [image-url (first-usable-image-url (get-in item [:entry :thumbnail])
+                                          (get-in item [:entry :lead-image-url]))
+        description (get-in item [:data :description "text/plain"])
+        supporting-copy? (or (not (string/blank? description))
+                             (not (string/blank? (:headline item))))]
     [:article {:id (str "item-" (:id item))
-               :class (str "card reader-tool-card gem-card mb-3"
+               :class (str "reader-gem-item reader-tool-row"
+                           (when image-url " has-thumbnail")
+                           (when-not supporting-copy? " is-sparse")
                            (when (:offer-id item) " result-offer"))
                :data-offer-id (:offer-id item)}
-     [:div {:class "card-body"}
-      [:div {:class "d-flex gap-3"}
-       [:div {:class "flex-grow-1 min-width-0"}
-        [:h3 {:class "h5 card-title mb-2"}
-         [:a {:class "link-dark" :href (gem-open-href item)}
-          (if (string/blank? (:title item)) "(no title)" (:title item))]]
-        (render-gem-meta item)
-        [:div {:class "mt-2"} (gem-tag-links params item)]
-        (when-not (string/blank? description)
-          [:p {:class "card-text mt-2 mb-2"}
-           (human/truncate-ellipsis description 420)])]
-       (when-not (string/blank? image-url)
-         [:img {:class "gem-card-image rounded"
+     [:div {:class "reader-gem-layout"}
+      [:div {:class "reader-gem-main"}
+       [:h3 {:class "reader-gem-title"}
+        [:a {:href (gem-open-href item)}
+         (if (string/blank? (:title item)) "(no title)" (:title item))]]
+       (render-gem-meta item)
+       (when (seq (gem-topic-tags item))
+         [:div {:class "reader-gem-topics" :aria-label "Topics"}
+          (gem-tag-links params item)])
+       (when-not (string/blank? description)
+         [:p {:class "reader-gem-description"}
+          (human/truncate-ellipsis description 420)])
+       (when-not (string/blank? (:headline item))
+         [:div {:class "reader-gem-match search-headline"}
+          (render-search-headline (:headline item))])
+       [:div {:class "reader-gem-footer"}
+        (when rediscovery? (gem-history-label item))
+        [:div {:class "reader-gem-actions"
+               :role "toolbar"
+               :aria-label "Gem actions"}
+         (gem-related-button item)
+         (gem-archive-button item)]]]
+      (when image-url
+        [:a {:class "reader-gem-thumbnail reader-image-container"
+             :href (gem-open-href item)
+             :aria-hidden "true"
+             :tabindex "-1"}
+         [:img {:class "reader-defensive-image"
                 :src image-url
-                :alt ""}])]
-      [:div {:class "reader-tool-actions d-flex align-items-center gap-2 mt-2"}
-       [:a {:class "btn btn-sm btn-primary" :href (gem-open-href item)} "Open"]
-       [:a {:class "btn btn-sm btn-outline-secondary"
-            :href (gems-href {:related-to (:id item)})}
-        "Related gems"]
-       [:div {:class "btn-group btn-group-sm ms-auto"}
-        (gem-archive-button item)]
-       [:span {:class "small text-secondary"}
-        (if-let [last-resurfaced (:last-resurfaced item)]
-          (str "Last resurfaced " (human/datetime-ago-short last-resurfaced))
-          "Not shown in Gems yet")]]]]))
-
-(defn- render-gem-result [params item]
-  [:article {:id (str "item-" (:id item))
-             :class (str "reader-tool-row gem-result py-3 border-bottom"
-                         (when (:offer-id item) " result-offer"))
-             :data-offer-id (:offer-id item)}
-   [:div {:class "d-flex justify-content-between gap-2"}
-    [:h3 {:class "h5 mb-1"}
-     [:a {:class "link-dark" :href (gem-open-href item)} (:title item)]]
-    [:div {:class "btn-group btn-group-sm"} (gem-archive-button item)]]
-   (render-gem-meta item)
-   [:div {:class "mt-1"} (gem-tag-links params item)]
-   (when-not (string/blank? (:headline item))
-     [:div {:class "small text-secondary search-headline mt-2"}
-      (render-search-headline (:headline item))])
-   [:div {:class "mt-2"}
-    [:a {:class "small" :href (gems-href {:related-to (:id item)})}
-     "Related gems"]]])
+                :data-error-remove ".reader-image-container"
+                :alt ""
+                :loading "lazy"
+                :decoding "async"}]])]]))
 
 (defn- gem-facet-link [params key {:keys [value count]}]
   (let [label (if (= value "__untagged__") "Untagged" value)]
-    [:a {:class "list-group-item list-group-item-action d-flex justify-content-between"
+    [:a {:class "reader-gem-facet-link"
          :href (gems-href (assoc params key value :browse "true"
                                  :offset nil :related-to nil))}
      [:span label]
-     [:span {:class "badge text-bg-light"} count]]))
+     [:span {:class "reader-gem-facet-count"} count]]))
 
 (defn- render-gem-facet [params title key rows]
   (let [visible (take 12 rows)
         remaining (drop 12 rows)]
-    [:section {:class "col-lg-6 mb-3"}
-     [:h3 {:class "h5"} title]
-     [:div {:class "list-group list-group-flush"}
+    [:section {:class "reader-gem-facet col-lg-6"}
+     [:h3 title]
+     [:div {:class "reader-gem-facet-list"}
       (for [row visible] (gem-facet-link params key row))]
      (when (seq remaining)
-       [:details {:class "reader-tool-disclosure mt-2"}
-        [:summary {:class "small text-secondary"} "Show all"]
-        [:div {:class "list-group list-group-flush mt-2"}
+       [:details {:class "reader-tool-disclosure reader-gem-facet-more"}
+        [:summary "Show all " (count rows)]
+        [:div {:class "reader-gem-facet-list"}
          (for [row remaining] (gem-facet-link params key row))]])]))
 
 (defn- render-gem-search [params]
-  [:form {:action (gems-href) :method "get" :class "mb-4"}
+  [:form {:action (gems-href) :method "get" :class "reader-gem-search"}
    (when (:tag params) [:input {:type "hidden" :name "tag" :value (:tag params)}])
    (when (:source params) [:input {:type "hidden" :name "source" :value (:source params)}])
-   [:div {:class "input-group input-group-lg"}
-    [:input {:class "form-control" :type "search" :name "query"
+   [:div {:class "reader-gem-search-control"}
+    [:input {:class "form-control reader-gem-search-input" :type "search" :name "query"
              :value (or (:query params) "")
-             :placeholder "Search titles, authors, URLs, and article text"
+             :placeholder "Search your Gems"
              :aria-label "Search Gems"}]
-    [:button {:class "btn btn-primary" :type "submit"}
-     (icon "fas fa-search") " Search"]]
+    [:button {:class "btn reader-icon-button reader-gem-search-submit"
+              :type "submit"
+              :title "Search Gems"
+              :aria-label "Search Gems"}
+     (action-icon "fas fa-search")]]
    [:div {:class "form-text"}
-    "Use quotes for a phrase, OR for alternatives, and -word to exclude."]])
+    "Titles, authors, URLs, and article text · quotes for a phrase · -word to exclude."]])
 
 (defn- gem-active-filter [params key label]
   (when-let [value (get params key)]
-    [:span {:class "badge rounded-pill text-bg-secondary me-2"}
-     label ": " (if (= value "__untagged__") "Untagged" value) " "
-     [:a {:class "text-white" :aria-label (str "Clear " label)
-          :href (gems-href (assoc params key nil :offset nil))} "×"]]))
+    [:a {:class "reader-gem-active-filter"
+         :aria-label (str "Clear " label " filter")
+         :title (str "Clear " label " filter")
+         :href (gems-href (assoc params key nil :offset nil))}
+     [:span label ": " (if (= value "__untagged__") "Untagged" value)]
+     (icon "fas fa-times")]))
 
 (defn- render-gem-pagination [params total]
   (let [offset (:offset params)
-        page-size 50]
+        page-size 50
+        first-result (if (pos? total) (inc offset) 0)
+        last-result (min total (+ offset page-size))]
     (when (or (pos? offset) (> total (+ offset page-size)))
-      [:nav {:class "reader-tool-pagination d-flex gap-2 mt-3"
+      [:nav {:class "reader-tool-pagination reader-gem-pagination"
              :aria-label "Gems result pages"}
-       (when (pos? offset)
-         [:a {:class "btn btn-outline-secondary btn-sm"
-              :href (gems-href (assoc params :offset (max 0 (- offset page-size))))}
-          "Previous"])
-       (when (> total (+ offset page-size))
-         [:a {:class "btn btn-outline-secondary btn-sm"
-              :href (gems-href (assoc params :offset (+ offset page-size)))}
-          "Next"])])))
+       [:span {:class "reader-gem-page-position"}
+        first-result "–" last-result " of " total]
+       [:span {:class "reader-gem-page-links"}
+        (when (pos? offset)
+          [:a {:href (gems-href (assoc params :offset (max 0 (- offset page-size))))}
+           (icon "fas fa-arrow-left") "Previous"])
+        (when (> total (+ offset page-size))
+          [:a {:href (gems-href (assoc params :offset (+ offset page-size)))}
+           "Next " (icon "fas fa-arrow-right")])]])))
 
 (defn- gem-search-results [params]
   (if (:query params)
@@ -3626,25 +3663,41 @@
                     rows)})
     (persistency/get-gem-items frontend-db params)))
 
+(defn- gem-empty-copy [params]
+  (cond
+    (:related-to params) "No related gems were found for this item."
+    (:query params) "No gems match this search."
+    (or (:tag params) (:source params)) "No gems match the active filters."
+    :else "There are no archived gems to browse."))
+
 (defn- render-gem-results [params {:keys [total items]} heading]
-  [:section {:class "reader-tool-section"}
-   [:div {:class "d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"}
+  [:section {:class "reader-tool-section reader-gem-results"}
+   [:div {:class "reader-tool-section-heading reader-gem-results-heading"}
     [:div
-     [:h2 {:class "h4 mb-1"} heading]
-     [:div {:class "text-secondary"} total " gem" (when (not= total 1) "s")]]
-    [:a {:class "btn btn-sm btn-outline-secondary" :href (gems-href)} "Back to Gems"]]
-   [:div {:class "mb-2"}
-    (gem-active-filter params :tag "Topic")
-    (gem-active-filter params :source "Source")]
-   (when (:query params)
-     [:div {:class "btn-group btn-group-sm mb-2"}
-      (for [[sort label] [["relevance" "Relevance"] ["newest" "Newest"] ["oldest" "Oldest"]]]
-        [:a {:class (str "btn btn-outline-secondary" (when (= sort (:sort params)) " active"))
-             :href (gems-href (assoc params :sort sort :offset nil))}
-         label])])
+     [:h2 {:class "reader-gem-section-title"} heading]
+     [:span {:class "reader-gem-section-copy"}
+      total " gem" (when (not= total 1) "s")]]
+    [:a {:class "reader-gem-return" :href (gems-href)}
+     (icon "fas fa-arrow-left") "Rediscover"]]
+   [:div {:class "reader-gem-result-controls"}
+    [:div {:class "reader-gem-active-filters" :aria-label "Active filters"}
+     (gem-active-filter params :tag "Topic")
+     (gem-active-filter params :source "Source")]
+    (when (:query params)
+      [:div {:class "reader-tool-filters reader-gem-sort btn-group btn-group-sm"
+             :role "group"
+             :aria-label "Sort Gems results"}
+       (for [[sort label] [["relevance" "Relevance"] ["newest" "Newest"] ["oldest" "Oldest"]]]
+         [:a (cond-> {:class (str "btn btn-outline-secondary"
+                                  (when (= sort (:sort params)) " active"))
+                      :href (gems-href (assoc params :sort sort :offset nil))}
+               (= sort (:sort params)) (assoc :aria-current "page"))
+          label])])]
    (if (seq items)
-     [:div (for [result items] (render-gem-result params result))]
-     [:div {:class "reader-tool-empty"} "No gems match this search."])
+     [:div {:class "reader-gem-list"}
+      (for [result items] (render-gem-item params result false))]
+     [:div {:class "reader-tool-empty reader-gem-empty"}
+      (gem-empty-copy params)])
    (render-gem-pagination params total)])
 
 (defn- render-gems [x]
@@ -3653,9 +3706,6 @@
         result-mode? (or (:query params) (:tag params) (:source params)
                          (:browse? params) (:related-to params))]
     [:div {:class "reader-tool-view gems-view"}
-     [:div {:class "reader-tool-status reader-tool-status-end"}
-      [:strong (:total facets)] " gems"
-      [:br] (:topic-count facets) " topics · " (:source-count facets) " sources"]
      (render-gem-search params)
      (cond
        (:related-to params)
@@ -3691,25 +3741,36 @@
                                  :limit 5})
              items (offer-gems items "rediscover" {:day (str day) :batch batch})]
          [:div
-          [:section {:class "mb-4"}
-           [:div {:class "d-flex justify-content-between align-items-center mb-2"}
+          [:section {:class "reader-tool-section reader-gem-rediscovery"}
+           [:div {:class "reader-tool-section-heading reader-gem-rediscovery-heading"}
             [:div
-             [:h3 {:class "h4 mb-0"} "Rediscover"]
-             [:div {:class "small text-secondary"} "A stable daily selection, biased toward forgotten items."]]
+             [:h2 {:class "reader-gem-section-title"} "Rediscover"]
+             [:span {:class "reader-gem-section-copy"}
+              "Today’s stable selection, favoring items you have not seen recently."]]
             (when (> batch-count 1)
-              [:a {:class "btn btn-sm btn-outline-secondary"
-                   :href (gems-href {:batch (mod (inc batch) batch-count)})}
-               "Another set"])]
+              (icon-button {:class "reader-gem-next-set"
+                            :title "Show the next stable set"
+                            :aria-label "Show the next stable set"
+                            :href (gems-href {:batch (mod (inc batch) batch-count)})}
+                           "fas fa-step-forward"))]
            (if (seq items)
-             (for [gem items] (render-gem-card params gem))
-             [:div {:class "reader-tool-empty"}
+             [:div {:class "reader-gem-list"}
+              (for [gem items] (render-gem-item params gem true))]
+             [:div {:class "reader-tool-empty reader-gem-empty"}
               "Archive an item to make it a Gem."])]
           (when (pos? total)
-            [:section
-             [:div {:class "d-flex justify-content-between align-items-center"}
-              [:h3 {:class "h4"} "Browse"]
-              [:a {:href (gems-href {:browse "true"})} "Browse all"]]
-             [:div {:class "row"}
+            [:section {:class "reader-tool-section reader-gem-browse"}
+             [:div {:class "reader-tool-section-heading reader-gem-browse-heading"}
+              [:div
+               [:h2 {:class "reader-gem-section-title"} "Browse"]
+               [:span {:class "reader-gem-section-copy"}
+                (:total facets) " gems · "
+                (:topic-count facets) " topics · "
+                (:source-count facets) " sources"]]
+              [:a {:class "reader-gem-browse-all"
+                   :href (gems-href {:browse "true"})}
+               "Browse all " (icon "fas fa-arrow-right")]]
+             [:div {:class "row reader-gem-facets"}
               (render-gem-facet params "Topics" :tag (:tags facets))
               (render-gem-facet params "Sources" :source (:sources facets))]])]))]))
 

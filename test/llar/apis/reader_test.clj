@@ -790,7 +790,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t04-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-t05-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime
@@ -1040,6 +1040,8 @@
               :nwords 800
               :tags ["archive" "clojure"]
               :entry {}
+              :last-resurfaced (time/minus now (time/days 5))
+              :last-opened (time/minus now (time/days 2))
               :data {:description {"text/plain" "Worth finding again."}}}]
     (with-redefs [uut/frontend-db :db
                   persistency/get-gem-facets
@@ -1057,8 +1059,9 @@
         (is (re-find #"Rediscover" rendered))
         (is (re-find #"A keeper" rendered))
         (is (re-find #"data-offer-id=\"91\"" rendered))
-        (is (re-find #"Related gems" rendered))
+        (is (re-find #"aria-label=\"Find related gems\"" rendered))
         (is (re-find #"clojure" rendered))
+        (is (re-find #"Resurfaced 5d ago · Opened 2d ago" rendered))
         (is (= :related (:surface @context)))
         (is (= :related-generated (:trigger @context)))
         (is (= "gems" (get-in @context [:metadata :feature])))
@@ -1090,7 +1093,24 @@
         (is (= "source" (get-in @seen [1 :with-source-key])))
         (is (re-find #"Found gem" rendered))
         (is (re-find #"<mark>matching</mark>" rendered))
-        (is (re-find #"Topic: research" rendered))))))
+        (is (re-find #"Topic: research" rendered))
+        (is (re-find #"aria-current=\"page\"[^>]*>Relevance" rendered))
+        (is (re-find #"aria-label=\"Clear Topic filter\"" rendered))
+        (is (re-find #"aria-label=\"Clear Source filter\"" rendered))))))
+
+(deftest gems-browse-empty-state-reflects-active-filters
+  (with-redefs [uut/frontend-db :db
+                persistency/get-gem-facets
+                (constantly {:total 2 :topic-count 1 :source-count 1
+                             :tags [] :sources []})
+                persistency/get-gem-items
+                (constantly {:total 0 :items []})]
+    (let [rendered (str (h/html (uut/tools-view-handler
+                                 {:view :gems
+                                  :request-params {:tag "missing"
+                                                   :browse "true"}})))]
+      (is (re-find #"No gems match the active filters" rendered))
+      (is (re-find #"aria-label=\"Clear Topic filter\"" rendered)))))
 
 (deftest item-detail-route-accepts-optional-offer-provenance
   (let [opened (atom [])
