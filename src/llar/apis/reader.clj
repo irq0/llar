@@ -865,7 +865,7 @@
        [:div {:class "modal-body"}
         [:ul {:class "list-group list-group-flush item-tag-list"}
          (for [tag tags
-               :when (not (contains? item-state/workflow-tags (keyword tag)))]
+               :when (not (contains? item-state/reserved-tags (keyword tag)))]
            [:li {:class "list-group-item item-tag-row"
                  :data-id item-id
                  :data-tag tag}
@@ -885,7 +885,7 @@
           [:button {:class "btn btn-primary" :type "submit"} "Add"]]]]]]]))
 
 (defn tags-button-group [item-id tags]
-  (let [tags (remove #(contains? item-state/workflow-tags (keyword %)) tags)]
+  (let [tags (remove #(contains? item-state/reserved-tags (keyword %)) tags)]
     [:div {:class "btn-group btn-group-sm"}
      [:a {:class "btn reader-tag-summary-button"
           :href "#"
@@ -897,6 +897,20 @@
       [:span {:class "reader-tag-icon"} (action-icon "fas fa-tag")]
       [:span {:class "item-tags-summary" :data-id item-id}
        (string/join ", " tags)]]]))
+
+(defn- annotation-cue [x link-prefix {:keys [id title ranked-pos] :as item}]
+  (when (contains? (item-state/tag-set item) :has-annotations)
+    (icon-button
+     {:class "reader-annotation-cue"
+      :title "Open annotations"
+      :aria-label (if (string/blank? title)
+                    "Open annotations"
+                    (str "Open annotations for " title))
+      :href (make-site-href [link-prefix "item/by-id" id]
+                            (cond-> {:mark :read :annotations :open}
+                              ranked-pos (assoc :ranked-pos ranked-pos))
+                            x)}
+     "fas fa-pen-fancy")))
 
 (defn video-content? [item]
   (let [{:keys [_entry url]} item
@@ -2120,6 +2134,7 @@
              :aria-label "Item actions"}
        [:div {:class "reader-list-item-utility-actions btn-group btn-group-sm"
               :role "group"}
+        (annotation-cue x link-prefix item)
         (external-link-button url)
         (related-button x id)
         (dump-button (make-site-href [link-prefix "item/by-id" id "dump"] x))
@@ -2256,6 +2271,7 @@
           [:td {:class "reader-headline-age"}
            [:span {:class "timestamp" :title ts} age-label]]
           [:td {:class "reader-headline-actions"}
+           (annotation-cue x link-prefix item)
            (done-button item)
            (compact-item-more-menu x link-prefix item)]])]]]))
 
@@ -2380,6 +2396,7 @@
        [:div {:class "reader-gallery-action-buttons"
               :role "group"
               :aria-label "Item state and actions"}
+        (annotation-cue x link-prefix item)
         (item-state-button id tags :saved)
         (done-button item)
         (compact-item-more-menu x link-prefix item)]]]

@@ -6,6 +6,13 @@
   "Reserved workflow tags, including the retired in-progress compatibility tag."
   #{:unread :saved :archive :in-progress})
 
+(def derived-tags
+  "Tags maintained by another domain and not directly editable as item labels."
+  #{:has-annotations})
+
+(def reserved-tags
+  (set/union workflow-tags derived-tags))
+
 (def semantic-actions
   #{:seen :mark-unread :save :unsave :done :archive :unarchive :dequeue})
 
@@ -55,8 +62,8 @@
     (throw (ex-info "Unknown item state action"
                     {:type ::unknown-action :action action})))
   (when (and (#{:add-tag :remove-tag} action)
-             (or (not (keyword? tag)) (contains? workflow-tags tag)))
-    (throw (ex-info "Workflow tags require a semantic item state action"
+             (or (not (keyword? tag)) (contains? reserved-tags tag)))
+    (throw (ex-info "Reserved tags cannot be changed directly"
                     {:type ::reserved-tag :action action :tag tag})))
   (when (and (= :save-checkpoint action)
              (or (not (number? progress))
@@ -116,7 +123,7 @@
      :queued (boolean (seq reasons))
      :queue-reasons reasons
      :tags (->> tags (map name) sort vec)
-     :item-tags (->> (set/difference tags workflow-tags)
+     :item-tags (->> (set/difference tags reserved-tags)
                      (map name)
                      sort
                      vec)}))

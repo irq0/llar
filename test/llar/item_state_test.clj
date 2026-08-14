@@ -104,6 +104,12 @@
           (state/canonical (assoc base :tags #{:unread :saved :research}))
           [:unread :read :saved :archived :tags :item-tags]))))
 
+(deftest canonical-state-keeps-derived-tags-out-of-editable-item-tags
+  (let [canonical (state/canonical
+                   (assoc base :tags #{:has-annotations :research}))]
+    (is (= ["has-annotations" "research"] (:tags canonical)))
+    (is (= ["research"] (:item-tags canonical)))))
+
 (deftest invalid-actions-are-rejected-in-the-domain
   (testing "SQL never decides what an unknown action means"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
@@ -111,8 +117,12 @@
                           (state/transition base {:action :explode}))))
   (testing "reserved tags cannot bypass semantic transitions"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                          #"Workflow tags require"
-                          (state/transition base {:action :add-tag :tag :saved}))))
+                          #"Reserved tags cannot be changed directly"
+                          (state/transition base {:action :add-tag :tag :saved})))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Reserved tags cannot be changed directly"
+                          (state/transition base {:action :remove-tag
+                                                  :tag :has-annotations}))))
   (testing "checkpoint bounds are domain invariants"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"between zero and one"

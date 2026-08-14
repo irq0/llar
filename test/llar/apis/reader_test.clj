@@ -675,6 +675,49 @@
     (is (not (re-find #"btn-tag-unread" rendered)))
     (is (not (re-find #"direct-tag-buttons" rendered)))))
 
+(deftest annotated-items-have-a-dedicated-cue-in-every-list-style
+  (let [item {:id 42
+              :source-key "feed"
+              :title "Annotated item"
+              :ts (time/zoned-date-time)
+              :tags ["unread" "has-annotations" "research"]
+              :url "https://example.com/article"}
+        context {:group-name :default
+                 :group-item :all
+                 :source-key :all
+                 :sources {:feed {:title "Example Feed"
+                                  :options #{}}}}
+        link-prefix "/reader/group/default/all/source/all"
+        preview (str (h/html (uut/main-list-item context link-prefix item)))
+        headlines (str (h/html (uut/headlines-list-items
+                                (assoc context :items [item]))))
+        gallery (str (h/html (uut/gallery-list-item context link-prefix item)))
+        javascript (slurp (io/resource "status/llar.js"))]
+    (doseq [rendered [preview headlines gallery]]
+      (is (= 1 (count (re-seq #"reader-annotation-cue" rendered))))
+      (is (string/includes? rendered "title=\"Open annotations\""))
+      (is (string/includes? rendered "annotations=open"))
+      (is (string/includes? rendered "mark=read")))
+    (is (not (string/includes? preview ">has-annotations<")))
+    (is (string/includes? preview ">research<"))
+    (is (string/includes? javascript
+                          "params.get(\"annotations\") !== \"open\""))
+    (is (string/includes? javascript
+                          "$(openRequestedAnnotations)"))))
+
+(deftest unannotated-items-do-not-render-the-annotation-cue
+  (let [item {:id 42
+              :source-key "feed"
+              :title "Plain item"
+              :ts (time/zoned-date-time)
+              :tags ["research"]
+              :url "https://example.com/article"}
+        rendered (str (h/html (uut/main-list-item
+                               {:sources {:feed {:options #{}}}}
+                               "/reader/source/feed"
+                               item)))]
+    (is (not (string/includes? rendered "reader-annotation-cue")))))
+
 (deftest done-control-shows-confirmed-read-state
   (let [unread (str (h/html (uut/done-button {:id 41 :tags ["unread"]})))
         read (str (h/html (uut/done-button {:id 42 :tags []})))]

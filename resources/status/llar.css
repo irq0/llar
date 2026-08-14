@@ -307,6 +307,12 @@ body {
   background: var(--llar-primary-subtle);
 }
 
+.llar-reader .reader-annotation-cue,
+.llar-reader .reader-annotation-cue:hover,
+.llar-reader .reader-annotation-cue:focus {
+  color: var(--llar-primary);
+}
+
 .llar-reader .reader-icon-button.dropdown-toggle::after {
   display: none;
 }
@@ -3884,7 +3890,7 @@ div.item-content-body p > code {
 }
 
 .reader-headline-actions-column {
-  width: 4rem;
+  width: 5.75rem;
 }
 
 .reader-headline-row {
@@ -3997,7 +4003,7 @@ div.item-content-body p > code {
 .reader-headline-actions {
   --llar-control-height: 1.75rem;
 
-  width: 4rem;
+  width: 5.75rem;
   padding: 0.1rem 0.2rem;
   text-align: right;
   white-space: nowrap;

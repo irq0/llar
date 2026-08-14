@@ -1415,6 +1415,14 @@ function toggleAnnotationMode() {
   setTimeout(refreshReadingBlocks, 0);
 }
 
+function openRequestedAnnotations() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get("annotations") !== "open" || annotationModeActive) return;
+  toggleAnnotationMode();
+}
+
+$(openRequestedAnnotations);
+
 function loadAnnotations() {
   var itemId = getItemId();
   if (!itemId) return;
