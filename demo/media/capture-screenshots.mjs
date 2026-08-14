@@ -225,7 +225,7 @@ try {
     {
       name: "continue-reading",
       path: "/reader/tools/continue-reading",
-      ready: ".feed-item",
+      ready: ".reader-continue-item",
     },
     {
       name: "gems",
