@@ -911,7 +911,7 @@
       (is (re-find #"<h4>&lt;template&gt;: The Content Template element</h4>"
                    shell))
       (is (not (string/includes? shell "<template>")))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-02\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-03\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-loads-the-current-jquery-runtime

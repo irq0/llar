@@ -806,7 +806,7 @@ function advanceReadingBlock() {
         container.scrollWidth - container.clientWidth,
         container.scrollLeft + Math.max(1, horizontalDelta),
       ),
-      behavior: "smooth",
+      behavior: readingScrollBehavior(),
     });
   } else {
     var viewport = readingViewport(container);
@@ -815,7 +815,7 @@ function advanceReadingBlock() {
       : target.rect.top - viewport.top;
     window.scrollTo({
       top: window.scrollY + Math.max(1, verticalDelta),
-      behavior: "smooth",
+      behavior: readingScrollBehavior(),
     });
   }
 
@@ -2087,12 +2087,12 @@ function resumeReadingCheckpoint(event) {
     var containerRect = container.getBoundingClientRect();
     container.scrollTo({
       left: Math.max(0, container.scrollLeft + rect.left - containerRect.left),
-      behavior: "smooth",
+      behavior: readingScrollBehavior(),
     });
   } else {
     window.scrollTo({
       top: window.scrollY + rect.top - readingViewport(container).top,
-      behavior: "smooth",
+      behavior: readingScrollBehavior(),
     });
   }
   flashReadingRange(range);
@@ -2198,7 +2198,7 @@ function renderHighlightLinks() {
           var rect = range.getBoundingClientRect();
           window.scrollTo({
             top: window.scrollY + rect.top - 80,
-            behavior: "smooth",
+            behavior: readingScrollBehavior(),
           });
         });
     } else {
