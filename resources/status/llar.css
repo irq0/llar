@@ -1274,6 +1274,7 @@ figure {
 }
 
 .reader-tool-metadata {
+  overflow-wrap: anywhere;
   color: var(--llar-ink-muted);
   font-size: 0.78rem;
 }
@@ -1297,6 +1298,11 @@ figure {
   margin-block: var(--llar-space-4) var(--llar-space-2);
   padding-bottom: var(--llar-space-2);
   border-bottom: 1px solid var(--llar-border);
+}
+
+.reader-tool-section-heading > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .reader-tool-empty,
@@ -1391,12 +1397,14 @@ figure {
   gap: var(--llar-space-2);
   align-items: center;
   justify-self: start;
+  max-width: 100%;
   min-width: 0;
   padding: 0.18rem 0.5rem;
   border-radius: 500rem;
   color: var(--llar-ink-muted);
   background: var(--llar-surface-subtle);
   font-size: 0.72rem;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -1461,16 +1469,20 @@ figure {
   display: inline-flex;
   gap: var(--llar-space-2);
   align-items: baseline;
+  max-width: 100%;
+  min-width: 0;
   padding: 0.14rem 0.45rem;
   border: 1px solid var(--llar-border);
   border-radius: 500rem;
   color: var(--llar-ink-muted);
   background: var(--llar-surface-subtle);
   font-size: 0.72rem;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
 .reader-search-source-count {
+  flex: 0 0 auto;
   color: var(--llar-ink-faint);
   font-family: var(--llar-font-data);
   font-size: 0.68rem;
@@ -1646,7 +1658,7 @@ figure {
 
 .reader-queue-cluster-links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
   gap: 1px;
   margin: 0;
   padding: 1px;
@@ -1702,6 +1714,7 @@ figure {
   font-style: normal;
   font-weight: 600;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .reader-queue-cluster-prefix {
@@ -1926,6 +1939,7 @@ figure {
   font-size: clamp(1.05rem, 1.6vw, 1.28rem);
   font-weight: 600;
   line-height: 1.32;
+  overflow-wrap: anywhere;
 }
 
 .reader-vibe-story-title-main {
@@ -1937,7 +1951,7 @@ figure {
   color: var(--llar-ink-muted);
   font-size: 0.76em;
   font-weight: 400;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .reader-vibe-story-age {
@@ -2069,8 +2083,18 @@ figure {
   }
 
   .reader-vibe-story-heading {
-    gap: var(--llar-space-2);
-    align-items: start;
+    display: block;
+  }
+
+  .reader-vibe-representative-source {
+    display: block;
+    margin-top: var(--llar-space-1);
+    margin-left: 0;
+  }
+
+  .reader-vibe-story-age {
+    display: block;
+    margin-top: var(--llar-space-1);
   }
 
   .reader-vibe-report {
@@ -2192,12 +2216,15 @@ figure {
 }
 
 .reader-gem-topic {
+  max-width: 100%;
+  min-width: 0;
   padding: 0.08rem 0.42rem;
   border: 1px solid var(--llar-border);
   border-radius: 500rem;
   color: var(--llar-ink-muted);
   background: var(--llar-surface-subtle);
   font-size: 0.7rem;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -2321,11 +2348,14 @@ figure {
   display: inline-flex;
   gap: var(--llar-space-2);
   align-items: center;
+  max-width: 100%;
+  min-width: 0;
   padding: 0.18rem 0.5rem;
   border-radius: 500rem;
   color: var(--llar-ink-muted);
   background: var(--llar-surface-subtle);
   font-size: 0.72rem;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -2353,10 +2383,12 @@ figure {
   gap: var(--llar-space-3);
   align-items: baseline;
   justify-content: space-between;
+  min-width: 0;
   padding: var(--llar-space-2);
   border-bottom: 1px solid var(--llar-border);
   color: var(--llar-ink-muted);
   font-size: 0.82rem;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -2366,6 +2398,7 @@ figure {
 }
 
 .reader-gem-facet-count {
+  flex: 0 0 auto;
   color: var(--llar-ink-faint);
   font-family: var(--llar-font-data);
   font-size: 0.7rem;
@@ -2810,7 +2843,7 @@ div.item-content .orig-content {
 }
 
 div.item-content-body {
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 div.item-content-body :where(h1, h2, h3, h4, h5, h6) {
@@ -3564,7 +3597,8 @@ div.item-content-body p > code {
 
 .reader-annotation-tray-shell {
   z-index: 1030;
-  padding: 0 var(--llar-space-3) var(--llar-space-3);
+  padding: 0 var(--llar-space-3)
+    calc(var(--llar-space-3) + env(safe-area-inset-bottom));
   pointer-events: none;
 }
 
@@ -3748,7 +3782,8 @@ div.item-content-body p > code {
 
 @media (width < 576px) {
   .reader-annotation-tray-shell {
-    padding: 0 var(--llar-space-2) var(--llar-space-2);
+    padding: 0 var(--llar-space-2)
+      calc(var(--llar-space-2) + env(safe-area-inset-bottom));
   }
 
   .reader-annotation-tray {
@@ -3884,6 +3919,7 @@ div.item-content-body p > code {
   display: block;
   width: 100%;
   max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
   object-fit: contain;
   background: #111;
 }
