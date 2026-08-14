@@ -93,6 +93,8 @@ jobs:
         cache: 'npm'
     - name: Install npm dependencies
       run: npm install
+    - name: Install browser asset tools
+      run: sudo apt update && sudo apt-get install -y libarchive-tools wget
     - name: Run metadata extraction tests
       run: npm test
     - name: Install browser test assets
