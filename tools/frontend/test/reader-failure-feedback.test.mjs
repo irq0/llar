@@ -13,7 +13,7 @@ const asset = (...parts) =>
   path.join(repositoryRoot, "resources/status", ...parts);
 const browserChannel = process.env.LLAR_BROWSER_CHANNEL ?? "chrome";
 
-test("Failed item actions stay put and expose a persistent error", async (t) => {
+test("Failed Reader actions retain state and expose readable errors", async (t) => {
   const browser = await chromium.launch({
     channel: browserChannel,
     headless: true,
@@ -45,6 +45,13 @@ test("Failed item actions stay put and expose a persistent error", async (t) => 
              data-is-set="false"
              data-action-set="saved"
              data-action-unset="unsave">save</a>
+          <form id="add-thing">
+            <input id="add-url-1" value="not a URL">
+            <button class="bookmark-submit btn btn-secondary"
+                    type="submit"
+                    data-url-source="#add-url-1"
+                    data-type="readability-bookmark">capture</button>
+          </form>
         </main>
       </body>
     </html>
@@ -96,6 +103,48 @@ test("Failed item actions stay put and expose a persistent error", async (t) => 
   assert.equal(
     await action.evaluate((element) => element === document.activeElement),
     true,
+  );
+
+  await page.evaluate(() => {
+    window.readerFailureRequest = window.jQuery.Deferred();
+  });
+  const capture = page.locator(".bookmark-submit");
+  await capture.evaluate((element) => element.click());
+  await page.evaluate(() => {
+    window.readerFailureRequest.reject({
+      status: 400,
+      responseJSON: {
+        error: "Capture URL must be an absolute HTTP or HTTPS URL",
+      },
+      responseText:
+        '{"error":"Capture URL must be an absolute HTTP or HTTPS URL"}',
+    });
+  });
+  assert.equal(
+    await capture.evaluate((element) => $(element).hasClass("btn-danger")),
+    true,
+  );
+  assert.equal(
+    await page
+      .locator("#add-thing")
+      .evaluate((element) => $(element).data("result-title")),
+    "Could not save",
+  );
+  assert.equal(
+    await page
+      .locator("#add-thing")
+      .evaluate((element) => $(element).data("result-message")),
+    '<div class="text-center">Capture URL must be an absolute HTTP or HTTPS URL</div>',
+  );
+
+  assert.equal(
+    await page.evaluate(() =>
+      bookmark_capture_error_message({
+        status: 502,
+        responseText: "<h1>Bad gateway</h1>",
+      }),
+    ),
+    "Llar could not save this URL. Please try again.",
   );
   await page.close();
 });

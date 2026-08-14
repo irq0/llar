@@ -20,7 +20,12 @@ async function renderThemeFixture(page, theme) {
       <body class="llar-reader"${theme ? ` data-bs-theme="${theme}"` : ""}>
         <main>
           <span class="reader-theme-faint">Tertiary metadata</span>
-          <div class="reader-tool-message reader-tool-message-error">A warning</div>
+          <div class="reader-tool-message reader-tool-message-error">An error</div>
+          <div class="reader-related-signals">
+            <span class="reader-related-signal reader-related-signal-relative">80% of top</span>
+            <span class="reader-related-signal reader-related-signal-rank">search 0.125</span>
+            <span class="reader-related-signal reader-related-signal-title">title 0.050</span>
+          </div>
           <select class="form-select reader-search-filter-select"><option>Any time</option></select>
           <div class="dropdown-menu show"><a class="dropdown-item" href="#">Item</a></div>
           <div class="modal-content"><button class="btn-close" aria-label="Close"></button></div>
@@ -53,12 +58,18 @@ test("Automatic dark mode keeps Bootstrap and Reader surfaces coherent", async (
     const style = (selector) =>
       getComputedStyle(document.querySelector(selector));
     const body = style("body");
-    const warning = style(".reader-tool-message-error");
+    const error = style(".reader-tool-message-error");
     return {
       surface: body.getPropertyValue("--llar-surface").trim(),
       faint: body.getPropertyValue("--llar-ink-faint").trim(),
-      warningColor: warning.color,
-      warningBackground: warning.backgroundColor,
+      errorColor: error.color,
+      errorBackground: error.backgroundColor,
+      relativeColor: style(".reader-related-signal-relative").color,
+      relativeBackground: style(".reader-related-signal-relative")
+        .backgroundColor,
+      rankBackground: style(".reader-related-signal-rank").backgroundColor,
+      titleColor: style(".reader-related-signal-title").color,
+      titleBackground: style(".reader-related-signal-title").backgroundColor,
       selectBackground: style(".form-select").backgroundColor,
       dropdownBackground: style(".dropdown-menu").backgroundColor,
       modalBackground: style(".modal-content").backgroundColor,
@@ -68,7 +79,14 @@ test("Automatic dark mode keeps Bootstrap and Reader surfaces coherent", async (
 
   assert.equal(theme.surface, "#202220");
   assert.ok(contrast(theme.faint, theme.surface) >= 4.5);
-  assert.ok(contrast(theme.warningColor, theme.warningBackground) >= 4.5);
+  assert.ok(contrast(theme.errorColor, theme.errorBackground) >= 4.5);
+  assert.equal(theme.errorBackground, "rgb(44, 11, 14)");
+  assert.equal(theme.relativeColor, "rgb(33, 37, 41)");
+  assert.equal(theme.relativeBackground, "rgb(255, 154, 87)");
+  assert.equal(theme.rankBackground, "rgb(41, 43, 41)");
+  assert.ok(contrast(theme.titleColor, theme.titleBackground) >= 4.5);
+  assert.equal(theme.titleColor, "rgb(255, 178, 123)");
+  assert.equal(theme.titleBackground, "rgb(75, 44, 28)");
   assert.equal(theme.selectBackground, "rgb(48, 50, 48)");
   assert.equal(theme.dropdownBackground, "rgb(32, 34, 32)");
   assert.equal(theme.modalBackground, "rgb(48, 50, 48)");
@@ -89,9 +107,14 @@ test("Explicit light mode remains light under a dark system preference", async (
 
   const theme = await page.evaluate(() => {
     const body = getComputedStyle(document.body);
+    const title = getComputedStyle(
+      document.querySelector(".reader-related-signal-title"),
+    );
     return {
       surface: body.getPropertyValue("--llar-surface").trim(),
       faint: body.getPropertyValue("--llar-ink-faint").trim(),
+      titleColor: title.color,
+      titleBackground: title.backgroundColor,
       closeFilter: getComputedStyle(document.querySelector(".btn-close"))
         .filter,
     };
@@ -99,6 +122,9 @@ test("Explicit light mode remains light under a dark system preference", async (
 
   assert.equal(theme.surface, "#fff");
   assert.ok(contrast(theme.faint, theme.surface) >= 4.5);
+  assert.ok(contrast(theme.titleColor, theme.titleBackground) >= 4.5);
+  assert.equal(theme.titleColor, "rgb(109, 47, 7)");
+  assert.equal(theme.titleBackground, "rgb(254, 234, 220)");
   assert.equal(theme.closeFilter, "none");
   await page.close();
 });

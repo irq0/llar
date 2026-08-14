@@ -356,13 +356,40 @@ function update_sources_update_state(target, attempts) {
 // tagging
 //
 
-function show_bookmark_add_result(title, message) {
+function bookmark_capture_error_message(request) {
+  var response = request && request.responseJSON;
+  if (response && typeof response.error === "string" && response.error.trim()) {
+    return response.error.trim();
+  }
+
+  var responseText =
+    request && typeof request.responseText === "string"
+      ? request.responseText.trim()
+      : "";
+  if (responseText) {
+    try {
+      var parsed = JSON.parse(responseText);
+      if (typeof parsed.error === "string" && parsed.error.trim()) {
+        return parsed.error.trim();
+      }
+    } catch (_error) {
+      // A proxy may return an HTML error page; do not expose it in the popover.
+    }
+  }
+
+  if (request && request.status === 0) {
+    return "Could not reach Llar. Check the connection and try again.";
+  }
+  return "Llar could not save this URL. Please try again.";
+}
+
+function show_bookmark_add_result(title, message, messageIsHtml) {
   var popover_root = $("#add-thing");
+  var body = $("<div>").addClass("text-center");
+  if (messageIsHtml) body.html(message);
+  else body.text(message);
   popover_root.data("result-title", title);
-  popover_root.data(
-    "result-message",
-    `<div class="text-center">${message}</div>`,
-  );
+  popover_root.data("result-message", body.prop("outerHTML"));
   popover_root.popover("show");
   console.log(message);
 }
@@ -1079,7 +1106,7 @@ $(document).ready(function () {
   // bookmark / document add url
   $(".bookmark-submit").on("click", function () {
     var x = $(this);
-    x.removeClass("btn-warning");
+    x.removeClass("btn-danger");
     x.removeClass("btn-secondary");
     x.addClass("btn-primary");
     $.post({
@@ -1087,7 +1114,7 @@ $(document).ready(function () {
       data: { url: $(x.data("url-source")).val(), type: x.data("type") },
       dataType: "json",
       success: (data) => {
-        x.removeClass("btn-warning");
+        x.removeClass("btn-danger");
         x.removeClass("btn-primary");
         $(x.data("url-source")).val("");
         x.addClass("btn-secondary");
@@ -1095,14 +1122,21 @@ $(document).ready(function () {
         var detail = itemId
           ? `<a href="/reader/item/by-id/${itemId}">open saved item</a>`
           : "It will appear in the reading queue after processing.";
-        show_bookmark_add_result(data["message"] || "Saved to Llar", detail);
+        show_bookmark_add_result(
+          data["message"] || "Saved to Llar",
+          detail,
+          true,
+        );
         return false;
       },
     }).fail((data) => {
-      x.addClass("btn-warning");
+      x.addClass("btn-danger");
       x.removeClass("btn-secondary");
       x.removeClass("btn-primary");
-      show_bookmark_add_result("Fail", data.responseText);
+      show_bookmark_add_result(
+        "Could not save",
+        bookmark_capture_error_message(data),
+      );
     });
     return false;
   });

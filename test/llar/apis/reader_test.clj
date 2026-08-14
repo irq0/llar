@@ -947,7 +947,7 @@
                    shell))
       (is (not (string/includes? shell "<template>")))
       (is (string/includes? shell "id=\"reader-global-status\""))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-04\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-06\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-global-status-is-a-calm-dismissible-error-region
@@ -1277,6 +1277,18 @@
                                                    :browse "true"}})))]
       (is (re-find #"No gems match the active filters" rendered))
       (is (re-find #"aria-label=\"Clear Topic filter\"" rendered)))))
+
+(deftest gems-failures-use-the-shared-alert-semantics
+  (with-redefs [uut/frontend-db :db
+                persistency/get-gem-facets
+                (constantly {:total 0 :topic-count 0 :source-count 0
+                             :tags [] :sources []})
+                persistency/get-related-gems (constantly nil)]
+    (let [rendered (str (h/html (uut/tools-view-handler
+                                 {:view :gems
+                                  :request-params {:related-to "42"}})))]
+      (is (re-find #"reader-tool-message-error\" role=\"alert\"" rendered))
+      (is (string/includes? rendered "That archived gem was not found.")))))
 
 (deftest item-detail-route-accepts-optional-offer-provenance
   (let [opened (atom [])

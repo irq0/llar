@@ -1340,23 +1340,6 @@ figure {
   font-size: 0.76rem;
 }
 
-.reader-tool-status-end {
-  margin-bottom: var(--llar-space-3);
-  text-align: end;
-}
-
-.reader-tool-panel {
-  margin-bottom: var(--llar-space-4);
-  padding: var(--llar-space-4);
-  border: 1px solid var(--llar-border);
-  border-radius: var(--llar-radius);
-  background: var(--llar-surface-subtle);
-}
-
-.reader-tool-card {
-  border-color: var(--llar-border);
-}
-
 .reader-tool-row {
   min-width: 0;
 }
@@ -1365,12 +1348,6 @@ figure {
   overflow-wrap: anywhere;
   color: var(--llar-ink-muted);
   font-size: 0.78rem;
-}
-
-.reader-tool-actions {
-  flex-wrap: wrap;
-  gap: var(--llar-space-1);
-  align-items: center;
 }
 
 .reader-tool-section {
@@ -1404,9 +1381,9 @@ figure {
 }
 
 .reader-tool-message-error {
-  border-color: var(--bs-warning-border-subtle);
-  color: var(--bs-warning-text-emphasis);
-  background: var(--bs-warning-bg-subtle);
+  border-color: var(--bs-danger-border-subtle);
+  color: var(--bs-danger-text-emphasis);
+  background: var(--bs-danger-bg-subtle);
 }
 
 .reader-tool-message-loading {
@@ -1424,14 +1401,54 @@ figure {
   border-top: 1px solid var(--llar-border);
 }
 
-.reader-tool-table-wrap {
-  max-width: 100%;
-  overflow-x: auto;
+.reader-related-signals,
+.reader-related-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--llar-space-1);
+  align-items: baseline;
 }
 
-.reader-tool-table {
-  min-width: 38rem;
-  vertical-align: top;
+.reader-related-signal,
+.reader-related-term {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25em 0.55em;
+  border: 1px solid transparent;
+  border-radius: 500rem;
+  font-family: var(--llar-font-data);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.reader-related-signal-relative {
+  border-color: var(--llar-primary-control);
+  color: #212529;
+  background: var(--llar-primary-control);
+}
+
+.reader-related-signal-rank,
+.reader-related-term {
+  border-color: var(--llar-border);
+  color: var(--llar-ink-muted);
+  background: var(--llar-surface-subtle);
+}
+
+.reader-related-signal-title {
+  border-color: color-mix(in srgb, var(--llar-primary) 45%, var(--llar-border));
+  color: var(--bs-primary-text-emphasis);
+  background: var(--llar-primary-subtle);
+}
+
+.reader-related-source,
+.reader-related-match-label {
+  color: var(--llar-ink-faint);
+}
+
+.reader-related-source {
+  margin-left: var(--llar-space-1);
+  overflow-wrap: anywhere;
 }
 
 .reader-search-view {
@@ -2134,14 +2151,6 @@ figure {
 
   .reader-tool-context {
     margin-bottom: var(--llar-space-3);
-  }
-
-  .reader-tool-panel {
-    padding: var(--llar-space-3);
-  }
-
-  .reader-tool-status-end {
-    text-align: start;
   }
 
   .reader-queue-cluster-heading {

@@ -337,13 +337,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-04"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-06"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-h01-04"}]])
+   [:script {:src "/static/llar.js?v=reader-h01-06"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -3821,7 +3821,8 @@
                                    {:seed-item-id (:related-to params)})]
            (render-gem-results params {:total (count results) :items results}
                                (str "Related to “" (:title item) "”")))
-         [:div {:class "reader-tool-message reader-tool-message-error"}
+         [:div {:class "reader-tool-message reader-tool-message-error"
+                :role "alert"}
           "That archived gem was not found."])
 
        result-mode?
@@ -3830,7 +3831,8 @@
                              (if (:query params) "Search results" "Browse Gems"))
          (catch Exception exception
            (log/warn exception "Gems search failed" (select-keys params [:query :tag :source]))
-           [:div {:class "reader-tool-message reader-tool-message-error"}
+           [:div {:class "reader-tool-message reader-tool-message-error"
+                  :role "alert"}
             "Search failed. Check the query and try again."]))
 
        :else
@@ -3948,23 +3950,23 @@
                            title]]
                          (semantic-time ts {:class "timestamp small"}
                                         (human/datetime-ago-short ts))]
-                        [:div {:class "d-flex flex-wrap gap-1 align-items-center small mb-1"}
-                         [:span {:class "badge bg-primary"
+                        [:div {:class "reader-related-signals small mb-1"}
+                         [:span {:class "reader-related-signal reader-related-signal-relative"
                                  :title "Lexical score relative to the strongest result shown"}
                           (format "%.0f%% of top" (* 100.0 (double (or relative-score 0.0))))]
-                         [:span {:class "badge bg-light text-dark"
+                         [:span {:class "reader-related-signal reader-related-signal-rank"
                                  :title "PostgreSQL normalized full-text rank"}
                           (format "search %.3f" (double (or rank 0.0)))]
                          (when (pos? (double (or title-rank 0.0)))
-                           [:span {:class "badge bg-info text-dark"
+                           [:span {:class "reader-related-signal reader-related-signal-title"
                                    :title "Matching words occur in the title, the highest-weight field"}
                             (format "title %.3f" (double title-rank))])
-                         [:span {:class "text-secondary ms-1"} key]]
+                         [:span {:class "reader-related-source"} key]]
                         (when (seq matched-terms)
-                          [:div {:class "small mb-1"}
-                           [:span {:class "text-secondary"} "Matched: "]
+                          [:div {:class "reader-related-matches small mb-1"}
+                           [:span {:class "reader-related-match-label"} "Matched:"]
                            (for [term matched-terms]
-                             [:span {:class "badge bg-secondary me-1"} term])])
+                             [:span {:class "reader-related-term"} term])])
                         (when-not (string/blank? headline)
                           [:div {:class "small mt-1"} (render-search-headline headline)])])]
                     [:p {:class "text-secondary"}
