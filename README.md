@@ -2,86 +2,129 @@
 
 Live Long and Read!
 
-A self-hosted news aggregator focused on customizability.
+LLAR is a self-hosted reading system with programmable inputs and curation.
+
+You define what to fetch, when to fetch it, and what should happen to the
+result. Feeds, websites, newsletters, social timelines, videos, and bookmarks
+are normalized into one item model, then filtered, transformed, tagged, ranked,
+and presented by the Reader.
+
+The configuration and processing rules are yours. The resulting items are
+stored in PostgreSQL and remain available to search and revisit.
 
 > This README and its screenshots describe the current `main` branch and may
 > include features not yet available in the [latest release](https://github.com/irq0/llar/releases/latest).
 
+![The LLAR Reader populated with deterministic demo content](https://irq0.github.io/llar/demo/main/reader.png)
+
+## Why LLAR?
+
+- **Many inputs, one model.** RSS, HTML, APIs, mail, media, and saved URLs can
+  share the same item fields, tags, search, and reading state.
+- **Curation in configuration.** `.llar` files define sources, schedules,
+  source groups, filters, processors, highlights, and Reader defaults.
+- **Small programmable steps.** Clojure functions can remove noise, select
+  items, add metadata, rewrite content, or route items by tag.
+- **Different views for different jobs.** Preview, Headlines, Gallery,
+  Reading Queue, Gems, Search, and Today’s Vibe are derived from the same
+  items, with the underlying data and rules left inspectable.
+
 ## Getting Started
 
-LLAR needs a PostgreSQL database, a JVM and a [couple of command line tools](resources/config.edn) to run.
-Easiest way to get started is to use docker compose with the [llar container image](https://github.com/irq0/llar/pkgs/container/llar).
+LLAR needs PostgreSQL, a JVM, and a few command-line tools listed in
+[resources/config.edn](resources/config.edn). The easiest way to start is with
+Docker Compose and the [LLAR container image](https://github.com/irq0/llar/pkgs/container/llar).
 
 ```sh
 git clone https://github.com/irq0/llar.git
 cd llar/docker
-docker-compose pull
-docker-compose up
+docker compose pull
+docker compose up
 ```
 
-### Add your first feed
+Open the Reader at <http://localhost:8023> and the Dashboard at
+<http://localhost:9999>.
 
-If you use the docker compose way above, the configuration  lives in `llar/config`.
+### Add your first sources
+
+If you use Docker Compose as above, runtime configuration lives in `llar/config`.
 LLAR watches that directory for change.
 
-Let's add an RSS feed and the Hacker News front page as an example.
+Here is a small example with xkcd, GitHub issues, and the Hacker News front
+page. It demonstrates that LLAR can combine an independent RSS feed with
+API-backed sources in the same Reader.
 
-this projects GitHub release feed as an example. Put the following in `llar/config/myfirstconfig.llar`.
+Put the following in `llar/config/myfirstconfig.llar`:
 
 ```clojure
-(fetch github-llar-releases (src/feed "https://github.com/irq0/llar/releases.atom") :tags #{:my-first-feed :github})
+(fetch xkcd (src/feed "https://xkcd.com/rss.xml")
+  :tags #{:my-first-feed :comics})
+(fetch llar-issues (src/github-issues "repo:irq0/llar is:issue is:open")
+  :tags #{:my-first-feed :github})
 (fetch hn-frontpage (src/hn :front_page) :tags #{:my-first-feed :hackernews})
 (sched-fetch my-first-feeds :now-and-hourly (some #{:my-first-feed} $TAGS))
 ```
 
 What does this do?
 
-`fetch` instructs LLAR how to fetch a *source*, it's name and various options.
-In this example we have a `feed` source with URL `https://github.com/irq0/llar/releases.atom` and a `hn`
-source which takes a Hacker News search tag instead of an address.
-Feed sources are the most common and support RSS, Atom and the like.
+`fetch` defines a named source and how LLAR should fetch it. Here `feed` reads
+an RSS URL, `github-issues` searches GitHub using GitHub's issue-search
+syntax, and `hn` reads a Hacker News view.
 
-`github-llar-releases` and `hn-frontpage` are *source key*. A user-defined identifier for all data fetched from this source.
+The GitHub example watches LLAR's own open issues. Replace `irq0/llar` with a
+repository you care about, for example `repo:clojure/clojure is:issue is:open`.
 
-`:tags #{:my-first-feed :github}` instructs LLAR to tag this source with `:my-first-feed` and `:github`.
-This is Clojure syntax to say "set the fetch function's tags keyword argument to a set of two keywords".
-Keywords in this case behave much like strings, except that you really shouldn't use whitespace in them.
+`xkcd`, `llar-issues`, and `hn-frontpage` are source keys:
+stable, user-defined identifiers for the items produced by each source.
 
-The last line creates a *fetch schedule*. LLAR is quite flexible in when to update what.
-In this case we define a schedule `my-first-feeds` that updates all sources tagged `:my-first-feed`
-now (0-120 seconds after LLAR loads the schedule) and then every hour.
+The `:tags` options group sources with source tags. Tags can later select
+sources for schedules, views, mobile sync, or processing. The `#{...}` syntax
+is a Clojure set of keywords.
+
+The last line creates a fetch schedule. It updates every source tagged
+`:my-first-feed` shortly after the configuration loads and then once an hour.
+Schedules are part of the curation model: you decide which inputs are active
+and how often they contribute new material.
 
 ### Have an OPML file?
 
-Awesome! Copy it to the config directory and let LLAR convert if for you.
+Awesome! Copy it to the config directory and let LLAR convert it for you.
 If you use docker please ensure that LLAR can write to the config directory.
 
 The generated file will have the extension `.llar.example`.
 I suggest that you have a look and adjust the generated source keys.
 If you want LLAR to load the config, just rename it to `.llar` and it will load the file.
 
-## Features
+## What it can do
 
-- Sources: RSS, Atom, Wordpress REST, Reddit, Hacker News, IMAP mailboxes
-- Custom Feeds from HTML selectors ([example](https://github.com/irq0/llar-config/blob/main/fefe.llar),
-  [example](https://github.com/irq0/llar-config/blob/main/usenixlogin.llar))
-- Article extraction (via [Postlight Parser](https://github.com/postlight/parser))
-- HTML sanitation (fix URLs, remove annoying elements and ads)
-- Bookmark / read it later from single URLs
-- Blobstore: Keep copy of feed images to make content self-contained
-- Clojure-scriptable processing: Run code to filter or change fetched items
-- Reader UI
-- Dashboard UI
-- Fever-compatible mobile sync for feed-reader clients
-- Durable save-for-later capture API for bookmarklets and iOS/macOS Shortcuts
+- Sources: RSS, Atom, WordPress REST, HTML selectors, Reddit, Hacker News,
+  GitHub, IMAP, social timelines, websites, and streaming channels
+- One normalized item model for feeds, articles, newsletters, bookmarks, and
+  media
+- Article extraction via Mozilla Readability with title, author, date,
+  description, lead image, HTML, and plain text
+- HTML sanitization, absolute URLs, local image blobs, and safe fallback to the
+  original item when extraction fails
+- Clojure-configurable sources and schedules, plus scriptable filters,
+  processors, highlights, tags, and Reader defaults
+- Durable PostgreSQL storage for ordinary fetched items, with no generic
+  age-based cleanup
+- Reader UI with Preview, Headlines, Gallery, Search, Reading Queue, Continue
+  Reading, Gems, and Today’s Vibe
+- Separate unread, saved, archived, and reading-checkpoint states with finite
+  reading batches
+- Bookmark and save-for-later capture through the Reader or an authenticated API
+- Private podcast feeds built from audio and video sources, with
+  downloads, subtitles, chapters, and configurable per-source media retention
+- Scheduled EPUB digests that bundle tagged items into e-reader magazines
+- Export items and annotations to Zotero or configured URL handlers
+- Fever-compatible mobile sync, Dashboard diagnostics, and Config Lab
 
 ## UI
 
 ### Reader
 
-![The LLAR Reader populated with deterministic demo content](https://irq0.github.io/llar/demo/main/reader.png)
-
-Per default running on port 8023.
+By default, the Reader runs on port 8023.
 
 The same demo deployment also shows the main Reader tools:
 
@@ -95,7 +138,7 @@ The same demo deployment also shows the main Reader tools:
 
 ### Dashboard
 
-Per default running on port 9999.
+By default, the Dashboard runs on port 9999.
 
 Makes internal application state accessible.
 This includes memory usage,
@@ -160,29 +203,51 @@ Dashboard's Docs tab.
 
 ## Concept
 
-The [updater](src/llar/update.clj) [fetches](src/llar/fetch.clj) [sources](src/llar/src.clj),
-normalizes the data into *items*, runs them through the [processor](src/llar/postproc.clj)
-and finally [persists](src/llar/persistency.clj) them.
+LLAR is built around a small, durable item pipeline:
 
-`.llar` [files](config/) specify sources to fetch, schedules to run, and much more.
-A fetch definition not only contains the [source](src/llar/src.clj), but also pre, post and filter rules, as well as,
-UI options and *source tags*.
+```text
+sources → fetchers → normalized items → processors and filters → PostgreSQL → Reader
+```
 
-On update a [fetcher](src/llar/fetch) creates *items*. Each has a title, timestamps, content, descriptions, *tags*, source.
-Processors and filters act on individual items. Both are Clojure functions. As long as the result adheres to
-the item spec they are free to do any kind of manipulation.
+The [updater](src/llar/update.clj) [fetches](src/llar/fetch.clj)
+[sources](src/llar/src.clj), normalizes their output into items, runs the items
+through the [processor](src/llar/postproc.clj), and finally
+[persists](src/llar/persistency.clj) them. The same item model powers live
+feeds, extracted articles, captured bookmarks, search, mobile sync, and the
+Reader UI.
 
-LLAR knows two kinds of tags.
-Source tags, that are defined as part of a fetch definition.
-They basically group sources and are useful to specify schedules on.
-Item tags, that are attached to an item.
+`.llar` files specify sources, schedules, processing rules, highlights, and
+Reader options. A fetch definition can contain pre-processing, post-processing,
+filters, UI options, and source tags. LLAR watches the runtime configuration
+directory, so many changes do not require a restart.
 
-The workflow tags are *unread*, *saved*, and *archive*. They are exposed as
-semantic actions and states rather than independent tag: saved is independent of
-unread, archive is seen and no longer saved, and Done clears saved plus any
-active reading checkpoint. *Continue Reading* is a cross-device checkpoint,
-not a tag. Captured bookmarks start both saved and unread, and then follow the
-same Reading Queue rules as every other item.
+Each item has a title, timestamps, source identity, content, descriptions,
+media and tags. Processors and filters are Clojure functions; within the item
+spec they can reshape the material to suit your workflow. HTML is sanitized,
+URLs are repaired, and readability extraction can turn a link or a feed
+summary into a proper article.
+
+There are two different kinds of tags. Source tags group inputs and are useful
+for schedules and integrations. Item tags describe individual items. Workflow
+states are separate: `unread`, `saved`, and `archive` are semantic actions,
+not arbitrary labels. `Continue Reading` stores a reading checkpoint rather
+than pretending progress is a tag.
+
+That separation is one of LLAR’s core ideas: configuration describes how
+material enters and is shaped; item metadata helps you find it; reading state
+records what you intend to do with it.
+
+### Retention
+
+The item store is deliberately durable: ordinary fetched items are kept in
+PostgreSQL and there is no generic “older than N days” cleanup. This makes old
+material available to search and revisit without making the archive itself a
+separate knowledge-management system.
+
+Podcast media is the deliberate exception: downloaded episodes can use an
+explicit count-based retention policy so large audio/video files do not grow
+without bound. That policy concerns podcast retention and storage; it is not a
+general expiry rule for the item archive.
 
 ## Configuration
 
@@ -236,42 +301,3 @@ openssl rand -hex 32
 {:config-lab
  {:tokens {:dashboard "replace-with-the-generated-value"}}}
 ```
-
-Paste a source constructor and choose **Run**. Config Lab compiles it, fetches a
-snapshot, lists the articles it found, and opens the first item in an isolated
-reader-like preview. SelectorFeed articles are fetched on demand. The Selector
-and HTTP tabs retain URL matches, per-field extraction results, the raw
-response, DOMPurify output, and final LLAR HTML. Selector diagnostics show the
-selected Hickory vector passed into each extractor, so extractor functions can
-be written against the actual node shape. Clicking a SelectorFeed article opens
-an extraction workbench for its title, author, timestamp, description, and
-content; the initial automatic selection still opens the reader preview. The
-lab keeps this partial diagnostic result when an extracted field has the wrong
-type, instead of requiring a valid item first. The Data tab provides an
-expandable, EDN-oriented map/vector browser. Keys use keyword notation, long
-strings stay collapsed, and nested collections are expanded on demand.
-SelectorFeed fetch snapshots also include the exact sanitized Hickory tree used
-by the selectors under `:hickory`.
-
-Source key, tags, and reader options live under **Export configuration** because
-they identify and configure the deployed source, not the experiment. Export
-only copies or downloads a `.llar` form—it never writes runtime config. Refetch
-replaces the cached index snapshot, while processor experiments operate on the
-session's cached items.
-
-Source and processor forms run through SCI with no filesystem, credential,
-arbitrary namespace loading, unrestricted Java interop, or general HTTP access.
-The normal `$` helper names resolve for config compatibility, but
-`$credentials`, `$http-get`, and `$http-post` remain unavailable rather than
-exposing secrets or unguarded requests. Safe value APIs needed by
-source forms, currently including `java.net.URI`, are explicitly allowlisted.
-Rendered previews cannot run scripts, submit forms, or navigate the dashboard;
-images are served only from the owning session's expiring temporary blob store.
-The initial version supports unauthenticated `website`, `feed`, `selector-feed`,
-`readability`, `hn`, `github-issues`, `github-repos`, and isolated `custom`
-sources. Credential-dependent sources and
-source implementations whose network calls cannot yet use the lab's redirect
-guard are rejected. Fetches reject local/private destinations, run with bounded
-time and concurrency, and store generated blobs in the expiring lab session's
-temporary directory. The rest of the Dashboard keeps its existing access model;
-the token protects only Config Lab.
