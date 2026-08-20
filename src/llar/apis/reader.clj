@@ -530,9 +530,7 @@
                                          x))
 
         focus-item-href (when (= mode :show-item)
-                          (make-site-href [link-prefix "item/by-id" id "focus"]
-                                          {:data "content" :content-type "text/html"}
-                                          x))
+                          (make-site-href [link-prefix "item/by-id" id "focus"] x))
 
         next-item-button (when (> (count items) 1)
                            (icon-button {:id "btn-next-item"
@@ -2221,8 +2219,7 @@
         (external-link-button url)
         (related-button x id)
         (dump-button (make-site-href [link-prefix "item/by-id" id "dump"] x))
-        (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] {:data "content"
-                                                                             :content-type "text/html"} x))
+        (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] x))
         (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
                                                                                    :content-type "text/html"} x))]
 
@@ -2275,9 +2272,7 @@
             "fas fa-project-diagram"
             "Related items")]
       [:li (headline-menu-link
-            (make-site-href [link-prefix "item/by-id" id "focus"]
-                            {:data "content" :content-type "text/html"}
-                            x)
+            (make-site-href [link-prefix "item/by-id" id "focus"] x)
             "fas fa-expand"
             "Focus mode")]
       [:li [:hr {:class "dropdown-divider"}]]

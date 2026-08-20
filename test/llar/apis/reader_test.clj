@@ -459,6 +459,10 @@
       (is (re-find #"btn-state-saved" rendered))
       (is (re-find #"btn-item-done" rendered))
       (is (re-find #"title=\"Show item HTML focus mode\"" rendered))
+      (is (re-find #"href=\"/reader/group/default/none/source/all/item/by-id/42/focus\""
+                   rendered))
+      (is (not (re-find #"item/by-id/42/focus[^\"]*(?:data=content|content-type=text%2Fhtml)"
+                        rendered)))
       (is (re-find #"btn-annotation-mode" rendered))
       (is (re-find #"id=\"btn-next-item\"[^>]*>\s*<i[^>]*fa-step-forward" rendered))
       (is (not (re-find #"fa-arrow-down|btn-state-archived|item-tag-toggle" rendered))))))
