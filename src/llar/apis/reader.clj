@@ -344,7 +344,7 @@
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-bulk-tags-01"}]])
+   [:script {:src "/static/llar.js?v=reader-bulk-tags-02"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"

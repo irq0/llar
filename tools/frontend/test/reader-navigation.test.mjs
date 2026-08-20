@@ -87,6 +87,61 @@ test("Mobile drawers move and restore keyboard focus", async (t) => {
   await page.close();
 });
 
+test("Reader list position falls back to a surviving item anchor", async (t) => {
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  t.after(() => browser.close());
+
+  const page = await browser.newPage({ viewport: { width: 900, height: 500 } });
+  await page.route("http://llar.test/reader/items", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `
+        <!doctype html>
+        <html>
+          <head><meta name="llar-mode" content="list-items"></head>
+          <body class="llar-reader reader-mode-list-items">
+            <main id="reader-main">
+              <div id="item-1" data-id="1" style="height:600px">One</div>
+              <div id="item-2" data-id="2" style="height:600px">Two</div>
+              <div id="item-3" data-id="3" style="height:600px">Three</div>
+            </main>
+          </body>
+        </html>
+      `,
+    }),
+  );
+  await page.goto("http://llar.test/reader/items");
+  await addScript(page, "jquery", "jquery.min.js");
+  await addScript(page, "bootstrap", "js", "bootstrap.bundle.min.js");
+  await addScript(page, "llar.js");
+
+  await page.evaluate(() => window.scrollTo(0, 650));
+  const expectedTop = await page
+    .locator("#item-2")
+    .evaluate((item) => item.getBoundingClientRect().top);
+  await page.evaluate(() => saveReaderListPosition());
+
+  // Simulate an unread list changing while its opened item is displayed.
+  await page.locator("#item-2").evaluate((item) => item.remove());
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    restoreReaderListPosition();
+  });
+
+  assert.equal(
+    Math.round(
+      await page
+        .locator("#item-3")
+        .evaluate((item) => item.getBoundingClientRect().top),
+    ),
+    Math.round(expectedTop + 600),
+  );
+  await page.close();
+});
+
 async function assertFocused(locator) {
   assert.equal(
     await locator.evaluate(

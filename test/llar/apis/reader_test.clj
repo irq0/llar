@@ -1008,7 +1008,7 @@
                    shell))
       (is (not (string/includes? shell "<template>")))
       (is (string/includes? shell "id=\"reader-global-status\""))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-bulk-tags-01\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-bulk-tags-02\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-global-status-is-a-calm-dismissible-error-region

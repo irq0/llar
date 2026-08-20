@@ -53,6 +53,84 @@ function getReadingBlocks(container) {
   });
 }
 
+// Browsers normally restore scroll position when navigating back, but a
+// Reader list can change while an item is open (most notably when opening it
+// removes it from an unread view). Keep a few semantic anchors so we can
+// repair an apparent reset without replacing native history restoration.
+var readerListPositionStoragePrefix = "llar-reader-list-position:";
+
+function readerListPositionStorageKey() {
+  return readerListPositionStoragePrefix + window.location.href;
+}
+
+function readerListItems() {
+  return Array.from(
+    document.querySelectorAll(
+      'body.reader-mode-list-items [id^="item-"][data-id]',
+    ),
+  );
+}
+
+function saveReaderListPosition() {
+  var items = readerListItems();
+  var firstVisibleIndex = items.findIndex(function (item) {
+    return item.getBoundingClientRect().bottom > 0;
+  });
+  if (firstVisibleIndex < 0) return;
+
+  var anchors = items
+    .slice(firstVisibleIndex, firstVisibleIndex + 4)
+    .map(function (item) {
+      return { id: item.id, top: item.getBoundingClientRect().top };
+    });
+
+  try {
+    window.sessionStorage.setItem(
+      readerListPositionStorageKey(),
+      JSON.stringify({ anchors: anchors, scrollY: window.scrollY }),
+    );
+  } catch (_error) {
+    // Storage can be disabled without making Reader navigation unusable.
+  }
+}
+
+function restoreReaderListPosition() {
+  // A non-zero offset means the browser already restored this history entry.
+  if (window.scrollY >= 10) return;
+
+  var saved;
+  try {
+    saved = JSON.parse(
+      window.sessionStorage.getItem(readerListPositionStorageKey()),
+    );
+  } catch (_error) {
+    return;
+  }
+  if (!saved) return;
+
+  var anchor = (saved.anchors || []).find(function (candidate) {
+    return document.getElementById(candidate.id);
+  });
+  if (anchor) {
+    var item = document.getElementById(anchor.id);
+    window.scrollBy(0, item.getBoundingClientRect().top - anchor.top);
+  } else if (Number.isFinite(saved.scrollY)) {
+    window.scrollTo(0, saved.scrollY);
+  }
+}
+
+$(function () {
+  if (!document.body.classList.contains("reader-mode-list-items")) return;
+
+  window.addEventListener("pagehide", saveReaderListPosition);
+  window.requestAnimationFrame(restoreReaderListPosition);
+});
+
+window.addEventListener("pageshow", function () {
+  if (!document.body.classList.contains("reader-mode-list-items")) return;
+  window.requestAnimationFrame(restoreReaderListPosition);
+});
+
 function updateStateButton(button, isSet) {
   var icon = button.find("i");
   var visibleLabel = button.find(".reader-action-label");
