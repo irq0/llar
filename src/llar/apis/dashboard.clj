@@ -15,7 +15,7 @@
    [llar.apis.config-lab :as config-lab-api]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
-   [llar.appconfig :refer [appconfig-redact-secrets]]
+   [llar.appconfig :as appconfig :refer [appconfig-redact-secrets]]
    [llar.config :as config]
    [llar.config-lab :as config-lab]
    [llar.converter]
@@ -996,6 +996,11 @@
               "bg-secondary")]
     [:span {:class (str "badge " cls)} (name status)]))
 
+(defn- capture-reader-url [item-id]
+  (when-let [base-url (and item-id (appconfig/reader :base-url))]
+    (str (string/replace base-url #"/+$" "")
+         "/reader/item/by-id/" item-id)))
+
 (defn- capture-row
   [{:keys [id url title submitted-by attempt-count last-attempt-ts
            last-error failure-class item-id]
@@ -1008,7 +1013,13 @@
     [:a {:href url :target "_blank" :rel "noreferrer"}
      (human/truncate-ellipsis url 90)]
     (when item-id
-      [:div [:small {:class "text-muted font-monospace"} "item " item-id]])]
+      [:div
+       [:small {:class "text-muted font-monospace"} "item " item-id]
+       (when-let [reader-url (capture-reader-url item-id)]
+         [:small
+          " · "
+          [:a {:href reader-url :target "_blank" :rel "noreferrer"}
+           "Open in Reader"]])])]
    [:td [:small submitted-by]]
    [:td {:data-order attempt-count} attempt-count]
    [:td {:data-order (if last-attempt-ts

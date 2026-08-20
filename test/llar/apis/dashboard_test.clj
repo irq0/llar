@@ -32,13 +32,20 @@
                               :submitted-by "iphone"
                               :last-attempt-ts (time/zoned-date-time 2026 8 13 12 0 0 0 "UTC")
                               :failure-class "fetch"
-                              :last-error "network failed"}])]
+                              :last-error "network failed"
+                              :item-id 314}])
+                appconfig/reader
+                (fn [key]
+                  (when (= key :base-url)
+                    "https://reader.example/"))]
     (let [body (str (h/html (uut/bookmarks-tab)))]
       (is (string/includes? body "1 Ready"))
       (is (string/includes? body "id=\"bookmarks-datatable\""))
       (is (string/includes? body "data-order=\"1786622400000\""))
       (is (string/includes? body "Failed capture"))
       (is (string/includes? body "network failed"))
+      (is (string/includes? body "href=\"https://reader.example/reader/item/by-id/314\""))
+      (is (string/includes? body "Open in Reader"))
       (is (string/includes? body "/api/bookmark-captures/42/retry"))
       (is (string/includes? body "/api/bookmark-captures/42/dismiss")))))
 
