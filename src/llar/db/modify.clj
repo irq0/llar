@@ -176,6 +176,12 @@
         command (if (keyword? command) {:action command} command)
         rows (when (seq item-ids)
                (sql/get-items-state-for-update tx {:item-ids item-ids}))
+        _ (when (and (:require-all? command)
+                     (not= (count rows) (count item-ids)))
+            (throw (ex-info "One or more items were not found"
+                            {:type ::items-not-found
+                             :requested item-ids
+                             :found (mapv :id rows)})))
         transitions (mapv (fn [row]
                             (let [before (item-state/state row)
                                   after (item-state/transition before command)]

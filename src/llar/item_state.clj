@@ -18,7 +18,7 @@
 
 (def actions
   (into semantic-actions
-        #{:save-checkpoint :clear-checkpoint :add-tag :remove-tag}))
+        #{:save-checkpoint :clear-checkpoint :add-tag :remove-tag :edit-tags}))
 
 (defn tag-set [item]
   (into #{}
@@ -57,7 +57,7 @@
 (defn queued? [item]
   (boolean (seq (queue-reasons item))))
 
-(defn- ensure-command [{:keys [action tag progress] :as command}]
+(defn- ensure-command [{:keys [action tag progress add-tags remove-tags] :as command}]
   (when-not (contains? actions action)
     (throw (ex-info "Unknown item state action"
                     {:type ::unknown-action :action action})))
@@ -65,6 +65,22 @@
              (or (not (keyword? tag)) (contains? reserved-tags tag)))
     (throw (ex-info "Reserved tags cannot be changed directly"
                     {:type ::reserved-tag :action action :tag tag})))
+  (when (= :edit-tags action)
+    (let [add-tags (set add-tags)
+          remove-tags (set remove-tags)
+          changed-tags (set/union add-tags remove-tags)]
+      (when (or (not-every? keyword? changed-tags)
+                (seq (set/intersection reserved-tags changed-tags)))
+        (throw (ex-info "Reserved tags cannot be changed directly"
+                        {:type ::reserved-tag :action action
+                         :tags changed-tags})))
+      (when (seq (set/intersection add-tags remove-tags))
+        (throw (ex-info "A tag cannot be added and removed together"
+                        {:type ::conflicting-tags :action action
+                         :tags (set/intersection add-tags remove-tags)})))
+      (when (empty? changed-tags)
+        (throw (ex-info "At least one tag change is required"
+                        {:type ::empty-tag-edit :action action})))))
   (when (and (= :save-checkpoint action)
              (or (not (number? progress))
                  (not (Double/isFinite (double progress)))
@@ -77,7 +93,8 @@
   "Pure item-state reducer. It contains every user-facing transition rule;
   persistence code only stores the returned tags and checkpoint."
   [item command]
-  (let [{:keys [action tag selector progress]} (ensure-command command)
+  (let [{:keys [action tag selector progress add-tags remove-tags]}
+        (ensure-command command)
         {:keys [tags] :as before} (state item)
         without #(apply disj tags %)]
     (case action
@@ -103,7 +120,10 @@
                               :progress (double progress)}))
       :clear-checkpoint (assoc before :checkpoint nil)
       :add-tag (assoc before :tags (conj tags tag))
-      :remove-tag (assoc before :tags (disj tags tag)))))
+      :remove-tag (assoc before :tags (disj tags tag))
+      :edit-tags (assoc before :tags (-> tags
+                                         (set/difference (set remove-tags))
+                                         (set/union (set add-tags)))))))
 
 (defn differences [before after]
   {:add-tags (set/difference (:tags after) (:tags before))

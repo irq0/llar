@@ -136,7 +136,9 @@ function applyItemState(state) {
   });
   $("#item-" + id)
     .data("unread", !!state.unread)
-    .attr("data-unread", state.unread ? "true" : "false");
+    .attr("data-unread", state.unread ? "true" : "false")
+    .data("item-tags", itemTags)
+    .attr("data-item-tags", JSON.stringify(itemTags));
   updateCheckpointControls(state);
 }
 
@@ -1015,6 +1017,267 @@ $(function () {
 
 $(document).ready(function () {
   $(".reader-global-status-dismiss").on("click", dismissReaderStatus);
+
+  var reservedBulkTags = new Set([
+    "unread",
+    "saved",
+    "archive",
+    "in-progress",
+    "has-annotations",
+  ]);
+
+  function normalizeBulkTag(value) {
+    var normalized = String(value || "")
+      .trim()
+      .toLocaleLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^\p{L}\p{N}-]/gu, "")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "");
+    return normalized && !reservedBulkTags.has(normalized) ? normalized : "";
+  }
+
+  function selectedHeadlineRows() {
+    return $(".reader-headline-checkbox:checked").closest(
+      ".reader-headline-row",
+    );
+  }
+
+  function rowItemTags(row) {
+    var value = row.attr("data-item-tags") || "[]";
+    try {
+      return JSON.parse(value);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function syncHeadlineSelection() {
+    var checkboxes = $(".reader-headline-checkbox");
+    var selected = checkboxes.filter(":checked");
+    var count = selected.length;
+    $(".reader-headline-row").each(function () {
+      $(this).toggleClass(
+        "is-selected",
+        $(this).find(".reader-headline-checkbox").prop("checked"),
+      );
+    });
+    $(".reader-bulk-selection-count").text(count + " selected");
+    $(".reader-bulk-edit-tags").prop("disabled", count === 0);
+    $(".reader-bulk-select-all")
+      .prop("checked", !!checkboxes.length && count === checkboxes.length)
+      .prop("indeterminate", count > 0 && count < checkboxes.length);
+  }
+
+  function exitHeadlineSelection() {
+    $("body").removeClass("reader-bulk-selection-active");
+    $(".reader-bulk-selection-bar").prop("hidden", true);
+    $(".reader-headline-checkbox").prop("checked", false);
+    syncHeadlineSelection();
+  }
+
+  $(".btn-select-headlines").on("click", function (event) {
+    event.preventDefault();
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+    $("body").addClass("reader-bulk-selection-active");
+    $(".reader-bulk-selection-bar").prop("hidden", false);
+    syncHeadlineSelection();
+    $(".reader-headline-checkbox:first").trigger("focus");
+  });
+
+  $(".reader-bulk-cancel").on("click", exitHeadlineSelection);
+  $(".reader-headline-checkbox").on("change", syncHeadlineSelection);
+  $(".reader-bulk-select-all").on("change", function () {
+    $(".reader-headline-checkbox").prop("checked", $(this).prop("checked"));
+    syncHeadlineSelection();
+  });
+
+  function bulkTagsFor(operation) {
+    return $(".reader-bulk-tag-chips[data-operation='" + operation + "']")
+      .find(".reader-bulk-tag-chip")
+      .map(function () {
+        return $(this).data("tag");
+      })
+      .get();
+  }
+
+  function setBulkTagError(message) {
+    $(".reader-bulk-tags-error")
+      .text(message || "")
+      .prop("hidden", !message);
+  }
+
+  function syncBulkTagSubmit() {
+    $(".reader-bulk-tags-submit").prop(
+      "disabled",
+      bulkTagsFor("add").length + bulkTagsFor("remove").length === 0,
+    );
+  }
+
+  function addBulkTagChip(operation, rawTag) {
+    var tag = normalizeBulkTag(rawTag);
+    if (!tag) {
+      setBulkTagError("Enter a valid custom tag.");
+      return;
+    }
+    var opposite = operation === "add" ? "remove" : "add";
+    if (bulkTagsFor(opposite).includes(tag)) {
+      setBulkTagError("A tag cannot be added and removed together.");
+      return;
+    }
+    if (bulkTagsFor(operation).includes(tag)) return;
+    setBulkTagError("");
+    var chip = $("<span>")
+      .addClass("reader-bulk-tag-chip")
+      .attr("data-tag", tag)
+      .data("tag", tag)
+      .append(document.createTextNode(tag));
+    $("<button>")
+      .addClass("reader-bulk-tag-chip-remove")
+      .attr({
+        type: "button",
+        title: "Remove " + tag,
+        "aria-label": "Remove " + tag,
+      })
+      .text("×")
+      .appendTo(chip);
+    chip.appendTo(".reader-bulk-tag-chips[data-operation='" + operation + "']");
+    syncBulkTagSubmit();
+  }
+
+  $(".reader-bulk-tag-chips").on(
+    "click",
+    ".reader-bulk-tag-chip-remove",
+    function () {
+      $(this).closest(".reader-bulk-tag-chip").remove();
+      setBulkTagError("");
+      syncBulkTagSubmit();
+    },
+  );
+
+  $(".reader-bulk-tag-input")
+    .on("keydown", function (event) {
+      if (event.key !== "Enter" && event.key !== ",") return;
+      event.preventDefault();
+      addBulkTagChip($(this).data("operation"), $(this).val());
+      $(this).val("");
+    })
+    .on("blur", function () {
+      if (!$(this).val().trim()) return;
+      addBulkTagChip($(this).data("operation"), $(this).val());
+      $(this).val("");
+    });
+
+  $("#reader-bulk-tags-modal").on("show.bs.modal", function () {
+    var rows = selectedHeadlineRows();
+    var counts = new Map();
+    rows.each(function () {
+      rowItemTags($(this)).forEach(function (tag) {
+        counts.set(tag, (counts.get(tag) || 0) + 1);
+      });
+    });
+    $(".reader-bulk-tags-modal-count").text(rows.length);
+    $(".reader-bulk-tag-chips").empty();
+    $(".reader-bulk-tag-input").val("");
+    setBulkTagError("");
+    syncBulkTagSubmit();
+    var context = $(".reader-bulk-tag-context").empty();
+    Array.from(counts.keys())
+      .sort()
+      .forEach(function (tag) {
+        var item = $("<span>").addClass("reader-bulk-tag-context-item");
+        item.append(
+          $("<span>").text(
+            tag + " · " + counts.get(tag) + " of " + rows.length,
+          ),
+        );
+        $("<button>")
+          .addClass("btn btn-sm reader-bulk-tag-context-action")
+          .attr({
+            type: "button",
+            title: "Add " + tag + " to all",
+            "aria-label": "Add " + tag + " to all",
+          })
+          .text("+")
+          .on("click", function () {
+            addBulkTagChip("add", tag);
+          })
+          .appendTo(item);
+        $("<button>")
+          .addClass("btn btn-sm reader-bulk-tag-context-action")
+          .attr({
+            type: "button",
+            title: "Remove " + tag + " from all",
+            "aria-label": "Remove " + tag + " from all",
+          })
+          .text("−")
+          .on("click", function () {
+            addBulkTagChip("remove", tag);
+          })
+          .appendTo(item);
+        item.appendTo(context);
+      });
+  });
+
+  $("#reader-bulk-tags-form").on("submit", function (event) {
+    event.preventDefault();
+    var form = $(this);
+    var submit = form.find(".reader-bulk-tags-submit");
+    if (submit.data("state-request-pending")) return;
+    var rows = selectedHeadlineRows();
+    var addTags = bulkTagsFor("add");
+    var removeTags = bulkTagsFor("remove");
+    setBulkTagError("");
+    setStateControlPending(submit, true);
+    $.ajax({
+      url: "/reader/items/tags",
+      method: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({
+        item_ids: rows
+          .map(function () {
+            return $(this).data("id");
+          })
+          .get(),
+        add_tags: addTags,
+        remove_tags: removeTags,
+      }),
+    })
+      .done(function (response) {
+        (response.items || []).forEach(applyItemState);
+        var modalElement = document.getElementById("reader-bulk-tags-modal");
+        $(modalElement).one("hidden.bs.modal", function () {
+          $(".btn-select-headlines:first").trigger("focus");
+        });
+        bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+        exitHeadlineSelection();
+        showListLifecycleStatus(
+          "Updated tags on " +
+            rows.length +
+            (rows.length === 1 ? " item." : " items."),
+          "success",
+        );
+      })
+      .fail(function () {
+        setBulkTagError("Could not update tags. Nothing changed.");
+      })
+      .always(function () {
+        setStateControlPending(submit, false);
+        syncBulkTagSubmit();
+      });
+  });
+
+  $(window).on("resize.reader-bulk-selection", function () {
+    if (
+      $("body").hasClass("reader-bulk-selection-active") &&
+      !window.matchMedia("(min-width: 768px)").matches
+    ) {
+      var modalElement = document.getElementById("reader-bulk-tags-modal");
+      if (modalElement && modalElement.classList.contains("show"))
+        bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+      exitHeadlineSelection();
+    }
+  });
 
   function runItemStateBatch(ids, action, onComplete) {
     var remaining = ids.length;

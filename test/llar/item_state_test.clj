@@ -110,6 +110,22 @@
     (is (= ["has-annotations" "research"] (:tags canonical)))
     (is (= ["research"] (:item-tags canonical)))))
 
+(deftest bulk-tag-edits-preserve-unrelated-and-workflow-tags
+  (let [edited (state/transition
+                (assoc base :tags #{:unread :research :later})
+                {:action :edit-tags
+                 :add-tags #{:project-x :research}
+                 :remove-tags #{:later}})]
+    (is (= #{:unread :research :project-x} (:tags edited)))))
+
+(deftest bulk-tag-edits-reject-reserved-conflicting-and-empty-changes
+  (doseq [command [{:action :edit-tags :add-tags #{:saved} :remove-tags #{}}
+                   {:action :edit-tags :add-tags #{:research}
+                    :remove-tags #{:research}}
+                   {:action :edit-tags :add-tags #{} :remove-tags #{}}]]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (state/transition base command)))))
+
 (deftest invalid-actions-are-rejected-in-the-domain
   (testing "SQL never decides what an unknown action means"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo

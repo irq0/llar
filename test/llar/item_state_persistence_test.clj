@@ -28,3 +28,42 @@
                  :remove-tags ["unread"]}]
                @tag-writes))
         (is (= [1 2 3] (mapv :id result)))))))
+
+(deftest bulk-tag-edits-use-one-set-based-delta
+  (let [tag-writes (atom [])]
+    (with-redefs [sql/get-items-state-for-update
+                  (fn [_ _]
+                    [{:id 1 :type :item-type/link :tags ["unread" "later"]}
+                     {:id 2 :type :item-type/link :tags ["research"]}])
+                  sql/apply-items-tag-delta
+                  (fn [_ args] (swap! tag-writes conj args))
+                  sql/ensure-tags (fn [& _] nil)]
+      (#'modify/transition-item-state-in-tx!
+       :tx [1 2] {:action :edit-tags
+                  :add-tags #{:research :project-x}
+                  :remove-tags #{:later}
+                  :require-all? true})
+      (is (= [{:item-ids [1]
+               :add-tags #{"project-x" "research"}
+               :remove-tags #{"later"}}
+              {:item-ids [2]
+               :add-tags #{"project-x"}
+               :remove-tags #{}}]
+             (->> @tag-writes
+                  (map #(-> %
+                            (update :add-tags set)
+                            (update :remove-tags set)))
+                  (sort-by :item-ids)))))))
+
+(deftest required-bulk-transition-stops-before-writing-when-an-item-is-missing
+  (let [writes (atom 0)]
+    (with-redefs [sql/get-items-state-for-update
+                  (fn [_ _] [{:id 1 :type :item-type/link :tags []}])
+                  sql/apply-items-tag-delta (fn [& _] (swap! writes inc))]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (#'modify/transition-item-state-in-tx!
+                    :tx [1 2] {:action :edit-tags
+                               :add-tags #{:research}
+                               :remove-tags #{}
+                               :require-all? true})))
+      (is (zero? @writes)))))

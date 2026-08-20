@@ -31,6 +31,7 @@
    [llar.pool :as pool]
    [llar.rc :as rc]
    [llar.store :as store]
+   [llar.tags :as tags]
    [llar.update :as update]
    [llar.value-inspector :as value-inspector]
    [llar.vibe :as vibe]
@@ -337,13 +338,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-h01-06"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-bulk-tags-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-h01-06"}]])
+   [:script {:src "/static/llar.js?v=reader-bulk-tags-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -494,6 +495,12 @@
                          :aria-label "Read all in view"
                          :href "#"}
                         "fas fa-glasses")
+           (when (= :headlines (get-list-style x))
+             (icon-button {:class "btn-select-headlines"
+                           :title "Select headlines"
+                           :aria-label "Select headlines"
+                           :href "#"}
+                          "far fa-check-square"))
            [:span {:class "reader-navbar-action-separator" :aria-hidden "true"}]
            (icon-button {:class "btn-reload-current-view"
                          :title "Reload this view"
@@ -2282,6 +2289,48 @@
       (for [button (tag-buttons)]
         [:li (tag-menu-button id tags button)])]]))
 
+(defn- bulk-tags-modal [item-tags]
+  (let [custom-tags (->> item-tags
+                         (remove #(contains? item-state/reserved-tags %))
+                         (map name)
+                         sort)]
+    [:div {:class "modal reader-bulk-tags-modal"
+           :id "reader-bulk-tags-modal"
+           :tabindex "-1"
+           :aria-labelledby "reader-bulk-tags-title"
+           :aria-hidden "true"}
+     [:div {:class "modal-dialog"}
+      [:form {:class "modal-content" :id "reader-bulk-tags-form"}
+       [:div {:class "modal-header"}
+        [:div
+         [:h5 {:class "modal-title" :id "reader-bulk-tags-title"} "Edit selected tags"]
+         [:p {:class "reader-bulk-tags-subtitle mb-0"}
+          [:span {:class "reader-bulk-tags-modal-count"} "0"] " selected headlines"]]
+        [:button {:type "button" :class "btn-close" :data-bs-dismiss "modal"
+                  :aria-label "Close"}]]
+       [:div {:class "modal-body"}
+        [:div {:class "reader-bulk-tag-context" :aria-live "polite"}]
+        (for [[operation label help-text] [["add" "Add to all" "These tags will be present on every selected item."]
+                                           ["remove" "Remove from all" "These tags will be absent from every selected item."]]]
+          [:div {:class "reader-bulk-tag-field" :data-operation operation}
+           [:label {:class "form-label" :for (str "reader-bulk-tags-" operation)} label]
+           [:div {:class "reader-bulk-tag-chips" :data-operation operation}]
+           [:input {:class "form-control reader-bulk-tag-input"
+                    :id (str "reader-bulk-tags-" operation)
+                    :data-operation operation
+                    :list "reader-bulk-tag-suggestions"
+                    :autocomplete "off"
+                    :placeholder "Type a tag and press Enter"}]
+           [:div {:class "form-text"} help-text]])
+        [:datalist {:id "reader-bulk-tag-suggestions"}
+         (for [tag custom-tags] [:option {:value tag}])]
+        [:div {:class "reader-bulk-tags-error" :role "alert" :hidden true}]]
+       [:div {:class "modal-footer"}
+        [:button {:type "button" :class "btn btn-outline-secondary"
+                  :data-bs-dismiss "modal"} "Cancel"]
+        [:button {:type "submit" :class "btn btn-primary reader-bulk-tags-submit"
+                  :disabled true} "Apply tags"]]]]]))
+
 (defn headlines-list-items
   "Main Item List - Headlines Style"
   [x]
@@ -2291,9 +2340,24 @@
                             (name group-item)
                             (name source-key))]
     [:div {:id "headlines" :class "reader-headlines"}
+     [:section {:class "reader-bulk-selection-bar"
+                :aria-label "Selected headline actions"
+                :hidden true}
+      [:label {:class "reader-bulk-select-all-label"}
+       [:input {:class "form-check-input reader-bulk-select-all" :type "checkbox"}]
+       [:span "Select all"]]
+      [:span {:class "reader-bulk-selection-count" :aria-live "polite"} "0 selected"]
+      [:span {:class "reader-bulk-selection-actions"}
+       [:button {:type "button" :class "btn btn-sm btn-primary reader-bulk-edit-tags"
+                 :disabled true :data-bs-toggle "modal"
+                 :data-bs-target "#reader-bulk-tags-modal"}
+        (icon "fas fa-tag") "Edit tags"]
+       [:button {:type "button" :class "btn btn-sm btn-outline-secondary reader-bulk-cancel"}
+        "Cancel"]]]
      [:table {:class "reader-headlines-table"
               :aria-label "Headlines in the current snapshot"}
       [:colgroup
+       [:col {:class "reader-headline-select-column"}]
        [:col {:class "reader-headline-marker-column"}]
        [:col {:class "reader-headline-title-column"}]
        [:col {:class "reader-headline-source-column"}]
@@ -2302,6 +2366,7 @@
        [:col {:class "reader-headline-actions-column"}]]
       [:thead {:class "visually-hidden"}
        [:tr
+        [:th "Select"]
         [:th "Status"]
         [:th "Headline"]
         [:th "Source"]
@@ -2322,7 +2387,17 @@
          [:tr {:id (str "item-" id)
                :class "reader-headline-row"
                :data-id id
+               :data-item-tags (cheshire/generate-string
+                                (->> tags
+                                     (remove #(contains? item-state/reserved-tags
+                                                         (keyword %)))
+                                     sort
+                                     vec))
                :data-unread (str (boolean (some #(= % "unread") tags)))}
+          [:td {:class "reader-headline-select"}
+           [:input {:class "form-check-input reader-headline-checkbox"
+                    :type "checkbox"
+                    :aria-label (str "Select " display-title)}]]
           [:td {:class "reader-headline-marker" :aria-hidden "true"}
            [:span {:class "reader-headline-unread-indicator"}]]
           [:th {:class "reader-headline-title" :scope "row"}
@@ -2351,7 +2426,8 @@
           [:td {:class "reader-headline-actions"}
            (annotation-cue x link-prefix item)
            (done-button item)
-           (compact-item-more-menu x link-prefix item)]])]]]))
+           (compact-item-more-menu x link-prefix item)]])]]
+     (bulk-tags-modal (:item-tags x))]))
 
 (defn- gallery-image-context [{:keys [thumbnail lead-image-url entities]}]
   (let [photo (first (:photos entities))]
@@ -4503,6 +4579,51 @@
      (catch Exception _
        {:status 400 :body {:error "Invalid item state action"}}))))
 
+(defn- normalize-bulk-tags [values]
+  (when (sequential? values)
+    (let [normalized (mapv tags/normalize-tag values)]
+      (when (every? some? normalized)
+        (set (map keyword normalized))))))
+
+(defn reader-items-tags
+  [item-ids add-tags remove-tags]
+  (try
+    (let [item-ids (when (sequential? item-ids)
+                     (vec (distinct item-ids)))
+          add-tags (normalize-bulk-tags (or add-tags []))
+          remove-tags (normalize-bulk-tags (or remove-tags []))
+          command {:action :edit-tags
+                   :add-tags add-tags
+                   :remove-tags remove-tags
+                   :require-all? true}]
+      (if-not (and (seq item-ids)
+                   (<= (count item-ids) +max-items+)
+                   (every? #(and (integer? %) (pos? %)) item-ids)
+                   (some? add-tags)
+                   (some? remove-tags))
+        {:status 400 :body {:error "Invalid bulk tag edit"}}
+        (let [_ (item-state/transition {:tags #{}} command)
+              rows (persistency/transition-items-state!
+                    frontend-db item-ids command)]
+          {:status 200
+           :body {:items (mapv item-state/canonical rows)}})))
+    (catch clojure.lang.ExceptionInfo exception
+      (case (:type (ex-data exception))
+        :llar.db.modify/items-not-found
+        {:status 404 :body {:error "One or more items were not found"}}
+
+        (:llar.item-state/reserved-tag
+         :llar.item-state/conflicting-tags
+         :llar.item-state/empty-tag-edit)
+        {:status 400 :body {:error (ex-message exception)}}
+
+        (do
+          (log/error exception "bulk item tag edit failed")
+          {:status 500 :body {:error "Could not update item tags"}})))
+    (catch Exception exception
+      (log/error exception "bulk item tag edit failed")
+      {:status 500 :body {:error "Could not update item tags"}})))
+
 (defn reader-get-annotations [item-id]
   {:status 200
    :body {:annotations (persistency/get-annotations frontend-db item-id)}})
@@ -4580,6 +4701,10 @@
                             (as-keyword tag)
                             selector
                             progress)))
+
+     (POST "/items/tags" []
+       (let [{:keys [item_ids add_tags remove_tags]} (:params req)]
+         (reader-items-tags item_ids add_tags remove_tags)))
 
      (POST "/events/impression" [offer-ids]
        (reader-record-impressions offer-ids))

@@ -754,11 +754,64 @@
               [42 {:action :remove-tag :tag :research}]]
              @calls)))))
 
+(deftest bulk-item-tags-use-one-normalized-state-transition
+  (let [call (atom nil)]
+    (with-redefs [uut/frontend-db :db
+                  persistency/transition-items-state!
+                  (fn [_ ids command]
+                    (reset! call [ids command])
+                    [{:id 41 :type :item-type/link :tags ["project-x"]}
+                     {:id 42 :type :item-type/link :tags ["project-x"]}])]
+      (let [response (uut/reader-items-tags
+                      [42 41 42] ["Project X"] ["Later"])]
+        (is (= 200 (:status response)))
+        (is (= [[42 41]
+                {:action :edit-tags
+                 :add-tags #{:project-x}
+                 :remove-tags #{:later}
+                 :require-all? true}]
+               @call))
+        (is (= [41 42] (mapv :id (get-in response [:body :items]))))))))
+
+(deftest bulk-item-tags-reject-invalid-or-reserved-edits
+  (doseq [[ids adds removes] [[[] ["research"] []]
+                              [[1] [] []]
+                              [[1] ["saved"] []]
+                              [[1] ["research"] ["Research"]]
+                              [[1] ["!!!"] []]]]
+    (is (= 400 (:status (uut/reader-items-tags ids adds removes))))))
+
+(deftest bulk-item-tag-route-forwards-json-style-parameters
+  (let [call (atom nil)]
+    (with-redefs [uut/reader-items-tags
+                  (fn [& args]
+                    (reset! call args)
+                    {:status 200 :body {:items []}})]
+      (let [response (uut/app {:request-method :post
+                               :uri "/reader/items/tags"
+                               :params {:item_ids [41 42]
+                                        :add_tags ["research"]
+                                        :remove_tags ["later"]}})]
+        (is (= 200 (:status response)))
+        (is (= [[41 42] ["research"] ["later"]] @call))))))
+
+(deftest bulk-item-tags-distinguish-missing-items-and-server-failures
+  (with-redefs [uut/frontend-db :db
+                persistency/transition-items-state!
+                (fn [& _]
+                  (throw (ex-info "missing" {:type :llar.db.modify/items-not-found})))]
+    (is (= 404 (:status (uut/reader-items-tags [41] ["research"] [])))))
+  (with-redefs [uut/frontend-db :db
+                persistency/transition-items-state!
+                (fn [& _] (throw (RuntimeException. "database unavailable")))]
+    (is (= 500 (:status (uut/reader-items-tags [41] ["research"] []))))))
+
 (deftest headline-view-is-a-compact-scan-table-with-restrained-actions
   (let [rendered (str (h/html (uut/headlines-list-items
                                {:group-name :default
                                 :group-item :none
                                 :source-key :all
+                                :item-tags #{:research :saved}
                                 :sources {:feed {:title "Example Feed"
                                                  :url "https://feed.example.org/rss"}}
                                 :items [{:id 42
@@ -770,6 +823,10 @@
                                          :nwords 100
                                          :url "https://example.com"}]})))]
     (is (re-find #"class=\"reader-headlines-table\"" rendered))
+    (is (string/includes? rendered "reader-bulk-selection-bar"))
+    (is (string/includes? rendered "reader-headline-checkbox"))
+    (is (string/includes? rendered "reader-bulk-tags-modal"))
+    (is (string/includes? rendered "data-item-tags=\"[]\""))
     (is (re-find #"aria-label=\"Headlines in the current snapshot\"" rendered))
     (is (re-find #"class=\"reader-headline-title-column\"" rendered))
     (is (re-find #"class=\"reader-headline-source-column\"" rendered))
@@ -951,7 +1008,7 @@
                    shell))
       (is (not (string/includes? shell "<template>")))
       (is (string/includes? shell "id=\"reader-global-status\""))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-h01-06\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-bulk-tags-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-global-status-is-a-calm-dismissible-error-region
