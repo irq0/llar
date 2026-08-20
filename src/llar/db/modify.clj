@@ -152,11 +152,12 @@
         (if source-ids
           (sql/remove-tags this
                            {:tags ["unread"]
-                            :where [(sql/tag-cond-by-source-id-in {:ids source-ids})
-                                    ["AND"]
-                                    ["tagi @@ '0'"]
-                                    ["AND"]
-                                    (sql/tag-cond-le-ts {:ts older-then-ts})]})
+                            :where (cond-> [(sql/tag-cond-by-source-id-in {:ids source-ids})
+                                            ["AND"]
+                                            ["tagi @@ '0'"]]
+                                     older-then-ts
+                                     (into [["AND"]
+                                            (sql/tag-cond-le-ts {:ts older-then-ts})]))})
           []))
       []))
 

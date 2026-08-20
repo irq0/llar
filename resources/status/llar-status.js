@@ -1315,6 +1315,64 @@ $(document).ready(function () {
     },
   );
 
+  $(document).on("click", ".btn-mark-source-read", function () {
+    var button = $(this);
+    if (button.prop("disabled") || button.data("pending")) return;
+    var panel = button.closest(".source-reader-state");
+    var status = panel.find(".source-reader-state-status");
+    var sourceKey = String(button.data("source-key"));
+    var unreadCount = Number(button.data("unread-count")) || 0;
+    if (
+      !window.confirm(
+        "Mark " +
+          unreadCount +
+          " unread " +
+          (unreadCount === 1 ? "item" : "items") +
+          " from " +
+          sourceKey +
+          " as read? Saved items and reading progress will be preserved.",
+      )
+    )
+      return;
+
+    button.data("pending", true).prop("disabled", true);
+    status
+      .prop("hidden", false)
+      .removeClass("text-danger text-success")
+      .text("Marking source read…");
+
+    $.post("/api/source/" + encodeURIComponent(sourceKey) + "/read")
+      .done(function (response) {
+        var count = Number(response["affected-count"]) || 0;
+        var currentUnread = Number(response["unread-count"]) || 0;
+        panel.find(".source-unread-count strong").text(currentUnread);
+        button.data("unread-count", currentUnread);
+        status
+          .removeClass("text-danger")
+          .addClass("text-success")
+          .empty()
+          .append(
+            document.createTextNode(
+              "Marked " + count + (count === 1 ? " item" : " items") + " read.",
+            ),
+          );
+      })
+      .fail(function () {
+        status
+          .removeClass("text-success")
+          .addClass("text-danger")
+          .text("Could not mark this source read. Nothing changed.");
+      })
+      .always(function () {
+        button.data("pending", false);
+        button.prop("disabled", Number(button.data("unread-count")) === 0);
+        button.attr(
+          "aria-disabled",
+          Number(button.data("unread-count")) === 0 ? "true" : null,
+        );
+      });
+  });
+
   $(document).on("click", "#sources-datatable .btn-update-source", function () {
     var k = $(this).data("source-key");
     var overwrite = $(this).data("overwrite");

@@ -107,6 +107,55 @@
       (is (= 200 (:status response)))
       (is (string/includes? (:body response) "memory tab")))))
 
+(deftest source-details-lazily-exposes-reader-state
+  (is (not (string/includes? (str (h/html (uut/source-tab)))
+                             "btn-mark-source-read")))
+  (with-redefs [config/get-source (constantly {:src :feed})
+                uut/get-state (constantly {:status :ok})
+                uut/source-unread-count (constantly 146)]
+    (let [body (uut/source-details "example")]
+      (is (string/includes? body "Reader state"))
+      (is (string/includes? body "Unread: <strong>146</strong>"))
+      (is (string/includes? body "btn-mark-source-read"))
+      (is (string/includes? body "data-source-key=\"example\""))
+      (is (not (re-find #"btn-mark-source-read[^>]*disabled" body)))))
+  (with-redefs [config/get-source (constantly {:src :feed})
+                uut/get-state (constantly {})
+                uut/source-unread-count (constantly 0)]
+    (let [body (uut/source-details "empty")]
+      (is (string/includes? body "Unread: <strong>0</strong>"))
+      (is (re-find #"btn-mark-source-read[^>]*disabled" body)))))
+
+(deftest source-unread-count-reuses-source-tag-counts
+  (with-redefs [config/get-sources (constantly {:example {:src :feed}})
+                persistency/get-sources
+                (fn [_ config-sources]
+                  {:example (assoc (:example config-sources) :id 7)})
+                persistency/sources-merge-in-tags-counts
+                (fn [_ sources]
+                  (map #(assoc % :item-tags {:unread 12 :total 30}) sources))]
+    (is (= 12 (uut/source-unread-count :example)))
+    (is (= 0 (uut/source-unread-count :missing)))))
+
+(deftest source-reader-state-actions-report-exact-results
+  (with-redefs [config/get-source (constantly {:src :feed})
+                persistency/remove-unread-for-items-of-source-older-then!
+                (constantly [{:id 7} {:id 9}])
+                uut/source-unread-count (constantly 0)]
+    (is (= {:source-key :example
+            :affected-count 2
+            :unread-count 0}
+           (:body (uut/mark-source-read "example")))))
+  (with-redefs [config/get-source (constantly nil)]
+    (is (= 404 (:status (uut/mark-source-read "missing"))))))
+
+(deftest source-reader-state-dashboard-script-confirms-the-action
+  (let [javascript (slurp (io/resource "status/llar-status.js"))]
+    (is (string/includes? javascript ".btn-mark-source-read"))
+    (is (string/includes? javascript "Saved items and reading progress will be preserved."))
+    (is (not (string/includes? javascript "/read/undo")))
+    (is (not (string/includes? javascript ".btn-undo-source-read")))))
+
 (deftest config-lab-tab-is-opt-in
   (with-redefs [config-lab/enabled? (constantly false)]
     (is (= 404 (:status (uut/dashboard-tab "config-lab")))))

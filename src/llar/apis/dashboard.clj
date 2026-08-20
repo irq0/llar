@@ -305,13 +305,43 @@
                                     Long/MIN_VALUE))
                          scheduling-issues)))]]))
 
+(defn source-unread-count [source-key]
+  (let [sources (persistency/get-sources frontend-db (config/get-sources))]
+    (if-let [source (get sources source-key)]
+      (or (some->> [source]
+                   (persistency/sources-merge-in-tags-counts frontend-db)
+                   first
+                   :item-tags
+                   :unread)
+          0)
+      0)))
+
 (defn source-details [src-k]
   (let [k (keyword src-k)
         source (config/get-source k)
         state (get-state k)
-        exception-data (get-in state [:last-exception :data])]
+        exception-data (get-in state [:last-exception :data])
+        unread-count (when source (source-unread-count k))]
     (str (h/html
           [:div
+           (when source
+             [:section {:class "source-reader-state mb-3"
+                        :data-source-key (name k)}
+              [:h5 "Reader state"]
+              [:div {:class "d-flex align-items-center gap-2"}
+               [:span {:class "source-unread-count"}
+                "Unread: " [:strong unread-count]]
+               [:button (cond-> {:type "button"
+                                 :class "btn btn-sm btn-outline-secondary btn-mark-source-read"
+                                 :data-source-key (name k)
+                                 :data-unread-count unread-count}
+                          (zero? unread-count)
+                          (assoc :disabled true :aria-disabled "true"))
+                "Mark read…"]]
+              [:div {:class "source-reader-state-status small mt-2"
+                     :role "status"
+                     :aria-live "polite"
+                     :hidden true}]])
            [:h5 "Source data"]
            (value-inspector/value-inspector
             (cond-> [[:configuration "Configuration" source]
@@ -331,6 +361,17 @@
               (for [s (:trace-elems th)
                     :let [formatted (stacktrace-repl/pst-elem-str false s 70)]]
                 [:li [:pre formatted]])]])))))
+
+(defn mark-source-read [str-k]
+  (let [k (keyword str-k)]
+    (if-not (config/get-source k)
+      {:status 404 :body {:source-key k :error :not-found}}
+      (let [rows (persistency/remove-unread-for-items-of-source-older-then!
+                  frontend-db [k] nil)]
+        {:status 200
+         :body {:source-key k
+                :affected-count (count rows)
+                :unread-count (source-unread-count k)}}))))
 
 (defn list-to-table [header data]
   [:table {:class "datatable table"}
@@ -1353,6 +1394,9 @@
 
      (GET "/source/:source-key" [source-key]
        (source-status source-key))
+
+     (POST "/source/:source-key/read" [source-key]
+       (mark-source-read source-key))
 
      (GET "/sources" []
        (all-sources-status))
