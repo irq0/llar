@@ -120,14 +120,16 @@
              :fn #'gallery-list-items}})
 
 (def +sort-orders+
-  {:newest {:name "Newest First"
+  {nil {:name "View Default"
+        :ico "far fa-circle"}
+   :newest {:name "Newest First"
             :ico "fas fa-sort-amount-down"}
    :ranked {:name "Ranked"
             :ico "fas fa-star"}
    :oldest {:name "Oldest First"
             :ico "fas fa-sort-amount-up"}})
 
-(declare get-list-style get-sort-order)
+(declare get-list-style get-sort-order sort-context +valid-sort-orders+)
 
 (def +filter-overrides+
   {:saved :total})
@@ -274,6 +276,9 @@
      (if (string/blank? query-string)
        (string/join "/" path)
        (str (string/join "/" path) "?" query-string)))))
+
+(defn- without-sort-override [x]
+  (dissoc x :sort-order))
 
 (defn- item-detail-path [x id]
   ["/reader/group"
@@ -811,7 +816,8 @@
     [:li {:class "nav-item"}
      [:a (cond-> {:class (str "nav-link" (when (= str-ks active) " active"))
                   :title (format "Show %s items" str-ks)
-                  :href (make-site-href [url-prefix str-ks "source/all/items"] x)}
+                  :href (make-site-href [url-prefix str-ks "source/all/items"]
+                                        (without-sort-override x))}
            (= str-ks active) (assoc :aria-current "page"))
       (if-let [ico (get icons (keyword str-ks) +tag-icon-default+)]
         (sidebar-link-content ico str-ks)
@@ -856,7 +862,9 @@
                                                      (= active-group group)
                                                      (= (keyword active-key) key)) " active"))
                        :title (format "Show items with %s %s" (name group) (name key))
-                       :href (make-site-href [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")] x)}
+                       :href (make-site-href
+                              [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")]
+                              (without-sort-override x))}
                 (and (= active-group group)
                      (= (keyword active-key) key)) (assoc :aria-current "page"))
            (sidebar-link-content (get icons key +tag-icon-default+) (name key))]])]
@@ -892,14 +900,19 @@
          [:h6 {:class (str "sidebar-heading d-flex justify-content-between "
                            "align-items-center px-3 mt-4 mb-1 text-muted")}
           [:span "Sort Order"]]
-         (let [active-sort (get-sort-order x)]
+         (let [{:keys [default requested explicit?]} (sort-context x)
+               selected-sort (when explicit? requested)]
            [:ul {:class "nav flex-column" :id "sort-order-select"}
             (for [[key {:keys [name ico]}] +sort-orders+]
               [:li {:class "nav-item"}
-               [:a (cond-> {:class (str "nav-link" (when (= key active-sort) " active"))
+               [:a (cond-> {:class (str "nav-link" (when (= key selected-sort) " active"))
                             :href (make-site-href [(:uri x)] {:sort-order key} x)}
-                     (= key active-sort) (assoc :aria-current "page"))
-                (sidebar-link-content ico name)]])])))
+                     (= key selected-sort) (assoc :aria-current "page"))
+                (sidebar-link-content
+                 ico
+                 (if (nil? key)
+                   (format "%s (%s)" name (get-in +sort-orders+ [default :name]))
+                   name))]])])))
 
       ;; item tags, source tags, and types are destinations, not Tool controls
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
@@ -2701,14 +2714,28 @@
 
 (def +valid-sort-orders+ #{:newest :ranked :oldest})
 
-(defn get-sort-order [x]
-  (let [selected (:sort-order x)
-        group-item (:group-item x)
-        defaults (config/get-sort-order-defaults)]
+(defn- reader-home-aggregate? [{:keys [group-name group-item source-key]}]
+  (and (= group-name :default)
+       (= group-item :all)
+       (= source-key :all)))
+
+(defn- default-sort-order [x]
+  (let [configured (get (config/get-sort-order-defaults) (:group-item x))]
     (cond
-      (+valid-sort-orders+ selected) selected
-      (+valid-sort-orders+ (get defaults group-item)) (get defaults group-item)
+      (+valid-sort-orders+ configured) configured
+      (reader-home-aggregate? x) :ranked
       :else :newest)))
+
+(defn- sort-context [x]
+  (let [selected (:sort-order x)
+        explicit? (boolean (+valid-sort-orders+ selected))
+        default (default-sort-order x)]
+    {:default default
+     :requested (if explicit? selected default)
+     :explicit? explicit?}))
+
+(defn get-sort-order [x]
+  (:requested (sort-context x)))
 
 (defn list-items [x]
   ((get-in +list-styles+ [(get-list-style x) :fn]) x))
@@ -2725,7 +2752,9 @@
 (defn- batch-footer [x]
   (let [items (:items x)
         item-count (count items)
-        sort-order (get-sort-order x)
+        {:keys [requested explicit?]} (sort-context x)
+        sort-order (or (:applied-sort-order x) requested)
+        fallback? (not= sort-order requested)
         sort-label (get-in +sort-orders+ [sort-order :name] (name sort-order))
         source-count (count (:selected-sources x))
         mark-on-scroll-count (mark-on-scroll-source-count x)
@@ -2741,7 +2770,12 @@
        (format "%d item%s" item-count (if (= item-count 1) "" "s"))]
       [:span {:class "reader-batch-metadata-item"}
        (action-icon (get-in +sort-orders+ [sort-order :ico]))
-       sort-label]
+       sort-label
+       (cond
+         fallback? (str " · " (string/lower-case
+                               (get-in +sort-orders+ [requested :name] (name requested)))
+                        " unavailable")
+         (not explicit?) " · view default")]
       [:span {:class "reader-batch-metadata-item"}
        (action-icon (or (second (get +exposed-simple-filter+ (:filter x)))
                         "fas fa-filter"))
@@ -2819,9 +2853,16 @@
       (contains? #{:show-item :download :dump-item :focus-item} mode)
       (let [current-item (persistency/get-item-by-id frontend-db item-id)
             ranked-pos (:ranked-pos params)
-            next-items (if (and (= effective-sort :ranked) (some? ranked-pos))
-                         (persistency/get-items-recent frontend-db
-                                                       (merge common-args {:offset (inc ranked-pos) :limit 1}))
+            next-items (cond
+                         (and (= effective-sort :ranked) (some? ranked-pos))
+                         (persistency/get-items-recent
+                          frontend-db
+                          (merge common-args {:offset (inc ranked-pos) :limit 1}))
+
+                         (= effective-sort :ranked)
+                         []
+
+                         :else
                          (get-items-for-current-view*
                           sources
                           (-> params
@@ -2876,18 +2917,28 @@
       :else
       [])))
 
-(defn get-items-for-current-view
-  "Fetch current view items. Falls back to :newest sort if ranked query fails
-  (e.g. source_stats materialized view doesn't exist yet)."
+(defn- get-items-for-current-view-result
+  "Fetch current view items and report the sort that was actually applied."
   [sources params]
   (let [effective-sort (get-sort-order params)]
     (if (= effective-sort :ranked)
       (try
-        (get-items-for-current-view* sources params :ranked)
+        {:items (get-items-for-current-view* sources params :ranked)
+         :applied-sort-order :ranked}
         (catch Exception e
           (log/warn e "Ranked query failed, falling back to :newest sort")
-          (get-items-for-current-view* sources params :newest)))
-      (get-items-for-current-view* sources params effective-sort))))
+          {:items (get-items-for-current-view* sources
+                                               (dissoc params :page-offset :ranked-pos)
+                                               :newest)
+           :applied-sort-order :newest}))
+      {:items (get-items-for-current-view* sources params effective-sort)
+       :applied-sort-order effective-sort})))
+
+(defn get-items-for-current-view
+  "Fetch current view items. Ranked queries degrade to newest-first when ranking
+  data is unavailable."
+  [sources params]
+  (:items (get-items-for-current-view-result sources params)))
 
 (defn get-active-group-sources
   "Return active sources, might hit database"
@@ -3011,8 +3062,11 @@
 
          sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                    (doall (persistency/get-sources frontend-db (config/get-sources))))
-         items (future (prometheus/with-duration (metrics/prom-registry :llar-ui/items-current-view)
-                         (doall (get-items-for-current-view sources params))))
+         items-result (future
+                        (prometheus/with-duration
+                          (metrics/prom-registry :llar-ui/items-current-view)
+                          (update (get-items-for-current-view-result sources params)
+                                  :items doall)))
          ;; right sidebar
          active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
                           (doall
@@ -3022,9 +3076,10 @@
 
          selected-sources (get-selected-sources active-sources params)
          source-update-context (source-update-view-context selected-sources)
-         effective-sort (get-sort-order params)
+         {:keys [items applied-sort-order]} @items-result
+         effective-sort applied-sort-order
          base-offset (or (:page-offset params) 0)
-         raw-fetched @items
+         raw-fetched items
          list-mode? (= :list-items (:mode params))
          has-more? (and list-mode? (> (count raw-fetched) +max-items+))
          fetched (if has-more?
@@ -3073,6 +3128,7 @@
                                :item-tags @item-tags
                                :filter orig-fltr
                                :snapshot-ts (time/zoned-date-time)
+                               :applied-sort-order effective-sort
                                :range-recent (-> fetched first (select-keys [:ts :id]))
                                :range-before (-> fetched last (select-keys [:ts :id]))
                                :has-more? has-more?

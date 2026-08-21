@@ -8,6 +8,7 @@
    [llar.apis.reader :as uut]
    [llar.appconfig :as appconfig]
    [llar.bookmark-capture :as bookmark-capture]
+   [llar.config :as config]
    [llar.db.bookmark-capture :as capture-db]
    [llar.db.query :as db-query]
    [llar.db.search :as db-search]
@@ -124,6 +125,108 @@
       (is (re-find #"Use Configured Default" rendered))
       (is (re-find #"(?s)id=\"view-style-select\".*?nav-link active.*?list-style=headlines.*?Headlines"
                    rendered)))))
+
+(deftest reader-sort-defaults-are-contextual-and-overridable
+  (with-redefs [config/get-sort-order-defaults (constantly {})]
+    (is (= :ranked (uut/get-sort-order {:group-name :default
+                                        :group-item :all
+                                        :source-key :all})))
+    (is (= :newest (uut/get-sort-order {:group-name :default
+                                        :group-item :all
+                                        :source-key :feed})))
+    (is (= :newest (uut/get-sort-order {:group-name :item-tags
+                                        :group-item :saved
+                                        :source-key :all})))
+    (is (= :oldest (uut/get-sort-order {:group-name :default
+                                        :group-item :all
+                                        :source-key :all
+                                        :sort-order :oldest}))))
+  (with-redefs [config/get-sort-order-defaults (constantly {:all :newest})]
+    (is (= :newest (uut/get-sort-order {:group-name :default
+                                        :group-item :all
+                                        :source-key :all})))))
+
+(deftest sort-navigation-exposes-and-restores-the-view-default
+  (with-redefs [config/get-sort-order-defaults (constantly {})
+                rc/rc (constantly nil)]
+    (let [x {:mode :list-items
+             :uri "/reader/group/default/all/source/all/items"
+             :group-name :default
+             :group-item :all
+             :source-key :all
+             :sort-order :oldest
+             :sources {}
+             :item-tags []
+             :bookmark-activity {}}
+          rendered (str (h/html (uut/group-nav x)))
+          destination (str (h/html (uut/group-list x "/reader/group/item-tags"
+                                                   [:saved] nil {})))]
+      (is (string/includes? rendered "View Default (Ranked)"))
+      (is (re-find #"sort-order-select(?s:.*?)sort-order=oldest(?s:.*?)Oldest First" rendered))
+      (is (re-find #"sort-order-select(?s:.*?)href=\"/reader/group/default/all/source/all/items\"(?s:.*?)View Default" rendered))
+      (is (string/includes? destination "/reader/group/item-tags/saved/source/all/items"))
+      (is (not (string/includes? destination "sort-order="))))))
+
+(deftest source-narrowing-preserves-an-explicit-sort-override
+  (let [rendered (str (h/html (uut/source-list-item
+                               {:filter :unread
+                                :group-item :all
+                                :sort-order :oldest}
+                               "/reader/group/default/all/source"
+                               {:key :feed :title "Feed" :item-tags {:unread 2}}
+                               :all)))]
+    (is (string/includes? rendered "sort-order=oldest"))))
+
+(deftest ranked-query-fallback-reports-newest-as-the-applied-sort
+  (let [calls (atom [])]
+    (with-redefs [config/get-sort-order-defaults (constantly {})
+                  persistency/get-items-recent
+                  (fn [_ args]
+                    (swap! calls conj args)
+                    (if (= :ranked (:sort-order args))
+                      (throw (java.sql.SQLException. "ranking unavailable"))
+                      [{:id 1}]))]
+      (let [result (#'uut/get-items-for-current-view-result
+                    {}
+                    {:group-name :default
+                     :group-item :all
+                     :source-key :all
+                     :mode :list-items
+                     :page-offset 20})]
+        (is (= :newest (:applied-sort-order result)))
+        (is (= [{:id 1}] (:items result)))
+        (is (= [:ranked :newest] (mapv :sort-order @calls)))
+        (is (nil? (:offset (second @calls))))))))
+
+(deftest ranked-deep-link-without-position-does-not-invent-a-next-item
+  (with-redefs [config/get-sort-order-defaults (constantly {})
+                persistency/get-item-by-id (fn [_ id] {:id id})
+                persistency/get-items-recent
+                (fn [& _]
+                  (throw (AssertionError. "unexpected next-item query")))]
+    (is (= [{:id 42}]
+           (uut/get-items-for-current-view
+            {}
+            {:group-name :default
+             :group-item :all
+             :source-key :all
+             :mode :show-item
+             :item-id 42})))))
+
+(deftest batch-footer-distinguishes-defaults-from-query-fallbacks
+  (with-redefs [config/get-sort-order-defaults (constantly {})]
+    (let [base {:group-name :default
+                :group-item :all
+                :source-key :all
+                :items []
+                :selected-sources []
+                :filter :unread}
+          inherited (str (h/html (#'uut/batch-footer base)))
+          fallback (str (h/html (#'uut/batch-footer
+                                 (assoc base :applied-sort-order :newest))))]
+      (is (string/includes? inherited "Ranked · view default"))
+      (is (string/includes? fallback "Newest First · ranked unavailable"))
+      (is (not (string/includes? fallback "view default"))))))
 
 (deftest gallery-distinguishes-image-zoom-from-text-only-items
   (is (false? (#'uut/usable-image-url? " SELF ")))

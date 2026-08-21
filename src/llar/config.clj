@@ -216,9 +216,10 @@
 (def ^{:llar.config/kind :special-form
        :llar.config/form "(sort-default TAG-KEY SORT-ORDER)"
        :llar.config/order 70
-       :doc "Set the default sort order for source or item tag views."
-       :llar.config/keys ["SORT-ORDER is one of :newest, :ranked, or :oldest"]
-       :llar.config/example "(sort-default :blog :ranked)"}
+       :doc "Set the default sort order for a Reader group item or the :all home view."
+       :llar.config/keys ["TAG-KEY is a source tag, item tag, type, or :all"
+                          "SORT-ORDER is one of :newest, :ranked, or :oldest"]
+       :llar.config/example "(sort-default :all :ranked)\n(sort-default :blog :ranked)"}
   sort-default nil)
 
 (def config-engine-registry (atom []))
