@@ -914,6 +914,30 @@
             (format-value value)]])]
        [:p {:class "text-muted"} "No ranking data yet."])]))
 
+(defn- rarity-boost-groups [stats rarity-cap]
+  (->> stats
+       (group-by #(double (or (:rarity_boost_hours %) 0)))
+       (map (fn [[boost rows]]
+              {:rarity_boost_hours boost
+               :source_count (count rows)
+               :items_7d (reduce + 0 (map #(or (:items_7d %) 0) rows))
+               :highlight_count (reduce + 0 (map #(or (:highlight_count %) 0) rows))
+               :capped? (>= boost (double rarity-cap))
+               :sources (sort (map #(name (:source_key %)) rows))}))
+       (sort-by :rarity_boost_hours >)))
+
+(defn- ranking-preview-item [item]
+  [:li {:class "mb-2"}
+   [:strong (or (:title item) "(no title)")]
+   [:br]
+   [:small {:class "text-muted"}
+    (name (:source_key item))
+    " · " (format "%.1fh age − %.1fh rarity − %.1fh highlight = %.1fh effective age"
+                  (double (:age_hours item))
+                  (double (:rarity_boost_hours item))
+                  (double (:highlight_boost_hours item))
+                  (double (:effective_age_hours item)))]])
+
 (defn ranking-tab []
   (let [reader-db frontend-db
         ranking-config (rc/rc [:reader :ranking])
@@ -929,24 +953,32 @@
                      (catch Exception e
                        (log/warn e "ranking-tab: failed to get ranked preview")
                        []))
-        top-30-rarity (take 30 (sort-by :rarity_boost_hours #(compare %2 %1) stats))
+        boost-groups (rarity-boost-groups stats rarity-cap)
+        boost-chart-rows (map #(assoc % :source_key
+                                      (keyword (str (format "%.1fh" (:rarity_boost_hours %))
+                                                    "-" (:source_count %) "-sources")))
+                              boost-groups)
         top-30-highlight (take 30 (sort-by :highlight_count #(compare %2 %1)
                                            (filter #(pos? (:highlight_count %)) stats)))
         ranked-top-10 (take 10 preview)
         time-top-10 (take 10 (sort-by :ts #(compare %2 %1) preview))]
     [:div
      [:h5 "Ranking Analytics"]
+     [:p {:class "text-muted mb-1"}
+      "Tune the two offsets used by Ranked view. Lower effective age appears first:"]
+     [:p {:class "font-monospace small"}
+      "effective age = item age − source rarity boost − " highlight-boost "h when highlighted"]
      [:p {:class "text-muted"}
-      "Rarity cap: " rarity-cap "h, Highlight boost: " highlight-boost "h"]
+      "Current rarity cap: " rarity-cap "h. A capped group cannot gain more rarity advantage until the cap is raised."]
 
      ;; Charts row
      [:div {:class "row mb-4"}
       [:div {:class "col-md-6"}
        (ranking-bar-chart
-        "Rarity Boost Distribution (top 30)"
-        top-30-rarity
-        :rarity_boost_hours
-        #(format "%.1fh" %)
+        "Sources per rarity-boost group"
+        boost-chart-rows
+        :source_count
+        #(format "%.0f" %)
         "bg-primary")]
       [:div {:class "col-md-6"}
        (ranking-bar-chart
@@ -956,48 +988,39 @@
         #(format "%.0f" %)
         "bg-warning")]]
 
-     ;; Source stats table
+     ;; Equal boosts are the meaningful tuning unit: those sources rank identically.
      [:div {:class "mb-4"}
-      [:h6 "Source Stats"]
+      [:h6 "Rarity boost groups"]
+      [:p {:class "small text-muted"} "Expand a group mentally as one ranking tier; the source list shows exactly what a cap or rate change moves together."]
       [:table {:class "datatable table"}
        [:thead
         [:tr
-         [:th "Source Key"]
-         [:th "Items/Day"]
          [:th "Rarity Boost (h)"]
-         [:th "Highlight Count"]
-         [:th "Items (7d)"]]]
+         [:th "Sources"]
+         [:th "Source Keys"]
+         [:th "Items (7d)"]
+         [:th "Highlights"]]]
        [:tbody
-        (for [row stats]
+        (for [group boost-groups]
           [:tr
-           [:td (name (:source_key row))]
-           [:td (format "%.2f" (double (or (:items_per_day row) 0)))]
-           [:td (format "%.1f" (double (or (:rarity_boost_hours row) 0)))]
-           [:td (:highlight_count row)]
-           [:td (:items_7d row)]])]]]
+           [:td {:data-order (:rarity_boost_hours group)}
+            (format "%.1f" (:rarity_boost_hours group))
+            (when (:capped? group) [:span {:class "badge text-bg-info ms-2"} "capped"])]
+           [:td (:source_count group)]
+           [:td [:small (string/join ", " (:sources group))]]
+           [:td (:items_7d group)]
+           [:td (:highlight_count group)]])]]]
 
      ;; Ranked vs Time comparison
      [:div {:class "row mb-4"}
       [:div {:class "col-md-6"}
        [:h6 "Top 10 by Ranked Order"]
        [:ol
-        (for [item ranked-top-10]
-          [:li [:strong (or (:title item) "(no title)")]
-           [:br]
-           [:small {:class "text-muted"}
-            (name (:source_key item))
-            " | age: " (format "%.1f" (double (:effective_age_hours item))) "h"
-            (when (:is_highlighted item) " | highlighted")]])]]
+        (map ranking-preview-item ranked-top-10)]]
       [:div {:class "col-md-6"}
        [:h6 "Top 10 by Time (newest)"]
        [:ol
-        (for [item time-top-10]
-          [:li [:strong (or (:title item) "(no title)")]
-           [:br]
-           [:small {:class "text-muted"}
-            (name (:source_key item))
-            " | effective age: " (format "%.1f" (double (:effective_age_hours item))) "h"
-            (when (:is_highlighted item) " | highlighted")]])]]]]))
+        (map ranking-preview-item time-top-10)]]]]))
 
 (defn config-tab []
   [:div

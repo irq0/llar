@@ -262,6 +262,28 @@
     (is (string/includes? body "10.0h"))
     (is (not (string/includes? footer "chartjs")))))
 
+(deftest ranking-sources-are-grouped-by-equal-boost
+  (let [groups (#'uut/rarity-boost-groups
+                [{:source_key :rare-a :rarity_boost_hours 168.0 :items_7d 2 :highlight_count 1}
+                 {:source_key :rare-b :rarity_boost_hours 168.0 :items_7d 3 :highlight_count 0}
+                 {:source_key :daily :rarity_boost_hours 24.0 :items_7d 7 :highlight_count 2}]
+                168.0)]
+    (is (= [168.0 24.0] (mapv :rarity_boost_hours groups)))
+    (is (= 2 (:source_count (first groups))))
+    (is (= ["rare-a" "rare-b"] (:sources (first groups))))
+    (is (= 5 (:items_7d (first groups))))
+    (is (true? (:capped? (first groups))))))
+
+(deftest ranking-preview-explains-the-score
+  (let [body (str (h/html (#'uut/ranking-preview-item
+                           {:title "An item"
+                            :source_key :daily
+                            :age_hours 30.0
+                            :rarity_boost_hours 24.0
+                            :highlight_boost_hours 0.0
+                            :effective_age_hours 6.0})))]
+    (is (string/includes? body "30.0h age − 24.0h rarity − 0.0h highlight = 6.0h effective age"))))
+
 (deftest state-tab-renders-values-as-full-width-details
   (with-redefs [mount/find-all-states (constantly ["#'llar.test/example"])
                 mount/running-states (constantly ["#'llar.test/example"])
