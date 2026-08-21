@@ -56,10 +56,10 @@
             :recent-ready-count 5
             :recent-ready [{:capture-id 9 :item-id 90
                             :label "Prepared story"
-                            :href "/reader/group/default/none/source/all/item/by-id/90"}
+                            :href "/reader/group/type/bookmark/source/all/item/by-id/90"}
                            {:capture-id 8 :item-id 80
                             :label "news.example.org"
-                            :href "/reader/group/default/none/source/all/item/by-id/80"}]
+                            :href "/reader/group/type/bookmark/source/all/item/by-id/80"}]
             :ready-overflow-count 3
             :recent-failed-count 1}
            (uut/bookmark-activity)))))
@@ -79,7 +79,7 @@
                      {:active-count 2
                       :recent-ready [{:item-id 90
                                       :label "Prepared story"
-                                      :href "/reader/group/default/none/source/all/item/by-id/90"}]
+                                      :href "/reader/group/type/bookmark/source/all/item/by-id/90"}]
                       :ready-overflow-count 4
                       :recent-failed-count 1}})))]
     (is (< (string/index-of rendered "id=\"add-url-1\"")
@@ -108,7 +108,7 @@
   (let [response (uut/app {:request-method :get
                            :uri "/reader/item/by-id/7670867"})]
     (is (= 303 (:status response)))
-    (is (= "/reader/group/default/none/source/all/item/by-id/7670867"
+    (is (= "/reader/group/type/bookmark/source/all/item/by-id/7670867"
            (get-in response [:headers "Location"])))))
 
 (deftest list-style-uses-rc-defaults
@@ -1406,7 +1406,7 @@
     (is (string/includes? javascript "usually ready within a few minutes"))
     (is (string/includes?
          javascript
-         "/reader/group/default/none/source/all/item/by-id/"))
+         "/reader/group/type/bookmark/source/all/item/by-id/"))
     (is (not (string/includes? javascript "show_bookmark_add_result")))
     (is (not (re-find #"#add-thing\"\)\.popover" javascript)))))
 

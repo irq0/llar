@@ -558,7 +558,7 @@ function renderBookmarkActivity(activity) {
         .attr({
           href:
             item.href ||
-            "/reader/group/default/none/source/all/item/by-id/" +
+            "/reader/group/type/bookmark/source/all/item/by-id/" +
               item["item-id"],
           title: "Ready: " + label,
           "aria-label": "Open ready bookmark: " + label,
@@ -1657,7 +1657,7 @@ $(document).ready(function () {
             "item-id": data["item-id"],
             href:
               data.href ||
-              "/reader/group/default/none/source/all/item/by-id/" +
+              "/reader/group/type/bookmark/source/all/item/by-id/" +
                 data["item-id"],
             label: data.label || "Saved bookmark",
           });

@@ -290,7 +290,7 @@
    id])
 
 (defn reader-item-href [id]
-  (str "/reader/group/default/none/source/all/item/by-id/" id))
+  (str "/reader/group/type/bookmark/source/all/item/by-id/" id))
 
 (defn show-item-href
   "Build the item-detail URL for an item in the current reader context."
