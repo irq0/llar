@@ -36,14 +36,33 @@ function update_source_row(url, source_key, row, retries) {
 
 function sources_row_actions_html(source_key) {
   return `
-<button type="button" data-source-key="${source_key}" data-overwrite="false"
-  class="btn btn-sm btn-link p-0 me-1 btn-update-source" title="Update">
-<i aria-hidden="true" class="fas fa-angle-down"></i>
-<span class="visually-hidden">Update</span></button>
-<button type="button" data-source-key="${source_key}" data-overwrite="true"
-  class="btn btn-sm btn-link p-0 me-1 btn-update-source" title="Update and overwrite existing items">
-<i aria-hidden="true" class="fas fa-angle-double-down"></i>
-<span class="visually-hidden">Update and overwrite existing items</span></button>
+<button type="button" data-source-key="${source_key}" data-force="false" data-overwrite="false"
+  class="btn btn-sm btn-link p-0 me-1 btn-update-source" title="Fetch updates">
+<i aria-hidden="true" class="fas fa-download"></i>
+<span class="visually-hidden">Fetch updates</span></button>
+<span class="dropdown d-inline-block me-1">
+  <button type="button" class="btn btn-sm btn-link p-0" data-bs-toggle="dropdown"
+    aria-expanded="false" title="More fetch options" aria-label="More fetch options">
+    <i aria-hidden="true" class="fas fa-ellipsis-v"></i>
+  </button>
+  <span class="dropdown-menu dropdown-menu-end">
+    <button type="button" class="dropdown-item btn-update-source"
+      data-source-key="${source_key}" data-force="false" data-overwrite="true">
+      Fetch and overwrite existing
+      <small class="d-block text-muted">Use HTTP validators; replace returned items</small>
+    </button>
+    <button type="button" class="dropdown-item btn-update-source"
+      data-source-key="${source_key}" data-force="true" data-overwrite="false">
+      Force fetch
+      <small class="d-block text-muted">Ignore HTTP validators; keep existing items</small>
+    </button>
+    <button type="button" class="dropdown-item btn-update-source"
+      data-source-key="${source_key}" data-force="true" data-overwrite="true">
+      Force fetch and overwrite existing
+      <small class="d-block text-muted">Ignore validators; replace returned items</small>
+    </button>
+  </span>
+</span>
 <button type="button" data-source-key="${source_key}"
   class="btn btn-sm btn-link p-0 me-1 btn-source-details" aria-expanded="false"
   title="Show or hide state details">
@@ -1375,6 +1394,7 @@ $(document).ready(function () {
 
   $(document).on("click", "#sources-datatable .btn-update-source", function () {
     var k = $(this).data("source-key");
+    var force = $(this).data("force");
     var overwrite = $(this).data("overwrite");
     var tr = $(this).closest("tr");
     var sources_datatable = datatable_for("#sources-datatable");
@@ -1382,7 +1402,7 @@ $(document).ready(function () {
     var row = sources_datatable.row(tr[0]);
     var status_url = "/api/source/" + k;
 
-    $.post("/api/update/" + k, { overwrite: overwrite })
+    $.post("/api/update/" + k, { force: force, overwrite: overwrite })
       .done(function () {
         setTimeout(update_source_row, 1000, status_url, k, row);
       })

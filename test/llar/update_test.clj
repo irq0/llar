@@ -3,6 +3,7 @@
    [clojure.string :as string]
    [clojure.test :refer [deftest is use-fixtures]]
    [llar.config :as config]
+   [llar.fetch :as fetch]
    [llar.fetch.feed]
    [llar.http :as http]
    [llar.pool :as pool]
@@ -55,6 +56,26 @@
              (get-in @uut/state [source-key :fetch-meta])))
       (is (= {:fetched 0 :processed 0 :db 0}
              (get-in @uut/state [source-key :stats]))))))
+
+(deftest forced-feed-update-ignores-conditionals-and-records-fresh-tokens
+  (let [source-key :hardcoresoftware
+        saved-tokens {:etag "old-etag" :last-modified "old-date"}
+        fresh-tokens {:etag "new-etag" :last-modified "new-date"}
+        requested-conditionals (atom nil)
+        source (reify fetch/FetchSource
+                 (fetch-source [_ conditional-tokens]
+                   (reset! requested-conditionals conditional-tokens)
+                   (with-meta [] {:conditional-tokens fresh-tokens})))
+        source-state (merge uut/src-state-template
+                            {:key source-key
+                             :status :ok
+                             :fetch-meta {:conditional-tokens saved-tokens}})]
+    (with-redefs [uut/state (atom {source-key source-state})
+                  config/get-source (constantly {:src source})]
+      (is (= :ok (uut/update! source-key :force true :skip-proc true :skip-store true)))
+      (is (= {} @requested-conditionals))
+      (is (= {:conditional-tokens fresh-tokens}
+             (get-in @uut/state [source-key :fetch-meta]))))))
 
 (deftest conditional-feed-timeout-becomes-temp-failure
   (let [source-key :hardcoresoftware

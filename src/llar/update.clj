@@ -155,7 +155,7 @@
 
 (defn- update-feed!
   "Update feed. Return new state"
-  [k & {:keys [skip-proc skip-store overwrite?]
+  [k & {:keys [force skip-proc skip-store overwrite?]
         :or {skip-proc false
              skip-store false
              overwrite? false}}]
@@ -165,7 +165,9 @@
         {:keys [src]} feed
         retry-count (or (:retry-count state) 0)]
     (try+
-     (let [fetched (fetch/fetch feed (:fetch-meta state))
+     (let [fetch-meta (cond-> (:fetch-meta state)
+                        force (assoc :conditional-tokens {}))
+           fetched (fetch/fetch feed fetch-meta)
            processed (try
                        (if-not skip-proc
                          (do
@@ -466,7 +468,7 @@
     (swap! state update k assoc :status :updating)
     (swap! state update k assoc :last-attempt-ts (time/zoned-date-time))
     (observe-update-start! k (get @state k))
-    (let [kw-args (mapcat identity (dissoc args :force))
+    (let [kw-args (mapcat identity args)
           new-state (apply update-feed! k kw-args)
           new-status (:status new-state)]
       (log/debugf "[%s] State: %s -> %s " k (:status cur-state) new-status)

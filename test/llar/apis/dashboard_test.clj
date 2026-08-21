@@ -307,7 +307,7 @@
     (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.0.1"))
     (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"))
     (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
-    (is (string/includes? body "/static/llar-status.js?v=dashboard-tables-1"))
+    (is (string/includes? body "/static/llar-status.js?v=source-fetch-menu-1"))
     (is (string/includes? javascript "DataTable.isDataTable"))
     (is (string/includes? javascript "new DataTable"))
     (is (not (re-find #"[.$]DataTable\(" javascript)))))
@@ -469,11 +469,41 @@
   ;; during a scheduled fetch queued a duplicate forced update
   (with-redefs [config/get-sources (constantly {:held {:src :a-source}})
                 update/in-flight-sources (constantly #{:held})]
-    (let [{:keys [status body]} (uut/update-source "held" false)]
+    (let [{:keys [status body]} (uut/update-source "held" false false)]
       (is (= 200 status))
       (is (= :already-updating (:status body)))))
   (with-redefs [config/get-sources (constantly {:held {:src :a-source}})]
-    (is (= 404 (:status (uut/update-source "nope" false))))))
+    (is (= 404 (:status (uut/update-source "nope" false false))))))
+
+(deftest source-update-route-forwards-force-and-overwrite-independently
+  (try
+    (swap! uut/update-futures dissoc :held)
+    (with-redefs [config/get-sources (constantly {:held {:src :a-source}})
+                  update/in-flight-sources (constantly #{})]
+      (doseq [[force overwrite] [[false false] [false true] [true false] [true true]]]
+        (let [called (promise)]
+          (with-redefs [update/update! (fn [source-key & args]
+                                         (deliver called [source-key (apply hash-map args)])
+                                         :ok)]
+            (is (= 200
+                   (:status (uut/app {:request-method :post
+                                      :uri "/api/update/held"
+                                      :params {:force (str force)
+                                               :overwrite (str overwrite)}}))))
+            (is (= [:held {:force force :overwrite? overwrite}]
+                   (deref called 1000 ::timeout)))))))
+    (finally
+      (swap! uut/update-futures dissoc :held))))
+
+(deftest source-actions-offer-primary-fetch-and-complete-options-menu
+  (let [javascript (slurp (io/resource "status/llar-status.js"))]
+    (is (string/includes? javascript "fas fa-download"))
+    (is (string/includes? javascript "More fetch options"))
+    (doseq [flags ["data-force=\"false\" data-overwrite=\"false\""
+                   "data-force=\"false\" data-overwrite=\"true\""
+                   "data-force=\"true\" data-overwrite=\"false\""
+                   "data-force=\"true\" data-overwrite=\"true\""]]
+      (is (string/includes? javascript flags) flags))))
 
 (deftest source-status-survives-a-source-with-no-dashboard-future
   ;; reachable as soon as update-source reports :already-updating for a scheduled run:

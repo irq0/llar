@@ -60,7 +60,7 @@
    [:script {:src "/static/datatables/dataTables.min.js?v=3.0.1"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar-status.js?v=dashboard-tables-1"}]])
+   [:script {:src "/static/llar-status.js?v=source-fetch-menu-1"}]])
 
 (defn wrap-body [body]
   (str
@@ -1208,8 +1208,9 @@
 
 (def update-futures (atom {}))
 
-(defn update-source [str-k overwrite]
+(defn update-source [str-k force overwrite]
   {:pre [(string? str-k)
+         (boolean? force)
          (boolean? overwrite)]}
   (let [k (keyword str-k)
         src (get (config/get-sources) k)]
@@ -1229,7 +1230,7 @@
               :status :already-updating}}
 
       :else
-      (let [fut (future (update/update! k :force true :overwrite? overwrite))]
+      (let [fut (future (update/update! k :force force :overwrite? overwrite))]
         (swap! update-futures assoc k fut)
         {:status 200
          :body {:source-key k
@@ -1412,8 +1413,10 @@
        (config-lab-api/blob-response request session-id hash))
 
      (POST "/update/:source-key" req
-       (let [{:keys [source-key overwrite]} (:params req)]
-         (update-source source-key (boolean ((fnil parse-boolean "") overwrite)))))
+       (let [{:keys [source-key force overwrite]} (:params req)]
+         (update-source source-key
+                        (boolean ((fnil parse-boolean "") force))
+                        (boolean ((fnil parse-boolean "") overwrite)))))
 
      (GET "/source/:source-key" [source-key]
        (source-status source-key))
