@@ -52,6 +52,10 @@ test("Failed Reader actions retain state and expose readable errors", async (t) 
                     data-url-source="#add-url-1"
                     data-type="readability-bookmark">capture</button>
           </form>
+          <div id="reader-bookmark-activity"
+               data-active-count="0"
+               aria-live="polite"
+               hidden></div>
         </main>
       </body>
     </html>
@@ -120,21 +124,22 @@ test("Failed Reader actions retain state and expose readable errors", async (t) 
         '{"error":"Capture URL must be an absolute HTTP or HTTPS URL"}',
     });
   });
+  const captureError = page.locator(".reader-bookmark-submission-error");
+  await captureError.waitFor({ state: "visible" });
+  assert.equal(await capture.getAttribute("aria-busy"), null);
+  assert.equal(await capture.isDisabled(), false);
   assert.equal(
-    await capture.evaluate((element) => $(element).hasClass("btn-danger")),
+    await capture.evaluate((element) => $(element).hasClass("btn-secondary")),
     true,
   );
   assert.equal(
-    await page
-      .locator("#add-thing")
-      .evaluate((element) => $(element).data("result-title")),
-    "Could not save",
+    await capture.evaluate((element) => $(element).hasClass("btn-danger")),
+    false,
   );
+  assert.equal(await captureError.getAttribute("role"), "alert");
   assert.equal(
-    await page
-      .locator("#add-thing")
-      .evaluate((element) => $(element).data("result-message")),
-    '<div class="text-center">Capture URL must be an absolute HTTP or HTTPS URL</div>',
+    await captureError.textContent(),
+    "Capture URL must be an absolute HTTP or HTTPS URL",
   );
 
   assert.equal(
