@@ -926,6 +926,11 @@
                :sources (sort (map #(name (:source_key %)) rows))}))
        (sort-by :rarity_boost_hours >)))
 
+(defn- top-rarity-sources [stats]
+  (->> stats
+       (sort-by #(double (or (:rarity_boost_hours %) 0)) >)
+       (take 30)))
+
 (defn- ranking-preview-item [item]
   [:li {:class "mb-2"}
    [:strong (or (:title item) "(no title)")]
@@ -954,10 +959,7 @@
                        (log/warn e "ranking-tab: failed to get ranked preview")
                        []))
         boost-groups (rarity-boost-groups stats rarity-cap)
-        boost-chart-rows (map #(assoc % :source_key
-                                      (keyword (str (format "%.1fh" (:rarity_boost_hours %))
-                                                    "-" (:source_count %) "-sources")))
-                              boost-groups)
+        top-30-rarity (top-rarity-sources stats)
         top-30-highlight (take 30 (sort-by :highlight_count #(compare %2 %1)
                                            (filter #(pos? (:highlight_count %)) stats)))
         ranked-top-10 (take 10 preview)
@@ -975,10 +977,10 @@
      [:div {:class "row mb-4"}
       [:div {:class "col-md-6"}
        (ranking-bar-chart
-        "Sources per rarity-boost group"
-        boost-chart-rows
-        :source_count
-        #(format "%.0f" %)
+        "Rarity boost by source (top 30)"
+        top-30-rarity
+        :rarity_boost_hours
+        #(format "%.1fh" %)
         "bg-primary")]
       [:div {:class "col-md-6"}
        (ranking-bar-chart

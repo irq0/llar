@@ -274,6 +274,13 @@
     (is (= 5 (:items_7d (first groups))))
     (is (true? (:capped? (first groups))))))
 
+(deftest ranking-rarity-chart-sources-are-ordered-by-boost
+  (let [sources (#'uut/top-rarity-sources
+                 [{:source_key :daily :rarity_boost_hours 24.0}
+                  {:source_key :rare :rarity_boost_hours 168.0}
+                  {:source_key :frequent :rarity_boost_hours 2.5}])]
+    (is (= [:rare :daily :frequent] (mapv :source_key sources)))))
+
 (deftest ranking-preview-explains-the-score
   (let [body (str (h/html (#'uut/ranking-preview-item
                            {:title "An item"
