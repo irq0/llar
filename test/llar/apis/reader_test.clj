@@ -457,6 +457,8 @@
                                           {:id 43 :source-key "feed" :title "Next"
                                            :tags []}]})))]
       (is (re-find #"btn-state-saved" rendered))
+      (is (= 2 (count (re-seq #"btn-state-archived" rendered))))
+      (is (= 2 (count (re-seq #"title=\"Remove from archive\"" rendered))))
       (is (re-find #"btn-item-done" rendered))
       (is (re-find #"title=\"Show item HTML focus mode\"" rendered))
       (is (re-find #"href=\"/reader/group/default/none/source/all/item/by-id/42/focus\""
@@ -465,7 +467,7 @@
                         rendered)))
       (is (re-find #"btn-annotation-mode" rendered))
       (is (re-find #"id=\"btn-next-item\"[^>]*>\s*<i[^>]*fa-step-forward" rendered))
-      (is (not (re-find #"fa-arrow-down|btn-state-archived|item-tag-toggle" rendered))))))
+      (is (not (re-find #"fa-arrow-down|item-tag-toggle" rendered))))))
 
 (deftest mobile-navbar-opens-destination-drawers-without-duplicating-the-navbar
   (with-redefs [rc/rc (constantly nil)]

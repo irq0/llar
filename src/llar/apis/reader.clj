@@ -603,6 +603,7 @@
                 :role "group"
                 :aria-label "Current item actions"}
          (item-state-button id tags :saved)
+         (item-state-button id tags :archive)
          (done-button current-item)
          (focus-button focus-item-href)
          (annotation-button)
@@ -669,6 +670,7 @@
             (= mode :show-item)
             (list
              (item-state-button id tags :saved)
+             (item-state-button id tags :archive)
              (done-button current-item)
              (focus-button focus-item-href)
              (annotation-button)
