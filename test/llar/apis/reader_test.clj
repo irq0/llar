@@ -2,7 +2,7 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as string]
-   [clojure.test :refer [deftest is]]
+   [clojure.test :refer [are deftest is]]
    [hiccup2.core :as h]
    [java-time.api :as time]
    [llar.apis.reader :as uut]
@@ -167,7 +167,7 @@
              :item-tags []
              :bookmark-activity {}}
           rendered (str (h/html (uut/group-nav x)))
-          destination (str (h/html (uut/group-list x "/reader/group/item-tags"
+          destination (str (h/html (uut/group-list x :item-tags
                                                    [:saved] nil {})))]
       (is (string/includes? rendered "View Default (Ranked)"))
       (is (re-find #"sort-order-select(?s:.*?)sort-order=oldest(?s:.*?)Oldest First" rendered))
@@ -180,7 +180,7 @@
                                {:filter :unread
                                 :group-item :all
                                 :sort-order :oldest}
-                               "/reader/group/default/all/source"
+                               {:group-name :default :group-item :all}
                                {:key :feed :title "Feed" :item-tags {:unread 2}}
                                :all)))]
     (is (string/includes? rendered "sort-order=oldest"))))
@@ -1398,15 +1398,14 @@
 (deftest bookmark-capture-uses-the-inline-page-load-lifecycle
   (let [javascript (slurp (io/resource "status/llar.js"))]
     (is (string/includes? javascript "renderBookmarkActivity"))
-    (is (string/includes? javascript "/reader/bookmark/activity"))
+    (is (string/includes? javascript
+                          "readerEndpoint([\"bookmark\", \"activity\"])"))
     (is (string/includes? javascript
                           "setTimeout(refreshBookmarkActivity, 30000)"))
     (is (string/includes? javascript "document.visibilityState === \"hidden\""))
     (is (string/includes? javascript "Open ready bookmark: "))
     (is (string/includes? javascript "usually ready within a few minutes"))
-    (is (string/includes?
-         javascript
-         "/reader/group/type/bookmark/source/all/item/by-id/"))
+    (is (string/includes? javascript "href: item.href"))
     (is (not (string/includes? javascript "show_bookmark_add_result")))
     (is (not (re-find #"#add-thing\"\)\.popover" javascript)))))
 
@@ -1450,6 +1449,8 @@
                                    {:view :todays-vibe :request-params {}})))]
         (is (re-find #"Election result" rendered))
         (is (re-find #"data-offer-id=\"101\"" rendered))
+        (is (re-find #"/reader/group/default/all/source/a/item/by-id/1" rendered))
+        (is (re-find #"/reader/group/default/all/source/b/item/by-id/2" rendered))
         (is (re-find #"action=\"/reader/tools/todays-vibe/seen\"" rendered))
         (is (not (re-find #"Fully seen" rendered)))))))
 
@@ -1609,6 +1610,17 @@
   (is (= []
          (#'uut/queue-item-reasons {:tags ["unread" "highlight"]
                                     :type :item-type/link}))))
+
+(deftest reading-queue-links-use-the-strongest-browsable-context
+  (are [expected item] (= expected (#'uut/queue-item-link-prefix item))
+    "/reader/group/item-tags/saved/source/feed"
+    {:tags ["saved" "unread"] :checkpoint-progress 0.3 :source-key "feed"}
+
+    "/reader/group/default/all/source/feed"
+    {:tags ["unread"] :checkpoint-progress 0.0 :source-key "feed"}
+
+    "/reader/group/default/all/source/all"
+    {:tags []}))
 
 (deftest reading-queue-clusters-do-not-affect-continue-reading
   (with-redefs [lab/current-clustered-saved-items
@@ -1919,6 +1931,8 @@
         (is (re-find #"2 shown · best matches first" rendered))
         (is (re-find #"title match" rendered))
         (is (re-find #"<mark>known</mark>" rendered))
+        (is (re-find #"/reader/group/default/all/source/source-a/item/by-id/9" rendered))
+        (is (re-find #"/reader/group/default/all/source/source-b/item/by-id/10" rendered))
         (is (re-find #"with-source-key=source-a" rendered))
         (is (re-find #"days-ago=90" rendered))
         (is (re-find #"syntax=phrase" rendered))))))

@@ -2,6 +2,29 @@
 // utilities
 //
 
+function readerEndpoint(segments) {
+  return (
+    "/reader/" +
+    segments
+      .map(function (segment) {
+        return encodeURIComponent(String(segment));
+      })
+      .join("/")
+  );
+}
+
+function readerItemStateEndpoint(itemId) {
+  return readerEndpoint(["item", "by-id", itemId, "state"]);
+}
+
+function readerAnnotationEndpoint(annotationOrItemId) {
+  return readerEndpoint(["annotation", annotationOrItemId]);
+}
+
+function readerExportEndpoint(itemId, target) {
+  return readerEndpoint(["export", itemId, target]);
+}
+
 // Images come from feeds and remote metadata, so a broken URL should remove
 // only its preview rather than leave a broken-image control in the interface.
 document.addEventListener(
@@ -264,7 +287,7 @@ function updateContinueReadingAfterState(state) {
 
 function requestItemState(id, action, data) {
   return $.post(
-    "/reader/item/by-id/" + id + "/state",
+    readerItemStateEndpoint(id),
     Object.assign({ action: action }, data || {}),
   ).done(function (state) {
     applyItemState(state);
@@ -509,7 +532,7 @@ function bookmarkActivityCount(activity, key) {
 
 function bookmarkActivityQueueLink() {
   return $("<a>")
-    .attr("href", "/reader/tools/saved-overview")
+    .attr("href", readerEndpoint(["tools", "saved-overview"]))
     .text("Reading Queue");
 }
 
@@ -556,10 +579,7 @@ function renderBookmarkActivity(activity) {
       $("<a>")
         .addClass("reader-bookmark-ready-link")
         .attr({
-          href:
-            item.href ||
-            "/reader/group/type/bookmark/source/all/item/by-id/" +
-              item["item-id"],
+          href: item.href,
           title: "Ready: " + label,
           "aria-label": "Open ready bookmark: " + label,
           "data-item-id": item["item-id"],
@@ -573,7 +593,7 @@ function renderBookmarkActivity(activity) {
       $("<a>")
         .addClass("reader-bookmark-ready-overflow")
         .attr({
-          href: "/reader/tools/saved-overview",
+          href: readerEndpoint(["tools", "saved-overview"]),
           title:
             overflowCount + " more bookmarks were prepared in the last hour",
           "aria-label":
@@ -640,7 +660,7 @@ function scheduleBookmarkActivityRefresh() {
 function refreshBookmarkActivity() {
   clearTimeout(bookmarkActivityRefreshTimer);
   bookmarkActivityRefreshTimer = null;
-  $.getJSON("/reader/bookmark/activity")
+  $.getJSON(readerEndpoint(["bookmark", "activity"]))
     .done(function (activity) {
       renderBookmarkActivity(activity);
       scheduleBookmarkActivityRefresh();
@@ -1493,7 +1513,7 @@ $(document).ready(function () {
     setBulkTagError("");
     setStateControlPending(submit, true);
     $.ajax({
-      url: "/reader/items/tags",
+      url: readerEndpoint(["items", "tags"]),
       method: "POST",
       contentType: "application/json",
       data: JSON.stringify({
@@ -1637,7 +1657,7 @@ $(document).ready(function () {
     var input = $($(button.data("url-source")));
     setBookmarkSubmitPending(button, true);
     var request = $.post({
-      url: "/reader/bookmark/add",
+      url: readerEndpoint(["bookmark", "add"]),
       data: { url: input.val(), type: button.data("type") },
       dataType: "json",
       success: (data) => {
@@ -1649,16 +1669,14 @@ $(document).ready(function () {
         if (
           data.result === "already-saved" &&
           data["item-id"] &&
+          data.href &&
           !readyItems.some(function (item) {
             return String(item["item-id"]) === String(data["item-id"]);
           })
         ) {
           readyItems.unshift({
             "item-id": data["item-id"],
-            href:
-              data.href ||
-              "/reader/group/type/bookmark/source/all/item/by-id/" +
-                data["item-id"],
+            href: data.href,
             label: data.label || "Saved bookmark",
           });
           activity["recent-ready"] = readyItems.slice(0, 3);
@@ -1931,7 +1949,9 @@ $(document).ready(function () {
       if (!pendingOffers.size) return;
       var ids = Array.from(pendingOffers);
       pendingOffers.clear();
-      $.post("/reader/events/impression", { offer_ids: ids.join(",") });
+      $.post(readerEndpoint(["events", "impression"]), {
+        offer_ids: ids.join(","),
+      });
     }
     function queueOffer(element) {
       pendingOffers.add(element.dataset.offerId);
@@ -2194,7 +2214,7 @@ $(openRequestedAnnotations);
 function loadAnnotations() {
   var itemId = getItemId();
   if (!itemId) return;
-  $.getJSON("/reader/annotation/" + itemId, function (data) {
+  $.getJSON(readerAnnotationEndpoint(itemId), function (data) {
     annotations = data.annotations || [];
     renderHighlights();
     renderNotes();
@@ -2306,7 +2326,7 @@ function createHighlight() {
   var itemId = getItemId();
   var button = $("#btn-highlight-selection").prop("disabled", true);
   $.post(
-    "/reader/annotation/" + itemId,
+    readerAnnotationEndpoint(itemId),
     { selector: JSON.stringify(pendingSelector) },
     function (data) {
       annotations.push(data.annotation);
@@ -2332,7 +2352,7 @@ function createItemNote() {
   if (!text || text.trim().length === 0) return;
   var itemId = getItemId();
   var button = $("#btn-add-item-note").prop("disabled", true);
-  $.post("/reader/annotation/" + itemId, { body: text }, function (data) {
+  $.post(readerAnnotationEndpoint(itemId), { body: text }, function (data) {
     annotations.push(data.annotation);
     input.val("");
     renderNotes();
@@ -2350,7 +2370,7 @@ function createItemNote() {
 function deleteAnnotation(id) {
   $.ajax({
     type: "DELETE",
-    url: "/reader/annotation/" + id,
+    url: readerAnnotationEndpoint(id),
     success: function () {
       annotations = annotations.filter(function (a) {
         return a.id !== id;
@@ -2932,7 +2952,7 @@ function exportToZotero() {
   var btn = $("#btn-export-zotero");
   clearReaderStatus();
   setStateControlPending(btn, true);
-  $.post("/reader/export/" + itemId + "/zotero", function () {
+  $.post(readerExportEndpoint(itemId, "zotero"), function () {
     showExportFlash("success", "Exported to Zotero");
   })
     .fail(function (xhr) {
@@ -2949,7 +2969,7 @@ function exportToUrlHandler() {
   var btn = $("#btn-export-url-handler");
   clearReaderStatus();
   setStateControlPending(btn, true);
-  $.getJSON("/reader/export/" + itemId + "/url-handler", function (data) {
+  $.getJSON(readerExportEndpoint(itemId, "url-handler"), function (data) {
     if (data.url) window.open(data.url, "_blank");
   })
     .fail(function (xhr) {

@@ -41,11 +41,11 @@
 (deftest llar-item-url-test
   (testing "nil when no reader base-url is configured"
     (with-redefs [appconfig/reader (constantly nil)]
-      (is (nil? (uut/llar-item-url 5)))))
+      (is (nil? (uut/llar-item-url 13 5)))))
   (testing "builds an absolute reader url"
     (with-redefs [appconfig/reader (fn [_] "http://host:8023")]
-      (is (= "http://host:8023/reader/group/default/none/source/all/item/by-id/5/"
-             (uut/llar-item-url 5))))))
+      (is (= "http://host:8023/reader/group/item-tags/digest-issue-13/source/all/item/by-id/5/"
+             (uut/llar-item-url 13 5))))))
 
 (defn- zip-entries
   "Return a map of entry-name -> entry-content-string for a zip/epub file."

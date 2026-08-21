@@ -23,6 +23,7 @@
    [llar.item :as item]
    [llar.persistency :as persistency]
    [llar.rc :as rc]
+   [llar.reader :as reader]
    [llar.sched :refer [defsched]]
    [llar.store :as store])
   (:import
@@ -127,9 +128,16 @@
 (defn llar-item-url
   "Absolute URL to view the item in the LLAR reader, or nil if no reader
   base-url is configured."
-  [item-id]
+  [issue-n item-id]
   (when-let [base (appconfig/reader :base-url)]
-    (str base "/reader/group/default/none/source/all/item/by-id/" item-id "/")))
+    (str (reader/absolute-url
+          base
+          (reader/item-path
+           {:group-name :item-tags
+            :group-item (issue-tag issue-n)
+            :source-key :all}
+           item-id))
+         "/")))
 
 (defn- esc
   "Minimal XML text escaping."
@@ -166,10 +174,10 @@
 
 (defn- chapter-resource
   "Build one XHTML chapter Resource for item at href, inlining images when enabled."
-  [book counter href item inline-images?]
+  [issue-n book counter href item inline-images?]
   (let [{:keys [id title author entry ts]} item
         url (:url entry)
-        llar-url (llar-item-url id)
+        llar-url (llar-item-url issue-n id)
         {:keys [estimate]} (item/reading-time-estimate item)
         links (remove nil?
                       [(when url (str "<a href=\"" (esc url) "\">Original</a>"))
@@ -256,7 +264,7 @@
       (let [^TOCReference parent (.addSection book label
                                               (divider-resource idx label (count entries) book counter))]
         (doseq [{:keys [item href title]} entries]
-          (.addSection book parent title (chapter-resource book counter href item inline-images?)))))
+          (.addSection book parent title (chapter-resource issue-n book counter href item inline-images?)))))
     (let [tmp (File/createTempFile (str "llar-digest-" issue-n "-") ".epub")
           baos (ByteArrayOutputStream.)]
       (.write (EpubWriter.) book baos)

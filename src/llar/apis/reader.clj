@@ -31,6 +31,7 @@
    [llar.persistency :as persistency]
    [llar.pool :as pool]
    [llar.rc :as rc]
+   [llar.reader :as reader]
    [llar.store :as store]
    [llar.tags :as tags]
    [llar.update :as update]
@@ -281,16 +282,15 @@
   (dissoc x :sort-order))
 
 (defn- item-detail-path [x id]
-  ["/reader/group"
-   (name (or (:group-name x) :default))
-   (name (or (:group-item x) :none))
-   "source"
-   (name (or (:source-key x) :all))
-   "item/by-id"
-   id])
+  (reader/item-path
+   {:group-name (or (:group-name x) :default)
+    :group-item (or (:group-item x) :none)
+    :source-key (or (:source-key x) :all)}
+   id))
 
-(defn reader-item-href [id]
-  (str "/reader/group/type/bookmark/source/all/item/by-id/" id))
+(defn- bookmark-item-href [id]
+  (reader/path-string
+   (reader/bookmark-item-path id)))
 
 (defn show-item-href
   "Build the item-detail URL for an item in the current reader context."
@@ -491,7 +491,8 @@
                   :data-idle-title idle-title
                   :data-pending-title pending-title
                   :data-duration-label estimated-duration-label
-                  :data-target (make-site-href [link-prefix "update"] x)
+                  :data-target (make-site-href
+                                (reader/group-action-path link-prefix :update) x)
                   :data-items (make-site-href [(:uri x)] x)
                   :href "#"}
                  "fas fa-download")))
@@ -532,21 +533,22 @@
 
         active-group (:group-name x)
 
-        link-prefix (format "/reader/group/%s/%s/source/%s"
-                            (name group-name)
-                            (name group-item)
-                            (name source-key))
+        current-context {:group-name group-name
+                         :group-item group-item
+                         :source-key source-key}
+        link-prefix (reader/path-string (reader/group-path current-context))
 
         next-item-href (when (> (count items) 1)
-                         (make-site-href [link-prefix "item/by-id"
-                                          (-> items second :id)]
+                         (make-site-href (reader/prefixed-item-path
+                                          link-prefix (-> items second :id))
                                          (cond-> {:mark :read}
                                            (some? (:ranked-pos (first items)))
                                            (assoc :ranked-pos (inc (:ranked-pos (first items)))))
                                          x))
 
         focus-item-href (when (= mode :show-item)
-                          (make-site-href [link-prefix "item/by-id" id "focus"] x))
+                          (make-site-href
+                           (reader/prefixed-item-path link-prefix id :focus) x))
 
         next-item-button (when (> (count items) 1)
                            (icon-button {:id "btn-next-item"
@@ -643,16 +645,25 @@
             [:li {:class "breadcrumb-item"}
              (when-let [ico (get +group-icons+ active-group)]
                (icon ico))
-             [:a {:href (make-site-href ["/reader/group" (name active-group) (name item) "source/all/items"] x)}
+             [:a {:href (make-site-href
+                         (reader/items-path {:group-name active-group
+                                             :group-item item
+                                             :source-key :all}) x)}
               (name item)]]))
         (when-not (= source-key :all)
           [:li {:class "breadcrumb-item"}
-           [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
+           [:a {:href (make-site-href
+                       (reader/items-path {:group-name active-group
+                                           :group-item group-item
+                                           :source-key source-key}) x)}
             (:title (first selected-sources))]])
         (when (and (contains? #{:show-item :dump-item} mode) (= source-key :all))
           (let [source-key (-> items first :source-key)]
             [:li {:class "breadcrumb-item"}
-             [:a {:href (make-site-href ["/reader/group" (name active-group) (name group-item) "source" (name source-key) "items"] x)}
+             [:a {:href (make-site-href
+                         (reader/items-path {:group-name active-group
+                                             :group-item group-item
+                                             :source-key source-key}) x)}
               source-key]]))
         (when (contains? #{:show-item :dump-item} mode)
           (let [item (first items)]
@@ -717,7 +728,7 @@
                               {:capture-id id
                                :item-id item-id
                                :label (bookmark-activity-label capture)
-                               :href (reader-item-href item-id)})
+                               :href (bookmark-item-href item-id)})
                             (capture-db/reader-recent-complete
                              store/backend-db +bookmark-ready-icon-limit+))]
       {:active-count (long (or active 0))
@@ -753,7 +764,8 @@
            (for [_ (range 3)]
              [:span {:class "reader-lifecycle-dot"}])]
           [:span (str active-count " preparing for ")]
-          [:a {:href "/reader/tools/saved-overview"} "Reading Queue"]]))
+          [:a {:href (reader/path-string (reader/tool-path :saved-overview))}
+           "Reading Queue"]]))
      (when (seq recent-ready)
        [:span {:class "reader-bookmark-activity-ready"
                :aria-label "Bookmarks prepared in the last hour"}
@@ -767,7 +779,7 @@
            (icon "fas fa-newspaper")])
         (when (pos? (or ready-overflow-count 0))
           [:a {:class "reader-bookmark-ready-overflow"
-               :href "/reader/tools/saved-overview"
+               :href (reader/path-string (reader/tool-path :saved-overview))
                :title (str ready-overflow-count
                            " more bookmarks were prepared in the last hour")
                :aria-label (str "Open Reading Queue for " ready-overflow-count
@@ -806,7 +818,7 @@
 
 (defn group-list
   "Group Item List - Tags, etc."
-  [x url-prefix group-items active icons]
+  [x group-name group-items active icons]
   (for [ks group-items
         :when ((some-fn string? keyword?) ks)
         :let [str-ks (cond
@@ -819,7 +831,10 @@
     [:li {:class "nav-item"}
      [:a (cond-> {:class (str "nav-link" (when (= str-ks active) " active"))
                   :title (format "Show %s items" str-ks)
-                  :href (make-site-href [url-prefix str-ks "source/all/items"]
+                  :href (make-site-href (reader/items-path
+                                         {:group-name group-name
+                                          :group-item str-ks
+                                          :source-key :all})
                                         (without-sort-override x))}
            (= str-ks active) (assoc :aria-current "page"))
       (if-let [ico (get icons (keyword str-ks) +tag-icon-default+)]
@@ -866,7 +881,9 @@
                                                      (= (keyword active-key) key)) " active"))
                        :title (format "Show items with %s %s" (name group) (name key))
                        :href (make-site-href
-                              [(str "/reader/group/" (name group) "/" (name key) "/source/all/items")]
+                              (reader/items-path {:group-name group
+                                                  :group-item key
+                                                  :source-key :all})
                               (without-sort-override x))}
                 (and (= active-group group)
                      (= (keyword active-key) key)) (assoc :aria-current "page"))
@@ -880,7 +897,7 @@
        (for [{:keys [view title icon]} +tool-views+]
          [:li {:class "nav-item"}
           [:a (cond-> {:class (str "nav-link" (when (= (:view x) view) " active"))
-                       :href (str "/reader/tools/" (name view))}
+                       :href (reader/path-string (reader/tool-path view))}
                 (= (:view x) view) (assoc :aria-current "page"))
            (sidebar-link-content icon title)]])]
 
@@ -921,7 +938,7 @@
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
        [:span (icon (:item-tags +group-icons+)) " Item Tags"]]
       [:ul {:class "nav flex-column"}
-       (group-list x "/reader/group/item-tags"
+       (group-list x :item-tags
                    (->> x :item-tags (remove +tags-skip-group-list+) sort)
                    (when (= active-group :item-tags) active-key)
                    icons)]
@@ -929,7 +946,7 @@
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
        [:span (icon (:source-tag +group-icons+)) " Source Tags"]]
       [:ul {:class "nav flex-column"}
-       (group-list x "/reader/group/source-tag"
+       (group-list x :source-tag
                    (->> (:sources x) vals (map :tags) (apply set/union) sort)
                    (when (= active-group :source-tag) active-key)
                    icons)]
@@ -937,7 +954,7 @@
       [:h6 {:class "sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted"}
        [:span (icon (:type +group-icons+)) " Type"]]
       [:ul {:class "nav flex-column"}
-       (group-list x "/reader/group/type"
+       (group-list x :type
                    (->> x :sources vals (map :type) (into (sorted-set)))
                    (when (= active-group :type) active-key)
                    icons)]]]))
@@ -956,7 +973,7 @@
 
 (defn source-list-item
   "Source Navigation List Item"
-  [x prefix source active-key]
+  [x group-context source active-key]
   (let [{:keys [key title item-tags]} source
         fltr (or (:filter x) :total)
         nitems (or (get item-tags (:group-item x)) (get item-tags fltr) 0)
@@ -969,7 +986,9 @@
                           (if grey-out? "nav-link nav-link-secondary" "nav-link")
                           (when (= key active-key) " active "))
                   :title (format "Filter by source %s" (name (or key :unknown)))
-                  :href (make-site-href [prefix (name (or key :unknown)) "items"] x)}
+                  :href (make-site-href
+                         (reader/items-path
+                          (assoc group-context :source-key (or key :unknown))) x)}
            (= key active-key) (assoc :aria-current "page"))
       (cond
         (= (:type source) :item-type/bookmark)
@@ -1003,8 +1022,7 @@
        (for [src (->> (:active-sources x) (sort-by :key))]
          (source-list-item
           x
-          (format "/reader/group/%s/%s/source"
-                  (name active-group) (name active-key))
+          {:group-name active-group :group-item active-key}
           src
           active-source))]]]))
 
@@ -1068,7 +1086,7 @@
       :aria-label (if (string/blank? title)
                     "Open annotations"
                     (str "Open annotations for " title))
-      :href (make-site-href [link-prefix "item/by-id" id]
+      :href (make-site-href (reader/prefixed-item-path link-prefix id)
                             (cond-> {:mark :read :annotations :open}
                               ranked-pos (assoc :ranked-pos ranked-pos))
                             x)}
@@ -1192,21 +1210,14 @@
   ([id]
    (icon-button {:title "Find related items"
                  :aria-label "Find related items"
-                 :href (str "/reader/item/by-id/" id "/related")}
+                 :href (reader/path-string
+                        (reader/short-item-action-path id :related))}
                 "fas fa-project-diagram"))
   ([x id]
    (icon-button {:title "Find related items"
                  :aria-label "Find related items"
                  :href (make-site-href
-                        ["/reader/group"
-                         (name (or (:group-name x) :default))
-                         (name (or (:group-item x) :none))
-                         "source"
-                         (name (or (:source-key x) :all))
-                         "item/by-id"
-                         id
-                         "related"]
-                        x)}
+                        (conj (item-detail-path x id) "related") x)}
                 "fas fa-project-diagram")))
 
 (defn external-link-button
@@ -2273,7 +2284,7 @@
                             (concat ["feed-item" extra-class]
                                     (map #(str "option-" (name %)) options))))}
       [:h4 {:class "h4"}
-       [:a {:href (make-site-href [link-prefix "item/by-id" id]
+       [:a {:href (make-site-href (reader/prefixed-item-path link-prefix id)
                                   (cond-> {:mark :read}
                                     (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
                                   x)}
@@ -2337,10 +2348,13 @@
         (annotation-cue x link-prefix item)
         (external-link-button url)
         (related-button x id)
-        (dump-button (make-site-href [link-prefix "item/by-id" id "dump"] x))
-        (focus-button (make-site-href [link-prefix "item/by-id" id "focus"] x))
-        (download-button (make-site-href [link-prefix "item/by-id" id "download"] {:data "content"
-                                                                                   :content-type "text/html"} x))]
+        (dump-button (make-site-href
+                      (reader/prefixed-item-path link-prefix id :dump) x))
+        (focus-button (make-site-href
+                       (reader/prefixed-item-path link-prefix id :focus) x))
+        (download-button (make-site-href (reader/prefixed-item-path
+                                          link-prefix id :download) {:data "content"
+                                                                     :content-type "text/html"} x))]
 
        [:div {:class "reader-list-item-tags"}
         (tags-button-group id tags)]
@@ -2387,11 +2401,12 @@
       (when-not (string/blank? url)
         [:li (headline-menu-link url "fas fa-external-link-alt" "Original item")])
       [:li (headline-menu-link
-            (make-site-href [link-prefix "item/by-id" id "related"] x)
+            (make-site-href (reader/prefixed-item-path
+                             link-prefix id :related) x)
             "fas fa-project-diagram"
             "Related items")]
       [:li (headline-menu-link
-            (make-site-href [link-prefix "item/by-id" id "focus"] x)
+            (make-site-href (reader/prefixed-item-path link-prefix id :focus) x)
             "fas fa-expand"
             "Focus mode")]
       [:li [:hr {:class "dropdown-divider"}]]
@@ -2447,10 +2462,10 @@
   "Main Item List - Headlines Style"
   [x]
   (let [{:keys [group-name group-item source-key sources items]} x
-        link-prefix (format "/reader/group/%s/%s/source/%s"
-                            (name group-name)
-                            (name group-item)
-                            (name source-key))]
+        link-prefix (reader/path-string
+                     (reader/group-path {:group-name group-name
+                                         :group-item group-item
+                                         :source-key source-key}))]
     [:div {:id "headlines" :class "reader-headlines"}
      [:section {:class "reader-bulk-selection-bar"
                 :aria-label "Selected headline actions"
@@ -2514,7 +2529,7 @@
            [:span {:class "reader-headline-unread-indicator"}]]
           [:th {:class "reader-headline-title" :scope "row"}
            [:a {:class "reader-headline-link"
-                :href (make-site-href [link-prefix "item/by-id" id]
+                :href (make-site-href (reader/prefixed-item-path link-prefix id)
                                       (cond-> {:mark :read}
                                         (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
                                       x)
@@ -2641,7 +2656,7 @@
       [:div {:class "card-body reader-gallery-body"}
        [:h2 {:class "reader-gallery-title"}
         [:a {:class "reader-gallery-item-link"
-             :href (make-site-href [link-prefix "item/by-id" id]
+             :href (make-site-href (reader/prefixed-item-path link-prefix id)
                                    (cond-> {:mark :read}
                                      (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
                                    x)
@@ -2673,10 +2688,10 @@
   "Main Item List - Gallery Style"
   [x]
   (let [{:keys [group-name group-item source-key items]} x
-        link-prefix (format "/reader/group/%s/%s/source/%s"
-                            (name group-name)
-                            (name group-item)
-                            (name source-key))]
+        link-prefix (reader/path-string
+                     (reader/group-path {:group-name group-name
+                                         :group-item group-item
+                                         :source-key source-key}))]
     [:div {:class "row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-3 reader-gallery-grid"
            :id "gallery"}
      (for [item items]
@@ -2685,13 +2700,14 @@
 (defn main-list-items
   "Generate Mail Item List"
   [x]
-  (let [{:keys [group-name group-item source-key items]} x]
+  (let [{:keys [group-name group-item source-key items]} x
+        link-prefix (reader/path-string
+                     (reader/group-path {:group-name group-name
+                                         :group-item group-item
+                                         :source-key source-key}))]
     [:div
      (for [item items
-           :let [url (format "/reader/group/%s/%s/source/%s"
-                             (name group-name)
-                             (name group-item)
-                             (name source-key))]]
+           :let [url link-prefix]]
        (try+
         (main-list-item x url item)
         (catch Object _
@@ -3314,23 +3330,19 @@
     :60-plus "60+ minutes"
     "All Times"))
 
+(defn- queue-item-reader-context [item]
+  (if (item-has-tag? item :saved)
+    {:group-name :item-tags
+     :group-item :saved
+     :source-key (or (:source-key item) :all)}
+    (reader/source-context (:source-key item))))
+
 (defn- queue-item-context [x item]
-  (let [[group-name group-item] (if (item-has-tag? item :saved)
-                                  [:item-tags :saved]
-                                  [:default :none])]
-    (assoc x
-           :group-name group-name
-           :group-item group-item
-           :source-key (keyword (or (:source-key item) "all")))))
+  (merge x (queue-item-reader-context item)))
 
 (defn- queue-item-link-prefix [item]
-  (let [[group-name group-item] (if (item-has-tag? item :saved)
-                                  [:item-tags :saved]
-                                  [:default :none])]
-    (format "/reader/group/%s/%s/source/%s"
-            (name group-name)
-            (name group-item)
-            (or (:source-key item) "all"))))
+  (reader/path-string
+   (reader/group-path (queue-item-reader-context item))))
 
 (defn- queue-duration-label [minutes]
   (let [minutes (long (Math/ceil (double minutes)))
@@ -3449,7 +3461,7 @@
      (for [[key label n] filters]
        [:a (cond-> {:class (str "btn btn-outline-secondary"
                                 (when (= key active-filter) " active"))
-                    :href (make-site-href ["/reader/tools/saved-overview"]
+                    :href (make-site-href (reader/tool-path :saved-overview)
                                           {:queue-filter key
                                            :queue-time-filter (normalize-queue-time-filter
                                                                (some-> (get-in x [:request-params :queue-time-filter])
@@ -3472,7 +3484,7 @@
      (for [[key label n] filters]
        [:a (cond-> {:class (str "btn btn-outline-secondary"
                                 (when (= key active-time-filter) " active"))
-                    :href (make-site-href ["/reader/tools/saved-overview"]
+                    :href (make-site-href (reader/tool-path :saved-overview)
                                           {:queue-filter (some-> (get-in x [:request-params :queue-filter])
                                                                  keyword)
                                            :queue-time-filter key}
@@ -3508,7 +3520,8 @@
           (format "%s min %s" minutes unit))))))
 
 (defn- continue-item-href [x item]
-  (make-site-href [(queue-item-link-prefix item) "item/by-id" (:id item)]
+  (make-site-href (reader/prefixed-item-path
+                   (queue-item-link-prefix item) (:id item))
                   {:mark :read :resume :checkpoint}
                   x))
 
@@ -3602,13 +3615,13 @@
              :aria-label "Reading queue pages"}
        (when (pos? offset)
          [:a {:class "btn btn-outline-secondary btn-sm"
-              :href (make-site-href ["/reader/tools/saved-overview"]
+              :href (make-site-href (reader/tool-path :saved-overview)
                                     (assoc params :queue-offset (max 0 (- offset page-size)))
                                     x)}
           "Previous"])
        (when has-more?
          [:a {:class "btn btn-outline-secondary btn-sm"
-              :href (make-site-href ["/reader/tools/saved-overview"]
+              :href (make-site-href (reader/tool-path :saved-overview)
                                     (assoc params :queue-offset (+ offset page-size))
                                     x)}
           "Next"])])))
@@ -3767,7 +3780,7 @@
                    (when (and id (pos? id)) id))}))
 
 (defn- gems-href
-  ([] "/reader/tools/gems")
+  ([] (reader/path-string (reader/tool-path :gems)))
   ([params]
    (let [params (cond-> (dissoc params :browse?)
                   (:browse? params) (assoc :browse "true"))
@@ -3787,8 +3800,10 @@
   (remove #{"archive" "saved" "unread" "in-progress"} (:tags item)))
 
 (defn- gem-open-href [{:keys [id offer-id]}]
-  (str "/reader/group/item-tags/archive/source/all/item/by-id/" id
-       (when offer-id (str "?offer=" offer-id))))
+  (make-site-href
+   (reader/item-path reader/archive-context id)
+   {:offer offer-id}
+   {}))
 
 (defn- offer-gems [items kind metadata]
   (try
@@ -4131,7 +4146,8 @@
 
 (defn reader-related
   ([item-id]
-   (reader-related item-id {:uri (str "/reader/item/by-id/" item-id "/related")
+   (reader-related item-id {:uri (reader/path-string
+                                  (reader/short-item-action-path item-id :related))
                             :group-name :default
                             :group-item :none
                             :source-key :all}))
@@ -4171,7 +4187,8 @@
                           [:a {:class "link-dark result-offer"
                                :data-offer-id offer-id
                                :href (make-site-href
-                                      ["/reader/group/default/none/source/all/item/by-id" id]
+                                      (reader/item-path
+                                       (reader/source-context key) id)
                                       {:mark :read :offer offer-id}
                                       params)}
                            title]]
@@ -4213,7 +4230,9 @@
   (sort-by #(if (= representative-id (:id %)) 0 1) items))
 
 (defn- vibe-item-link [x item offer-id]
-  (make-site-href ["/reader/group/default/none/source/all/item/by-id" (:id item)]
+  (make-site-href (reader/item-path
+                   (reader/source-context (:source-key item))
+                   (:id item))
                   {:mark :read :offer offer-id}
                   x))
 
@@ -4250,7 +4269,8 @@
 (defn- vibe-mark-seen-form [snapshot cluster]
   (when (pos? (:unseen-count cluster))
     [:form {:method "post"
-            :action "/reader/tools/todays-vibe/seen"
+            :action (reader/path-string
+                     (reader/tool-action-path :todays-vibe :seen))
             :class "reader-vibe-seen-form"}
      [:input {:type "hidden" :name "run-id" :value (:run-id snapshot)}]
      [:input {:type "hidden" :name "cluster-id" :value (:id cluster)}]
@@ -4355,7 +4375,7 @@
                    :title (str (:generated-at snapshot))}
             (human/datetime-ago-short (:generated-at snapshot)) " ago"]
            " · "
-           [:a {:href (make-site-href ["/reader/tools/todays-vibe"]
+           [:a {:href (make-site-href (reader/tool-path :todays-vibe)
                                       {:include-seen (when-not include-seen? true)}
                                       x)}
             (if include-seen? "Show unseen only" "Include fully seen")]]]
@@ -4386,8 +4406,9 @@
 
 (defn reader-todays-vibe [include-seen?]
   {:status 303
-   :headers {"Location" (str "/reader/tools/todays-vibe"
-                             (when include-seen? "?include-seen=true"))}
+   :headers {"Location" (make-site-href
+                         (reader/tool-path :todays-vibe)
+                         {:include-seen (when include-seen? true)} {})}
    :body ""})
 
 (defn reader-mark-story-seen [run-id cluster-id]
@@ -4396,7 +4417,9 @@
        (fn [cluster]
          (persistency/transition-items-state!
           frontend-db (mapv :id (:items cluster)) :seen)))
-    {:status 303 :headers {"Location" "/reader/tools/todays-vibe"} :body ""}
+    {:status 303
+     :headers {"Location" (reader/path-string (reader/tool-path :todays-vibe))}
+     :body ""}
     {:status 409 :body "This Vibe snapshot is stale; reload and try again."}))
 
 (defn- render-opened-reader-item [params context offer-id]
@@ -4421,7 +4444,7 @@
    [:advanced "PostgreSQL tsquery"]])
 
 (defn- search-href [{:keys [query syntax days-ago with-source-key]} overrides]
-  (make-site-href ["/reader/tools/search"]
+  (make-site-href (reader/tool-path :search)
                   (merge {:query query
                           :syntax (some-> syntax name)
                           :days-ago days-ago
@@ -4437,7 +4460,7 @@
 
 (defn- render-search-form [{:keys [query syntax days-ago with-source-key] :as params}]
   [:form {:class "reader-search-form"
-          :action "/reader/tools/search"
+          :action (reader/path-string (reader/tool-path :search))
           :method "get"}
    (when-not (string/blank? with-source-key)
      [:input {:type "hidden" :name "with-source-key" :value with-source-key}])
@@ -4509,7 +4532,7 @@
       [:h3 {:class "reader-search-result-title"}
        [:a {:class "reader-search-result-link"
             :href (make-site-href
-                   ["/reader/group/default/none/source/all/item/by-id" id]
+                   (reader/item-path (reader/source-context key) id)
                    {:mark :read}
                    x)}
         (if (string/blank? title) "(no title)" title)]]
@@ -4520,7 +4543,8 @@
          (human/datetime-ago-short ts)])]
      [:div {:class "reader-search-result-meta"}
       [:a {:class "reader-search-result-source"
-           :href (make-site-href ["/reader/group/default/all/source" key "items"] x)}
+           :href (make-site-href
+                  (reader/items-path (reader/source-context key)) x)}
        (icon "fas fa-rss") key]
       [:span {:title "PostgreSQL normalized full-text relevance rank"}
        (icon "fas fa-wave-square") (format "rank %.3f" (double (or rank 0.0)))]
@@ -4679,7 +4703,7 @@
       {:status (case outcome :queued 201 :needs-attention 409 200)
        :body {:capture-id (:id capture)
               :item-id (:item-id capture)
-              :href (some-> (:item-id capture) reader-item-href)
+              :href (some-> (:item-id capture) bookmark-item-href)
               :label (bookmark-activity-label capture)
               :state (:status capture)
               :result outcome
@@ -4898,7 +4922,7 @@
 
      (GET "/item/by-id/:item-id" [item-id :<< as-int]
        {:status 303
-        :headers {"Location" (reader-item-href item-id)}
+        :headers {"Location" (bookmark-item-href item-id)}
         :body ""})
 
      (POST "/bookmark/add"

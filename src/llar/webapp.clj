@@ -3,6 +3,7 @@
    [mount.core :refer [defstate]]
    [clojure.tools.logging :as log]
    [llar.metrics :as metrics]
+   [llar.reader :as reader-path]
    [llar.store :as store]
    [llar.apis.capture :as capture]
    [llar.apis.config-lab :as config-lab]
@@ -116,8 +117,11 @@
                                                   ":view")
                        :else ":group-item")
           source-key (if (= "all" source-key) "all" ":source-key")]
-      (format "/reader/group/%s/%s/source/%s/%s"
-              group-name group-item source-key endpoint))))
+      (reader-path/path-string
+       ((if (= endpoint "items") reader-path/items-path reader-path/update-path)
+        {:group-name group-name
+         :group-item group-item
+         :source-key source-key})))))
 
 (defn prom-path-fn [request]
   (let [uri (:uri request)]
