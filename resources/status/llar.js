@@ -31,6 +31,36 @@ document.addEventListener(
   true,
 );
 
+function enhanceReaderImages() {
+  var container = document.getElementById("item-content-body");
+  if (!container) return;
+
+  container.querySelectorAll("img").forEach(function (image) {
+    if (image.closest("a") || image.hasAttribute("usemap")) return;
+
+    var source = image.currentSrc || image.getAttribute("src");
+    if (!source) return;
+
+    var target = image.closest("picture") || image;
+    var link = document.createElement("a");
+    var description = image.getAttribute("alt");
+    link.className = "reader-image-enlarge";
+    link.href = source;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.setAttribute(
+      "aria-label",
+      description
+        ? "Enlarge image: " + description
+        : "Enlarge image in new tab",
+    );
+    target.parentNode.insertBefore(link, target);
+    link.appendChild(target);
+  });
+}
+
+$(enhanceReaderImages);
+
 function getReadingBlocks(container) {
   if (!container) return [];
   var candidates = Array.from(

@@ -3064,6 +3064,23 @@ div.item-content-body :where(video, iframe, svg) {
   max-width: 100%;
 }
 
+div.item-content-body svg {
+  height: auto;
+}
+
+div.item-content-body a.reader-image-enlarge {
+  cursor: zoom-in;
+}
+
+div.item-content-body a.reader-image-enlarge::after {
+  content: none;
+}
+
+div.item-content-body a.reader-image-enlarge:focus-visible {
+  outline: 3px solid var(--llar-primary-control);
+  outline-offset: 3px;
+}
+
 div.item-content-body figure {
   max-width: 100%;
   break-inside: avoid;
