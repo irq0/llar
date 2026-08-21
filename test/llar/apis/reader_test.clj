@@ -8,6 +8,7 @@
    [llar.apis.reader :as uut]
    [llar.appconfig :as appconfig]
    [llar.bookmark-capture :as bookmark-capture]
+   [llar.db.bookmark-capture :as capture-db]
    [llar.db.query :as db-query]
    [llar.db.search :as db-search]
    [llar.db.sql :as sql]
@@ -22,15 +23,84 @@
     (with-redefs [bookmark-capture/enqueue!
                   (fn [db url title submitted-by]
                     (reset! call [db url title submitted-by])
-                    {:id 7 :status :pending :inserted true})]
+                    {:id 7 :url url :status :pending :inserted true})
+                  uut/bookmark-activity
+                  (constantly {:active-count 0
+                               :recent-ready-count 0
+                               :recent-ready []
+                               :ready-overflow-count 0
+                               :recent-failed-count 0})]
       (let [response (uut/app {:request-method :post
                                :uri "/reader/bookmark/add"
                                :params {:url "https://example.com/story"
                                         :type "readability-bookmark"}})]
         (is (= 201 (:status response)))
         (is (= :queued (get-in response [:body :result])))
+        (is (= 1 (get-in response [:body :activity :active-count])))
         (is (= "https://example.com/story" (second @call)))
         (is (= "reader" (nth @call 3)))))))
+
+(deftest reader-bookmark-activity-model-is-small-and-presentation-focused
+  (with-redefs [capture-db/reader-activity-counts
+                (constantly {:active 2 :recent-complete 5 :recent-failed 1})
+                capture-db/reader-recent-complete
+                (fn [_ limit]
+                  (is (= 3 limit))
+                  [{:id 9 :item-id 90 :item-title "Prepared story"
+                    :url "https://example.com/story"}
+                   {:id 8 :item-id 80 :item-title ""
+                    :url "https://news.example.org/other"}])]
+    (is (= {:active-count 2
+            :recent-ready-count 5
+            :recent-ready [{:capture-id 9 :item-id 90
+                            :label "Prepared story"
+                            :href "/reader/item/by-id/90"}
+                           {:capture-id 8 :item-id 80
+                            :label "news.example.org"
+                            :href "/reader/item/by-id/80"}]
+            :ready-overflow-count 3
+            :recent-failed-count 1}
+           (uut/bookmark-activity)))))
+
+(deftest reader-bookmark-activity-renders-below-the-add-control
+  (let [rendered (str
+                  (h/html
+                   (uut/group-nav
+                    {:mode :list-items
+                     :uri "/reader/group/default/all/source/all/items"
+                     :group-name :default
+                     :group-item :all
+                     :source-key :all
+                     :sources {}
+                     :item-tags []
+                     :bookmark-activity
+                     {:active-count 2
+                      :recent-ready [{:item-id 90
+                                      :label "Prepared story"
+                                      :href "/reader/item/by-id/90"}]
+                      :ready-overflow-count 4
+                      :recent-failed-count 1}})))]
+    (is (< (string/index-of rendered "id=\"add-url-1\"")
+           (string/index-of rendered "id=\"reader-bookmark-activity\"")))
+    (is (string/includes? rendered "2 preparing for"))
+    (is (string/includes? rendered "/reader/tools/saved-overview"))
+    (is (string/includes? rendered "Open ready bookmark: Prepared story"))
+    (is (string/includes? rendered ">+4<"))
+    (is (string/includes? rendered
+                          "1 bookmark could not be prepared in the last hour"))))
+
+(deftest reader-bookmark-activity-endpoint-returns-current-state
+  (let [activity {:active-count 1
+                  :recent-ready-count 0
+                  :recent-ready []
+                  :ready-overflow-count 0
+                  :recent-failed-count 0}]
+    (with-redefs [uut/bookmark-activity (constantly activity)]
+      (let [response (uut/app {:request-method :get
+                               :uri "/reader/bookmark/activity"})]
+        (is (= 200 (:status response)))
+        (is (= "no-store" (get-in response [:headers "Cache-Control"])))
+        (is (= activity (:body response)))))))
 
 (deftest list-style-uses-rc-defaults
   (with-redefs [rc/rc (fn [path]
@@ -1010,7 +1080,7 @@
                    shell))
       (is (not (string/includes? shell "<template>")))
       (is (string/includes? shell "id=\"reader-global-status\""))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-bulk-tags-02\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-bookmark-activity-01\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-global-status-is-a-calm-dismissible-error-region
@@ -1213,6 +1283,18 @@
     (is (re-find #"runItemStateBatch\(ids, \"mark-unread\"" javascript))
     (is (not (string/includes? javascript
                                ".btn-update-sources-in-view\").popover")))))
+
+(deftest bookmark-capture-uses-the-inline-page-load-lifecycle
+  (let [javascript (slurp (io/resource "status/llar.js"))]
+    (is (string/includes? javascript "renderBookmarkActivity"))
+    (is (string/includes? javascript "/reader/bookmark/activity"))
+    (is (string/includes? javascript
+                          "setTimeout(refreshBookmarkActivity, 30000)"))
+    (is (string/includes? javascript "document.visibilityState === \"hidden\""))
+    (is (string/includes? javascript "Open ready bookmark: "))
+    (is (string/includes? javascript "usually ready within a few minutes"))
+    (is (not (string/includes? javascript "show_bookmark_add_result")))
+    (is (not (re-find #"#add-thing\"\)\.popover" javascript)))))
 
 (deftest digest-tag-button-follows-runtime-configuration
   (with-redefs [rc/rc (fn [path] (= path [:digest :enabled?]))]
@@ -1667,6 +1749,19 @@
   (is (= [:web :web :plain :phrase :advanced]
          (mapv db-search/normalize-search-syntax
                [nil :unknown "plain" :phrase "advanced"]))))
+
+(deftest focus-route-accepts-links-without-content-query-parameters
+  (let [captured (atom nil)]
+    (with-redefs [uut/reader-index (fn [params]
+                                     (reset! captured params)
+                                     {:status 200 :body "focus"})]
+      (let [response (uut/app {:request-method :get
+                               :uri "/reader/group/default/none/source/all/item/by-id/42/focus"
+                               :params {}})]
+        (is (= 200 (:status response)))
+        (is (= "focus" (:body response)))
+        (is (= :focus-item (:mode @captured)))
+        (is (= 42 (:item-id @captured)))))))
 
 (deftest search-headline-renders-markers-as-mark-elements
   (is (= [:span "foo " [:mark "bar"] " baz"]

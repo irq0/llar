@@ -156,3 +156,31 @@ SELECT count(*) FILTER (
        count(*) FILTER (WHERE status = 'failed') AS failed,
        count(*) FILTER (WHERE status = 'complete') AS complete
 FROM bookmark_capture_queue
+
+-- :name bookmark-capture-reader-activity-counts :? :1
+SELECT count(*) FILTER (
+         WHERE status IN ('pending', 'processing')) AS active,
+       count(*) FILTER (
+         WHERE status = 'complete'
+           AND item_id IS NOT NULL
+           AND completed_ts >= now() - interval '1 hour') AS recent_complete,
+       count(*) FILTER (
+         WHERE status = 'failed'
+           AND updated_ts >= now() - interval '1 hour') AS recent_failed
+FROM bookmark_capture_queue
+WHERE submitted_by = 'reader'
+
+-- :name bookmark-capture-reader-recent-complete :? :*
+SELECT capture.id,
+       capture.item_id,
+       capture.url,
+       capture.completed_ts,
+       items.title AS item_title
+FROM bookmark_capture_queue capture
+LEFT JOIN items ON items.id = capture.item_id
+WHERE capture.submitted_by = 'reader'
+  AND capture.status = 'complete'
+  AND capture.item_id IS NOT NULL
+  AND capture.completed_ts >= now() - interval '1 hour'
+ORDER BY capture.completed_ts DESC, capture.id DESC
+LIMIT :limit

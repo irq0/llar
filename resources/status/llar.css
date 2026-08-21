@@ -3227,6 +3227,55 @@ div.item-content-body p > code {
   margin-bottom: var(--llar-space-2);
 }
 
+.reader-bookmark-activity:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--llar-space-1) var(--llar-space-2);
+  align-items: center;
+  padding: 0 var(--llar-space-1);
+  color: var(--llar-ink-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.reader-bookmark-activity-pending,
+.reader-bookmark-activity-ready,
+.reader-bookmark-submission-error {
+  display: inline-flex;
+  gap: var(--llar-space-1);
+  align-items: center;
+}
+
+.reader-bookmark-activity-ready {
+  gap: var(--llar-space-2);
+  color: var(--llar-primary);
+}
+
+.reader-bookmark-ready-link,
+.reader-bookmark-ready-overflow {
+  padding: 0.08rem;
+  color: currentcolor;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.reader-bookmark-ready-link:focus-visible,
+.reader-bookmark-ready-overflow:focus-visible {
+  border-radius: var(--llar-radius);
+  outline: 2px solid var(--llar-primary-control);
+  outline-offset: 2px;
+}
+
+.reader-bookmark-activity-failed,
+.reader-bookmark-submission-error {
+  color: var(--bs-warning-text-emphasis);
+}
+
+.reader-bookmark-submission-error {
+  flex-basis: 100%;
+  align-items: flex-start;
+}
+
 @media (width < 768px) {
   body.reader-mobile-navigation-open {
     overflow: hidden;

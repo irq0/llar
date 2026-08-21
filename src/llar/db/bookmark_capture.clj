@@ -87,3 +87,14 @@
 (defn dashboard-counts [db]
   (some-> (sql/bookmark-capture-dashboard-counts db)
           (set/rename-keys {:retry_wait :retry-wait})))
+
+(defn reader-activity-counts [db]
+  (some-> (sql/bookmark-capture-reader-activity-counts db)
+          (set/rename-keys {:recent_complete :recent-complete
+                            :recent_failed :recent-failed})))
+
+(defn reader-recent-complete [db limit]
+  (mapv #(set/rename-keys % {:item_id :item-id
+                             :item_title :item-title
+                             :completed_ts :completed-ts})
+        (sql/bookmark-capture-reader-recent-complete db {:limit limit})))

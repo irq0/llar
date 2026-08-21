@@ -90,6 +90,8 @@
  bookmark-capture-operational-counts
  bookmark-capture-oldest-ready
  bookmark-capture-dashboard-counts
+ bookmark-capture-reader-activity-counts
+ bookmark-capture-reader-recent-complete
  get-gem-facet-rows
  get-gem-items
  get-gem-rediscovery-candidates)

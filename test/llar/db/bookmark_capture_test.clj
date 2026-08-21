@@ -75,6 +75,46 @@
       (is (zero? (:attempt-count retried)))
       (is (= :dismissed (:status (capture-db/dismiss! *test-db* (:id capture))))))))
 
+(deftest reader-activity-is-reader-scoped-recent-and-bounded
+  (let [completed-capture (enqueue!
+                           "SHA-256:1111111111111111111111111111111111111111111111111111111111111111"
+                           {:submitted-by "reader"
+                            :url "https://example.com/ready"})
+        completed-claim (capture-db/claim-next! *test-db* 1200)
+        item-id (:id (create-test-item *test-db*
+                                       :hash "reader-activity-ready"
+                                       :title "Ready title"))]
+    (capture-db/complete! *test-db* (:id completed-capture)
+                          (:lease-version completed-claim) item-id)
+    (let [failed-capture (enqueue!
+                          "SHA-256:2222222222222222222222222222222222222222222222222222222222222222"
+                          {:submitted-by "reader"})
+          failed-claim (capture-db/claim-next! *test-db* 1200)]
+      (capture-db/fail! *test-db* (:id failed-capture)
+                        (:lease-version failed-claim) "fetch" "no response"))
+    (enqueue! "SHA-256:3333333333333333333333333333333333333333333333333333333333333333"
+              {:submitted-by "reader"})
+    (enqueue! "SHA-256:4444444444444444444444444444444444444444444444444444444444444444"
+              {:submitted-by "external"})
+
+    (is (= {:active 1 :recent-complete 1 :recent-failed 1}
+           (capture-db/reader-activity-counts *test-db*)))
+    (is (= [{:id (:id completed-capture)
+             :item-id item-id
+             :url "https://example.com/ready"
+             :item-title "Ready title"}]
+           (mapv #(select-keys % [:id :item-id :url :item-title])
+                 (capture-db/reader-recent-complete *test-db* 3))))
+
+    (jdbc/execute! *test-db*
+                   ["UPDATE bookmark_capture_queue
+                     SET completed_ts = now() - interval '61 minutes',
+                         updated_ts = now() - interval '61 minutes'
+                     WHERE submitted_by = 'reader' AND status IN ('complete', 'failed')"])
+    (is (= {:active 1 :recent-complete 0 :recent-failed 0}
+           (capture-db/reader-activity-counts *test-db*)))
+    (is (empty? (capture-db/reader-recent-complete *test-db* 3)))))
+
 (deftest reading-queue-has-no-bookmark-only-membership
   (let [unread-bookmark (:id (create-test-item *test-db*
                                                :hash "unread-bookmark-only"

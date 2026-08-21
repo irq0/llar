@@ -471,6 +471,13 @@ function bookmark_capture_error_message(request) {
   if (response && typeof response.error === "string" && response.error.trim()) {
     return response.error.trim();
   }
+  if (
+    response &&
+    typeof response.message === "string" &&
+    response.message.trim()
+  ) {
+    return response.message.trim();
+  }
 
   var responseText =
     request && typeof request.responseText === "string"
@@ -493,15 +500,160 @@ function bookmark_capture_error_message(request) {
   return "Llar could not save this URL. Please try again.";
 }
 
-function show_bookmark_add_result(title, message, messageIsHtml) {
-  var popover_root = $("#add-thing");
-  var body = $("<div>").addClass("text-center");
-  if (messageIsHtml) body.html(message);
-  else body.text(message);
-  popover_root.data("result-title", title);
-  popover_root.data("result-message", body.prop("outerHTML"));
-  popover_root.popover("show");
-  console.log(message);
+var bookmarkActivityRefreshTimer = null;
+
+function bookmarkActivityCount(activity, key) {
+  var count = Number(activity && activity[key]);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function bookmarkActivityQueueLink() {
+  return $("<a>")
+    .attr("href", "/reader/tools/saved-overview")
+    .text("Reading Queue");
+}
+
+function renderBookmarkActivity(activity) {
+  var root = $("#reader-bookmark-activity");
+  if (!root.length) return;
+
+  var activeCount = bookmarkActivityCount(activity, "active-count");
+  var readyItems = Array.isArray(activity && activity["recent-ready"])
+    ? activity["recent-ready"].slice(0, 3)
+    : [];
+  var overflowCount = bookmarkActivityCount(activity, "ready-overflow-count");
+  var failedCount = bookmarkActivityCount(activity, "recent-failed-count");
+
+  root.empty().attr("data-active-count", activeCount);
+
+  if (activeCount) {
+    var pendingLabel =
+      activeCount +
+      (activeCount === 1 ? " bookmark is" : " bookmarks are") +
+      " being prepared; usually ready within a few minutes";
+    $("<span>")
+      .addClass("reader-bookmark-activity-pending")
+      .attr({ title: pendingLabel, "aria-label": pendingLabel })
+      .append(
+        makeAnimatedDots(),
+        $("<span>").text(activeCount + " preparing for "),
+        bookmarkActivityQueueLink(),
+      )
+      .appendTo(root);
+  }
+
+  if (readyItems.length) {
+    var ready = $("<span>")
+      .addClass("reader-bookmark-activity-ready")
+      .attr("aria-label", "Bookmarks prepared in the last hour")
+      .append(
+        $("<span>")
+          .addClass("visually-hidden")
+          .text("Recently prepared bookmarks: "),
+      );
+    readyItems.forEach(function (item) {
+      var label = item.label || "Saved bookmark";
+      $("<a>")
+        .addClass("reader-bookmark-ready-link")
+        .attr({
+          href: item.href || "/reader/item/by-id/" + item["item-id"],
+          title: "Ready: " + label,
+          "aria-label": "Open ready bookmark: " + label,
+          "data-item-id": item["item-id"],
+        })
+        .append(
+          $("<i>").addClass("fas fa-newspaper").attr("aria-hidden", "true"),
+        )
+        .appendTo(ready);
+    });
+    if (overflowCount) {
+      $("<a>")
+        .addClass("reader-bookmark-ready-overflow")
+        .attr({
+          href: "/reader/tools/saved-overview",
+          title:
+            overflowCount + " more bookmarks were prepared in the last hour",
+          "aria-label":
+            "Open Reading Queue for " +
+            overflowCount +
+            " more prepared bookmarks",
+        })
+        .text("+" + overflowCount)
+        .appendTo(ready);
+    }
+    ready.appendTo(root);
+  }
+
+  if (failedCount) {
+    var failureLabel =
+      failedCount +
+      (failedCount === 1
+        ? " bookmark could not be prepared in the last hour"
+        : " bookmarks could not be prepared in the last hour");
+    $("<span>")
+      .addClass("reader-bookmark-activity-failed")
+      .attr({ role: "img", title: failureLabel, "aria-label": failureLabel })
+      .append(
+        $("<i>")
+          .addClass("fas fa-exclamation-triangle")
+          .attr("aria-hidden", "true"),
+      )
+      .appendTo(root);
+  }
+
+  root.prop("hidden", !activeCount && !readyItems.length && !failedCount);
+}
+
+function showBookmarkActivityError(message) {
+  var root = $("#reader-bookmark-activity");
+  if (!root.length) return;
+  root.find(".reader-bookmark-submission-error").remove();
+  $("<span>")
+    .addClass("reader-bookmark-submission-error")
+    .attr({ role: "alert", title: message })
+    .append(
+      $("<i>")
+        .addClass("fas fa-exclamation-triangle")
+        .attr("aria-hidden", "true"),
+      $("<span>").text(message),
+    )
+    .appendTo(root);
+  root.prop("hidden", false);
+}
+
+function bookmarkActivityIsActive() {
+  return Number($("#reader-bookmark-activity").attr("data-active-count")) > 0;
+}
+
+function scheduleBookmarkActivityRefresh() {
+  clearTimeout(bookmarkActivityRefreshTimer);
+  bookmarkActivityRefreshTimer = null;
+  if (!bookmarkActivityIsActive() || document.visibilityState === "hidden") {
+    return;
+  }
+  bookmarkActivityRefreshTimer = setTimeout(refreshBookmarkActivity, 30000);
+}
+
+function refreshBookmarkActivity() {
+  clearTimeout(bookmarkActivityRefreshTimer);
+  bookmarkActivityRefreshTimer = null;
+  $.getJSON("/reader/bookmark/activity")
+    .done(function (activity) {
+      renderBookmarkActivity(activity);
+      scheduleBookmarkActivityRefresh();
+    })
+    .fail(function () {
+      scheduleBookmarkActivityRefresh();
+    });
+}
+
+function setBookmarkSubmitPending(button, pending) {
+  button
+    .prop("disabled", pending)
+    .attr("aria-busy", pending ? "true" : null)
+    .toggleClass("btn-primary", pending)
+    .toggleClass("btn-secondary", !pending)
+    .removeClass("btn-danger");
 }
 
 // Document-structure-aware reading navigation. Space and touch gestures share
@@ -1474,53 +1626,61 @@ $(document).ready(function () {
       );
     });
   });
-  // bookmark / document add url
-  $(".bookmark-submit").on("click", function () {
-    var x = $(this);
-    x.removeClass("btn-danger");
-    x.removeClass("btn-secondary");
-    x.addClass("btn-primary");
-    $.post({
+  // Bookmark capture is durable immediately; enrichment remains visible in the
+  // quiet activity strip across Reader page loads.
+  $("#add-thing").on("submit", function (event) {
+    event.preventDefault();
+    var button = $(this).find(".bookmark-submit");
+    var input = $($(button.data("url-source")));
+    setBookmarkSubmitPending(button, true);
+    var request = $.post({
       url: "/reader/bookmark/add",
-      data: { url: $(x.data("url-source")).val(), type: x.data("type") },
+      data: { url: input.val(), type: button.data("type") },
       dataType: "json",
       success: (data) => {
-        x.removeClass("btn-danger");
-        x.removeClass("btn-primary");
-        $(x.data("url-source")).val("");
-        x.addClass("btn-secondary");
-        var itemId = data["item-id"];
-        var detail = itemId
-          ? `<a href="/reader/item/by-id/${itemId}">open saved item</a>`
-          : "It will appear in the reading queue after processing.";
-        show_bookmark_add_result(
-          data["message"] || "Saved to Llar",
-          detail,
-          true,
-        );
-        return false;
+        input.val("");
+        var activity = Object.assign({}, data.activity || {});
+        var readyItems = Array.isArray(activity["recent-ready"])
+          ? activity["recent-ready"].slice()
+          : [];
+        if (
+          data.result === "already-saved" &&
+          data["item-id"] &&
+          !readyItems.some(function (item) {
+            return String(item["item-id"]) === String(data["item-id"]);
+          })
+        ) {
+          readyItems.unshift({
+            "item-id": data["item-id"],
+            href: "/reader/item/by-id/" + data["item-id"],
+            label: data.label || "Saved bookmark",
+          });
+          activity["recent-ready"] = readyItems.slice(0, 3);
+        }
+        renderBookmarkActivity(activity);
+        scheduleBookmarkActivityRefresh();
       },
-    }).fail((data) => {
-      x.addClass("btn-danger");
-      x.removeClass("btn-secondary");
-      x.removeClass("btn-primary");
-      show_bookmark_add_result(
-        "Could not save",
-        bookmark_capture_error_message(data),
-      );
     });
-    return false;
+    request.fail((data) => {
+      var response = data && data.responseJSON;
+      if (response && response.activity) {
+        renderBookmarkActivity(response.activity);
+      }
+      showBookmarkActivityError(bookmark_capture_error_message(data));
+    });
+    request.always(function () {
+      setBookmarkSubmitPending(button, false);
+    });
   });
 
-  $("#add-thing").popover({
-    placement: "right",
-    container: "body",
-    offset: [10, 20],
-    boundary: $("#groupnav"),
-    trigger: "manual",
-    html: true,
-    title: () => $("#add-thing").data("result-title"),
-    content: () => $("#add-thing").data("result-message"),
+  scheduleBookmarkActivityRefresh();
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      clearTimeout(bookmarkActivityRefreshTimer);
+      bookmarkActivityRefreshTimer = null;
+    } else if (bookmarkActivityIsActive()) {
+      refreshBookmarkActivity();
+    }
   });
 
   // Activate a privacy-friendly YouTube embed only after an explicit click.

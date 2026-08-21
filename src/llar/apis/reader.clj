@@ -18,6 +18,7 @@
    [llar.appconfig :refer [postgresql-config credentials]]
    [llar.bookmark-capture :as bookmark-capture]
    [llar.config :as config]
+   [llar.db.bookmark-capture :as capture-db]
    [llar.db.core :as db]
    [llar.events :as events]
    [llar.human :as human]
@@ -338,13 +339,13 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-bulk-tags-01"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=reader-bookmark-activity-01"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-bulk-tags-02"}]])
+   [:script {:src "/static/llar.js?v=reader-bookmark-activity-01"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -683,7 +684,101 @@
    [:span {:class "sidebar-link-icon"} (icon ico)]
    [:span {:class "sidebar-link-label"} label]])
 
-(defn- bookmark-capture-nav []
+(def ^:private +bookmark-ready-icon-limit+ 3)
+
+(defn- bookmark-activity-label [{:keys [item-title url]}]
+  (or (some-> item-title string/trim not-empty)
+      (try
+        (some-> url human/host-identifier not-empty)
+        (catch Throwable _ nil))
+      "Saved bookmark"))
+
+(def ^:private +empty-bookmark-activity+
+  {:active-count 0
+   :recent-ready-count 0
+   :recent-ready []
+   :ready-overflow-count 0
+   :recent-failed-count 0})
+
+(defn bookmark-activity []
+  (try
+    (let [{:keys [active recent-complete recent-failed]}
+          (or (capture-db/reader-activity-counts store/backend-db) {})
+          ready-count (long (or recent-complete 0))
+          ready-items (mapv (fn [{:keys [id item-id] :as capture}]
+                              {:capture-id id
+                               :item-id item-id
+                               :label (bookmark-activity-label capture)
+                               :href (str "/reader/item/by-id/" item-id)})
+                            (capture-db/reader-recent-complete
+                             store/backend-db +bookmark-ready-icon-limit+))]
+      {:active-count (long (or active 0))
+       :recent-ready-count ready-count
+       :recent-ready ready-items
+       :ready-overflow-count (max 0 (- ready-count (count ready-items)))
+       :recent-failed-count (long (or recent-failed 0))})
+    (catch Throwable throwable
+      (log/warn throwable "reader bookmark activity unavailable")
+      +empty-bookmark-activity+)))
+
+(defn- bookmark-activity-view
+  [{:keys [active-count recent-ready ready-overflow-count recent-failed-count]}]
+  (let [visible? (or (pos? (or active-count 0))
+                     (seq recent-ready)
+                     (pos? (or recent-failed-count 0)))]
+    [:div (cond-> {:class "reader-bookmark-activity"
+                   :id "reader-bookmark-activity"
+                   :role "status"
+                   :aria-live "polite"
+                   :aria-atomic "true"
+                   :data-active-count (or active-count 0)}
+            (not visible?) (assoc :hidden true))
+     (when (pos? (or active-count 0))
+       (let [label (str active-count
+                        (if (= 1 active-count) " bookmark is" " bookmarks are")
+                        " being prepared; usually ready within a few minutes")]
+         [:span {:class "reader-bookmark-activity-pending"
+                 :title label
+                 :aria-label label}
+          [:span {:class "reader-lifecycle-indicator reader-lifecycle-dots"
+                  :aria-hidden "true"}
+           (for [_ (range 3)]
+             [:span {:class "reader-lifecycle-dot"}])]
+          [:span (str active-count " preparing for ")]
+          [:a {:href "/reader/tools/saved-overview"} "Reading Queue"]]))
+     (when (seq recent-ready)
+       [:span {:class "reader-bookmark-activity-ready"
+               :aria-label "Bookmarks prepared in the last hour"}
+        [:span {:class "visually-hidden"} "Recently prepared bookmarks: "]
+        (for [{:keys [item-id label href]} recent-ready]
+          [:a {:class "reader-bookmark-ready-link"
+               :href href
+               :title (str "Ready: " label)
+               :aria-label (str "Open ready bookmark: " label)
+               :data-item-id item-id}
+           (icon "fas fa-newspaper")])
+        (when (pos? (or ready-overflow-count 0))
+          [:a {:class "reader-bookmark-ready-overflow"
+               :href "/reader/tools/saved-overview"
+               :title (str ready-overflow-count
+                           " more bookmarks were prepared in the last hour")
+               :aria-label (str "Open Reading Queue for " ready-overflow-count
+                                " more prepared bookmarks")}
+           (str "+" ready-overflow-count)])])
+     (when (pos? (or recent-failed-count 0))
+       [:span {:class "reader-bookmark-activity-failed"
+               :role "img"
+               :title (str recent-failed-count
+                           (if (= 1 recent-failed-count)
+                             " bookmark could not be prepared in the last hour"
+                             " bookmarks could not be prepared in the last hour"))
+               :aria-label (str recent-failed-count
+                                (if (= 1 recent-failed-count)
+                                  " bookmark could not be prepared in the last hour"
+                                  " bookmarks could not be prepared in the last hour"))}
+        (icon "fas fa-exclamation-triangle")])]))
+
+(defn- bookmark-capture-nav [activity]
   [:form {:class "nav flex-column form-inline"
           :id "add-thing"}
    [:div {:class "input-group mb-1"}
@@ -696,11 +791,10 @@
               :type "submit"
               :title "Add bookmark with readability engine"
               :aria-label "Add bookmark with readability engine"
-              :data-bs-title "Add Bookmark with readability engine"
               :data-url-source "#add-url-1"
-              :data-bs-success "#add-url-1-status"
               :data-type "readability-bookmark"}
-     (icon "fas fa-newspaper")]]])
+     (icon "fas fa-newspaper")]]
+   (bookmark-activity-view activity)])
 
 (defn group-list
   "Group Item List - Tags, etc."
@@ -736,7 +830,7 @@
            :id "groupnav"
            :aria-label "Reader destinations"}
      [:div {:class "sidebar-sticky" :id "left-nav"}
-      (bookmark-capture-nav)
+      (bookmark-capture-nav (:bookmark-activity x))
 
       (when-not (= :tools (:mode x))
         [:ul {:class "nav flex-column"}
@@ -2973,6 +3067,7 @@
                                :active-sources active-sources
                                :selected-sources selected-sources
                                :source-update-context source-update-context
+                               :bookmark-activity (bookmark-activity)
                                :items annotated-items
                                :inspect-details inspect-details
                                :item-tags @item-tags
@@ -4469,6 +4564,7 @@
 
          params (merge params {:sources sources
                                :item-tags @item-tags
+                               :bookmark-activity (bookmark-activity)
                                :group-group :tools
                                :group-key (:view params)
                                :mode :tools
@@ -4517,13 +4613,18 @@
 (defn enqueue-bookmark [url]
   (try
     (let [capture (bookmark-capture/enqueue! store/backend-db url nil "reader")
-          outcome (bookmark-capture/enqueue-outcome capture)]
+          outcome (bookmark-capture/enqueue-outcome capture)
+          activity (cond-> (bookmark-activity)
+                     (#{:queued :already-queued} outcome)
+                     (update :active-count #(max 1 (or % 0))))]
       {:status (case outcome :queued 201 :needs-attention 409 200)
        :body {:capture-id (:id capture)
               :item-id (:item-id capture)
+              :label (bookmark-activity-label capture)
               :state (:status capture)
               :result outcome
-              :message (get bookmark-capture/outcome-messages outcome)}})
+              :message (get bookmark-capture/outcome-messages outcome)
+              :activity activity}})
     (catch clojure.lang.ExceptionInfo exception
       (if (#{:llar.bookmark-capture/invalid-url
              :llar.bookmark-capture/invalid-title}
@@ -4741,6 +4842,11 @@
          (enqueue-bookmark url)
          {:status 400 :body {:error "Unsupported bookmark type"}}))
 
+     (GET "/bookmark/activity" []
+       {:status 200
+        :headers {"Cache-Control" "no-store"}
+        :body (bookmark-activity)})
+
      (GET "/tools/:view" [view :<< as-keyword]
        (reader-tools-index {:uri (:uri req)
                             :filter (as-keyword (get-in req [:params :filter]))
@@ -4890,6 +4996,17 @@
                           :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
                           :data data
                           :content-type content-type}))
+         (GET "/focus" []
+           (reader-index {:uri (:uri req)
+                          :filter (as-keyword (get-in req [:params :filter]))
+                          :group-name group-name
+                          :group-item group-item
+                          :source-key source-key
+                          :item-id item-id
+                          :mode :focus-item
+                          :sort-order (as-keyword (get-in req [:params :sort-order]))
+                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
+                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))
          (GET "/dump" []
            (reader-index {:uri (:uri req)
                           :filter (as-keyword (get-in req [:params :filter]))
