@@ -80,10 +80,11 @@
                {:type :llar.commands/av-download-error
                 :err "ERROR: unable to download webpage: HTTP Error 503"}))))
 
-  (testing "summary is the first stderr line"
-    (is (= "ERROR: [youtube] yBIc8ZQ84to: Private video."
+  (testing "summary prefers an error over preceding warnings"
+    (is (= "yt-dlp exited with status 1: ERROR: [youtube] yBIc8ZQ84to: Private video."
            (#'uut/download-error-summary
-            {:err "ERROR: [youtube] yBIc8ZQ84to: Private video.\nUse --cookies"})))))
+            {:ret 1
+             :err "WARNING: [youtube] No title found in player responses.\nERROR: [youtube] yBIc8ZQ84to: Private video.\nUse --cookies"})))))
 
 (deftest test-wrap-token-auth
   (let [handler (fn [_] {:status 200 :body "ok"})

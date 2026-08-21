@@ -251,13 +251,20 @@
       :else nil)))
 
 (defn- download-error-summary [err]
-  (or (some-> (:err err)
-              str/split-lines
-              first
-              str/trim
-              not-empty)
-      (some-> (:message err) str not-empty)
-      (str err)))
+  (let [stderr-lines (->> (str (:err err))
+                          str/split-lines
+                          (map str/trim)
+                          (remove str/blank?))
+        error-lines (filter #(re-find #"(?i)^(error|fatal):" %) stderr-lines)
+        useful-lines (remove #(re-find #"(?i)^warning:" %) stderr-lines)
+        detail (or (first error-lines)
+                   (first useful-lines)
+                   (first stderr-lines)
+                   (some-> (:message err) str not-empty)
+                   (str err))]
+    (if-let [exit (:ret err)]
+      (str "yt-dlp exited with status " exit ": " detail)
+      detail)))
 
 (defn- scan-podcast-items!
   "Scan for podcast-tagged items, detect media URLs, update download state"
