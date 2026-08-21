@@ -140,6 +140,8 @@ The same demo deployment also shows the main Reader tools:
 
 By default, the Dashboard runs on port 9999.
 
+![The LLAR Dashboard start page](https://irq0.github.io/llar/demo/main/dashboard.png)
+
 Makes internal application state accessible.
 This includes memory usage,
 database stats,

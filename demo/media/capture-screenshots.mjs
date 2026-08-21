@@ -8,7 +8,12 @@ import { chromium } from "playwright";
 
 const viewport = { width: 1440, height: 900 };
 const deviceScaleFactor = 2;
-const baseUrl = new URL(process.env.LLAR_READER_URL ?? "http://127.0.0.1:8023");
+const readerBaseUrl = new URL(
+  process.env.LLAR_READER_URL ?? "http://127.0.0.1:8023",
+);
+const dashboardBaseUrl = new URL(
+  process.env.LLAR_DASHBOARD_URL ?? "http://127.0.0.1:9999",
+);
 const browserChannel = process.env.LLAR_BROWSER_CHANNEL ?? "chrome";
 const outputDir = path.resolve(
   process.env.LLAR_SCREENSHOT_OUT ?? "target/demo-media",
@@ -157,7 +162,7 @@ await context.tracing.start({
 });
 
 try {
-  const readerUrl = new URL(readerPath, baseUrl);
+  const readerUrl = new URL(readerPath, readerBaseUrl);
   await page.goto(readerUrl.href, { waitUntil: "networkidle" });
 
   await page
@@ -238,12 +243,22 @@ try {
       ready: "[data-vibe-cluster-id]",
     },
   ]) {
-    await page.goto(new URL(route, baseUrl).href, { waitUntil: "networkidle" });
+    await page.goto(new URL(route, readerBaseUrl).href, {
+      waitUntil: "networkidle",
+    });
     await page.locator(ready).first().waitFor({ state: "visible" });
     await page.addStyleTag({ path: captureStyles });
     await page.evaluate(() => window.scrollTo(0, 0));
     await captureStable(page, name);
   }
+
+  await page.goto(new URL("/", dashboardBaseUrl).href, {
+    waitUntil: "networkidle",
+  });
+  await page.locator(".dashboard-overview").waitFor({ state: "visible" });
+  await page.addStyleTag({ path: captureStyles });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await captureStable(page, "dashboard");
 } catch (error) {
   await page
     .screenshot({ path: failurePath, fullPage: true })

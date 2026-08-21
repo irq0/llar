@@ -354,11 +354,11 @@ jobs:
       if: github.ref == 'refs/heads/main'
       run: npm ci
 
-    - name: Capture README screenshot
+    - name: Capture README screenshots
       if: github.ref == 'refs/heads/main'
       run: npm run demo:screenshots
 
-    - name: Upload README screenshot
+    - name: Upload README screenshots
       if: github.ref == 'refs/heads/main'
       uses: actions/upload-artifact@v4
       with:
@@ -417,7 +417,7 @@ jobs:
 
     - uses: actions/configure-pages@v5
 
-    - name: Download README screenshot
+    - name: Download README screenshots
       uses: actions/download-artifact@v4
       with:
         name: demo-screenshots
@@ -460,9 +460,10 @@ jobs:
     - name: Copy docs assets
       run: make docs-assets DOCS_OUT="$RUNNER_TEMP/llar-docs"
 
-    - name: Include README screenshot
+    - name: Include README screenshots
       run: |
         test -s "$RUNNER_TEMP/llar-demo-screenshots/reader.png"
+        test -s "$RUNNER_TEMP/llar-demo-screenshots/dashboard.png"
         mkdir -p "$RUNNER_TEMP/llar-docs/demo/main"
         cp "$RUNNER_TEMP/llar-demo-screenshots"/*.png \
           "$RUNNER_TEMP/llar-docs/demo/main/"
