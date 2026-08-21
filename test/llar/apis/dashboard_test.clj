@@ -44,7 +44,9 @@
       (is (string/includes? body "data-order=\"1786622400000\""))
       (is (string/includes? body "Failed capture"))
       (is (string/includes? body "network failed"))
-      (is (string/includes? body "href=\"https://reader.example/reader/item/by-id/314\""))
+      (is (string/includes?
+           body
+           "href=\"https://reader.example/reader/group/default/none/source/all/item/by-id/314\""))
       (is (string/includes? body "Open in Reader"))
       (is (string/includes? body "/api/bookmark-captures/42/retry"))
       (is (string/includes? body "/api/bookmark-captures/42/dismiss")))))

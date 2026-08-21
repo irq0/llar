@@ -1,6 +1,7 @@
 (ns llar.db.bookmark-capture-test
   (:require
    [clojure.test :refer [deftest is use-fixtures]]
+   [java-time.api :as time]
    [llar.db.bookmark-capture :as capture-db]
    [llar.db.test-fixtures :refer [*test-db* create-test-item
                                   with-clean-db-fixture with-test-db-fixture]]
@@ -74,6 +75,14 @@
       (is (= :pending (:status retried)))
       (is (zero? (:attempt-count retried)))
       (is (= :dismissed (:status (capture-db/dismiss! *test-db* (:id capture))))))))
+
+(deftest dashboard-capture-timestamps-preserve-the-database-instant
+  (enqueue! "SHA-256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+  (capture-db/claim-next! *test-db* 1200)
+  (let [last-attempt (:last-attempt-ts (first (capture-db/list-captures *test-db* 1)))
+        now (time/zoned-date-time)]
+    (is (time/after? last-attempt (time/minus now (time/minutes 1))))
+    (is (time/before? last-attempt (time/plus now (time/minutes 1))))))
 
 (deftest reader-activity-is-reader-scoped-recent-and-bounded
   (let [completed-capture (enqueue!

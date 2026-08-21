@@ -36,13 +36,16 @@
                        (long (mod (/ seconds 60) 60))))))
 
 (defn datetime-ago [ts]
-  (let [raw-duration (time/duration ts (time/zoned-date-time))
-        duration (-> raw-duration
-                     (.minusNanos (.getNano raw-duration)))
-        period (time/period (time/local-date ts) (time/local-date))]
-    (if (>= (.toDays duration) 2)
-      (subs (string/lower-case (str period)) 1)
-      (subs (string/lower-case (str duration)) 2))))
+  (let [now (time/zoned-date-time)]
+    (if (time/after? ts now)
+      "just now"
+      (let [raw-duration (time/duration ts now)
+            duration (-> raw-duration
+                         (.minusNanos (.getNano raw-duration)))
+            period (time/period (time/local-date ts) (time/local-date now))]
+        (if (>= (.toDays duration) 2)
+          (subs (string/lower-case (str period)) 1)
+          (subs (string/lower-case (str duration)) 2))))))
 
 (defn datetime-ago-short [ts]
   (let [raw-duration (time/duration ts (time/zoned-date-time))

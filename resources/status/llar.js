@@ -556,7 +556,10 @@ function renderBookmarkActivity(activity) {
       $("<a>")
         .addClass("reader-bookmark-ready-link")
         .attr({
-          href: item.href || "/reader/item/by-id/" + item["item-id"],
+          href:
+            item.href ||
+            "/reader/group/default/none/source/all/item/by-id/" +
+              item["item-id"],
           title: "Ready: " + label,
           "aria-label": "Open ready bookmark: " + label,
           "data-item-id": item["item-id"],
@@ -1652,7 +1655,10 @@ $(document).ready(function () {
         ) {
           readyItems.unshift({
             "item-id": data["item-id"],
-            href: "/reader/item/by-id/" + data["item-id"],
+            href:
+              data.href ||
+              "/reader/group/default/none/source/all/item/by-id/" +
+                data["item-id"],
             label: data.label || "Saved bookmark",
           });
           activity["recent-ready"] = readyItems.slice(0, 3);

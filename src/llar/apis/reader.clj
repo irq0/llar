@@ -289,6 +289,9 @@
    "item/by-id"
    id])
 
+(defn reader-item-href [id]
+  (str "/reader/group/default/none/source/all/item/by-id/" id))
+
 (defn show-item-href
   "Build the item-detail URL for an item in the current reader context."
   [x item]
@@ -714,7 +717,7 @@
                               {:capture-id id
                                :item-id item-id
                                :label (bookmark-activity-label capture)
-                               :href (str "/reader/item/by-id/" item-id)})
+                               :href (reader-item-href item-id)})
                             (capture-db/reader-recent-complete
                              store/backend-db +bookmark-ready-icon-limit+))]
       {:active-count (long (or active 0))
@@ -4676,6 +4679,7 @@
       {:status (case outcome :queued 201 :needs-attention 409 200)
        :body {:capture-id (:id capture)
               :item-id (:item-id capture)
+              :href (some-> (:item-id capture) reader-item-href)
               :label (bookmark-activity-label capture)
               :state (:status capture)
               :result outcome
@@ -4891,6 +4895,11 @@
 
      (GET "/item/by-id/:item-id/related" [item-id :<< as-int]
        (reader-related item-id))
+
+     (GET "/item/by-id/:item-id" [item-id :<< as-int]
+       {:status 303
+        :headers {"Location" (reader-item-href item-id)}
+        :body ""})
 
      (POST "/bookmark/add"
        [url type :<< as-keyword]

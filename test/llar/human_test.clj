@@ -60,6 +60,10 @@
       (is (string? (uut/datetime-ago-short ts)))
       (is (seq (uut/datetime-ago-short ts))))))
 
+(deftest datetime-ago-does-not-render-negative-future-durations
+  (is (= "just now"
+         (uut/datetime-ago (time/plus (time/zoned-date-time) (time/hours 2))))))
+
 (deftest host-identifier-test
   (testing "standard domain"
     (are [expected url] (= expected (uut/host-identifier url))

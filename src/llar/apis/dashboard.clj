@@ -11,7 +11,7 @@
    [mount.core :as mount]
    [puget.printer :as puget]
    [clojure.string :as string]
-   [llar.apis.reader :refer [frontend-db]]
+   [llar.apis.reader :refer [frontend-db reader-item-href]]
    [llar.apis.config-lab :as config-lab-api]
    [clojure.tools.logging :as log]
    [llar.blobstore :as blobstore]
@@ -1065,7 +1065,7 @@
 (defn- capture-reader-url [item-id]
   (when-let [base-url (and item-id (appconfig/reader :base-url))]
     (str (string/replace base-url #"/+$" "")
-         "/reader/item/by-id/" item-id)))
+         (reader-item-href item-id))))
 
 (defn- capture-row
   [{:keys [id url title submitted-by attempt-count last-attempt-ts
