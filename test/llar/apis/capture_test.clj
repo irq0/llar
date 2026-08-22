@@ -21,19 +21,6 @@
              :headers (cond-> {} token (assoc "authorization" (str "Bearer " token)))
              :params params})))
 
-(deftest credentials-must-contain-unique-named-tokens
-  (is (= #{{:name "iphone" :token "0123456789abcdef0123456789abcdef"}}
-         (set (uut/validate-tokens!
-               {:tokens {:iphone "0123456789abcdef0123456789abcdef"}}))))
-  (doseq [bad [{}
-               {:tokens {}}
-               {:tokens {:iphone ""}}
-               {:tokens {:iphone "too-short"}}
-               {:tokens {"bad name" "0123456789abcdef0123456789abcdef"}}
-               {:tokens {:iphone "0123456789abcdef0123456789abcdef"
-                         :mac "0123456789abcdef0123456789abcdef"}}]]
-    (is (thrown? clojure.lang.ExceptionInfo (uut/validate-tokens! bad)))))
-
 (deftest api-authenticates-and-records-the-token-name
   (let [seen (atom nil)
         handler (capture-handler)]

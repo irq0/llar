@@ -2,13 +2,11 @@
   (:require
    [clojure.string :as string]
    [clojure.tools.logging :as log]
-   [llar.apis.capture :as token-auth]
    [llar.appconfig :as appconfig]
+   [llar.auth :as auth]
    [llar.config-lab :as lab]
-   [llar.value-inspector :as value-inspector]
-   [ring.util.time :as ring-time])
-  (:import
-   [java.util Date]))
+   [llar.http.response :as http-response]
+   [llar.value-inspector :as value-inspector]))
 
 (def cookie-name "llar-config-lab-session")
 
@@ -64,9 +62,9 @@
 
 (defn login-response [request]
   (with-errors
-    (let [tokens (token-auth/validate-tokens! (credentials) "Config Lab")
+    (let [tokens (auth/validate-named-tokens! (credentials) "Config Lab")
           provided (get-in request [:params :token])
-          owner (token-auth/token-owner tokens provided)]
+          owner (auth/token-owner tokens provided)]
       (if owner
         (let [session-token (lab/login! owner)]
           {:status 200
@@ -148,17 +146,15 @@
 
 (defn blob-response [request id hash]
   (with-errors
-    (let [blob (lab/session-blob (:config-lab/owner request) id hash)
-          ^java.time.ZonedDateTime created (:created blob)]
-      {:status 200
-       :headers (cond-> {"Content-Type" (:mime-type blob)
-                         "ETag" (str "W/\"" hash "\"")
-                         "Last-Modified" (ring-time/format-date
-                                          (Date/from (.toInstant created)))
-                         "X-Content-Type-Options" "nosniff"}
-                  (number? (:size blob))
-                  (assoc "Content-Length" (str (:size blob))))
-       :body (:data blob)})))
+    (let [blob (lab/session-blob (:config-lab/owner request) id hash)]
+      (no-store
+       (http-response/ranged-file-response
+        {:file (:file blob)
+         :size (:size blob)
+         :mime-type (:mime-type blob)
+         :etag hash
+         :last-modified (:created blob)}
+        request)))))
 
 (defn wrap-auth
   "Authenticate only Config Lab endpoints. The rest of the dashboard retains its
@@ -166,7 +162,7 @@
   from cross-site form submissions."
   [handler]
   (when (lab/enabled?)
-    (token-auth/validate-tokens! (credentials) "Config Lab"))
+    (auth/validate-named-tokens! (credentials) "Config Lab"))
   (fn [request]
     (let [uri (:uri request)
           lab-api? (string/starts-with? uri "/api/config-lab")

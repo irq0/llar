@@ -379,9 +379,10 @@
 
 (defn handler [db fever-config]
   (routes
-   (GET "/blob/:hash" [hash]
-     (log/debugf "[fever] blob %s" hash)
-     (blob-api/response hash))
+   (ANY "/blob/:hash" request
+     (let [hash (get-in request [:params :hash])]
+       (log/debugf "[fever] blob %s" hash)
+       (blob-api/response hash request)))
    (ANY "/" request
      (let [request-id (str (random-uuid))
            started-at (System/nanoTime)]

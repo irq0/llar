@@ -5,6 +5,7 @@
    [clojure.test :refer [are deftest is]]
    [hiccup2.core :as h]
    [java-time.api :as time]
+   [llar.apis.blob :as blob-api]
    [llar.apis.reader :as uut]
    [llar.appconfig :as appconfig]
    [llar.bookmark-capture :as bookmark-capture]
@@ -18,6 +19,23 @@
    [llar.rc :as rc]
    [llar.update :as update]
    [llar.vibe :as vibe]))
+
+(deftest reader-blob-route-allows-head-and-rejects-writes
+  (let [hash (apply str (repeat 64 "a"))
+        seen (atom nil)]
+    (with-redefs [blob-api/response
+                  (fn [requested-hash request]
+                    (reset! seen [requested-hash (:request-method request)])
+                    {:status 200})]
+      (is (= 200
+             (:status (uut/app {:request-method :head
+                                :uri (str "/blob/" hash)
+                                :headers {}}))))
+      (is (= [hash :head] @seen)))
+    (is (= 405
+           (:status (uut/app {:request-method :post
+                              :uri (str "/blob/" hash)
+                              :headers {}}))))))
 
 (deftest reader-bookmark-form-uses-the-durable-capture-queue
   (let [call (atom nil)]

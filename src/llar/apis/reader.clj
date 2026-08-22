@@ -5,7 +5,7 @@
    [clojure.string :as string]
    [clojure.tools.logging :as log]
    [compojure.coercions :refer [as-int]]
-   [compojure.core :refer [context DELETE GET POST routes]]
+   [compojure.core :refer [ANY context DELETE GET POST routes]]
    [compojure.route :as route]
    [hiccup2.core :as h :refer [html]]
    [java-time.api :as time]
@@ -5121,8 +5121,8 @@
      {:status 200
       :body (fetch-preview)})
 
-   (GET "/blob/:h" [h]
-     (blob-api/response h))
+   (ANY "/blob/:h" req
+     (blob-api/response (get-in req [:params :h]) req))
 
    (route/resources "/static" {:root "status"})
    (route/not-found "404 Not found")))

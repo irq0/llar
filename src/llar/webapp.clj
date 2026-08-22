@@ -241,11 +241,14 @@
    (wrap-instrumentation metrics/prom-registry {:path-fn prom-path-fn})
    ring.middleware.lint/wrap-lint))
 
-(defn try-start-jetty [app port]
-  (try+
-   (run-jetty app {:port port :join? false})
-   (catch java.net.BindException e
-     (log/error e "failed to start jetty" app port))))
+(defn try-start-jetty
+  ([app port]
+   (try-start-jetty app port {}))
+  ([app port options]
+   (try+
+    (run-jetty app (merge options {:port port :join? false}))
+    (catch java.net.BindException e
+      (log/error e "failed to start jetty" app port options)))))
 
 (defn try-stop-app [jetty]
   (when-not (nil? jetty)
@@ -302,7 +305,8 @@
 (defstate podcast
   :start (when-let [port (appconfig/podcast :port)]
            (log/infof "Starting podcast server on port %d" port)
-           (try-start-jetty (podcast-app) port))
+           (try-start-jetty (podcast-app) port
+                            (select-keys (appconfig/podcast) [:host])))
   :stop (try-stop-app podcast))
 
 (defstate ^{:depends-on [metrics/prom-registry reader/frontend-db]} fever

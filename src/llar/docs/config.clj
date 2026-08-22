@@ -246,7 +246,7 @@
    (service-card
     "Podcast" [:api :podcast]
     "HTTP service for downloaded podcast and video media. It starts when :port is present."
-    ":podcast {:port 8024\n          :base-url \"https://media.example.org\"\n          :retention {:default-episode-limit 25}}")
+    ":podcast {:host \"127.0.0.1\"\n          :port 8024\n          :base-url \"https://media.example.org\"\n          :retention {:default-episode-limit 25}}")
    (service-card
     "Fever-compatible sync" [:api :fever]
     "Mobile sync endpoint for Fever clients such as Fiery Feeds and ReadKit. It starts when :port is present."

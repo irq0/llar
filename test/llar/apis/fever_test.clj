@@ -78,20 +78,30 @@
 
 (deftest fever-serves-content-addressed-blobs
   (let [hash (apply str (repeat 64 "a"))
-        data (java.io.ByteArrayInputStream.
-              (.getBytes "image" java.nio.charset.StandardCharsets/UTF_8))]
-    (with-redefs [blobstore/get-blob (constantly {:mime-type "image/jpeg"
-                                                  :created (java.time.ZonedDateTime/now)
-                                                  :size 5
-                                                  :data data})]
-      (let [response ((uut/handler :db test-config)
-                      {:request-method :get :uri (str "/blob/" hash)})]
-        (is (= 200 (:status response)))
+        file (doto (java.io.File/createTempFile "llar-fever-blob-" ".jpg")
+               (.deleteOnExit))]
+    (spit file "image")
+    (with-redefs [blobstore/get-blob-metadata
+                  (constantly {:mime-type "image/jpeg"
+                               :created (java.time.ZonedDateTime/now)
+                               :size 5
+                               :file file})]
+      (let [handler (uut/handler :db test-config)
+            response (handler {:request-method :get
+                               :uri (str "/blob/" hash)
+                               :headers {"range" "bytes=1-3"}})]
+        (is (= 206 (:status response)))
         (is (= "image/jpeg" (get-in response [:headers "Content-Type"])))
         (is (= "public, max-age=31536000, immutable"
                (get-in response [:headers "Cache-Control"])))
-        (is (= (str "W/\"" hash "\"") (get-in response [:headers "ETag"])))
-        (is (identical? data (:body response)))))))
+        (is (= (str "\"" hash "\"") (get-in response [:headers "ETag"])))
+        (is (= "mag" (slurp (:body response))))
+        (let [head (handler {:request-method :head
+                             :uri (str "/blob/" hash)
+                             :headers {}})]
+          (is (= 200 (:status head)))
+          (is (= "5" (get-in head [:headers "Content-Length"])))
+          (is (nil? (:body head))))))))
 
 (deftest unknown-path-returns-404-not-nil
   ;; A request that matches no route must not fall through to a nil response,

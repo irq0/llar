@@ -598,7 +598,7 @@
       (let [^java.io.File file (blobstore/get-local-filename hash)]
         (when-not (.isFile file)
           (throw (ex-info "Config Lab blob not found" {:type ::not-found})))
-        (blobstore/get-blob hash)))))
+        (blobstore/get-blob-metadata hash)))))
 
 (defn reset-state-for-tests! []
   (doseq [[_ session] @sessions]

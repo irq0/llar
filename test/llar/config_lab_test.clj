@@ -180,8 +180,9 @@
         file (java.io.File/createTempFile "llar-config-lab-test" ".blob")]
     (try
       (with-redefs [blobstore/get-local-filename (constantly file)
-                    blobstore/get-blob (fn [requested]
-                                         {:hash requested :mime-type "image/png"})]
+                    blobstore/get-blob-metadata
+                    (fn [requested]
+                      {:hash requested :mime-type "image/png"})]
         (is (= hash (:hash (lab/session-blob "tester" (:id session) hash))))
         (is (thrown? clojure.lang.ExceptionInfo
                      (lab/session-blob "someone-else" (:id session) hash))))

@@ -39,7 +39,8 @@
        ;;         :initial-days 30
        ;;         :recent-read-days 10
        ;;         :max-content-bytes 1048576}
-       :podcast {:port 8024
+       :podcast {:host "127.0.0.1"
+                 :port 8024
                  :base-url "http://localhost:8024"
                  :video-format "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"
                  :av-downloader-extra-args ["--embed-metadata"

@@ -98,18 +98,25 @@
              (get-in tags-entry [:value :runtime-type]))))))
 
 (deftest blob-response-is-private-and-nosniff
-  (let [created (time/zoned-date-time)]
-    (with-redefs [lab/session-blob (fn [owner id hash]
-                                     (is (= ["tester" "session-id" "abc"]
-                                            [owner id hash]))
-                                     {:mime-type "image/png"
-                                      :size 3
-                                      :created created
-                                      :data "png"})]
-      (let [response (api/blob-response {:config-lab/owner "tester"}
-                                        "session-id" "abc")]
-        (is (= 200 (:status response)))
-        (is (= "image/png" (get-in response [:headers "Content-Type"])))
-        (is (= "nosniff" (get-in response [:headers "X-Content-Type-Options"])))
-        (is (= "no-store" (get-in response [:headers "Cache-Control"])))
-        (is (= "png" (:body response)))))))
+  (let [created (time/zoned-date-time)
+        file (java.io.File/createTempFile "config-lab-response" ".png")]
+    (try
+      (spit file "png")
+      (with-redefs [lab/session-blob (fn [owner id hash]
+                                       (is (= ["tester" "session-id" "abc"]
+                                              [owner id hash]))
+                                       {:mime-type "image/png"
+                                        :size 3
+                                        :created created
+                                        :file file})]
+        (let [response (api/blob-response {:config-lab/owner "tester"
+                                           :request-method :get
+                                           :headers {}}
+                                          "session-id" "abc")]
+          (is (= 200 (:status response)))
+          (is (= "image/png" (get-in response [:headers "Content-Type"])))
+          (is (= "nosniff" (get-in response [:headers "X-Content-Type-Options"])))
+          (is (= "no-store" (get-in response [:headers "Cache-Control"])))
+          (is (= "png" (slurp (:body response))))))
+      (finally
+        (.delete file)))))

@@ -99,6 +99,7 @@
                    :irq0-appconfig/keep-unread-issues]))
 (s/def :irq0-appconfig/default-episode-limit pos-int?)
 (s/def :irq0-appconfig/sources (s/map-of keyword? pos-int?))
+(s/def :irq0-appconfig/host string?)
 (s/def :irq0-appconfig/retention
   (s/keys :req-un [:irq0-appconfig/default-episode-limit]
           :opt-un [:irq0-appconfig/sources]))
@@ -107,7 +108,8 @@
   (s/coll-of string? :kind vector?))
 (s/def :irq0-appconfig/podcast
   (s/keys :req-un [:irq0-appconfig/port]
-          :opt-un [:irq0-appconfig/base-url
+          :opt-un [:irq0-appconfig/host
+                   :irq0-appconfig/base-url
                    :irq0-appconfig/video-format
                    :irq0-appconfig/av-downloader-extra-args
                    :irq0-appconfig/retention]))
@@ -128,7 +130,6 @@
 ;;          :credentials :smtp :starttls true}
 ;; with credentials.edn: {:smtp {:user "llar@example.org" :pass "secret"}}
 ;; Implicit TLS instead: :mail {... :port 465 :credentials :smtp :tls true}
-(s/def :irq0-appconfig/host string?)
 (s/def :irq0-appconfig/tls boolean?)
 (s/def :irq0-appconfig/starttls boolean?)
 (s/def :irq0-appconfig/mail

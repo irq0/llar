@@ -16,7 +16,7 @@
    [org.bovinegenius [exploding-fish :as uri]]
    [nio2.core :as nio2])
   (:import
-   [java.io InputStream]))
+   [java.io FileNotFoundException InputStream]))
 
 (defstate locks :start (into {} (for [x (range 16)]
                                   [(format "%h" x) (Object.)])))
@@ -335,16 +335,24 @@
 (defn get-local-filename [hash]
   (blob-file (appconfig/blob-store-dir) hash))
 
+(defn get-blob-metadata
+  "Return blob properties and its local file without opening an input stream."
+  [hash]
+  (let [file (get-local-filename hash)
+        propsfile (io/as-file (str file ".props"))]
+    (when-not (and (.isFile file) (.isFile propsfile))
+      (throw (FileNotFoundException. (str "Blob not found: " hash))))
+    (let [props (try-read-propsfile-or-recreate propsfile file)
+          blob (-> props
+                   (assoc :hash hash)
+                   (assoc :file file)
+                   (assoc :size (.length file))
+                   (assoc :created
+                          (time/zoned-date-time
+                           (time/instant (.lastModified file)) "UTC")))]
+      ;; (log/debug "BLOBSTORE GET: " blob)
+      blob)))
+
 (defn get-blob [hash]
-  (let [file (blob-file (appconfig/blob-store-dir) hash)
-        size (.length file)
-        propsfile (str file ".props")
-        props (try-read-propsfile-or-recreate propsfile file)
-        blob (-> props
-                 (assoc :hash hash)
-                 (assoc :file file)
-                 (assoc :size size)
-                 (assoc :data (io/input-stream file))
-                 (assoc :created (time/zoned-date-time (time/instant (.lastModified file)) "UTC")))]
-    ;; (log/debug "BLOBSTORE GET: " blob)
-    blob))
+  (let [blob (get-blob-metadata hash)]
+    (assoc blob :data (io/input-stream (:file blob)))))
