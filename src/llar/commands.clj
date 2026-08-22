@@ -41,6 +41,7 @@
   (let [cmd (into ["timeout" (str "--kill-after=" +kill-timeout-secs+ "s")
                    (str timeout-secs "s")] args)
         sh-arg (apply concat cmd (when opts (apply concat opts)))
+        _ (log/debugf "external command: %s" (pr-str cmd))
         {:keys [exit out err] :as ret} (apply shell/sh sh-arg)]
     (cond (= exit 124)
           (throw+ {:type ::timeout
@@ -185,6 +186,18 @@
          (log/warn "failed to parse info.json sidecar:" (.getName info-file) e)
          nil)))))
 
+(def ^:private retained-media-metadata-fields
+  [:id :webpage_url :original_url :extractor :extractor_key
+   :duration :title :thumbnail :uploader :uploader_id :channel :channel_id
+   :upload_date :timestamp :release_date :release_timestamp :language :tags
+   :categories :live_status :availability :width :height :fps :vcodec :acodec
+   :format_id :chapters :description])
+
+(defn- retain-media-metadata [metadata ext]
+  (-> (select-keys metadata retained-media-metadata-fields)
+      (update :original_url #(or % (:webpage_url metadata)))
+      (assoc :ext (or ext (:ext metadata) "mp4"))))
+
 (defn download-media
   "Download media via yt-dlp into dir. Returns {:file File :metadata map :mime-type string} or throws.
    Caller must manage dir lifecycle (e.g. with-temp-dir). Metadata extracted from .info.json sidecar."
@@ -200,15 +213,7 @@
                     "ogg" "audio/ogg"
                     "video/mp4")]
     {:file media-file
-     :metadata {:duration (:duration metadata)
-                :title (:title metadata)
-                :thumbnail (:thumbnail metadata)
-                :uploader (:uploader metadata)
-                :width (:width metadata)
-                :height (:height metadata)
-                :ext (or ext (:ext metadata) "mp4")
-                :chapters (:chapters metadata)
-                :description (:description metadata)}
+     :metadata (retain-media-metadata metadata ext)
      :mime-type mime-type}))
 
 (defn download-subtitles [url]

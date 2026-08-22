@@ -114,8 +114,9 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
 - Separate unread, saved, archived, and reading-checkpoint states with finite
   reading batches
 - Bookmark and save-for-later capture through the Reader or an authenticated API
-- Private podcast feeds built from audio and video sources, with
-  downloads, subtitles, chapters, and configurable per-source media retention
+- A retained media library built from audio and video sources, with private
+  podcast feeds, read-only WebDAV delivery, subtitles, chapters, and
+  configurable per-source retention
 - Scheduled EPUB digests that bundle tagged items into e-reader magazines
 - Export items and annotations to Zotero or configured URL handlers
 - Fever-compatible mobile sync, Dashboard diagnostics, and Config Lab
@@ -246,10 +247,10 @@ PostgreSQL and there is no generic “older than N days” cleanup. This makes o
 material available to search and revisit without making the archive itself a
 separate knowledge-management system.
 
-Podcast media is the deliberate exception: downloaded episodes can use an
-explicit count-based retention policy so large audio/video files do not grow
-without bound. That policy concerns podcast retention and storage; it is not a
-general expiry rule for the item archive.
+Downloaded media is the deliberate exception: retained audio and video can use
+an explicit count-based retention policy so large files do not grow without
+bound. That policy concerns media retention and storage; it is not a general
+expiry rule for the item archive.
 
 ## Configuration
 
@@ -277,6 +278,23 @@ or check out [my config](https://github.com/irq0/llar-config).
 
 The credentials file contains secrets made available with the `$credentials` function in `.llar` config files.
 See [credentials.edn.example](resources/credentials.edn.example).
+
+Private podcast feeds use a capability token which is copied into their media,
+artwork, chapter, and transcript URLs:
+
+```clojure
+{:podcast-token "private-feed-token"}
+```
+
+The read-only WebDAV media library deliberately has no application-level
+authentication. Put Basic Auth at the TLS reverse proxy and prevent direct
+public access to LLAR's podcast port.
+
+This protects only `/library` and `/library/*`; podcast feed and enclosure URLs
+continue through the proxy and are authenticated by LLAR's `?token=...`. If the
+proxy and LLAR use containers, expose port 8024 only on their private network.
+If they share a host, configure `:api :podcast` with `:host "127.0.0.1"` (as in
+the example system config) or firewall that port so it cannot bypass the proxy.
 
 ### Config Lab
 

@@ -2,38 +2,39 @@
   (:require
    [cheshire.core :as json]
    [clojure.data.xml :as xml]
-   [clojure.java.io :as io]
    [clojure.string :as str]
-   [compojure.core :refer [GET routes]]
+   [compojure.core :refer [GET HEAD routes]]
    [compojure.route :as route]
    [clojure.tools.logging :as log]
    [java-time.api :as time]
    [slingshot.slingshot :refer [try+]]
    [llar.appconfig :as appconfig]
+   [llar.auth :as auth]
    [llar.blobstore :as blobstore]
+   [llar.http.middleware :as http-middleware]
+   [llar.http.response :as http-response]
+   [llar.media-artwork :as media-artwork]
    [llar.persistency :as persistency]
    [llar.podcast :as podcast]
    [llar.store :as store])
   (:import
-   [java.awt Color Font Graphics2D RenderingHints]
-   [java.awt.image BufferedImage]
-   [java.io ByteArrayInputStream ByteArrayOutputStream FileInputStream]
+   [java.nio.charset StandardCharsets]
    [java.time ZonedDateTime]
    [java.time.format DateTimeFormatter]
-   [java.util Locale]
-   [javax.imageio ImageIO]
-   [org.apache.commons.io.input BoundedInputStream]))
+   [java.util Locale]))
 
 (defn wrap-token-auth [handler]
   (fn [request]
     (let [expected-token (appconfig/credentials :podcast-token)
           provided-token (get-in request [:params "token"])]
-      (if (and (some? expected-token)
-               (= expected-token provided-token))
-        (handler request)
-        {:status 403
-         :headers {"Content-Type" "text/plain"}
-         :body "Forbidden: invalid or missing token"}))))
+      (http-middleware/mark-private
+       (if (and (some? expected-token)
+                (auth/constant-time= expected-token provided-token))
+         (handler request)
+         {:status 403
+          :headers {"Content-Type" "text/plain"
+                    "Cache-Control" "no-store"}
+          :body "Forbidden: invalid or missing token"})))))
 
 (defn podcast-base-url []
   (appconfig/podcast :base-url))
@@ -102,7 +103,7 @@
   "Build a single RSS <item> element for a podcast episode"
   [item download-info base-url token]
   (let [{:keys [blob-hash metadata mime-type]} download-info
-        blob (blobstore/get-blob blob-hash)
+        blob (blobstore/get-blob-metadata blob-hash)
         enclosure-url (str base-url "/media/" blob-hash "?token=" token)
         title (or (:title item) (get-in item [:entry :title]) "Untitled")
         pub-date (:ts item)
@@ -148,7 +149,8 @@
                            (when transcript
                              (xml/element (xml/qname podcast-ns "transcript")
                                           {:url (str base-url "/transcript/" blob-hash "?token=" token)
-                                           :type "text/plain"
+                                           :type (or (:transcript-mime-type metadata)
+                                                     "text/vtt")
                                            :language "en"}))
                            (xml/element (xml/qname itunes-ns "explicit") {} "false")
                            (xml/element (xml/qname itunes-ns "episodeType") {} "full")
@@ -157,77 +159,6 @@
                                                     (or description plain-desc)
                                                     source-key
                                                     (str original-url))))]))))
-
-(def ^:private +max-channel-image-cache+ 50)
-(def ^:private +artwork-size+ 1400)
-(defonce ^:private channel-image-cache (atom {}))
-(defonce ^:private bg-image-cache (atom nil))
-
-(defn- load-bg-image
-  "Load and crop background image. Caches on success, retries on failure."
-  []
-  (or @bg-image-cache
-      (try
-        (let [src (ImageIO/read (io/resource "podcast/nimoy-salute.jpg"))]
-          (when-not src
-            (throw (ex-info "ImageIO could not decode background image" {})))
-          (let [size +artwork-size+
-                sw (.getWidth src)
-                sh (.getHeight src)
-                side (min sw sh)
-                sx (int (/ (- sw side) 2))
-                sy (int (/ (- sh side) 2))
-                img (BufferedImage. size size BufferedImage/TYPE_INT_RGB)
-                g (.createGraphics img)]
-            (try
-              (.setRenderingHint g RenderingHints/KEY_INTERPOLATION
-                                 RenderingHints/VALUE_INTERPOLATION_BILINEAR)
-              (.drawImage g src 0 0 size size sx sy (+ sx side) (+ sy side) nil)
-              (finally
-                (.dispose g)))
-            (reset! bg-image-cache img)
-            (reset! channel-image-cache {})
-            img))
-        (catch Exception e
-          (log/warn e "podcast: failed to load background image")
-          nil))))
-
-(defn- draw-label [^Graphics2D g ^String label size]
-  (let [label (subs label 0 (min (count label) 30))
-        font-size (min 180 (int (/ (* 180 12) (max 1 (count label)))))]
-    ;; Semi-transparent bar behind text
-    (.setColor g (Color. 0 0 0 160))
-    (.fillRect g 0 (- size 280) size 280)
-    ;; Label text
-    (.setFont g (Font. Font/SANS_SERIF Font/BOLD font-size))
-    (.setColor g (Color. 255 255 255))
-    (let [fm (.getFontMetrics g)
-          x (int (/ (- size (.stringWidth fm label)) 2))
-          y (int (- size 80))]
-      (.drawString g label x y))))
-
-(defn- generate-channel-image
-  "Generate a 1400x1400 PNG: Nimoy salute photo background with label overlay."
-  [label]
-  (let [size +artwork-size+
-        img (BufferedImage. size size BufferedImage/TYPE_INT_RGB)
-        g (.createGraphics img)
-        baos (ByteArrayOutputStream.)]
-    (try
-      (.setRenderingHint g RenderingHints/KEY_ANTIALIASING
-                         RenderingHints/VALUE_ANTIALIAS_ON)
-      (.setRenderingHint g RenderingHints/KEY_TEXT_ANTIALIASING
-                         RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
-      (if-let [bg (load-bg-image)]
-        (.drawImage g bg 0 0 nil)
-        (do
-          (.setColor g (Color. 20 20 40))
-          (.fillRect g 0 0 size size)))
-      (draw-label g label size)
-      (finally
-        (.dispose g)))
-    (ImageIO/write img "png" baos)
-    (.toByteArray baos)))
 
 (defn generate-feed-xml
   "Generate full RSS 2.0 podcast feed XML string.
@@ -275,6 +206,7 @@
                                        (xml/element :link {} base-url))
                           (xml/element (xml/qname itunes-ns "author") {} "LLAR")
                           (xml/element (xml/qname itunes-ns "explicit") {} "false")
+                          (xml/element (xml/qname itunes-ns "block") {} "Yes")
                           (xml/element (xml/qname itunes-ns "type") {} "episodic")
                           (xml/element (xml/qname itunes-ns "summary") {} feed-desc)
                           (xml/element (xml/qname itunes-ns "category") {:text "Technology"})]]
@@ -286,45 +218,101 @@
                   (apply xml/element :channel {}
                          (concat channel-elements item-elements))))))
 
-;;;; Byte-range support
-
-(defn- parse-byte-range
-  "Parse Range header value. Returns [start end] or nil."
-  [range-header size]
-  (when range-header
-    (when-let [[_ start end] (re-matches #"bytes=(\d+)-(\d*)" range-header)]
-      (let [s (Long/parseLong start)
-            e (if (str/blank? end) (dec size) (Long/parseLong end))]
-        (when (<= 0 s e (dec size))
-          [s e])))))
-
-(defn- serve-blob
-  "Serve blob with Range request support. Returns Ring response."
-  [blob range-header]
-  (let [file (:file blob)
-        size (:size blob)
-        hash (:hash blob)
-        common-headers {"Content-Type" (:mime-type blob)
-                        "Accept-Ranges" "bytes"
-                        "Etag" hash}]
-    (if-let [[start end] (parse-byte-range range-header size)]
-      (let [length (inc (- end start))
-            fis (FileInputStream. (io/as-file file))]
-        (.skip fis start)
-        {:status 206
-         :headers (merge common-headers
-                         {"Content-Length" (str length)
-                          "Content-Range" (format "bytes %d-%d/%d" start end size)})
-         :body (-> (BoundedInputStream/builder)
-                   (.setInputStream fis)
-                   (.setMaxCount length)
-                   (.get))})
-      {:status 200
-       :headers (merge common-headers
-                       {"Content-Length" (str size)})
-       :body file})))
-
 ;;;; Routes
+
+(defn- media-response [request]
+  (let [hash (get-in request [:params :hash])]
+    (try+
+     (let [blob (blobstore/get-blob-metadata hash)]
+       (http-response/ranged-file-response
+        {:file (:file blob)
+         :size (:size blob)
+         :mime-type (:mime-type blob)
+         :etag hash
+         :last-modified (:created blob)}
+        request))
+     (catch Object exception
+       (log/warn exception "podcast: media get-blob failed:" hash)
+       {:status 404
+        :headers {"Content-Type" "text/plain"}
+        :body "Not Found"}))))
+
+(defn- channel-image-response [request]
+  (try+
+   (let [label (or (get-in request [:params "source"]) "LLAR")
+         bytes (media-artwork/cover label 1400 1400)]
+     (assoc-in (http-response/byte-array-response
+                bytes {:mime-type "image/png"} request)
+               [:headers "Cache-Control"] "public, max-age=604800"))
+   (catch Object exception
+     (log/warn exception "podcast: channel-image generation failed")
+     {:status 500
+      :headers {"Content-Type" "text/plain"}
+      :body "Internal Server Error"})))
+
+(defn- artwork-response [request]
+  (let [hash (get-in request [:params :hash])]
+    (try+
+     (let [blob (blobstore/get-blob-metadata hash)]
+       (assoc-in
+        (http-response/ranged-file-response
+         {:file (:file blob)
+          :size (:size blob)
+          :mime-type (or (:mime-type blob) "image/jpeg")
+          :etag hash
+          :last-modified (:created blob)}
+         request)
+        [:headers "Cache-Control"] "public, max-age=86400"))
+     (catch Object exception
+       (log/warn exception "podcast: artwork get-blob failed:" hash)
+       {:status 404
+        :headers {"Content-Type" "text/plain"}
+        :body "Not Found"}))))
+
+(defn- chapters-response [request]
+  (let [hash (get-in request [:params :hash])]
+    (try+
+     (let [blob (blobstore/get-blob-metadata hash)
+           chapters (get-in blob [:podcast-metadata :chapters])]
+       (if (seq chapters)
+         (http-response/byte-array-response
+          (.getBytes (chapters->json chapters) StandardCharsets/UTF_8)
+          {:mime-type "application/json+chapters"
+           :etag (str hash "-chapters")
+           :last-modified (:created blob)}
+          request)
+         {:status 404
+          :headers {"Content-Type" "text/plain"}
+          :body "No chapters available"}))
+     (catch Object exception
+       (log/warn exception "podcast: chapters failed for:" hash)
+       {:status 404
+        :headers {"Content-Type" "text/plain"}
+        :body "Not Found"}))))
+
+(defn- transcript-response [request]
+  (let [hash (get-in request [:params :hash])]
+    (try+
+     (let [blob (blobstore/get-blob-metadata hash)
+           transcript (get-in blob [:podcast-metadata :transcript])
+           transcript-mime-type (get-in blob [:podcast-metadata
+                                              :transcript-mime-type])]
+       (if transcript
+         (http-response/byte-array-response
+          (.getBytes ^String transcript StandardCharsets/UTF_8)
+          {:mime-type (str (or transcript-mime-type "text/vtt")
+                           "; charset=utf-8")
+           :etag (str hash "-transcript")
+           :last-modified (:created blob)}
+          request)
+         {:status 404
+          :headers {"Content-Type" "text/plain"}
+          :body "No transcript available"}))
+     (catch Object exception
+       (log/warn exception "podcast: transcript failed for:" hash)
+       {:status 404
+        :headers {"Content-Type" "text/plain"}
+        :body "Not Found"}))))
 
 (def app
   (routes
@@ -341,88 +329,19 @@
         :headers {"Content-Type" "application/rss+xml; charset=utf-8"}
         :body (generate-feed-xml (podcast-base-url) token {:source-key source-key})}))
 
-   (GET "/media/:hash" req
-     (let [hash (get-in req [:params :hash])
-           range-header (get-in req [:headers "range"])]
-       (try+
-        (let [blob (blobstore/get-blob hash)]
-          (serve-blob blob range-header))
-        (catch Object e
-          (log/warn e "podcast: media get-blob failed:" hash)
-          {:status 404
-           :headers {"Content-Type" "text/plain"}
-           :body "Not Found"}))))
+   (GET "/media/:hash" request (media-response request))
+   (HEAD "/media/:hash" request (media-response request))
 
-   (GET "/channel-image.png" req
-     (try+
-      (let [label (or (get-in req [:params "source"]) "LLAR")
-            bytes (or (get @channel-image-cache label)
-                      (let [b (generate-channel-image label)]
-                        (when (< (count @channel-image-cache) +max-channel-image-cache+)
-                          (swap! channel-image-cache
-                                 (fn [cache]
-                                   (if (< (count cache) +max-channel-image-cache+)
-                                     (assoc cache label b)
-                                     cache))))
-                        b))]
-        {:status 200
-         :headers {"Content-Type" "image/png"
-                   "Content-Length" (str (count bytes))
-                   "Cache-Control" "public, max-age=604800"}
-         :body (ByteArrayInputStream. bytes)})
-      (catch Object e
-        (log/warn e "podcast: channel-image generation failed")
-        {:status 500
-         :headers {"Content-Type" "text/plain"}
-         :body "Internal Server Error"})))
+   (GET "/channel-image.png" request (channel-image-response request))
+   (HEAD "/channel-image.png" request (channel-image-response request))
 
-   (GET "/artwork/:hash" [hash]
-     (try+
-      (let [blob (blobstore/get-blob hash)]
-        {:status 200
-         :headers {"Content-Type" (or (:mime-type blob) "image/jpeg")
-                   "Content-Length" (str (:size blob))
-                   "Cache-Control" "public, max-age=86400"
-                   "Etag" hash}
-         :body (:file blob)})
-      (catch Object e
-        (log/warn e "podcast: artwork get-blob failed:" hash)
-        {:status 404
-         :headers {"Content-Type" "text/plain"}
-         :body "Not Found"})))
+   (GET "/artwork/:hash" request (artwork-response request))
+   (HEAD "/artwork/:hash" request (artwork-response request))
 
-   (GET "/chapters/:hash" [hash]
-     (try+
-      (let [blob (blobstore/get-blob hash)
-            chapters (get-in blob [:podcast-metadata :chapters])]
-        (if (seq chapters)
-          {:status 200
-           :headers {"Content-Type" "application/json+chapters"}
-           :body (chapters->json chapters)}
-          {:status 404
-           :headers {"Content-Type" "text/plain"}
-           :body "No chapters available"}))
-      (catch Object e
-        (log/warn e "podcast: chapters failed for:" hash)
-        {:status 404
-         :headers {"Content-Type" "text/plain"}
-         :body "Not Found"})))
+   (GET "/chapters/:hash" request (chapters-response request))
+   (HEAD "/chapters/:hash" request (chapters-response request))
 
-   (GET "/transcript/:hash" [hash]
-     (try+
-      (let [blob (blobstore/get-blob hash)
-            transcript (get-in blob [:podcast-metadata :transcript])]
-        (if transcript
-          {:status 200
-           :headers {"Content-Type" "text/plain; charset=utf-8"}
-           :body transcript}
-          {:status 404
-           :headers {"Content-Type" "text/plain"}
-           :body "No transcript available"}))
-      (catch Object e
-        (log/warn e "podcast: transcript failed for:" hash)
-        {:status 404
-         :headers {"Content-Type" "text/plain"}
-         :body "Not Found"})))
+   (GET "/transcript/:hash" request (transcript-response request))
+   (HEAD "/transcript/:hash" request (transcript-response request))
 
    (route/not-found "404")))

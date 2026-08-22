@@ -1,6 +1,7 @@
 (ns llar.webapp-test
   (:require
    [clojure.test :refer [deftest is]]
+   [llar.podcast :as podcast]
    [llar.webapp :as uut])
   (:import
    [java.io ByteArrayInputStream]))
@@ -38,6 +39,18 @@
     (is (= "no-referrer" (get-in response [:headers "Referrer-Policy"])))
     (is (= "default-src 'self'"
            (get-in response [:headers "Content-Security-Policy"])))))
+
+(deftest media-library-is-mounted-with-private-response-policy
+  (with-redefs [podcast/read-podcast-index (constantly {})]
+    (let [response ((uut/podcast-routes)
+                    {:request-method :propfind
+                     :uri "/library/"
+                     :headers {"depth" "1"}})]
+      (is (= 207 (:status response)))
+      (is (= "private, no-store"
+             (get-in response [:headers "Cache-Control"])))
+      (is (= "noindex, nofollow, noarchive"
+             (get-in response [:headers "X-Robots-Tag"]))))))
 
 (deftest reader-csp-allows-required-content-without-external-scripts
   (let [policy @#'uut/reader-content-security-policy]
@@ -86,6 +99,9 @@
            ["/api/bookmark-captures/42/dismiss"
             "/api/bookmark-captures/:capture-id/:action"]
            ["/blob/abcdef" "/blob/:hash"]
+           ["/library/By-Source/example/video.mp4" "/library/:path"]
+           ["/media/abcdef" "/podcast-resource/:hash"]
+           ["/feed/example.xml" "/feed/:source-key.xml"]
            ["/static/llar.js" "/static"]
            ["/static-assets" "/static-assets"]]]
     (is (= expected (uut/prom-path-fn {:uri uri})) uri)))

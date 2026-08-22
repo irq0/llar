@@ -7,6 +7,8 @@
    [java-time.api :as time]
    [llar.appconfig]
    [llar.apis.podcast :as podcast-api]
+   [llar.blobstore :as blobstore]
+   [llar.commands :as commands]
    [llar.persistency]
    [llar.podcast :as uut]
    [llar.rc :as rc]
@@ -86,21 +88,60 @@
             {:ret 1
              :err "WARNING: [youtube] No title found in player responses.\nERROR: [youtube] yBIc8ZQ84to: Private video.\nUse --cookies"})))))
 
-(deftest test-wrap-token-auth
+(deftest retained-media-metadata
+  (let [metadata {:id "video-id"
+                  :webpage_url "https://www.youtube.com/watch?v=video-id"
+                  :channel "Channel Name"
+                  :channel_id "channel-id"
+                  :upload_date "20260821"
+                  :timestamp 1787349600
+                  :tags ["one" "two"]
+                  :categories ["Education"]
+                  :fps 30
+                  :vcodec "avc1.640028"
+                  :acodec "mp4a.40.2"
+                  :formats [{:url "temporary-signed-url"}]
+                  :requested_formats [{:url "another-temporary-url"}]}
+        retained (#'commands/retain-media-metadata metadata "mp4")]
+    (is (= "video-id" (:id retained)))
+    (is (= (:webpage_url metadata) (:original_url retained)))
+    (is (= "Channel Name" (:channel retained)))
+    (is (= "20260821" (:upload_date retained)))
+    (is (= ["one" "two"] (:tags retained)))
+    (is (= "avc1.640028" (:vcodec retained)))
+    (is (= "mp4" (:ext retained)))
+    (is (not (contains? retained :formats)))
+    (is (not (contains? retained :requested_formats)))))
+
+(deftest test-wrap-auth
   (let [handler (fn [_] {:status 200 :body "ok"})
         wrapped (podcast-api/wrap-token-auth handler)]
     (testing "valid token passes through"
       (with-redefs [llar.appconfig/credentials (fn [k] (when (= k :podcast-token) "secret123"))]
-        (let [response (wrapped {:params {"token" "secret123"}})]
+        (let [response (wrapped {:uri "/feed.xml"
+                                 :params {"token" "secret123"}})]
           (is (= 200 (:status response))))))
     (testing "wrong token returns 403"
       (with-redefs [llar.appconfig/credentials (fn [k] (when (= k :podcast-token) "secret123"))]
-        (let [response (wrapped {:params {"token" "wrong"}})]
+        (let [response (wrapped {:uri "/feed.xml"
+                                 :params {"token" "wrong"}})]
           (is (= 403 (:status response))))))
     (testing "missing token returns 403"
       (with-redefs [llar.appconfig/credentials (fn [k] (when (= k :podcast-token) "secret123"))]
-        (let [response (wrapped {:params {}})]
+        (let [response (wrapped {:uri "/feed.xml" :params {}})]
           (is (= 403 (:status response))))))))
+
+(deftest podcast-media-head-route
+  (with-redefs [blobstore/get-blob-metadata
+                (constantly {:file "/not-opened-for-head"
+                             :size 42
+                             :mime-type "video/mp4"})]
+    (let [response (podcast-api/app {:request-method :head
+                                     :uri "/media/media-hash"})]
+      (is (= 200 (:status response)))
+      (is (= "42" (get-in response [:headers "Content-Length"])))
+      (is (= "\"media-hash\"" (get-in response [:headers "ETag"])))
+      (is (nil? (:body response))))))
 
 (deftest test-chapters->json
   (testing "converts yt-dlp chapters to Podcasting 2.0 JSON"

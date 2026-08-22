@@ -8,7 +8,9 @@
    [llar.appconfig :as appconfig]
    [llar.blobstore :as blobstore]
    [llar.commands :as commands]
+   [llar.contentdetect :as contentdetect]
    [llar.converter :as conv]
+   [llar.media-artwork :as media-artwork]
    [llar.persistency :as persistency]
    [llar.postproc :as postproc]
    [llar.rc :as rc]
@@ -16,12 +18,7 @@
    [llar.store :as store]
    [org.bovinegenius [exploding-fish :as uri]]
    [nio2.core :as nio2]
-   [slingshot.slingshot :refer [try+]])
-  (:import
-   [java.awt Color RenderingHints]
-   [java.awt.image BufferedImage]
-   [java.io ByteArrayOutputStream]
-   [javax.imageio ImageIO]))
+   [slingshot.slingshot :refer [try+]]))
 
 ;;;; Media URL detection
 
@@ -150,37 +147,41 @@
                     (.getName best) (count sub-files))
         best))))
 
+(defn- subtitle-metadata [sub-file]
+  (let [filename (.getName sub-file)
+        [_ language format] (re-find #"\.([^.]+)\.(srt|vtt|ttml)$" filename)]
+    {:transcript-language (or language "en")
+     :transcript-format (or format "vtt")
+     :transcript-mime-type (case format
+                             "srt" "application/x-subrip"
+                             "ttml" "application/ttml+xml"
+                             "text/vtt")}))
+
 (def ^:private +artwork-size+ 1400)
 
-(defn- pad-to-square-png
-  "Read image bytes, center on a dark square background of +artwork-size+ px, return PNG bytes."
-  [image-bytes]
-  (let [src (ImageIO/read (io/input-stream image-bytes))
-        _ (when-not src (throw (ex-info "ImageIO could not decode thumbnail image" {})))
-        sw (.getWidth src)
-        sh (.getHeight src)
-        size +artwork-size+
-        scale (min (/ (double size) sw) (/ (double size) sh))
-        dw (int (* sw scale))
-        dh (int (* sh scale))
-        dx (int (/ (- size dw) 2))
-        dy (int (/ (- size dh) 2))
-        img (BufferedImage. size size BufferedImage/TYPE_INT_ARGB)
-        g (.createGraphics img)
-        baos (ByteArrayOutputStream.)]
+(defn- store-thumbnail-variant!
+  [image-bytes thumbnail-url variant mime-type extension]
+  (let [tmp-file (java.io.File/createTempFile (str "podcast-" variant) extension)
+        source-url (str (str/replace thumbnail-url #"#.*$" "") "#llar-" variant)]
     (try
-      (.setRenderingHint g RenderingHints/KEY_INTERPOLATION
-                         RenderingHints/VALUE_INTERPOLATION_BILINEAR)
-      (.setColor g (Color. 20 20 40))
-      (.fillRect g 0 0 size size)
-      (.drawImage g src dx dy dw dh nil)
+      (io/copy image-bytes tmp-file)
+      (blobstore/add-from-local-file! tmp-file (uri/uri source-url)
+                                      {:mime-type mime-type})
       (finally
-        (.dispose g)))
-    (ImageIO/write img "png" baos)
-    (.toByteArray baos)))
+        (.delete tmp-file)))))
+
+(defn- original-thumbnail [image-bytes]
+  (let [mime-type (contentdetect/detect-mime-type (io/input-stream image-bytes))]
+    (if (#{"image/jpeg" "image/png"} mime-type)
+      {:bytes image-bytes
+       :mime-type mime-type
+       :extension (contentdetect/mime-extension mime-type)}
+      {:bytes (media-artwork/image-to-png image-bytes)
+       :mime-type "image/png"
+       :extension ".png"})))
 
 (defn- download-thumbnail
-  "Download thumbnail, pad to square 1400x1400 PNG, store in blob store. Returns hash or nil."
+  "Download and store square podcast art plus one original-aspect Infuse image."
   [thumbnail-url]
   (when (and thumbnail-url (not (str/blank? thumbnail-url)))
     (try+
@@ -191,14 +192,16 @@
                                      {:as :byte-array
                                       :socket-timeout 10000
                                       :connection-timeout 5000}))
-           padded (pad-to-square-png (:body response))
-           tmp-file (java.io.File/createTempFile "podcast-thumb" ".png")]
-       (try
-         (io/copy padded tmp-file)
-         (blobstore/add-from-local-file! tmp-file (uri/uri thumbnail-url)
-                                         {:mime-type "image/png"})
-         (finally
-           (.delete tmp-file))))
+           image-bytes (:body response)
+           {:keys [bytes mime-type extension]} (original-thumbnail image-bytes)
+           infuse-hash (store-thumbnail-variant!
+                        bytes thumbnail-url "infuse" mime-type extension)]
+       {:thumbnail-hash (store-thumbnail-variant!
+                         (media-artwork/pad-image-png
+                          image-bytes +artwork-size+ +artwork-size+)
+                         thumbnail-url "square" "image/png" ".png")
+        :poster-hash infuse-hash
+        :fanart-hash infuse-hash})
      (catch Object e
        (log/warn "podcast: thumbnail download failed:" thumbnail-url e)
        nil))))
@@ -208,12 +211,12 @@
   [media-url {:keys [item-id source-key item-title]}]
   (commands/with-temp-dir dir
     (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir)
-          thumbnail-hash (download-thumbnail (:thumbnail metadata))
-          transcript (when-let [sub-file (find-subtitle-file dir)]
-                       (slurp sub-file :encoding "UTF-8"))
-          enriched-metadata (cond-> metadata
-                              thumbnail-hash (assoc :thumbnail-hash thumbnail-hash)
-                              transcript (assoc :transcript transcript))
+          thumbnail-metadata (download-thumbnail (:thumbnail metadata))
+          sub-file (find-subtitle-file dir)
+          transcript (when sub-file (slurp sub-file :encoding "UTF-8"))
+          enriched-metadata (cond-> (merge metadata thumbnail-metadata)
+                              transcript (merge (subtitle-metadata sub-file)
+                                                {:transcript transcript}))
           completed-at (time/zoned-date-time)
           content-hash (blobstore/add-from-local-file!
                         file (uri/uri media-url)

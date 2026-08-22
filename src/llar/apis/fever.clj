@@ -2,7 +2,7 @@
   (:require
    [clojure.string :as string]
    [clojure.tools.logging :as log]
-   [compojure.core :refer [ANY GET routes]]
+   [compojure.core :refer [ANY routes]]
    [compojure.route :as route]
    [digest]
    [java-time.api :as time]

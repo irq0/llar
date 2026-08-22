@@ -11,6 +11,7 @@ pom.xml.asc
 .hg/
 /resources/nlp/models/*.bin
 /resources/credentials.edn
+/cookies.txt
 .eastwood
 /resources/version.edn
 /.clj-kondo/.cache/

@@ -10,6 +10,7 @@
              "-XX:-OmitStackTraceInFastThrow"
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
+             "-Djava.awt.headless=true"
              "-Dtika.config=tika-config.xml"
              "-Dlog4j2.statusLoggerLevel=ERROR"
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]

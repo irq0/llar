@@ -9,9 +9,11 @@
    [llar.apis.config-lab :as config-lab]
    [llar.apis.dashboard :as dashboard]
    [llar.apis.fever :as fever]
+   [llar.apis.media-library :as media-library]
    [llar.apis.podcast :as podcast]
    [llar.apis.reader :as reader]
    [llar.appconfig :as appconfig :refer [appconfig]]
+   [llar.http.middleware :as http-middleware]
    [slingshot.slingshot :refer [try+]]
    [ring.adapter.jetty :refer [run-jetty]]
    [clj-stacktrace.core :as stacktrace]
@@ -19,7 +21,8 @@
    [clojure.string :as string]
    [hiccup2.core :as h]
    [iapetos.collector.ring :refer [wrap-instrumentation]]
-   [ring.middleware params gzip keyword-params json stacktrace lint not-modified cookies]))
+   [ring.middleware params gzip keyword-params json stacktrace lint not-modified cookies]
+   [compojure.core :as compojure]))
 
 (defn- error-page-head []
   [:head
@@ -89,6 +92,9 @@
    [#"^/reader/tools/search/?$" "/reader/tools/search"]
    [#"^/reader/tools/[^/]+/?$" "/reader/tools/:view"]
    [#"^/blob(?:/.*)?$" "/blob/:hash"]
+   [#"^/library(?:/.*)?$" "/library/:path"]
+   [#"^/(?:media|artwork|chapters|transcript)/[^/]+$" "/podcast-resource/:hash"]
+   [#"^/feed/[^/]+\.xml$" "/feed/:source-key.xml"]
    [#"^/static(?:/.*)?$" "/static"]
    [#"^/api/source/[^/]+$" "/api/source/:source-key"]
    [#"^/api/update/[^/]+$" "/api/update/:source-key"]
@@ -282,10 +288,13 @@
            (log/info "bookmark capture API disabled in appconfig"))
   :stop (try-stop-app capture))
 
+(defn podcast-routes []
+  (compojure/routes (http-middleware/wrap-private media-library/app)
+                    (podcast/wrap-token-auth podcast/app)))
+
 (defn podcast-app []
   (->
-   podcast/app
-   podcast/wrap-token-auth
+   (podcast-routes)
    ring.middleware.not-modified/wrap-not-modified
    ring.middleware.params/wrap-params
    wrap-exception
