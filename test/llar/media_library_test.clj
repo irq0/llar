@@ -12,6 +12,7 @@
   (let [entries [{:item-id 1
                   :filename "First-1.mp4"
                   :source-directory "source-a"
+                  :source-title "Source A Channel"
                   :year "2026"
                   :month "08"
                   :blob-hash "hash-1"
@@ -34,6 +35,11 @@
                     (filter :collection?)
                     (map :path)
                     set)))
+        (is (= "Source A Channel · source-a"
+               (->> (:children (uut/directory ["By-Source"] entries))
+                    (filter #(= ["By-Source" "source-a"] (:path %)))
+                    first
+                    :display-name)))
         (is (= [["By-Source" "source-a" "First-1.mp4"]]
                (->> (:children (uut/directory ["By-Source" "source-a"] entries))
                     (filter #(= :blob (:resource-kind %)))
@@ -47,7 +53,8 @@
         (is (= #{["By-Date" "2026" "07"] ["By-Date" "2026" "08"]}
                (set (map :path (:children (uut/directory
                                            ["By-Date" "2026"] entries))))))
-        (is (= [["By-Date" "2026" "08" "First-1.mp4"]]
+        (is (= [["By-Date" "2026" "08" "First-1.mp4"]
+                ["By-Date" "2026" "08" "First-1.nfo"]]
                (mapv :path (:children (uut/directory
                                        ["By-Date" "2026" "08"] entries)))))))))
 
@@ -115,19 +122,27 @@
                                            "Europe/Berlin")
         index {"media-hash" {:item-id 1
                              :item-title "First"
+                             :source-title "Source A Channel"
                              :source-key :source-a
                              :mime-type "video/mp4"
                              :completed-at completed-at}}
         blobs {"media-hash" {:size 100
                              :mime-type "video/mp4"
                              :podcast-metadata
-                             {:transcript "WEBVTT\n\n00:00.000 --> 00:01.000\nHello"
+                             {:id "video-1"
+                              :extractor "youtube"
+                              :title "First & Best"
+                              :description "A useful description."
+                              :original_url "https://youtube.example/watch?v=1&list=all"
+                              :channel "Source A Channel"
+                              :upload_date "20260820"
+                              :categories ["Technology"]
+                              :tags ["Clojure"]
+                              :transcript "WEBVTT\n\n00:00.000 --> 00:01.000\nHello"
                               :transcript-language "en-orig"
                               :transcript-format "vtt"
                               :transcript-mime-type "text/vtt"
-                              :poster-hash "poster-hash"
                               :fanart-hash "fanart-hash"}}
-               "poster-hash" {:size 20 :mime-type "image/png"}
                "fanart-hash" {:size 30 :mime-type "image/png"}}]
     (with-redefs [media-api/base-url (constantly "https://media.example")
                   podcast/read-podcast-index (constantly index)
@@ -137,11 +152,12 @@
                                     :headers {"depth" "1"}})]
         (is (= 207 (:status listing)))
         (doseq [filename ["First-1.mp4"
+                          "First-1.nfo"
                           "First-1-en.vtt"
-                          "First-1.png"
                           "First-1-fanart.png"
                           "folder.png"]]
           (is (string/includes? (:body listing) filename)))
+        (is (not (string/includes? (:body listing) "First-1.png")))
         (is (string/includes? (:body listing) "getlastmodified"))
         (is (string/includes? (:body listing)
                               "Sat, 22 Aug 2026 08:00:00 GMT"))
@@ -157,4 +173,17 @@
         (is (= 200 (:status head)))
         (is (nil? (:body head)))
         (is (= (get-in transcript [:headers "Content-Length"])
-               (get-in head [:headers "Content-Length"])))))))
+               (get-in head [:headers "Content-Length"]))))
+
+      (let [nfo (media-api/app {:request-method :get
+                                :uri "/library/By-Source/source-a/First-1.nfo"})
+            body (slurp (:body nfo))]
+        (is (= 200 (:status nfo)))
+        (is (= "application/xml; charset=utf-8"
+               (get-in nfo [:headers "Content-Type"])))
+        (is (string/includes? body "<title>First &amp; Best</title>"))
+        (is (string/includes? body "A useful description."))
+        (is (string/includes?
+             body
+             "Original: https://youtube.example/watch?v=1&amp;list=all"))
+        (is (string/includes? body "<premiered>2026-08-20</premiered>"))))))

@@ -181,7 +181,7 @@
        :extension ".png"})))
 
 (defn- download-thumbnail
-  "Download and store square podcast art plus one original-aspect Infuse image."
+  "Download and store square podcast art plus original-aspect fan art."
   [thumbnail-url]
   (when (and thumbnail-url (not (str/blank? thumbnail-url)))
     (try+
@@ -200,7 +200,6 @@
                          (media-artwork/pad-image-png
                           image-bytes +artwork-size+ +artwork-size+)
                          thumbnail-url "square" "image/png" ".png")
-        :poster-hash infuse-hash
         :fanart-hash infuse-hash})
      (catch Object e
        (log/warn "podcast: thumbnail download failed:" thumbnail-url e)
@@ -230,6 +229,10 @@
                              {:item-id item-id
                               :source-key source-key
                               :item-title item-title
+                              :source-title (some-> (or (:channel enriched-metadata)
+                                                        (:uploader enriched-metadata))
+                                                    str/trim
+                                                    not-empty)
                               :media-url media-url
                               :mime-type mime-type
                               :completed-at completed-at})

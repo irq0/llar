@@ -33,4 +33,10 @@
       (is (= [300 300] (dimensions (uut/pad-image-png source 300 300)))))))
 
 (deftest generated-covers-have-requested-dimensions
-  (is (= [614 346] (dimensions (uut/cover "LLAR Media" 614 346)))))
+  (is (= [614 346] (dimensions (uut/cover "LLAR Media" 614 346))))
+  (is (= [500 750]
+         (dimensions
+          (uut/cover {:title (apply str (repeat 100 "Long channel name "))
+                      :subtitle "source-key"
+                      :details ["100 items" "Latest Aug 2026"]}
+                     500 750)))))

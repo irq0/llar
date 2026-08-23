@@ -115,7 +115,7 @@ If you want LLAR to load the config, just rename it to `.llar` and it will load 
   reading batches
 - Bookmark and save-for-later capture through the Reader or an authenticated API
 - A retained media library built from audio and video sources, with private
-  podcast feeds, read-only WebDAV delivery, subtitles, chapters, and
+  podcast feeds, read-only WebDAV delivery, subtitles, local metadata, and
   configurable per-source retention
 - Scheduled EPUB digests that bundle tagged items into e-reader magazines
 - Export items and annotations to Zotero or configured URL handlers
@@ -289,6 +289,10 @@ artwork, chapter, and transcript URLs:
 The read-only WebDAV media library deliberately has no application-level
 authentication. Put Basic Auth at the TLS reverse proxy and prevent direct
 public access to LLAR's podcast port.
+
+For Infuse, enable its local metadata and artwork options. LLAR exposes
+same-name NFO metadata (including the original-content URL), subtitles,
+landscape fan art, and abstract source/favorite artwork.
 
 This protects only `/library` and `/library/*`; podcast feed and enclosure URLs
 continue through the proxy and are authenticated by LLAR's `?token=...`. If the

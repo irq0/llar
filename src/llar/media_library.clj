@@ -1,5 +1,6 @@
 (ns llar.media-library
   (:require
+   [clojure.data.xml :as xml]
    [clojure.string :as str]
    [clojure.tools.logging :as log]
    [digest :as digest]
@@ -11,12 +12,15 @@
   (:import
    [java.io FileNotFoundException]
    [java.nio.charset StandardCharsets]
+   [java.util Locale]
    [java.time.format DateTimeFormatter]))
 
 (def base-path "/library/")
 
 (def ^:private year-formatter (DateTimeFormatter/ofPattern "yyyy"))
 (def ^:private month-formatter (DateTimeFormatter/ofPattern "MM"))
+(def ^:private month-label-formatter
+  (DateTimeFormatter/ofPattern "MMM yyyy" Locale/ENGLISH))
 (def ^:private reserved-source-names #{"favorite-atv.png" "favorite.png"})
 
 (defn safe-name [value fallback]
@@ -153,8 +157,63 @@
          :resource-kind :bytes
          :bytes bytes}))))
 
-(defn- generated-artwork [path filename label width height]
-  (let [bytes (artwork/cover label width height)]
+(defn- original-url [media]
+  (or (get-in media [:metadata :original_url])
+      (get-in media [:metadata :webpage_url])
+      (get-in media [:entry :media-url])))
+
+(defn- description-with-original [description url]
+  (let [description (some-> description str str/trim not-empty)
+        url (some-> url str str/trim not-empty)]
+    (cond
+      (and description url (str/includes? description url)) description
+      (and description url) (str description "\n\nOriginal: " url)
+      url (str "Original: " url)
+      :else description)))
+
+(defn- nfo-date [metadata]
+  (when-let [date (or (:upload_date metadata) (:release_date metadata))]
+    (let [date (str date)]
+      (if (re-matches #"\d{8}" date)
+        (str (subs date 0 4) "-" (subs date 4 6) "-" (subs date 6 8))
+        date))))
+
+(defn- nfo-file [parent-path media]
+  (let [metadata (:metadata media)
+        title (or (:title metadata)
+                  (get-in media [:entry :item-title])
+                  (filename-stem (:display-name media)))
+        url (original-url media)
+        description (description-with-original (:description metadata) url)
+        creator (or (:channel metadata) (:uploader metadata))
+        video-id (:id metadata)
+        children (concat
+                  [(xml/element :title {} title)]
+                  (when description [(xml/element :plot {} description)])
+                  (when-let [date (nfo-date metadata)]
+                    [(xml/element :premiered {} date)])
+                  (when creator [(xml/element :studio {} creator)])
+                  (map #(xml/element :genre {} (str %)) (:categories metadata))
+                  (map #(xml/element :tag {} (str %)) (:tags metadata))
+                  (when video-id
+                    [(xml/element :uniqueid {:type (or (:extractor metadata) "media")
+                                             :default "true"}
+                                  (str video-id))]))
+        bytes (.getBytes
+               (xml/emit-str (apply xml/element :movie {} children))
+               StandardCharsets/UTF_8)
+        filename (str (filename-stem (:display-name media)) ".nfo")]
+    {:path (conj parent-path filename)
+     :display-name filename
+     :size (alength bytes)
+     :mime-type "application/xml; charset=utf-8"
+     :etag (digest/sha-256 bytes)
+     :completed-at (:completed-at media)
+     :resource-kind :bytes
+     :bytes bytes}))
+
+(defn- generated-artwork [path filename content width height]
+  (let [bytes (artwork/cover content width height)]
     {:path (conj path filename)
      :display-name filename
      :size (alength ^bytes bytes)
@@ -168,24 +227,59 @@
     (let [metadata (:metadata media)
           stem (filename-stem (:display-name media))
           completed-at (:completed-at media)
-          poster-hash (or (:poster-hash metadata)
-                          (:fanart-hash metadata)
-                          (:thumbnail-hash metadata))
-          fanart-hash (or (:fanart-hash metadata) poster-hash)]
+          fanart-hash (or (:fanart-hash metadata)
+                          (:poster-hash metadata)
+                          (:thumbnail-hash metadata))]
       (filterv some?
                [media
+                (nfo-file parent-path media)
                 (transcript-file parent-path media)
-                (artwork-file parent-path stem "" poster-hash completed-at)
                 (artwork-file parent-path stem "-fanart" fanart-hash completed-at)]))
     []))
 
-(defn- source-folder-files [segments source-name entries]
-  (into [(generated-artwork segments "folder.png" source-name 500 750)]
-        (mapcat #(item-files segments %) entries)))
+(defn- latest-label [entries]
+  (when-let [completed-at (->> entries (keep :completed-at) sort last)]
+    (try
+      (.format month-label-formatter completed-at)
+      (catch Exception _ nil))))
 
-(defn- favorite-files [segments]
-  [(generated-artwork segments "favorite-atv.png" "LLAR Media" 614 346)
-   (generated-artwork segments "favorite.png" "LLAR Media" 500 750)])
+(defn- indexed-source-title [entries]
+  (some #(some-> (:source-title %) str str/trim not-empty) entries))
+
+(defn- source-display-name [source-name entries]
+  (if-let [title (indexed-source-title entries)]
+    (if (= title source-name)
+      title
+      (str title " · " source-name))
+    source-name))
+
+(defn- source-folder-files [segments source-name entries]
+  (let [files (vec (mapcat #(item-files segments %) entries))
+        source-title (or (indexed-source-title entries)
+                         (some #(some-> (or (get-in % [:metadata :channel])
+                                            (get-in % [:metadata :uploader]))
+                                        str
+                                        str/trim
+                                        not-empty)
+                               files)
+                         source-name)
+        latest (latest-label entries)
+        item-count (count entries)
+        content {:title source-title
+                 :subtitle (when (not= source-title source-name) source-name)
+                 :details (cond-> [(str item-count " "
+                                        (if (= item-count 1) "item" "items"))]
+                            latest (conj (str "Latest " latest)))}]
+    (into [(generated-artwork segments "folder.png" content 500 750)]
+          files)))
+
+(defn- favorite-files [segments entries]
+  (let [source-count (count (distinct (map :source-directory entries)))
+        content {:title "LLAR Media"
+                 :details [(str source-count " sources")
+                           (str (count entries) " items")]}]
+    [(generated-artwork segments "favorite-atv.png" content 614 346)
+     (generated-artwork segments "favorite.png" content 500 750)]))
 
 (defn directory [segments entries]
   (case (count segments)
@@ -196,12 +290,15 @@
     1 (case (first segments)
         "By-Source"
         {:self (collection segments "By Source")
-         :children (into (favorite-files segments)
+         :children (into (favorite-files segments entries)
                          (->> entries
-                              (map :source-directory)
-                              distinct
-                              sort
-                              (map #(collection ["By-Source" %] %))))}
+                              (group-by :source-directory)
+                              (sort-by key)
+                              (map (fn [[source-name source-entries]]
+                                     (collection
+                                      ["By-Source" source-name]
+                                      (source-display-name source-name
+                                                           source-entries))))))}
 
         "By-Date"
         {:self (collection segments "By Date")
@@ -219,10 +316,10 @@
           (or (some (fn [node]
                       (when (= value (:display-name node))
                         {:self node :children []}))
-                    (favorite-files ["By-Source"]))
+                    (favorite-files ["By-Source"] entries))
               (let [matching (filter #(= value (:source-directory %)) entries)]
                 (when (seq matching)
-                  {:self (collection segments value)
+                  {:self (collection segments (source-display-name value matching))
                    :children (source-folder-files segments value matching)})))
 
           "By-Date"

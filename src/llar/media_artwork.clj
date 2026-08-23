@@ -1,10 +1,10 @@
 (ns llar.media-artwork
   (:require
    [clojure.java.io :as io]
-   [clojure.tools.logging :as log])
+   [clojure.string :as str])
   (:import
    [com.google.common.cache Cache CacheBuilder Weigher]
-   [java.awt Color Font Graphics2D RenderingHints]
+   [java.awt AlphaComposite Color Font GradientPaint Graphics2D RenderingHints]
    [java.awt.image BufferedImage]
    [java.io ByteArrayOutputStream]
    [javax.imageio ImageIO]))
@@ -17,7 +17,6 @@
                   (weigh [_ _ bytes]
                     (alength ^bytes bytes))))
       (.build)))
-(defonce ^:private background-cache (atom nil))
 
 (defn image-to-png
   "Convert supported image bytes to PNG without changing their dimensions."
@@ -57,65 +56,80 @@
     (ImageIO/write image "png" output)
     (.toByteArray output)))
 
-(defn- background-image []
-  (or @background-cache
-      (try
-        (let [image (ImageIO/read (io/resource "podcast/nimoy-salute.jpg"))]
-          (when-not image
-            (throw (ex-info "ImageIO could not decode media artwork background" {})))
-          (reset! background-cache image)
-          image)
-        (catch Exception e
-          (log/warn e "media artwork: failed to load background image")
-          nil))))
+(defn- color-pair [seed]
+  (let [hash-code (hash seed)
+        hue (/ (double (bit-and hash-code 0xffff)) 65535.0)
+        hue-2 (mod (+ hue 0.12) 1.0)]
+    [(Color/getHSBColor (float hue) 0.68 0.36)
+     (Color/getHSBColor (float hue-2) 0.82 0.16)]))
 
-(defn- draw-cover-background! [^Graphics2D graphics width height]
-  (if-let [source (background-image)]
-    (let [source-width (.getWidth source)
-          source-height (.getHeight source)
-          target-ratio (/ (double width) height)
-          source-ratio (/ (double source-width) source-height)
-          crop-width (if (> source-ratio target-ratio)
-                       (int (* source-height target-ratio))
-                       source-width)
-          crop-height (if (> source-ratio target-ratio)
-                        source-height
-                        (int (/ source-width target-ratio)))
-          source-x (int (/ (- source-width crop-width) 2))
-          source-y (int (/ (- source-height crop-height) 2))]
-      (.drawImage graphics source
-                  0 0 width height
-                  source-x source-y
-                  (+ source-x crop-width) (+ source-y crop-height)
-                  nil))
-    (do
-      (.setColor graphics (Color. 20 20 40))
-      (.fillRect graphics 0 0 width height))))
-
-(defn- draw-label! [^Graphics2D graphics label width height]
-  (let [label (subs (str label) 0 (min (count (str label)) 36))
-        bar-height (max 90 (int (* height 0.23)))
-        horizontal-padding (max 20 (int (* width 0.06)))
-        max-text-width (- width (* 2 horizontal-padding))
-        initial-font-size (max 24 (int (* height 0.12)))
-        font-size (loop [font-size initial-font-size]
-                    (.setFont graphics (Font. Font/SANS_SERIF Font/BOLD font-size))
-                    (if (or (<= font-size 20)
-                            (<= (.stringWidth (.getFontMetrics graphics) label)
-                                max-text-width))
-                      font-size
-                      (recur (dec font-size))))
-        baseline (- height (max 24 (int (* bar-height 0.25))))]
-    (.setColor graphics (Color. 0 0 0 175))
-    (.fillRect graphics 0 (- height bar-height) width bar-height)
-    (.setFont graphics (Font. Font/SANS_SERIF Font/BOLD font-size))
+(defn- draw-cover-background! [^Graphics2D graphics seed width height]
+  (let [[start end] (color-pair seed)]
+    (.setPaint graphics (GradientPaint. 0.0 0.0 start
+                                        (float width) (float height) end))
+    (.fillRect graphics 0 0 width height)
+    (.setComposite graphics (AlphaComposite/getInstance AlphaComposite/SRC_OVER 0.10))
     (.setColor graphics Color/WHITE)
-    (let [metrics (.getFontMetrics graphics)
-          x (max horizontal-padding
-                 (int (/ (- width (.stringWidth metrics label)) 2)))]
-      (.drawString graphics label x baseline))))
+    (doseq [n (range 5)]
+      (let [diameter (int (* width (+ 0.18 (* n 0.09))))
+            x (int (- (* width (+ 0.72 (* n 0.08))) (/ diameter 2)))
+            y (int (- (* height (+ 0.12 (* n 0.17))) (/ diameter 2)))]
+        (.drawOval graphics x y diameter diameter)))
+    (.setComposite graphics AlphaComposite/SrcOver)))
 
-(defn- render-cover [label width height]
+(defn- fit-font [^Graphics2D graphics text max-width initial-size minimum-size]
+  (loop [size initial-size]
+    (.setFont graphics (Font. Font/SANS_SERIF Font/BOLD size))
+    (if (or (<= size minimum-size)
+            (<= (.stringWidth (.getFontMetrics graphics) text) max-width))
+      size
+      (recur (dec size)))))
+
+(defn- fit-text [^Graphics2D graphics text max-width]
+  (let [metrics (.getFontMetrics graphics)]
+    (if (<= (.stringWidth metrics text) max-width)
+      text
+      (loop [length (dec (count text))]
+        (let [candidate (str (subs text 0 (max 0 length)) "…")]
+          (if (or (zero? length)
+                  (<= (.stringWidth metrics candidate) max-width))
+            candidate
+            (recur (dec length))))))))
+
+(defn- draw-cover-text! [^Graphics2D graphics {:keys [title subtitle details]}
+                         width height]
+  (let [padding (max 24 (int (* width 0.08)))
+        max-width (- width (* 2 padding))
+        title (subs (str title) 0 (min 72 (count (str title))))
+        subtitle (some-> subtitle str str/trim not-empty)
+        details (->> details (map str) (remove str/blank?) (str/join "  •  "))
+        title-size (fit-font graphics title max-width
+                             (max 30 (int (* height 0.11)))
+                             (max 20 (int (* height 0.055))))
+        title-y (int (* height 0.46))]
+    (.setColor graphics (Color. 255 255 255 190))
+    (.setFont graphics (Font. Font/SANS_SERIF Font/BOLD
+                              (max 13 (int (* height 0.035)))))
+    (.drawString graphics "LLAR MEDIA" padding (int (* height 0.14)))
+    (.setColor graphics Color/WHITE)
+    (.setFont graphics (Font. Font/SANS_SERIF Font/BOLD title-size))
+    (.drawString graphics (fit-text graphics title max-width) padding title-y)
+    (when subtitle
+      (.setColor graphics (Color. 255 255 255 190))
+      (.setFont graphics (Font. Font/SANS_SERIF Font/PLAIN
+                                (max 16 (int (* height 0.05)))))
+      (.drawString graphics
+                   (fit-text graphics subtitle max-width)
+                   padding
+                   (+ title-y (max 28 (int (* height 0.09))))))
+    (when-not (str/blank? details)
+      (.setColor graphics (Color. 255 255 255 210))
+      (.setFont graphics (Font. Font/SANS_SERIF Font/PLAIN
+                                (max 14 (int (* height 0.04)))))
+      (.drawString graphics (fit-text graphics details max-width)
+                   padding (- height padding)))))
+
+(defn- render-cover [content width height]
   (let [image (BufferedImage. width height BufferedImage/TYPE_INT_RGB)
         graphics (.createGraphics image)
         output (ByteArrayOutputStream.)]
@@ -126,18 +140,19 @@
                          RenderingHints/VALUE_ANTIALIAS_ON)
       (.setRenderingHint graphics RenderingHints/KEY_TEXT_ANTIALIASING
                          RenderingHints/VALUE_TEXT_ANTIALIAS_ON)
-      (draw-cover-background! graphics width height)
-      (draw-label! graphics label width height)
+      (draw-cover-background! graphics content width height)
+      (draw-cover-text! graphics content width height)
       (finally
         (.dispose graphics)))
     (ImageIO/write image "png" output)
     (.toByteArray output)))
 
 (defn cover
-  "Generate deterministic PNG cover bytes and retain a bounded in-memory cache."
-  [label width height]
-  (let [key [(str label) width height]]
+  "Generate deterministic abstract PNG cover bytes with optional supporting text."
+  [content width height]
+  (let [content (if (map? content) content {:title (str content)})
+        key [content width height]]
     (or (.getIfPresent artwork-cache key)
-        (let [bytes (render-cover (str label) width height)]
+        (let [bytes (render-cover content width height)]
           (.put artwork-cache key bytes)
           bytes))))
