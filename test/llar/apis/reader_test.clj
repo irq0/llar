@@ -273,11 +273,12 @@
                      :group-item :all
                      :source-key :all
                      :mode :list-items
-                     :page-offset 20})]
+                     :ranked-at (time/zoned-date-time)
+                     :rank-cursor {:score 12.5 :id 20}})]
         (is (= :newest (:applied-sort-order result)))
         (is (= [{:id 1}] (:items result)))
         (is (= [:ranked :newest] (mapv :sort-order @calls)))
-        (is (nil? (:offset (second @calls))))))))
+        (is (nil? (:rank-cursor (second @calls))))))))
 
 (deftest ranked-deep-link-without-position-does-not-invent-a-next-item
   (with-redefs [config/get-sort-order-defaults (constantly {})
@@ -677,6 +678,19 @@
       (is (string/includes? footer "aria-live=\"polite\""))
       (is (string/includes? footer "Next batch"))
       (is (not (string/includes? final-footer "Next batch"))))))
+
+(deftest ranked-next-batch-link-uses-a-seek-cursor
+  (let [ranked-at (time/zoned-date-time 2026 8 23 12 0 0 0 "Z")
+        href (#'uut/next-batch-href
+              {:uri "/reader/group/default/all/source/all/items"
+               :sort-order :ranked
+               :ranked-at ranked-at
+               :rank-cursor {:score -12.75 :id 4242}
+               :has-more? true})]
+    (is (string/includes? href "rank-score=-12.75"))
+    (is (string/includes? href "rank-id=4242"))
+    (is (string/includes? href "ranked-at="))
+    (is (not (string/includes? href "page-offset")))))
 
 (deftest source-update-estimate-requires-coverage-and-respects-concurrency
   (let [sources [{:key :one} {:key :two} {:key :three}]

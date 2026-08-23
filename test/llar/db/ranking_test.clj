@@ -301,11 +301,11 @@
         (is (= "Item 4" (:title (first page2))) "Page 2 first item should continue from cursor")))))
 
 ;; ---------------------------------------------------------------------------
-;; Test 9: offset-based pagination with :ranked
+;; Test 9: cursor-based pagination with :ranked
 ;; ---------------------------------------------------------------------------
 
-(deftest test-pagination-offset-ranked
-  (testing "Offset-based pagination with ranked sort"
+(deftest test-pagination-cursor-ranked
+  (testing "Rank score and ID form a stable seek cursor"
     (let [now (time/zoned-date-time)]
       ;; source A: 15 items to establish frequency
       (doseq [i (range 15)]
@@ -322,12 +322,26 @@
                           :title (str "B Item " i)
                           :ts (time/minus now (time/hours (* i 3)))))
       (refresh-source-stats! *test-db*)
-      (let [page1 (persistency/get-items-recent *test-db*
-                                                (ranked-args {:limit 5 :offset 0}))
+      (let [ranked-at now
+            full-list (persistency/get-items-recent
+                       *test-db*
+                       (ranked-args {:limit 20 :ranked-at ranked-at}))
+            page1 (persistency/get-items-recent
+                   *test-db*
+                   (ranked-args {:limit 5 :ranked-at ranked-at}))
+            cursor-item (last page1)
             page2 (persistency/get-items-recent *test-db*
-                                                (ranked-args {:limit 5 :offset 5}))]
+                                                (ranked-args
+                                                 {:limit 5
+                                                  :ranked-at ranked-at
+                                                  :rank-cursor
+                                                  {:score (:rank-score cursor-item)
+                                                   :id (:id cursor-item)}}))]
         (is (= 5 (count page1)) "Page 1 should have 5 items")
         (is (= 5 (count page2)) "Page 2 should have 5 items")
+        (is (every? some? (map :rank-score page1)))
+        (is (= (mapv :id (take 10 full-list))
+               (mapv :id (concat page1 page2))))
         (let [page1-ids (set (map :id page1))
               page2-ids (set (map :id page2))]
           (is (empty? (set/intersection page1-ids page2-ids))
@@ -358,11 +372,11 @@
         (is (every? some? (map :title results)) "All items should have titles")))))
 
 ;; ---------------------------------------------------------------------------
-;; Test 11: ranked next-item via offset
+;; Test 11: ranked next-item via cursor
 ;; ---------------------------------------------------------------------------
 
-(deftest test-ranked-next-item-via-offset
-  (testing "Offset retrieval matches position in full ranked list"
+(deftest test-ranked-next-item-via-cursor
+  (testing "Cursor retrieval returns the item after the current ranked item"
     (let [now (time/zoned-date-time)]
       ;; source A: 10 items
       (doseq [i (range 10)]
@@ -380,13 +394,20 @@
                           :ts (time/minus now (time/hours (* i 5)))))
       (refresh-source-stats! *test-db*)
       (let [full-list (persistency/get-items-recent *test-db*
-                                                    (ranked-args {:limit 13}))
+                                                    (ranked-args {:limit 13
+                                                                  :ranked-at now}))
+            current (nth full-list 3)
             single (persistency/get-items-recent *test-db*
-                                                 (ranked-args {:limit 1 :offset 4}))]
+                                                 (ranked-args
+                                                  {:limit 1
+                                                   :ranked-at now
+                                                   :rank-cursor
+                                                   {:score (:rank-score current)
+                                                    :id (:id current)}}))]
         (is (= 13 (count full-list)) "Full list should have 13 items")
         (is (= 1 (count single)) "Single result should have 1 item")
         (is (= (:id (nth full-list 4)) (:id (first single)))
-            "Offset 4 should match item at position 4 (0-indexed) in full list")))))
+            "Seek cursor should return the next ranked item")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Test 12: default sort order (backward compat)

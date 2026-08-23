@@ -292,11 +292,19 @@
   (reader/path-string
    (reader/bookmark-item-path id)))
 
+(defn- item-rank-link-params [x item params]
+  (cond-> params
+    (and (some? (:rank-score item)) (:ranked-at x))
+    (assoc :rank-score (:rank-score item)
+           :ranked-at (:ranked-at x))))
+
 (defn show-item-href
   "Build the item-detail URL for an item in the current reader context."
   [x item]
   (when-let [id (:id item)]
-    (make-site-href (item-detail-path x id) x)))
+    (make-site-href (item-detail-path x id)
+                    (item-rank-link-params x item {})
+                    x)))
 
 (defn- reader-skip-link []
   [:a {:class "reader-skip-link" :href "#reader-main"}
@@ -472,8 +480,12 @@
 
 (defn- next-batch-href [x]
   (when (not= false (:has-more? x))
-    (if (:page-offset x)
-      (make-site-href [(:uri x)] {:page-offset (:page-offset x)} x)
+    (if-let [{:keys [score id]} (:rank-cursor x)]
+      (make-site-href [(:uri x)]
+                      {:rank-score score
+                       :rank-id id
+                       :ranked-at (:ranked-at x)}
+                      x)
       (make-site-href [(:uri x)] (:range-before x) x))))
 
 (defn- source-update-button [x link-prefix]
@@ -539,16 +551,17 @@
         link-prefix (reader/path-string (reader/group-path current-context))
 
         next-item-href (when (> (count items) 1)
-                         (make-site-href (reader/prefixed-item-path
-                                          link-prefix (-> items second :id))
-                                         (cond-> {:mark :read}
-                                           (some? (:ranked-pos (first items)))
-                                           (assoc :ranked-pos (inc (:ranked-pos (first items)))))
-                                         x))
+                         (let [next-item (second items)]
+                           (make-site-href (reader/prefixed-item-path
+                                            link-prefix (:id next-item))
+                                           (item-rank-link-params x next-item {:mark :read})
+                                           x)))
 
         focus-item-href (when (= mode :show-item)
                           (make-site-href
-                           (reader/prefixed-item-path link-prefix id :focus) x))
+                           (reader/prefixed-item-path link-prefix id :focus)
+                           (item-rank-link-params x current-item {})
+                           x))
 
         next-item-button (when (> (count items) 1)
                            (icon-button {:id "btn-next-item"
@@ -1079,7 +1092,7 @@
       [:span {:class "item-tags-summary" :data-id item-id}
        (string/join ", " tags)]]]))
 
-(defn- annotation-cue [x link-prefix {:keys [id title ranked-pos] :as item}]
+(defn- annotation-cue [x link-prefix {:keys [id title] :as item}]
   (when (contains? (item-state/tag-set item) :has-annotations)
     (icon-button
      {:class "reader-annotation-cue"
@@ -1088,8 +1101,8 @@
                     "Open annotations"
                     (str "Open annotations for " title))
       :href (make-site-href (reader/prefixed-item-path link-prefix id)
-                            (cond-> {:mark :read :annotations :open}
-                              ranked-pos (assoc :ranked-pos ranked-pos))
+                            (item-rank-link-params
+                             x item {:mark :read :annotations :open})
                             x)}
      "fas fa-pen-fancy")))
 
@@ -1214,12 +1227,15 @@
                  :href (reader/path-string
                         (reader/short-item-action-path id :related))}
                 "fas fa-project-diagram"))
-  ([x id]
-   (icon-button {:title "Find related items"
-                 :aria-label "Find related items"
-                 :href (make-site-href
-                        (conj (item-detail-path x id) "related") x)}
-                "fas fa-project-diagram")))
+  ([x item-or-id]
+   (let [item (if (map? item-or-id) item-or-id {:id item-or-id})]
+     (icon-button {:title "Find related items"
+                   :aria-label "Find related items"
+                   :href (make-site-href
+                          (conj (item-detail-path x (:id item)) "related")
+                          (item-rank-link-params x item {})
+                          x)}
+                  "fas fa-project-diagram"))))
 
 (defn external-link-button
   ([url]
@@ -1332,11 +1348,12 @@
           (some #(when (= selected [(:data-key %) (:content-type %)]) %) representations))
         (first representations))))
 
-(defn- representation-href [x id {:keys [data-key content-type]}]
-  (make-site-href (cond-> (item-detail-path x id)
+(defn- representation-href [x item {:keys [data-key content-type]}]
+  (make-site-href (cond-> (item-detail-path x (:id item))
                     (not (string/starts-with? content-type "text/")) (conj "download"))
-                  {:data (name data-key)
-                   :content-type content-type}
+                  (item-rank-link-params x item
+                                         {:data (name data-key)
+                                          :content-type content-type})
                   x))
 
 (defn- item-more-menu [x {:keys [id tags] :as item}]
@@ -1358,7 +1375,9 @@
       [:li [:h6 {:class "dropdown-header"} "Item tools"]]
       [:li
        [:a {:class "dropdown-item"
-            :href (make-site-href (conj (item-detail-path x id) "dump") x)}
+            :href (make-site-href (conj (item-detail-path x id) "dump")
+                                  (item-rank-link-params x item {})
+                                  x)}
         (icon "fas fa-search") [:span "Inspect item"]]]
       [:li
        [:a {:class "dropdown-item"
@@ -1375,7 +1394,7 @@
                               [(:data-key current) (:content-type current)])]]
         [:li
          [:a (cond-> {:class "dropdown-item reader-representation-option"
-                      :href (representation-href x id representation)}
+                      :href (representation-href x item representation)}
                current? (assoc :aria-current "true"))
           (icon (if current? "fas fa-check" "far fa-file-alt"))
           [:span label]
@@ -1498,7 +1517,7 @@
               :role "group"
               :aria-label "Document actions"}
         (external-link-button url "_blank")
-        (related-button x id)]
+        (related-button x item)]
        (item-more-menu x item)]]
      [:div {:id "annotation-item-notes"
             :class "reader-annotation-notes"
@@ -1935,7 +1954,7 @@
                                  [(:data-key current) (:content-type current)])]]
            [:li {:class "reader-inspect-representation"}
             [:a {:class "reader-inspect-representation-link"
-                 :href (representation-href x id representation)}
+                 :href (representation-href x item representation)}
              (action-icon (if current? "fas fa-check" "far fa-file-alt"))
              [:span label]]
             [:code {:class "reader-inspect-representation-mime"} content-type]
@@ -2287,7 +2306,9 @@
       [:h4 {:class "h4"}
        [:a {:href (make-site-href (reader/prefixed-item-path link-prefix id)
                                   (cond-> {:mark :read}
-                                    (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                    (:rank-score item)
+                                    (assoc :rank-score (:rank-score item)
+                                           :ranked-at (:ranked-at x)))
                                   x)}
         (if (string/blank? title)
           "(no title)"
@@ -2348,11 +2369,15 @@
               :role "group"}
         (annotation-cue x link-prefix item)
         (external-link-button url)
-        (related-button x id)
+        (related-button x item)
         (dump-button (make-site-href
-                      (reader/prefixed-item-path link-prefix id :dump) x))
+                      (reader/prefixed-item-path link-prefix id :dump)
+                      (item-rank-link-params x item {})
+                      x))
         (focus-button (make-site-href
-                       (reader/prefixed-item-path link-prefix id :focus) x))
+                       (reader/prefixed-item-path link-prefix id :focus)
+                       (item-rank-link-params x item {})
+                       x))
         (download-button (make-site-href (reader/prefixed-item-path
                                           link-prefix id :download) {:data "content"
                                                                      :content-type "text/html"} x))]
@@ -2386,7 +2411,7 @@
    (icon icon-class)
    [:span label]])
 
-(defn- compact-item-more-menu [x link-prefix {:keys [id tags url]}]
+(defn- compact-item-more-menu [x link-prefix {:keys [id tags url] :as item}]
   (let [menu-id (str "compact-item-more-menu-" id)]
     [:div {:class "dropdown d-inline-block reader-compact-item-more"}
      (icon-button {:href "#"
@@ -2403,11 +2428,15 @@
         [:li (headline-menu-link url "fas fa-external-link-alt" "Original item")])
       [:li (headline-menu-link
             (make-site-href (reader/prefixed-item-path
-                             link-prefix id :related) x)
+                             link-prefix id :related)
+                            (item-rank-link-params x item {})
+                            x)
             "fas fa-project-diagram"
             "Related items")]
       [:li (headline-menu-link
-            (make-site-href (reader/prefixed-item-path link-prefix id :focus) x)
+            (make-site-href (reader/prefixed-item-path link-prefix id :focus)
+                            (item-rank-link-params x item {})
+                            x)
             "fas fa-expand"
             "Focus mode")]
       [:li [:hr {:class "dropdown-divider"}]]
@@ -2532,7 +2561,9 @@
            [:a {:class "reader-headline-link"
                 :href (make-site-href (reader/prefixed-item-path link-prefix id)
                                       (cond-> {:mark :read}
-                                        (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                        (:rank-score item)
+                                        (assoc :rank-score (:rank-score item)
+                                               :ranked-at (:ranked-at x)))
                                       x)
                 :title display-title}
             display-title]
@@ -2659,7 +2690,9 @@
         [:a {:class "reader-gallery-item-link"
              :href (make-site-href (reader/prefixed-item-path link-prefix id)
                                    (cond-> {:mark :read}
-                                     (:ranked-pos item) (assoc :ranked-pos (:ranked-pos item)))
+                                     (:rank-score item)
+                                     (assoc :rank-score (:rank-score item)
+                                            :ranked-at (:ranked-at x)))
                                    x)
              :title display-title}
          display-title]]]
@@ -2860,7 +2893,9 @@
                               :list-items (inc +max-items+)
                               +max-items+)}]
     (if (= effective-sort :ranked)
-      (assoc common-args :offset (or (:page-offset params) 0))
+      (assoc common-args
+             :ranked-at (:ranked-at params)
+             :rank-cursor (:rank-cursor params))
       (assoc common-args :before (when-not (empty? range-before) range-before)))))
 
 (defn- get-items-for-current-view*
@@ -2871,13 +2906,14 @@
 
     (cond
       (contains? #{:show-item :download :dump-item :focus-item} mode)
-      (let [current-item (persistency/get-item-by-id frontend-db item-id)
-            ranked-pos (:ranked-pos params)
+      (let [current-item (cond-> (persistency/get-item-by-id frontend-db item-id)
+                           (get-in params [:rank-cursor :score])
+                           (assoc :rank-score (get-in params [:rank-cursor :score])))
             next-items (cond
-                         (and (= effective-sort :ranked) (some? ranked-pos))
+                         (and (= effective-sort :ranked) (:rank-cursor params))
                          (persistency/get-items-recent
                           frontend-db
-                          (merge common-args {:offset (inc ranked-pos) :limit 1}))
+                          (assoc common-args :limit 1))
 
                          (= effective-sort :ranked)
                          []
@@ -2948,7 +2984,7 @@
         (catch Exception e
           (log/warn e "Ranked query failed, falling back to :newest sort")
           {:items (get-items-for-current-view* sources
-                                               (dissoc params :page-offset :ranked-pos)
+                                               (dissoc params :ranked-at :rank-cursor)
                                                :newest)
            :applied-sort-order :newest}))
       {:items (get-items-for-current-view* sources params effective-sort)
@@ -3104,6 +3140,10 @@
                                               (:group-item index-params))]
                          override
                          orig-fltr))
+         params (if (= :ranked (get-sort-order params))
+                  (assoc params :ranked-at (or (:ranked-at params)
+                                               (time/zoned-date-time)))
+                  params)
 
          item-tags (future (prometheus/with-duration (metrics/prom-registry :llar-ui/tag-list)
                              (doall (persistency/get-tags frontend-db))))
@@ -3123,16 +3163,13 @@
          source-update-context (source-update-view-context selected-sources)
          {:keys [items applied-sort-order]} @items-result
          effective-sort applied-sort-order
-         base-offset (or (:page-offset params) 0)
          raw-fetched items
          list-mode? (= :list-items (:mode params))
          has-more? (and list-mode? (> (count raw-fetched) +max-items+))
          fetched (if has-more?
                    (vec (take +max-items+ raw-fetched))
                    raw-fetched)
-         annotated-items (if (= effective-sort :ranked)
-                           (map-indexed (fn [idx item] (assoc item :ranked-pos (+ base-offset idx))) fetched)
-                           fetched)
+         annotated-items fetched
          inspect-details (when (= :dump-item (:mode params))
                            (let [item-id (some-> annotated-items first :id)
                                  item-source-key (some-> annotated-items first :source-key keyword)
@@ -3177,8 +3214,11 @@
                                :range-recent (-> fetched first (select-keys [:ts :id]))
                                :range-before (-> fetched last (select-keys [:ts :id]))
                                :has-more? has-more?
-                               :page-offset (when (= effective-sort :ranked)
-                                              (+ base-offset (count fetched)))})]
+                               :rank-cursor (when (= effective-sort :ranked)
+                                              (if (and list-mode? (seq fetched))
+                                                {:score (:rank-score (last fetched))
+                                                 :id (:id (last fetched))}
+                                                (:rank-cursor params)))})]
      params)
    (catch Object _
      (throw+ {:type ::gather-data-error
@@ -4893,6 +4933,18 @@
   (when-not (nil? s)
     (time/zoned-date-time (time/formatter :iso-date-time) s)))
 
+(defn- request-rank-context
+  "Parse an optional Ranked seek cursor without coupling it to timestamp paths."
+  [req item-id]
+  (let [ranked-at (some-> (get-in req [:params :ranked-at]) as-ts)
+        score (some-> (get-in req [:params :rank-score]) parse-double)
+        cursor-id (or item-id
+                      (some-> (get-in req [:params :rank-id]) parse-long))]
+    (cond-> {}
+      ranked-at (assoc :ranked-at ranked-at)
+      (and (some? score) (some? cursor-id))
+      (assoc :rank-cursor {:score score :id cursor-id}))))
+
 (def app
   "Compojure Routes"
   (routes
@@ -4988,28 +5040,28 @@
        (GET "/items"
          [id :<< as-int
           ts :<< as-ts]
-         (reader-index {:uri (:uri req)
-                        :filter (as-keyword (get-in req [:params :filter]))
-                        :group-name group-name
-                        :group-item group-item
-                        :source-key source-key
-                        :mode :list-items
-                        :list-style (as-keyword (get-in req [:params :list-style]))
-                        :sort-order (as-keyword (get-in req [:params :sort-order]))
-                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                        :range-before {:id id
-                                       :ts ts}}))
+         (reader-index (merge {:uri (:uri req)
+                               :filter (as-keyword (get-in req [:params :filter]))
+                               :group-name group-name
+                               :group-item group-item
+                               :source-key source-key
+                               :mode :list-items
+                               :list-style (as-keyword (get-in req [:params :list-style]))
+                               :sort-order (as-keyword (get-in req [:params :sort-order]))
+                               :range-before {:id id
+                                              :ts ts}}
+                              (request-rank-context req nil))))
 
        (GET "/items" []
-         (reader-index {:uri (:uri req)
-                        :filter (as-keyword (get-in req [:params :filter]))
-                        :group-name group-name
-                        :group-item group-item
-                        :source-key source-key
-                        :list-style (as-keyword (get-in req [:params :list-style]))
-                        :sort-order (as-keyword (get-in req [:params :sort-order]))
-                        :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                        :mode :list-items}))
+         (reader-index (merge {:uri (:uri req)
+                               :filter (as-keyword (get-in req [:params :filter]))
+                               :group-name group-name
+                               :group-item group-item
+                               :source-key source-key
+                               :list-style (as-keyword (get-in req [:params :list-style]))
+                               :sort-order (as-keyword (get-in req [:params :sort-order]))
+                               :mode :list-items}
+                              (request-rank-context req nil))))
 
        (context
          "/item/by-id/:item-id"
@@ -5027,19 +5079,18 @@
                                   :source (name source-key)})]
              (when auto-read?
                (reader-item-state item-id :seen))
-             (render-opened-reader-item {:uri (:uri req)
-                                         :filter (as-keyword (get-in req [:params :filter]))
-                                         :group-name group-name
-                                         :group-item group-item
-                                         :source-key source-key
-                                         :item-id item-id
-                                         :mode :show-item
-                                         :list-style (as-keyword (get-in req [:params :list-style]))
-                                         :sort-order (as-keyword (get-in req [:params :sort-order]))
-                                         :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                                         :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
-                                         :content-type content-type
-                                         :data data}
+             (render-opened-reader-item (merge {:uri (:uri req)
+                                                :filter (as-keyword (get-in req [:params :filter]))
+                                                :group-name group-name
+                                                :group-item group-item
+                                                :source-key source-key
+                                                :item-id item-id
+                                                :mode :show-item
+                                                :list-style (as-keyword (get-in req [:params :list-style]))
+                                                :sort-order (as-keyword (get-in req [:params :sort-order]))
+                                                :content-type content-type
+                                                :data data}
+                                               (request-rank-context req item-id))
                                         event-context offer)))
 
          (GET "/" []
@@ -5053,30 +5104,28 @@
                                   :source (name source-key)})]
              (when auto-read?
                (reader-item-state item-id :seen))
-             (render-opened-reader-item {:uri (:uri req)
-                                         :filter (as-keyword (get-in req [:params :filter]))
-                                         :group-name group-name
-                                         :group-item group-item
-                                         :source-key source-key
-                                         :item-id item-id
-                                         :mode :show-item
-                                         :list-style (as-keyword (get-in req [:params :list-style]))
-                                         :sort-order (as-keyword (get-in req [:params :sort-order]))
-                                         :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                                         :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}
+             (render-opened-reader-item (merge {:uri (:uri req)
+                                                :filter (as-keyword (get-in req [:params :filter]))
+                                                :group-name group-name
+                                                :group-item group-item
+                                                :source-key source-key
+                                                :item-id item-id
+                                                :mode :show-item
+                                                :list-style (as-keyword (get-in req [:params :list-style]))
+                                                :sort-order (as-keyword (get-in req [:params :sort-order]))}
+                                               (request-rank-context req item-id))
                                         event-context offer)))
 
          (GET "/related" []
            (reader-related item-id
-                           {:uri (:uri req)
-                            :filter (as-keyword (get-in req [:params :filter]))
-                            :group-name group-name
-                            :group-item group-item
-                            :source-key source-key
-                            :list-style (as-keyword (get-in req [:params :list-style]))
-                            :sort-order (as-keyword (get-in req [:params :sort-order]))
-                            :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                            :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))
+                           (merge {:uri (:uri req)
+                                   :filter (as-keyword (get-in req [:params :filter]))
+                                   :group-name group-name
+                                   :group-item group-item
+                                   :source-key source-key
+                                   :list-style (as-keyword (get-in req [:params :list-style]))
+                                   :sort-order (as-keyword (get-in req [:params :sort-order]))}
+                                  (request-rank-context req item-id))))
 
          (GET "/download"
            [data :<< as-keyword
@@ -5093,49 +5142,46 @@
          (GET "/focus"
            [data :<< as-keyword
             content-type]
-           (reader-index {:uri (:uri req)
-                          :filter (as-keyword (get-in req [:params :filter]))
-                          :group-name group-name
-                          :group-item group-item
-                          :source-key source-key
-                          :item-id item-id
-                          :mode :focus-item
-                          :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))
-                          :data data
-                          :content-type content-type}))
+           (reader-index (merge {:uri (:uri req)
+                                 :filter (as-keyword (get-in req [:params :filter]))
+                                 :group-name group-name
+                                 :group-item group-item
+                                 :source-key source-key
+                                 :item-id item-id
+                                 :mode :focus-item
+                                 :sort-order (as-keyword (get-in req [:params :sort-order]))
+                                 :data data
+                                 :content-type content-type}
+                                (request-rank-context req item-id))))
          (GET "/focus" []
-           (reader-index {:uri (:uri req)
-                          :filter (as-keyword (get-in req [:params :filter]))
-                          :group-name group-name
-                          :group-item group-item
-                          :source-key source-key
-                          :item-id item-id
-                          :mode :focus-item
-                          :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))
+           (reader-index (merge {:uri (:uri req)
+                                 :filter (as-keyword (get-in req [:params :filter]))
+                                 :group-name group-name
+                                 :group-item group-item
+                                 :source-key source-key
+                                 :item-id item-id
+                                 :mode :focus-item
+                                 :sort-order (as-keyword (get-in req [:params :sort-order]))}
+                                (request-rank-context req item-id))))
          (GET "/dump" []
-           (reader-index {:uri (:uri req)
-                          :filter (as-keyword (get-in req [:params :filter]))
-                          :group-name group-name
-                          :group-item group-item
-                          :source-key source-key
-                          :item-id item-id
-                          :mode :dump-item
-                          :sort-order (as-keyword (get-in req [:params :sort-order]))
-                          :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                          :ranked-pos (some-> (get-in req [:params :ranked-pos]) parse-long (max 0))}))))
+           (reader-index (merge {:uri (:uri req)
+                                 :filter (as-keyword (get-in req [:params :filter]))
+                                 :group-name group-name
+                                 :group-item group-item
+                                 :source-key source-key
+                                 :item-id item-id
+                                 :mode :dump-item
+                                 :sort-order (as-keyword (get-in req [:params :sort-order]))}
+                                (request-rank-context req item-id))))))
 
      (GET "/" [] (reader-index
-                  {:group-name :default
-                   :group-item :all
-                   :source-key :all
-                   :list-style (as-keyword (get-in req [:params :list-style]))
-                   :sort-order (as-keyword (get-in req [:params :sort-order]))
-                   :page-offset (some-> (get-in req [:params :page-offset]) parse-long (max 0))
-                   :mode :list-items})))
+                  (merge {:group-name :default
+                          :group-item :all
+                          :source-key :all
+                          :list-style (as-keyword (get-in req [:params :list-style]))
+                          :sort-order (as-keyword (get-in req [:params :sort-order]))
+                          :mode :list-items}
+                         (request-rank-context req nil)))))
 
    (GET "/preview" []
      {:status 200

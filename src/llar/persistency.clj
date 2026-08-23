@@ -56,10 +56,10 @@
 
     Sorting options:
     :sort-order  -  :newest (default), :oldest, or :ranked
-    :offset      -  integer offset for non-cursor pagination
     :highlight-boost  -  hours subtracted for highlighted items (default 48.0)
     :rarity-cap  -  max hours for rarity boost (default 168.0)
-    :ranked      -  when truthy, joins source_stats for ranked sorting
+    :ranked-at   -  fixed timestamp used across ranked cursor pages
+    :rank-cursor -  {:score double :id item-id} seek cursor for ranked pages
 
     Return item without data when :with-data? or :with-preview-data? is not specified")
   (get-item-by-id [this item-id])

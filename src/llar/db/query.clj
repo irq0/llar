@@ -1,6 +1,7 @@
 (ns llar.db.query
   (:require
    [clojure.tools.logging :as log]
+   [java-time.api :as time]
    [llar.persistency :refer [StatsQueries SourceQueries ItemQueries RankingQueries]]
    [llar.db.core]
    [llar.db.sql :as sql]
@@ -101,7 +102,8 @@
   (let [{:keys [with-data?]} args]
     (cond
       with-data? (sql/item-select-with-data-snip)
-      :else (sql/item-select-default-snip))))
+      :else (sql/item-select-default-snip
+             {:with-rank-score? (:with-rank-score? args)}))))
 
 (defn- choose-recent-items-from-snip [args]
   (let [{:keys [with-data?]} args
@@ -160,7 +162,7 @@
 
 (defn- make-recent-items-where-cond-vec
   "Convert get-items-recent filter parameter into a list of sqlvec where clauses"
-  [args]
+  [args & {:keys [include-tag?] :or {include-tag? true}}]
   (let [{:keys [before with-source-keys with-source-ids simple-filter with-tag with-type]} args
         simple-filter (when (keyword? simple-filter) (simple-filter-to-sql simple-filter))]
     (not-empty
@@ -181,7 +183,7 @@
                   (some? simple-filter)
                   (conj [simple-filter])
 
-                  (keyword? with-tag)
+                  (and include-tag? (keyword? with-tag))
                   (conj (sql/cond-with-tag {:tag (tags/normalize-tag with-tag)}))
 
                   (keyword? with-type)
@@ -191,15 +193,47 @@
   PostgresqlDataStore
 
   (get-items-recent [this {:keys [limit offset] :or {limit 42} :as args}]
-    (let [items (sql/get-items-recent
-                 this
-                 {:select (choose-recent-items-select-snip args)
-                  :from (choose-recent-items-from-snip args)
-                  :where (make-recent-items-where-cond-vec args)
-                  :order-by (choose-order-by-snip args)
-                  :limit limit
-                  :offset offset
-                  :group-by-columns (choose-recent-items-group-by-colums args)})]
+    (let [bounded-rank-query? (and (= :ranked (:sort-order args))
+                                   (not (:with-data? args)))
+          gin-first-tag-query? (and (keyword? (:with-tag args))
+                                    (not (:with-data? args))
+                                    (not= :ranked (:sort-order args)))
+          query-params {:select (choose-recent-items-select-snip
+                                 (cond-> args
+                                   bounded-rank-query? (assoc :with-rank-score? true)))
+                        :from (choose-recent-items-from-snip args)
+                        :where (make-recent-items-where-cond-vec
+                                args
+                                :include-tag? (not (or gin-first-tag-query?
+                                                       bounded-rank-query?)))
+                        :order-by (choose-order-by-snip args)
+                        :limit limit
+                        :offset offset
+                        :group-by-columns (choose-recent-items-group-by-colums args)}
+          items (cond
+                  bounded-rank-query?
+                  (let [highlight-boost (double (or (:highlight-boost args) 48.0))
+                        rarity-cap (double (or (:rarity-cap args) 168.0))
+                        tag (some-> (:with-tag args) tags/normalize-tag)]
+                    (sql/get-items-ranked-bounded
+                     this
+                     (merge query-params
+                            {:ranked-at (or (:ranked-at args) (time/zoned-date-time))
+                             :rank-cursor (:rank-cursor args)
+                             :highlight-boost highlight-boost
+                             :rarity-cap rarity-cap
+                             :max-boost (+ highlight-boost rarity-cap)
+                             :tag tag
+                             :rank-source (if tag "tagged_items" "items")
+                             :order-by (sql/order-by-selected-rank-snip)})))
+
+                  gin-first-tag-query?
+                  (sql/get-items-recent-by-tag
+                   this
+                   (assoc query-params :tag (tags/normalize-tag (:with-tag args))))
+
+                  :else
+                  (sql/get-items-recent this query-params))]
       (if (and (:with-preview-data? args) (not (:with-data? args)))
         (attach-preview-descriptions-best-effort this items)
         items)))

@@ -4,6 +4,7 @@
    [clojure.test :refer [deftest is testing use-fixtures]]
    [java-time.api :as time]
    [clojure.string :as string]
+   [clojure.set :as set]
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-tag
                                   create-test-item create-test-item-data]]
@@ -120,6 +121,39 @@
           (is (= 3 (count page2)) "Second page should have 3 items")
           (is (= "Item 4" (:title (first page2))) "Second page should start with Item 4")
           (is (= "Item 5" (:title (second page2))) "Second page should have Item 5"))))))
+
+(deftest test-get-items-recent-tag-pagination-with-tied-timestamps
+  (testing "GIN-first tag pages seek by timestamp and ID without gaps or overlap"
+    (let [same-ts (time/zoned-date-time)]
+      (doseq [i (range 8)]
+        (create-test-item *test-db*
+                          :src-name "tag-pagination"
+                          :hash (str "tag-page-" i)
+                          :title (str "Tagged " i)
+                          :ts same-ts
+                          :tags #{:pagination-tag}))
+      (create-test-item *test-db*
+                        :src-name "tag-pagination"
+                        :hash "tag-page-unrelated"
+                        :title "Unrelated"
+                        :ts same-ts)
+      (let [page1 (persistency/get-items-recent
+                   *test-db*
+                   {:sort-order :newest :with-tag :pagination-tag :limit 3})
+            cursor (last page1)
+            page2 (persistency/get-items-recent
+                   *test-db*
+                   {:sort-order :newest
+                    :with-tag :pagination-tag
+                    :limit 3
+                    :before (select-keys cursor [:ts :id])})]
+        (is (= 3 (count page1)))
+        (is (= 3 (count page2)))
+        (is (empty? (set/intersection (set (map :id page1))
+                                      (set (map :id page2)))))
+        (is (every? #(some #{"pagination-tag"} (:tags %))
+                    (concat page1 page2)))
+        (is (apply > (map :id (concat page1 page2))))))))
 
 (deftest test-get-items-recent-with-data
   (testing "Include item data when :with-data? is true"

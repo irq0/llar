@@ -28,7 +28,10 @@
  order-by-newest-snip
  order-by-oldest-snip
  order-by-ranked-snip
+ order-by-selected-rank-snip
  get-items-recent
+ get-items-recent-by-tag
+ get-items-ranked-bounded
  get-item-by-id
  store-item
  store-item-data
