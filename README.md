@@ -2,7 +2,7 @@
 
 Live Long and Read!
 
-LLAR is a self-hosted reading system with programmable inputs and curation.
+LLAR is a programmable, self-hosted reading system for people with too many information sources.
 
 You define what to fetch, when to fetch it, and what should happen to the
 result. Feeds, websites, newsletters, social timelines, videos, and bookmarks
