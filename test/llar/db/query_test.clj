@@ -62,6 +62,41 @@
     (let [results (persistency/get-items-recent *test-db* {:limit 10 :simple-filter :unread})]
       (is (= 2 (count results)) "Should return only unread items"))))
 
+(deftest test-source-discovery-and-actionable-counts
+  (testing "Discover source membership without calculating historical totals"
+    (create-test-item *test-db* :src-name "counts-one" :hash "one-unread"
+                      :tags #{:digest-issue-1 :unread})
+    (create-test-item *test-db* :src-name "counts-one" :hash "one-read"
+                      :tags #{:digest-issue-1})
+    (create-test-item *test-db* :src-name "counts-two" :hash "two-unread"
+                      :tags #{:digest-issue-1 :unread})
+    (create-test-item *test-db* :src-name "counts-other" :hash "other-unread"
+                      :tags #{:unread})
+    (let [sources (persistency/get-sources *test-db* {})
+          one-id (get-in sources [:test-counts-one :id])
+          two-id (get-in sources [:test-counts-two :id])
+          other-id (get-in sources [:test-counts-other :id])
+          source-ids [one-id two-id other-id]]
+      (is (every? some? source-ids))
+      (is (= (set [one-id two-id])
+             (persistency/get-source-ids-with-tag
+              *test-db* source-ids :digest-issue-1)))
+      (is (= (zipmap [one-id two-id] [1 1])
+             (persistency/get-source-item-counts
+              *test-db*
+              {:source-ids source-ids
+               :simple-filter :unread
+               :with-tag :digest-issue-1})))
+      (is (= (zipmap source-ids [1 1 1])
+             (persistency/get-source-item-counts
+              *test-db*
+              {:source-ids source-ids
+               :simple-filter :unread})))
+      (is (= #{} (persistency/get-source-ids-with-tag
+                  *test-db* [] :digest-issue-1)))
+      (is (= {} (persistency/get-source-item-counts
+                 *test-db* {:source-ids [] :simple-filter :unread}))))))
+
 (deftest test-get-items-recent-pagination
   (testing "Pagination with :before parameter"
     (let [now (time/zoned-date-time)]

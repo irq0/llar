@@ -128,14 +128,15 @@
       (is (string/includes? body "Unread: <strong>0</strong>"))
       (is (re-find #"btn-mark-source-read[^>]*disabled" body)))))
 
-(deftest source-unread-count-reuses-source-tag-counts
+(deftest source-unread-count-queries-only-the-selected-source
   (with-redefs [config/get-sources (constantly {:example {:src :feed}})
                 persistency/get-sources
                 (fn [_ config-sources]
                   {:example (assoc (:example config-sources) :id 7)})
-                persistency/sources-merge-in-tags-counts
-                (fn [_ sources]
-                  (map #(assoc % :item-tags {:unread 12 :total 30}) sources))]
+                persistency/get-source-item-counts
+                (fn [_ options]
+                  (is (= {:source-ids [7] :simple-filter :unread} options))
+                  {7 12})]
     (is (= 12 (uut/source-unread-count :example)))
     (is (= 0 (uut/source-unread-count :missing)))))
 

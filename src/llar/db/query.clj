@@ -5,8 +5,7 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.converter :as conv]
-   [llar.tags :as tags]
-   [digest])
+   [llar.tags :as tags])
   (:import (llar.db.core PostgresqlDataStore)))
 
 (defn- process-items-row
@@ -35,8 +34,8 @@
 
 (defn- simple-filter-to-sql [kw]
   (case kw
-    :unread "tagi @@ '0'"
-    :today "date(ts) = current_date AND tagi @@ '0'"
+    :unread "items.tagi @@ '0'"
+    :today "items.ts >= current_date AND items.ts < current_date + interval '1 day' AND items.tagi @@ '0'"
     nil))
 
 ;; ----------
@@ -60,22 +59,6 @@
     (->> (sql/get-word-count-groups this)
          (map (fn [x] [(:nword_groups x) (:count x)])))))
 
-;; ----------
-
-(defn- get-item-count-of-source [db id]
-  (:count (sql/get-item-count-of-source db {:id id})))
-
-(defn- get-item-count-by-tag-of-source [db id]
-  (into {}
-        (map (fn [{:keys [tag count]}]
-               [(keyword tag) count])
-             (sql/get-item-count-by-tag-of-source
-              db
-              {:id id}))))
-
-(defn- get-item-count-unread-today [db id]
-  (:count (sql/get-item-count-unread-today db {:id id})))
-
 (extend-protocol SourceQueries
   PostgresqlDataStore
 
@@ -90,28 +73,27 @@
             (map row-add-config-src
                  (sql/get-sources this nil {})))))
 
-  (get-sources-item-tags-counts [this item-tag simple-filter config-sources]
-    (map (fn [row]
-           (let [key (keyword (:key row))]
-             (-> row
-                 (assoc :key key)
-                 (merge (get config-sources key)))))
-         (sql/get-sources-with-item-tags-count
-          this
-          {:item-tag (tags/normalize-tag item-tag)
-           :simple-filter (simple-filter-to-sql simple-filter)})))
+  (get-source-ids-with-tag [this source-ids tag]
+    (if (seq source-ids)
+      (into #{}
+            (map :source_id)
+            (sql/get-source-ids-with-tag
+             this
+             {:source-ids source-ids
+              :tag (tags/normalize-tag tag)}))
+      #{}))
 
-  (sources-merge-in-tags-counts [this sources]
-    (pmap (fn [source]
-            (let [id (:id source)
-                  total (get-item-count-of-source this id)
-                  per-tag (get-item-count-by-tag-of-source this id)
-                  today (get-item-count-unread-today this id)]
-              (merge source
-                     {:item-tags (merge per-tag
-                                        {:today today
-                                         :total total})})))
-          sources)))
+  (get-source-item-counts [this {:keys [source-ids simple-filter with-tag]}]
+    (if (seq source-ids)
+      (into {}
+            (map (fn [{:keys [source_id item_count]}]
+                   [source_id item_count]))
+            (sql/get-source-item-counts
+             this
+             {:source-ids source-ids
+              :simple-filter (simple-filter-to-sql simple-filter)
+              :with-tag (some-> with-tag tags/normalize-tag)}))
+      {})))
 
 ;; ----------
 

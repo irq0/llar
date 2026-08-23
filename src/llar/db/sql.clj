@@ -9,10 +9,8 @@
 (hugsql/set-adapter! (hugsql-next/hugsql-adapter-next-jdbc))
 
 (declare
- get-item-count-of-source
- get-item-count-by-tag-of-source
- get-item-count-unread-today
- get-sources-with-item-tags-count
+ get-source-ids-with-tag
+ get-source-item-counts
  get-items-by-tag
  get-item-preview-descriptions
  item-select-default-snip

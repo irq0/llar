@@ -199,9 +199,64 @@
                                 :group-item :all
                                 :sort-order :oldest}
                                {:group-name :default :group-item :all}
-                               {:key :feed :title "Feed" :item-tags {:unread 2}}
+                               {:key :feed :title "Feed" :item-count 2}
                                :all)))]
     (is (string/includes? rendered "sort-order=oldest"))))
+
+(deftest item-tag-all-discovers-sources-without-calculating-total-counts
+  (let [sources {:one {:id 1 :key :one :title "One"}
+                 :two {:id 2 :key :two :title "Two"}}
+        discovery-call (atom nil)]
+    (with-redefs [persistency/get-source-ids-with-tag
+                  (fn [_ source-ids tag]
+                    (reset! discovery-call [source-ids tag])
+                    #{2})
+                  persistency/get-source-item-counts
+                  (fn [& _]
+                    (throw (AssertionError. "total count query must not run")))]
+      (let [active (uut/get-active-group-sources
+                    sources
+                    {:group-name :item-tags
+                     :group-item :digest-issue-1
+                     :filter :total})]
+        (is (= [[1 2] :digest-issue-1] @discovery-call))
+        (is (= [:two] (mapv :key active)))
+        (is (not (contains? (first active) :item-count)))))))
+
+(deftest item-tag-unread-uses-one-actionable-grouped-count
+  (let [sources {:one {:id 1 :key :one :title "One"}
+                 :two {:id 2 :key :two :title "Two"}}
+        count-call (atom nil)]
+    (with-redefs [persistency/get-source-item-counts
+                  (fn [_ options]
+                    (reset! count-call options)
+                    {1 4})
+                  persistency/get-source-ids-with-tag
+                  (fn [& _]
+                    (throw (AssertionError. "separate discovery query must not run")))]
+      (let [active (uut/get-active-group-sources
+                    sources
+                    {:group-name :item-tags
+                     :group-item :digest-issue-1
+                     :filter :unread})]
+        (is (= {:source-ids [1 2]
+                :simple-filter :unread
+                :with-tag :digest-issue-1}
+               @count-call))
+        (is (= [{:id 1 :key :one :title "One" :item-count 4}] active))))))
+
+(deftest source-sidebar-omits-historical-totals-but-keeps-unread-counts
+  (let [context {:group-name :default :group-item :all}
+        source {:id 1 :key :one :title "One"}
+        total (str (h/html (uut/source-list-item
+                            {:filter :total :group-item :all}
+                            context source :all)))
+        unread (str (h/html (uut/source-list-item
+                             {:filter :unread :group-item :all}
+                             context (assoc source :item-count 12) :all)))]
+    (is (not (string/includes? total "badge bg-light text-dark")))
+    (is (string/includes? unread "badge bg-light text-dark"))
+    (is (string/includes? unread ">12<"))))
 
 (deftest ranked-query-fallback-reports-newest-as-the-applied-sort
   (let [calls (atom [])]
@@ -713,7 +768,7 @@
                                            :source-key :one
                                            :active-sources [{:key :one
                                                              :title "One"
-                                                             :item-tags {:all 1}}]})))]
+                                                             :item-count 1}]})))]
       (is (string/includes? skip-link "href=\"#reader-main\""))
       (is (string/includes? main "id=\"reader-main\""))
       (is (string/includes? main "tabindex=\"-1\""))

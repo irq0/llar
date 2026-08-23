@@ -66,8 +66,15 @@
   (get-items-by-tag [this tag]))
 
 (defprotocol SourceQueries
-  (get-sources-item-tags-counts [this item-tag simple-filter config-sources])
-  (sources-merge-in-tags-counts [this sources])
+  (get-source-ids-with-tag [this source-ids tag]
+    "Return source IDs that have at least one item carrying tag.")
+  (get-source-item-counts [this options]
+    "Return {source-id count} for the requested selective Reader predicate.
+
+    Options:
+    :source-ids    source IDs to include; an empty collection returns no counts
+    :simple-filter :unread or :today
+    :with-tag      optional item tag intersected with the simple filter")
   (get-sources [this config-sources]))
 
 (defprotocol AnnotationPersistency

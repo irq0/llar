@@ -309,12 +309,12 @@
 (defn source-unread-count [source-key]
   (let [sources (persistency/get-sources frontend-db (config/get-sources))]
     (if-let [source (get sources source-key)]
-      (or (some->> [source]
-                   (persistency/sources-merge-in-tags-counts frontend-db)
-                   first
-                   :item-tags
-                   :unread)
-          0)
+      (get (persistency/get-source-item-counts
+            frontend-db
+            {:source-ids [(:id source)]
+             :simple-filter :unread})
+           (:id source)
+           0)
       0)))
 
 (defn source-details [src-k]

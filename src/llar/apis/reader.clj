@@ -974,12 +974,13 @@
 (defn source-list-item
   "Source Navigation List Item"
   [x group-context source active-key]
-  (let [{:keys [key title item-tags]} source
+  (let [{:keys [key title item-count]} source
         fltr (or (:filter x) :total)
-        nitems (or (get item-tags (:group-item x)) (get item-tags fltr) 0)
-        grey-out? (and (keyword? fltr) (not= fltr :all) (zero? nitems))
-        pill [:span {:class "badge bg-light text-dark"}
-              (when (pos? nitems) nitems)]]
+        counted? (some? item-count)
+        grey-out? (and counted? (keyword? fltr) (not= fltr :all) (zero? item-count))
+        pill (when counted?
+               [:span {:class "badge bg-light text-dark"}
+                (when (pos? item-count) item-count)])]
 
     [:li {:class "nav-item"}
      [:a (cond-> {:class (str
@@ -2959,25 +2960,53 @@
   [sources params]
   (:items (get-items-for-current-view-result sources params)))
 
+(defn- group-source-candidates
+  [sources {:keys [group-name group-item]}]
+  (cond
+    (and (= group-name :default) (= group-item :all))
+    (vals sources)
+
+    (= group-name :item-tags)
+    (vals sources)
+
+    (= group-name :source-tag)
+    (filter #(contains? (:tags %) group-item) (vals sources))
+
+    (= group-name :type)
+    (filter #(= (:type %) (keyword "item-type" (name group-item))) (vals sources))
+
+    :else
+    []))
+
+(defn- source-count-options
+  "Describe the one actionable count shown beside each source in this view.
+  Historical totals are intentionally absent from Reader navigation."
+  [{:keys [group-name group-item filter]}]
+  (when (contains? #{:unread :today} filter)
+    (cond-> {:simple-filter filter}
+      (= group-name :item-tags) (assoc :with-tag group-item))))
+
 (defn get-active-group-sources
-  "Return active sources, might hit database"
+  "Return active sources, adding only the count relevant to the current view."
   [sources params]
-  (let [{:keys [group-name group-item]} params]
-    (cond
-      (and (= group-name :default) (= group-item :all))
-      (vals sources)
-
-      (= group-name :item-tags)
-      (persistency/get-sources-item-tags-counts frontend-db group-item (:filter params) (config/get-sources))
-
-      (= group-name :source-tag)
-      (filter #(contains? (:tags %) group-item) (vals sources))
-
-      (= group-name :type)
-      (filter #(= (:type %) (keyword "item-type" (name group-item))) (vals sources))
-
-      :else
-      [])))
+  (let [candidates (vec (group-source-candidates sources params))
+        candidate-ids (mapv :id candidates)
+        count-options (source-count-options params)
+        counts (when count-options
+                 (persistency/get-source-item-counts
+                  frontend-db
+                  (assoc count-options :source-ids candidate-ids)))
+        matching-source-ids (when (= :item-tags (:group-name params))
+                              (if count-options
+                                (set (keys counts))
+                                (persistency/get-source-ids-with-tag
+                                 frontend-db candidate-ids (:group-item params))))
+        with-counts (if count-options
+                      (mapv #(assoc % :item-count (get counts (:id %) 0)) candidates)
+                      candidates)]
+    (if (= :item-tags (:group-name params))
+      (filterv #(contains? matching-source-ids (:id %)) with-counts)
+      with-counts)))
 
 (defn get-selected-sources
   "Return selected sources in current view. (e.g something that should be highlighted"
@@ -3088,10 +3117,7 @@
                                   :items doall)))
          ;; right sidebar
          active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
-                          (doall
-                           (persistency/sources-merge-in-tags-counts
-                            frontend-db
-                            (get-active-group-sources sources params))))
+                          (doall (get-active-group-sources sources params)))
 
          selected-sources (get-selected-sources active-sources params)
          source-update-context (source-update-view-context selected-sources)
@@ -3207,10 +3233,7 @@
   (let [sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                   (doall (persistency/get-sources frontend-db (config/get-sources))))
         active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
-                         (doall
-                          (persistency/sources-merge-in-tags-counts
-                           frontend-db
-                           (get-active-group-sources sources params))))
+                         (doall (get-active-group-sources sources params)))
         active-source-keys (vec (sort (map :key active-sources)))
         fut (future (update/update-some! active-source-keys))]
     (swap! update-futures assoc active-source-keys fut)
@@ -3223,10 +3246,7 @@
   (let [sources (prometheus/with-duration (metrics/prom-registry :llar-ui/compile-sources)
                   (doall (persistency/get-sources frontend-db (config/get-sources))))
         active-sources (prometheus/with-duration (metrics/prom-registry :llar-ui/active-sources)
-                         (doall
-                          (persistency/sources-merge-in-tags-counts
-                           frontend-db
-                           (get-active-group-sources sources params))))
+                         (doall (get-active-group-sources sources params)))
         active-source-keys (vec (sort (map :key active-sources)))
         fut (get @update-futures active-source-keys)]
     (when fut

@@ -9,34 +9,19 @@ create type item_type as enum(
   'website'
 )
 
--- :name get-item-count-of-source :? :1
-select count(*) from items where source_id = :id
+-- :name get-source-ids-with-tag :? :*
+select distinct items.source_id
+from items
+where items.source_id in (:v*:source-ids)
+  and items.tagi @@ (select format('(%s)', id) from tags where tag = :tag)::query_int
 
--- :name get-item-count-by-tag-of-source :? :raw
-select count(tag), tag
-from items, tags, lateral (select unnest(tagi) as tag_id) as tags_un
-where source_id = :id
-and tags.id = tag_id
-group by tag;
-
--- :name get-item-count-unread-today :? :1
-select count(*) from items
-  where source_id = :id
-  and date(ts) = current_date
-  and tagi @@ '0';
-
--- :name get-sources-with-item-tags-count :? :raw
-select distinct on (key) key,
-  name as title,
-   key,
-   created_ts,
-   sources.id,
-   sources.type
-from sources
-inner join items
-on sources.id = items.source_id
-where tagi @@ (SELECT format('(%s)', id) FROM tags WHERE tag = :item-tag)::query_int
+-- :name get-source-item-counts :? :*
+select items.source_id, count(*) as item_count
+from items
+where items.source_id in (:v*:source-ids)
 --~ (when (:simple-filter params) "and :sql:simple-filter")
+--~ (when (:with-tag params) "and items.tagi @@ (select format('(%s)', id) from tags where tag = :with-tag)::query_int")
+group by items.source_id
 
 -- :name get-items-by-tag :? :*
 select key, title, author, items.type, items.id, entry
