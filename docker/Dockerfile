@@ -61,7 +61,6 @@ ENV LLAR_CONFIG=/llar/config.edn
 ENV WEKA_HOME=/llar/wekafiles
 ENV JDK_JAVA_OPTIONS="-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
 
-COPY --chown=0:0 tools/ /llar/tools
 COPY --chown=0:0 package.json /llar
 COPY --chown=0:0 package-lock.json /llar
 
@@ -78,6 +77,8 @@ RUN apt-get update && \
   apt-get purge -y build-essential && \
   apt-get autoremove -y && \
   rm -rf /var/lib/apt/lists/*
+
+COPY --chown=0:0 tools/ /llar/tools
 
 RUN mkdir -p /llar/wekafiles && chown llar:llar /llar/wekafiles
 

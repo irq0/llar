@@ -161,13 +161,11 @@ jobs:
         key: lein-${{ hashFiles('project.clj') }}
         restore-keys: lein-
 
-    - name: Install packages
-      run: sudo apt update && sudo apt-get install -y make libarchive-tools unzip wget
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: Cache frontend assets
+      id: frontend-assets-cache
       uses: actions/cache@v4
       with:
         path: |
@@ -178,6 +176,12 @@ jobs:
           resources/status/ibmplex
           resources/status/jquery
         key: frontend-assets-${{ runner.os }}-${{ hashFiles('Makefile') }}
+
+    - name: Install frontend asset tools
+      if: steps.frontend-assets-cache.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y make libarchive-tools wget
 
     - name: Initialize lein
       run: lein deps
