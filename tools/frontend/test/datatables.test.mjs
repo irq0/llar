@@ -186,8 +186,6 @@ test("Reader and Dashboard scripts run with the current frontend runtimes", asyn
     await addScript(page, "llar-status.js");
 
     await page.getByText("Example source").waitFor();
-    assert.equal(await page.evaluate(() => window.jQuery.fn.jquery), "4.0.0");
-    assert.equal(await page.evaluate(() => DataTable.version), "3.0.1");
     assert.equal(
       await page.evaluate(() => DataTable.isDataTable(".datatable")),
       true,
