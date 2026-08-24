@@ -64,6 +64,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     steps:
     - uses: actions/checkout@v5
       with:
@@ -95,15 +99,36 @@ jobs:
       run: npm install
     - name: Install browser asset tools
       run: sudo apt update && sudo apt-get install -y libarchive-tools wget
+    - name: Prepare test reports
+      run: mkdir -p target/test-results
     - name: Run metadata extraction tests
-      run: npm test
+      id: metadata-tests
+      continue-on-error: true
+      run: |
+        node --test \
+          --test-reporter=spec \
+          --test-reporter=junit \
+          --test-reporter-destination=stdout \
+          --test-reporter-destination=target/test-results/node.xml \
+          tools/readability/test/*.test.js \
+          tools/value-inspector/test/*.test.js
     - name: Install browser test assets
       run: make bootstrap jquery datatables
     - name: Run frontend browser integration tests
-      run: npm run test:browser
+      id: browser-tests
+      continue-on-error: true
+      run: |
+        node --test \
+          --test-reporter=spec \
+          --test-reporter=junit \
+          --test-reporter-destination=stdout \
+          --test-reporter-destination=target/test-results/browser.xml \
+          tools/frontend/test/*.test.mjs
     - name: Install dependencies
       run: lein deps
     - name: Run tests with coverage
+      id: clojure-tests
+      continue-on-error: true
       run: lein run -m kaocha.runner --plugin kaocha.plugin/cloverage
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
@@ -117,12 +142,29 @@ jobs:
         name: test-results
         path: |
           target/junit.xml
+          target/test-results/
           target/coverage/
     - name: Publish test results
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always()
       with:
-        files: target/junit.xml
+        files: |
+          target/junit.xml
+          target/test-results/*.xml
+        check_name: LLAR test results
+        comment_mode: failures
+        job_summary: true
+        compare_to_earlier_commit: true
+        report_individual_runs: true
+        report_suite_logs: error
+        action_fail_on_inconclusive: true
+    - name: Fail job when tests failed
+      if: >-
+        always() &&
+        (steps.metadata-tests.outcome == 'failure' ||
+         steps.browser-tests.outcome == 'failure' ||
+         steps.clojure-tests.outcome == 'failure')
+      run: exit 1
 
   docker:
     runs-on: ubuntu-latest
