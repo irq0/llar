@@ -68,13 +68,13 @@
                  [org.clojure/test.check "1.1.3"]
                  [org.clojure/tools.cli "1.4.256"]
                  [org.clojure/tools.reader "1.6.0"]
-                 [org.babashka/sci "0.13.53"]
+                 [org.babashka/sci "0.15.58"]
                  [dev.weavejester/medley "1.10.0"]
-                 [com.fasterxml.jackson.core/jackson-databind "2.22.1"]
+                 [com.fasterxml.jackson.core/jackson-databind "2.22.2"]
                  [org.jsoup/jsoup "1.23.1"]
                  [org.apache.httpcomponents/httpcore "4.4.16"]
                  [org.bouncycastle/bcpkix-jdk18on "1.85"]
-                 [org.bouncycastle/bcprov-jdk18on "1.85"]
+                 [org.bouncycastle/bcprov-jdk18on "1.85.2"]
                  [org.bouncycastle/bcutil-jdk18on "1.85"]
                  [javax.activation/activation "1.1.1"]
                  [net.java.dev.jna/jna "5.19.1"]
@@ -101,13 +101,13 @@
                  [potemkin "0.4.9" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
                  [nrepl "1.7.0"]
-                 [djblue/portal "0.67.1"]
+                 [djblue/portal "0.67.2"]
                  [org.clojure/core.async "1.9.865" :exclusions [org.clojure/data.priority-map org.clojure/tools.analyzer.jvm org.tukaani/xz]]
                  [byte-streams "0.2.4" :exclusions [riddley]]
                  [com.nextjournal/beholder "1.0.3"]
 
                  ;; schema
-                 [prismatic/schema "1.4.1"]
+                 [prismatic/schema "1.4.2"]
                  [prismatic/schema-generators "0.1.5"]
 
                  ;; monitoring
