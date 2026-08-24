@@ -78,7 +78,7 @@ function datatable_for(selector) {
   return new DataTable(table, { retrieve: true });
 }
 
-function initialize_dashboard_table(container, selector, column_defs) {
+function initialize_dashboard_table(container, selector, column_defs, order) {
   $(container)
     .find(selector)
     .each(function () {
@@ -89,7 +89,7 @@ function initialize_dashboard_table(container, selector, column_defs) {
           lengthChange: false,
           deferRender: true,
           searching: true,
-          order: [],
+          order: order || [],
           columnDefs: column_defs,
         });
       }
@@ -216,9 +216,15 @@ function initialize_datatables(container) {
   initialize_dashboard_table(container, "#bookmarks-datatable", [
     { targets: 6, orderable: false, searchable: false },
   ]);
-  initialize_dashboard_table(container, "#podcasts-datatable", [
-    { targets: 8, orderable: false, searchable: false },
-  ]);
+  initialize_dashboard_table(
+    container,
+    "#podcasts-datatable",
+    [{ targets: 9, orderable: false, searchable: false }],
+    [
+      [0, "asc"],
+      [6, "desc"],
+    ],
+  );
   initialize_state_datatable(container);
   initialize_schedule_datatable(container);
 }
@@ -1419,6 +1425,32 @@ $(document).ready(function () {
       })
       .fail(function () {
         console.error("Failed to trigger schedule " + k);
+      });
+  });
+
+  $(document).on("click", ".btn-podcast-action", function () {
+    var button = $(this);
+    if (button.prop("disabled") || button.data("pending")) return;
+
+    var confirmation = button.attr("data-confirm");
+    if (confirmation && !window.confirm(confirmation)) return;
+
+    var pane = button.closest(".tab-pane");
+    var endpoint = button.attr("data-endpoint");
+    var method = button.attr("data-method") || "POST";
+    button.data("pending", true).prop("disabled", true);
+
+    $.ajax({ url: endpoint, method: method })
+      .done(function () {
+        reload_dashboard_tab(
+          pane.length ? pane : $(".tab-pane.active").first(),
+        );
+      })
+      .fail(function () {
+        console.error("Podcast action failed: " + method + " " + endpoint);
+      })
+      .always(function () {
+        button.data("pending", false).prop("disabled", false);
       });
   });
 

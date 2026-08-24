@@ -35,6 +35,7 @@
    [llar.work :as work])
   (:import
    [io.prometheus.client.exporter.common TextFormat]
+   [java.time.format DateTimeFormatter]
    [org.apache.commons.text StringEscapeUtils]
    [org.bovinegenius.exploding_fish Uri]))
 
@@ -61,7 +62,7 @@
    [:script {:src "/static/datatables/dataTables.min.js?v=3.0.1"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar-status.js?v=source-fetch-menu-1"}]])
+   [:script {:src "/static/llar-status.js?v=podcast-actions-1"}]])
 
 (defn wrap-body [body]
   (str
@@ -770,6 +771,28 @@
               "bg-secondary")]
     [:span {:class (str "badge " cls)} (name status)]))
 
+(def ^:private podcast-timestamp-formatter
+  (DateTimeFormatter/ofPattern "yyyy-MM-dd HH:mm z"))
+
+(defn- podcast-timestamp [timestamp]
+  (when timestamp
+    [:span
+     [:time {:datetime (str timestamp)
+             :title (str timestamp)}
+      (.format podcast-timestamp-formatter timestamp)]
+     [:small {:class "d-block text-muted"}
+      (human/datetime-ago timestamp) " ago"]]))
+
+(defn- podcast-action-button
+  [label endpoint method class & {:keys [confirm title]}]
+  [:button (cond-> {:class (str class " btn-podcast-action")
+                    :type "button"
+                    :data-endpoint endpoint
+                    :data-method method}
+             confirm (assoc :data-confirm confirm)
+             title (assoc :title title))
+   label])
+
 (defn podcast-tab []
   (let [state @podcast/download-state
         by-status (group-by (comp :status val) state)
@@ -820,9 +843,9 @@
                [:td (if (pos? size) (human/filesize size) "0 B")]])]]]))
 
      [:div {:class "mb-3"}
-      [:button {:class "btn btn-sm btn-outline-secondary"
-                :onclick "fetch('/api/podcast/enforce-retention', {method:'POST'}).then(()=>location.reload())"}
-       "Enforce Retention Now"]]
+      (podcast-action-button
+       "Enforce Retention Now" "/api/podcast/enforce-retention" "POST"
+       "btn btn-sm btn-outline-secondary")]
 
      (if (empty? state)
        [:p {:class "text-muted"} "No podcast items tracked. Tag items with \"podcast\" to start."]
@@ -837,14 +860,18 @@
           [:th "Title / URL"]
           [:th "Duration"]
           [:th "Size"]
+          [:th "Downloaded"]
           [:th "Last Attempt"]
           [:th "Error"]
           [:th ""]]]
         [:tbody
-         (for [[item-id info] (sort-by (comp :last-attempt val) #(compare %2 %1) state)
-               :let [{:keys [status media-url metadata last-attempt blob-hash
+         (for [[item-id info] (sort-by (comp #(or (:completed-at %) (:last-attempt %)) val)
+                                       #(compare %2 %1)
+                                       state)
+               :let [{:keys [status media-url metadata completed-at last-attempt blob-hash
                              item-title source-key error]} info
                      duration (:duration metadata)
+                     downloaded-title (:title metadata)
                      blob-size (when blob-hash (podcast/blob-file-size blob-hash))]]
            [:tr
             [:td {:data-order (name status)} (podcast-status-badge status)]
@@ -854,44 +881,49 @@
             [:td
              (when item-title
                [:div [:strong item-title]])
-             (if-let [title (:title metadata)]
-               [:div
-                [:span title]
-                [:br]
-                [:small {:class "text-muted"} (human/truncate-ellipsis (str media-url) 60)]]
-               [:small {:class "text-muted"} (human/truncate-ellipsis (str media-url) 80)])
-             (when blob-hash
-               [:div [:small {:class "text-muted font-monospace"} (subs blob-hash 0 12) "..."]])]
+             (when (and downloaded-title (not= downloaded-title item-title))
+               [:div [:span downloaded-title]])
+             (when media-url
+               [:a {:class "small text-muted"
+                    :href (str media-url)
+                    :target "_blank"
+                    :rel "noreferrer"
+                    :title (str media-url)}
+                (human/truncate-ellipsis (str media-url) 80)])]
             [:td {:data-order (or duration -1)}
              (some-> duration podcast-api/format-duration)]
             [:td {:data-order (or blob-size -1)}
              (when (and blob-size (pos? blob-size)) (human/filesize blob-size))]
+            [:td {:data-order (if completed-at
+                                (time/to-millis-from-epoch completed-at)
+                                -1)}
+             (podcast-timestamp completed-at)]
             [:td {:data-order (if last-attempt
                                 (time/to-millis-from-epoch last-attempt)
                                 -1)}
-             (when last-attempt (human/datetime-ago last-attempt))]
+             (podcast-timestamp last-attempt)]
             [:td (when error
                    [:details
                     [:summary [:small {:class "text-danger"} (human/truncate-ellipsis error 60)]]
                     [:pre {:class "text-danger small mt-1"} error]])]
             [:td
              (when (#{:failed :complete} status)
-               [:button {:class "btn btn-sm btn-outline-warning me-1"
-                         :onclick (str "fetch('/api/podcast/retry/" item-id "', {method:'POST'})"
-                                       ".then(()=>location.reload())")}
-                "Retry"])
+               (podcast-action-button
+                (if (= :complete status) "Download again" "Retry")
+                (str "/api/podcast/retry/" item-id) "POST"
+                "btn btn-sm btn-outline-warning me-1"
+                :title (when (= :complete status)
+                         "Download a new copy; the existing file is kept")))
              (when (#{:complete :failed :perm-failed :pending} status)
-               [:button {:class "btn btn-sm btn-outline-secondary me-1"
-                         :onclick (str "if(confirm('Remove the podcast tag? The downloaded blob will be kept.'))"
-                                       "fetch('/api/podcast/" item-id "/tag', {method:'DELETE'})"
-                                       ".then(()=>location.reload())")}
-                "Untag"])
+               (podcast-action-button
+                "Untag" (str "/api/podcast/" item-id "/tag") "DELETE"
+                "btn btn-sm btn-outline-secondary me-1"
+                :confirm "Remove the podcast tag? The downloaded blob will be kept."))
              (when (#{:complete :failed :perm-failed :pending} status)
-               [:button {:class "btn btn-sm btn-outline-danger"
-                         :onclick (str "if(confirm('Delete episode and blob?'))"
-                                       "fetch('/api/podcast/" item-id "', {method:'DELETE'})"
-                                       ".then(()=>location.reload())")}
-                "Delete"])]])]])]))
+               (podcast-action-button
+                "Delete" (str "/api/podcast/" item-id) "DELETE"
+                "btn btn-sm btn-outline-danger"
+                :confirm "Delete episode and blob?"))]])]])]))
 
 (defn- ranking-bar-chart [title rows value-key format-value color-class]
   (let [rows (vec rows)

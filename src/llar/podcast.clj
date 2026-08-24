@@ -298,7 +298,8 @@
                    :item-title item-title
                    :source-key source-key
                    :metadata (:podcast-metadata blob)
-                   :mime-type (:mime-type blob)}))
+                   :mime-type (:mime-type blob)
+                   :completed-at (:podcast-completed-at blob)}))
          (swap! download-state assoc item-id
                 {:status :pending
                  :media-url url-str
