@@ -48,7 +48,10 @@
     :appconfig->rc #(cond-> {}
                       (:video-format %) (assoc :video-format (:video-format %))
                       (:av-downloader-extra-args %) (assoc :extra-args (:av-downloader-extra-args %)))
-    :default {:video-format "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"
+    ;; Prefer podcast-safe H.264/AAC MP4, but keep relaxing the requirements until
+    ;; any watchable video is found. The explicit vcodec filters prevent yt-dlp's
+    ;; `best` fallback from resolving an incomplete source to audio-only.
+    :default {:video-format "bestvideo[height<=1080][ext=mp4][vcodec~='^(avc1|h264)']+bestaudio[ext=m4a][acodec~='^(mp4a|aac)']/best[height<=1080][ext=mp4][vcodec~='^(avc1|h264)'][acodec~='^(mp4a|aac)']/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4][vcodec!=none]/bestvideo[height<=1080]+bestaudio/best[height<=1080][vcodec!=none]/bestvideo+bestaudio/best[vcodec!=none]"
               :extra-args ["--embed-metadata"
                            "--embed-chapters"
                            "--write-subs"
@@ -297,7 +300,7 @@
         :llar.config/order 87
         :llar.config/keys ["Optional keys: :video-format, :extra-args, :max-attempts, :retry-cooldown-minutes"
                            "Defining podcast-download enables podcast media downloading and retention jobs."]
-        :llar.config/example "(podcast-download :video-format \"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]\"\n                  :extra-args [\"--embed-metadata\" \"--embed-chapters\"]\n                  :max-attempts 3\n                  :retry-cooldown-minutes 30)"}
+        :llar.config/example "(podcast-download :video-format \"bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080][vcodec!=none]/bestvideo+bestaudio/best[vcodec!=none]\"\n                  :extra-args [\"--embed-metadata\" \"--embed-chapters\"]\n                  :max-attempts 3\n                  :retry-cooldown-minutes 30)"}
   podcast-download
   "Configure and enable podcast media downloads."
   [& kvs]

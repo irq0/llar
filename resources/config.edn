@@ -42,7 +42,10 @@
        :podcast {:host "127.0.0.1"
                  :port 8024
                  :base-url "http://localhost:8024"
-                 :video-format "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"
+                 ;; H.264/AAC MP4 for podcast clients when available; progressively
+                 ;; relax to any video (never audio-only), including above 1080p as
+                 ;; a last resort for sources with no smaller rendition.
+                 :video-format "bestvideo[height<=1080][ext=mp4][vcodec~='^(avc1|h264)']+bestaudio[ext=m4a][acodec~='^(mp4a|aac)']/best[height<=1080][ext=mp4][vcodec~='^(avc1|h264)'][acodec~='^(mp4a|aac)']/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4][vcodec!=none]/bestvideo[height<=1080]+bestaudio/best[height<=1080][vcodec!=none]/bestvideo+bestaudio/best[vcodec!=none]"
                  :av-downloader-extra-args ["--embed-metadata"
                                             "--embed-chapters"
                                             "--write-subs"
