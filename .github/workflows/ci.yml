@@ -66,6 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
       checks: write
       pull-requests: write
     steps:
@@ -105,6 +106,7 @@ jobs:
       id: metadata-tests
       continue-on-error: true
       run: |
+        set +e
         node --test \
           --test-reporter=spec \
           --test-reporter=junit \
@@ -112,18 +114,33 @@ jobs:
           --test-reporter-destination=target/test-results/node.xml \
           tools/readability/test/*.test.js \
           tools/value-inspector/test/*.test.js
+        test_status=$?
+        set -e
+        if [[ -s target/test-results/node.xml ]]; then
+          node tools/normalize-node-junit.mjs \
+            target/test-results/node.xml "Node.js tests"
+        fi
+        exit "$test_status"
     - name: Install browser test assets
       run: make bootstrap jquery datatables
     - name: Run frontend browser integration tests
       id: browser-tests
       continue-on-error: true
       run: |
+        set +e
         node --test \
           --test-reporter=spec \
           --test-reporter=junit \
           --test-reporter-destination=stdout \
           --test-reporter-destination=target/test-results/browser.xml \
           tools/frontend/test/*.test.mjs
+        test_status=$?
+        set -e
+        if [[ -s target/test-results/browser.xml ]]; then
+          node tools/normalize-node-junit.mjs \
+            target/test-results/browser.xml "Browser integration tests"
+        fi
+        exit "$test_status"
     - name: Install dependencies
       run: lein deps
     - name: Run tests with coverage
@@ -158,6 +175,7 @@ jobs:
         report_individual_runs: true
         report_suite_logs: error
         action_fail_on_inconclusive: true
+        test_file_prefix: -${{ github.workspace }}/
     - name: Fail job when tests failed
       if: >-
         always() &&
