@@ -31,6 +31,7 @@
  order-by-selected-rank-snip
  get-items-recent
  get-items-recent-by-tag
+ get-items-recent-by-source-ids
  get-items-ranked-bounded
  get-item-by-id
  store-item

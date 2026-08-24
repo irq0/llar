@@ -162,7 +162,8 @@
 
 (defn- make-recent-items-where-cond-vec
   "Convert get-items-recent filter parameter into a list of sqlvec where clauses"
-  [args & {:keys [include-tag?] :or {include-tag? true}}]
+  [args & {:keys [include-tag? include-source-ids?]
+           :or {include-tag? true include-source-ids? true}}]
   (let [{:keys [before with-source-keys with-source-ids simple-filter with-tag with-type]} args
         simple-filter (when (keyword? simple-filter) (simple-filter-to-sql simple-filter))]
     (not-empty
@@ -177,7 +178,9 @@
                   (conj (sql/cond-with-source-keys {:keys
                                                     (map name with-source-keys)}))
 
-                  (and (coll? with-source-ids) (not-empty with-source-ids))
+                  (and include-source-ids?
+                       (coll? with-source-ids)
+                       (not-empty with-source-ids))
                   (conj (sql/cond-with-source-ids {:ids with-source-ids}))
 
                   (some? simple-filter)
@@ -193,11 +196,17 @@
   PostgresqlDataStore
 
   (get-items-recent [this {:keys [limit offset] :or {limit 42} :as args}]
-    (let [bounded-rank-query? (and (= :ranked (:sort-order args))
+    (let [empty-source-filter? (and (coll? (:with-source-ids args))
+                                    (empty? (:with-source-ids args)))
+          bounded-rank-query? (and (= :ranked (:sort-order args))
                                    (not (:with-data? args)))
           gin-first-tag-query? (and (keyword? (:with-tag args))
                                     (not (:with-data? args))
                                     (not= :ranked (:sort-order args)))
+          source-id-query? (and (seq (:with-source-ids args))
+                                (not (:with-data? args))
+                                (not (keyword? (:with-tag args)))
+                                (not= :ranked (:sort-order args)))
           query-params {:select (choose-recent-items-select-snip
                                  (cond-> args
                                    bounded-rank-query? (assoc :with-rank-score? true)))
@@ -205,12 +214,16 @@
                         :where (make-recent-items-where-cond-vec
                                 args
                                 :include-tag? (not (or gin-first-tag-query?
-                                                       bounded-rank-query?)))
+                                                       bounded-rank-query?))
+                                :include-source-ids? (not source-id-query?))
                         :order-by (choose-order-by-snip args)
                         :limit limit
                         :offset offset
                         :group-by-columns (choose-recent-items-group-by-colums args)}
           items (cond
+                  empty-source-filter?
+                  []
+
                   bounded-rank-query?
                   (let [highlight-boost (double (or (:highlight-boost args) 48.0))
                         rarity-cap (double (or (:rarity-cap args) 168.0))
@@ -231,6 +244,14 @@
                   (sql/get-items-recent-by-tag
                    this
                    (assoc query-params :tag (tags/normalize-tag (:with-tag args))))
+
+                  source-id-query?
+                  (sql/get-items-recent-by-source-ids
+                   this
+                   (assoc query-params
+                          :source-ids (vec (:with-source-ids args))
+                          :candidate-limit (+ limit (or offset 0))
+                          :oldest? (= :oldest (:sort-order args))))
 
                   :else
                   (sql/get-items-recent this query-params))]

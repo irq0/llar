@@ -4059,6 +4059,7 @@
                                                 (:tag params))
                                     :untagged? (= "__untagged__" (:tag params))
                                     :archived-only? true
+                                    :with-total-count? true
                                     :sort (:sort params)
                                     :limit 50
                                     :offset (:offset params)})]

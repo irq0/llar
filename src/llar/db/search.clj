@@ -7,12 +7,30 @@
    [llar.db.core]
    [llar.db.sql :as sql]
    [llar.persistency :refer [DataStoreSearch]]
-   [next.jdbc :as jdbc])
+   [next.jdbc :as jdbc]
+   [next.jdbc.result-set :as rs])
   (:import
    (llar.db.core PostgresqlDataStore)))
 
+(defn- search-index-populated? [db]
+  (:populated
+   (jdbc/execute-one!
+    db
+    ["select relispopulated as populated
+      from pg_class
+      where oid = 'search_index'::regclass"]
+    {:builder-fn rs/as-unqualified-lower-maps})))
+
 (defn- refresh-search-index [db]
-  (jdbc/execute! db ["refresh materialized view search_index"]))
+  ;; A newly migrated WITH NO DATA view needs one blocking refresh. Once it is
+  ;; populated, the unique ID index lets daily refreshes keep search readable.
+  (jdbc/execute! db
+                 [(if (search-index-populated? db)
+                    "refresh materialized view concurrently search_index"
+                    "refresh materialized view search_index")])
+  ;; REFRESH replaces the contents, so give the planner current tsvector and
+  ;; row-count statistics before serving queries against the new snapshot.
+  (jdbc/execute! db ["analyze search_index"]))
 
 (defn- refresh-idf [db]
   (jdbc/execute! db ["refresh materialized view idf_top_words"]))
@@ -34,7 +52,7 @@
 
   (search
     ([this query {:keys [syntax with-source-key with-tag untagged? time-ago-period
-                         archived-only? sort limit offset]
+                         archived-only? with-total-count? sort limit offset]
                   :or {limit 100 offset 0}}]
      (if (string/blank? query)
        []
@@ -46,6 +64,7 @@
          :with-tag with-tag
          :untagged? untagged?
          :archived-only? archived-only?
+         :with-total-count? with-total-count?
          :sort sort
          :limit limit
          :offset offset

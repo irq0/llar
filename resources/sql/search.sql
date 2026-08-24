@@ -1,5 +1,5 @@
 -- :name search-item :? :*
-with query as (
+with query as not materialized (
   select
     case :syntax
       when 'advanced' then to_tsquery('english', :query)
@@ -13,12 +13,72 @@ with query as (
       when 'phrase' then phraseto_tsquery('german', :query)
       else websearch_to_tsquery('german', :query)
     end as german
-), matches as (
+), index_matches as (
+  -- Keep the query operand independent of each search_index row. A single
+  -- CASE on search_config prevents PostgreSQL from constructing a GIN scan
+  -- key and turns every search into a sequential scan of the materialized
+  -- view. The fixed-language branches both use search_index_document_idx.
+  select
+    search_index.id,
+    search_index.title,
+    search_index.key,
+    search_index.ts,
+    search_index.search_config,
+    search_index.document,
+    search_index.headline_text,
+    query.english as q
+  from search_index
+  cross join query
+  where search_index.search_config = 'english'
+    and search_index.document @@ query.english
+  --~ (when (:time-ago params) "and search_index.ts > :time-ago")
+  --~ (when (:source-key params) "and search_index.key = :source-key")
+
+  union all
+
+  select
+    search_index.id,
+    search_index.title,
+    search_index.key,
+    search_index.ts,
+    search_index.search_config,
+    search_index.document,
+    search_index.headline_text,
+    query.german as q
+  from search_index
+  cross join query
+  where search_index.search_config = 'german'
+    and search_index.document @@ query.german
+  --~ (when (:time-ago params) "and search_index.ts > :time-ago")
+  --~ (when (:source-key params) "and search_index.key = :source-key")
+), filtered_matches as (
+  select index_matches.*
+  from index_matches
+  inner join items live_items on live_items.id = index_matches.id
+  where true
+  --~ (when (:archived-only? params) "and live_items.tagi @@ (select format('(%s)', id) from tags where tag = 'archive')::query_int")
+  --~ (when (:with-tag params) "and live_items.tagi @@ (select format('(%s)', id) from tags where tag = :with-tag)::query_int")
+  --~ (when (:untagged? params) "and not exists (select 1 from unnest(live_items.tagi) tag_id inner join tags t on t.id = tag_id where t.tag not in ('archive', 'saved', 'unread', 'in-progress'))")
+), selected_matches as materialized (
+  select
+    id,
+    title,
+    key,
+    ts,
+    search_config,
+    headline_text,
+    q,
+--~ (when (:with-total-count? params) "    count(*) over () as total_count,")
+    ts_rank_cd(document, q, 32) as rank
+  from filtered_matches
+  --~ (case (:sort params) "oldest" "order by ts asc, id asc" "newest" "order by ts desc, id desc" "order by rank desc, ts desc, id desc")
+  limit :limit offset :offset
+)
 select
-  search_index.id,
-  search_index.title,
-  search_index.key,
-  search_index.ts,
+  selected_matches.id,
+  selected_matches.title,
+  selected_matches.key,
+  selected_matches.ts,
   live_items.author,
   live_items.entry,
   live_items.type,
@@ -27,55 +87,23 @@ select
   (select array_agg(t.tag order by t.tag)
    from unnest(live_items.tagi) tag_id
    inner join tags t on t.id = tag_id) as tags,
+--~ (when (:with-total-count? params) "  selected_matches.total_count as \"total-count\",")
   :syntax as syntax,
-  case search_config
-    when 'german' then query.german
-    else query.english
-  end as q,
-  search_config,
-  document,
-  headline_text
-from search_index
-inner join items live_items on live_items.id = search_index.id
-cross join query
-where document @@ case search_config
-  when 'german' then query.german
-  else query.english
-end
---~ (when (:archived-only? params) "and live_items.tagi @@ (select format('(%s)', id) from tags where tag = 'archive')::query_int")
---~ (when (:with-tag params) "and live_items.tagi @@ (select format('(%s)', id) from tags where tag = :with-tag)::query_int")
---~ (when (:untagged? params) "and not exists (select 1 from unnest(live_items.tagi) tag_id inner join tags t on t.id = tag_id where t.tag not in ('archive', 'saved', 'unread', 'in-progress'))")
---~ (when (:time-ago params) "and search_index.ts > :time-ago")
---~ (when (:source-key params) "and search_index.key = :source-key")
-)
-select
-  id,
-  title,
-  key,
-  ts,
-  author,
-  entry,
-  type,
-  nwords,
-  "top-words",
-  tags,
-  count(*) over () as "total-count",
-  syntax,
-  ts_rank_cd(document, q, 32) as rank,
+  selected_matches.rank,
   ts_rank_cd(
-    to_tsvector(search_config::regconfig, COALESCE(title, '')),
-    q,
+    to_tsvector(selected_matches.search_config::regconfig, COALESCE(selected_matches.title, '')),
+    selected_matches.q,
     32
   ) as title_rank,
   ts_headline(
-    search_config::regconfig,
-    headline_text,
-    q,
+    selected_matches.search_config::regconfig,
+    selected_matches.headline_text,
+    selected_matches.q,
     'StartSel="[[[", StopSel="]]]", MaxFragments=2, MinWords=8, MaxWords=24, FragmentDelimiter=" ... "'
   ) as headline
-from matches
---~ (case (:sort params) "oldest" "order by ts asc, id asc" "newest" "order by ts desc, id desc" "order by rank desc, ts desc, id desc")
-limit :limit offset :offset
+from selected_matches
+inner join items live_items on live_items.id = selected_matches.id
+--~ (case (:sort params) "oldest" "order by selected_matches.ts asc, selected_matches.id asc" "newest" "order by selected_matches.ts desc, selected_matches.id desc" "order by selected_matches.rank desc, selected_matches.ts desc, selected_matches.id desc")
 
 
 -- :name saved-items-tf-idf :? :raw

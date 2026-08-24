@@ -122,6 +122,38 @@
           (is (= "Item 4" (:title (first page2))) "Second page should start with Item 4")
           (is (= "Item 5" (:title (second page2))) "Second page should have Item 5"))))))
 
+(deftest test-get-items-recent-source-subset-pagination
+  (testing "Merge bounded per-source streams without scanning unrelated items"
+    (let [now (time/zoned-date-time)]
+      (create-test-item *test-db* :src-name "selected-a" :hash "selected-a-new"
+                        :title "A new" :ts now)
+      (create-test-item *test-db* :src-name "selected-b" :hash "selected-b-new"
+                        :title "B new" :ts (time/minus now (time/hours 1)))
+      (create-test-item *test-db* :src-name "selected-a" :hash "selected-a-old"
+                        :title "A old" :ts (time/minus now (time/hours 2)))
+      (create-test-item *test-db* :src-name "selected-b" :hash "selected-b-old"
+                        :title "B old" :ts (time/minus now (time/hours 3)))
+      (create-test-item *test-db* :src-name "not-selected" :hash "not-selected-newest"
+                        :title "Unrelated newest" :ts (time/plus now (time/hours 1)))
+      (let [sources (persistency/get-sources *test-db* {})
+            source-ids [(get-in sources [:test-selected-a :id])
+                        (get-in sources [:test-selected-b :id])]
+            page1 (persistency/get-items-recent
+                   *test-db* {:with-source-ids source-ids :limit 2})
+            page2 (persistency/get-items-recent
+                   *test-db* {:with-source-ids source-ids
+                              :before (select-keys (last page1) [:ts :id])
+                              :limit 2})
+            oldest (persistency/get-items-recent
+                    *test-db* {:with-source-ids source-ids
+                               :sort-order :oldest
+                               :limit 2})]
+        (is (= ["A new" "B new"] (mapv :title page1)))
+        (is (= ["A old" "B old"] (mapv :title page2)))
+        (is (= ["B old" "A old"] (mapv :title oldest)))
+        (is (empty? (persistency/get-items-recent
+                     *test-db* {:with-source-ids [] :limit 2})))))))
+
 (deftest test-get-items-recent-tag-pagination-with-tied-timestamps
   (testing "GIN-first tag pages seek by timestamp and ID without gaps or overlap"
     (let [same-ts (time/zoned-date-time)]

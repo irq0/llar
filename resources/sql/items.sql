@@ -192,6 +192,35 @@ from selected_items
   inner join sources on items.source_id = sources.id
 :snip:order-by
 
+-- :name get-items-recent-by-source-ids :? :*
+-- For a source subset, read only the bounded head of each source's composite
+-- (source_id, ts, id) index and merge those small streams. A direct global
+-- ORDER BY/LIMIT can make PostgreSQL walk the entire timestamp index while
+-- discarding items from unrelated sources.
+with selected_sources as materialized (
+  select distinct unnest(array[:v*:source-ids]::bigint[]) as source_id
+), selected_items as materialized (
+  select candidates.id
+  from selected_sources
+  cross join lateral (
+    select items.id, items.ts
+    from items
+      inner join sources on items.source_id = sources.id
+    where items.source_id = selected_sources.source_id
+    --~ (when (:where params) "and :snip*:where")
+    :snip:order-by
+    limit :candidate-limit
+  ) candidates
+  --~ (if (:oldest? params) "order by candidates.ts asc, candidates.id asc" "order by candidates.ts desc, candidates.id desc")
+  limit :limit
+  --~ (when (some? (:offset params)) "offset :offset")
+)
+:snip:select
+from selected_items
+  inner join items on items.id = selected_items.id
+  inner join sources on items.source_id = sources.id
+:snip:order-by
+
 -- :name get-items-ranked-bounded :? :*
 -- Ranking score is age minus bounded boosts. A seed batch establishes an
 -- exact timestamp horizon: an item older than worst_seed_score + max_boost

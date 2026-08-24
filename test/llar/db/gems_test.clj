@@ -50,6 +50,31 @@
     (is (empty? (persistency/search *test-db* "quokka"
                                     {:archived-only? true})))))
 
+(deftest search-index-splits-languages-and-counts-only-on-request
+  (let [english-id (:id (create-test-item *test-db*
+                                          :hash "search-language-english"
+                                          :title "Quokka English"
+                                          :entry {:url "https://example.com/en"
+                                                  :language "en"}))
+        german-id (:id (create-test-item *test-db*
+                                         :hash "search-language-german"
+                                         :title "Quokka Deutsch"
+                                         :entry {:url "https://example.com/de"
+                                                 :language "de"}))
+        default-id (:id (create-test-item *test-db*
+                                          :hash "search-language-default"
+                                          :title "Quokka Default"))]
+    (persistency/update-index! *test-db*)
+    (let [rows (persistency/search *test-db* "quokka" {:limit 10})
+          counted-page (persistency/search *test-db* "quokka"
+                                           {:limit 1
+                                            :offset 1
+                                            :with-total-count? true})]
+      (is (= #{english-id german-id default-id} (set (map :id rows))))
+      (is (every? #(not (contains? % :total-count)) rows))
+      (is (= 1 (count counted-page)))
+      (is (= 3 (:total-count (first counted-page)))))))
+
 (deftest rediscovery-prefers-items-without-recorded-history
   (let [old-id (:id (create-test-item *test-db* :hash "old-gem"
                                       :src-name "old" :tags #{:archive}))
