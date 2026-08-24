@@ -317,7 +317,7 @@
     (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.0.1"))
     (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"))
     (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
-    (is (string/includes? body "/static/llar-status.js?v=source-fetch-menu-1"))
+    (is (string/includes? body "/static/llar-status.js?v=podcast-actions-1"))
     (is (string/includes? javascript "DataTable.isDataTable"))
     (is (string/includes? javascript "new DataTable"))
     (is (not (re-find #"[.$]DataTable\(" javascript)))))
@@ -393,22 +393,39 @@
         (is (= :triggered (get-in response [:body :result])))))))
 
 (deftest podcast-tab-offers-untag-action
-  (reset! podcast/download-state
-          {42 {:status :perm-failed
-               :media-url "https://example.com/episode"
-               :metadata {:duration 90}
-               :error "video unavailable"}})
-  (try
-    (with-redefs [podcast/podcast-disk-stats (constantly nil)
-                  podcast-api/format-duration (constantly nil)]
-      (let [body (str (h/html (uut/podcast-tab)))]
-        (is (string/includes? body "Perm Failed"))
-        (is (string/includes? body "id=\"podcasts-datatable\""))
-        (is (string/includes? body "data-order=\"90\""))
-        (is (string/includes? body ">Untag<"))
-        (is (string/includes? body "/api/podcast/42/tag"))))
-    (finally
-      (reset! podcast/download-state {}))))
+  (let [completed-at (time/zoned-date-time 2026 8 23 12 34 0 0 "UTC")]
+    (reset! podcast/download-state
+            {42 {:status :perm-failed
+                 :media-url "https://example.com/episode"
+                 :item-title "Episode from LLAR"
+                 :blob-hash "415658a92aaa-secret-storage-detail"
+                 :completed-at completed-at
+                 :metadata {:duration 90 :title "Downloaded title"}
+                 :error "video unavailable"}})
+    (try
+      (with-redefs [podcast/podcast-disk-stats (constantly nil)
+                    podcast/blob-file-size (constantly 1024)
+                    podcast-api/format-duration (constantly nil)]
+        (let [body (str (h/html (uut/podcast-tab)))]
+          (is (string/includes? body "Perm Failed"))
+          (is (string/includes? body "id=\"podcasts-datatable\""))
+          (is (string/includes? body "data-order=\"90\""))
+          (is (string/includes? body ">Downloaded<"))
+          (is (string/includes? body "2026-08-23 12:34 UTC"))
+          (is (string/includes? body
+                                (str "data-order=\""
+                                     (time/to-millis-from-epoch completed-at)
+                                     "\"")))
+          (is (string/includes? body "Episode from LLAR"))
+          (is (string/includes? body "Downloaded title"))
+          (is (string/includes? body "href=\"https://example.com/episode\""))
+          (is (not (string/includes? body "415658a92aaa")))
+          (is (string/includes? body ">Untag<"))
+          (is (string/includes? body "/api/podcast/42/tag"))
+          (is (string/includes? body "btn-podcast-action"))
+          (is (not (string/includes? body "location.reload")))))
+      (finally
+        (reset! podcast/download-state {})))))
 
 (deftest tiny-dashboard-summaries-do-not-render-datatables
   (testing "memory"

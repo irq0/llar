@@ -95,6 +95,36 @@
     (is (string/starts-with? (:source-directory (first (uut/entries)))
                              "favorite.png--"))))
 
+(deftest generated-navigation-artwork-is-stable-as-the-library-grows
+  (let [favorite-etag (fn [entries]
+                        (->> (:children (uut/directory ["By-Source"] entries))
+                             (some #(when (= "favorite.png" (:display-name %)) %))
+                             :etag))
+        entry {:item-id 1
+               :filename "First-1.mp4"
+               :source-directory "source-a"
+               :source-title "Source A"
+               :source-key :source-a
+               :blob-hash "hash-1"
+               :mime-type "video/mp4"}
+        second-entry (assoc entry
+                            :item-id 2
+                            :filename "Second-2.mp4"
+                            :blob-hash "hash-2")]
+    (is (= (favorite-etag [])
+           (favorite-etag [entry second-entry]))
+        "favorite artwork must not change between ranged client requests")
+    (with-redefs [blobstore/get-blob-metadata
+                  (constantly {:size 100 :mime-type "video/mp4"})]
+      (let [folder-etag (fn [entries]
+                          (->> (:children (uut/directory
+                                           ["By-Source" "source-a"] entries))
+                               (some #(when (= "folder.png" (:display-name %)) %))
+                               :etag))]
+        (is (= (folder-etag [entry])
+               (folder-etag [entry second-entry]))
+            "source artwork must not change between ranged client requests")))))
+
 (deftest webdav-discovery
   (with-redefs [media-api/base-url (constantly "https://media.example")
                 podcast/read-podcast-index (constantly {})]

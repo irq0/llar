@@ -12,15 +12,12 @@
   (:import
    [java.io FileNotFoundException]
    [java.nio.charset StandardCharsets]
-   [java.util Locale]
    [java.time.format DateTimeFormatter]))
 
 (def base-path "/library/")
 
 (def ^:private year-formatter (DateTimeFormatter/ofPattern "yyyy"))
 (def ^:private month-formatter (DateTimeFormatter/ofPattern "MM"))
-(def ^:private month-label-formatter
-  (DateTimeFormatter/ofPattern "MMM yyyy" Locale/ENGLISH))
 (def ^:private reserved-source-names #{"favorite-atv.png" "favorite.png"})
 
 (defn safe-name [value fallback]
@@ -237,12 +234,6 @@
                 (artwork-file parent-path stem "-fanart" fanart-hash completed-at)]))
     []))
 
-(defn- latest-label [entries]
-  (when-let [completed-at (->> entries (keep :completed-at) sort last)]
-    (try
-      (.format month-label-formatter completed-at)
-      (catch Exception _ nil))))
-
 (defn- indexed-source-title [entries]
   (some #(some-> (:source-title %) str str/trim not-empty) entries))
 
@@ -263,21 +254,13 @@
                                         not-empty)
                                files)
                          source-name)
-        latest (latest-label entries)
-        item-count (count entries)
         content {:title source-title
-                 :subtitle (when (not= source-title source-name) source-name)
-                 :details (cond-> [(str item-count " "
-                                        (if (= item-count 1) "item" "items"))]
-                            latest (conj (str "Latest " latest)))}]
+                 :subtitle (when (not= source-title source-name) source-name)}]
     (into [(generated-artwork segments "folder.png" content 500 750)]
           files)))
 
-(defn- favorite-files [segments entries]
-  (let [source-count (count (distinct (map :source-directory entries)))
-        content {:title "LLAR Media"
-                 :details [(str source-count " sources")
-                           (str (count entries) " items")]}]
+(defn- favorite-files [segments _entries]
+  (let [content {:title "LLAR Media"}]
     [(generated-artwork segments "favorite-atv.png" content 614 346)
      (generated-artwork segments "favorite.png" content 500 750)]))
 

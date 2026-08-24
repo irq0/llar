@@ -2,6 +2,7 @@
   (:require
    [clojure.java.io :as io]
    [cheshire.core :as json]
+   [clojure.string :as string]
    [clojure.test :refer [deftest is testing use-fixtures]]
    [clojure.tools.logging :as log]
    [java-time.api :as time]
@@ -29,6 +30,19 @@
     (is (= "10:00:00" (podcast-api/format-duration 36000))))
   (testing "returns nil for nil input"
     (is (nil? (podcast-api/format-duration nil)))))
+
+(deftest thumbnail-failure-log-includes-url-and-cause
+  (let [logged (atom nil)
+        failure (ex-info "HTTP 503 from image host" {:status 503})]
+    (with-redefs [clj-http.client/get (fn [& _] (throw failure))
+                  log/log* (fn [& args] (reset! logged args))]
+      (is (nil? (#'uut/download-thumbnail
+                 "https://images.example/thumbnail.jpg"))))
+    (is (some #(identical? failure %) @logged))
+    (is (string/includes? (str (last @logged))
+                          "https://images.example/thumbnail.jpg"))
+    (is (string/includes? (str (last @logged))
+                          "HTTP 503 from image host"))))
 
 (deftest test-format-rfc2822
   (testing "formats ZonedDateTime as RFC 2822"

@@ -202,7 +202,13 @@
                          thumbnail-url "square" "image/png" ".png")
         :fanart-hash infuse-hash})
      (catch Object e
-       (log/warn "podcast: thumbnail download failed:" thumbnail-url e)
+       (let [throwable (:throwable &throw-context)
+             message (or (:message &throw-context)
+                         (some-> throwable ex-message)
+                         (if (instance? Throwable e) (str e) (pr-str e)))
+             context (format "podcast: thumbnail download failed for %s: %s"
+                             thumbnail-url message)]
+         (log/warn throwable context))
        nil))))
 
 (defn- store-media!

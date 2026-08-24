@@ -64,6 +64,7 @@ test("Reader and Dashboard scripts run with the current frontend runtimes", asyn
     const page = await browser.newPage();
     const errors = collectPageErrors(page);
     let sourceRequests = 0;
+    let podcastActionRequests = 0;
 
     await page.route("**/api/sources*", async (route) => {
       sourceRequests += 1;
@@ -80,6 +81,13 @@ test("Reader and Dashboard scripts run with the current frontend runtimes", asyn
         body: "<p>Source details loaded</p>",
       }),
     );
+    await page.route("**/api/podcast/retry/42", (route) => {
+      podcastActionRequests += 1;
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ itemId: 42, status: "pending" }),
+      });
+    });
     await page.route("http://llar.test/", (route) =>
       route.fulfill({
         contentType: "text/html",
@@ -114,11 +122,14 @@ test("Reader and Dashboard scripts run with the current frontend runtimes", asyn
           </tbody></table>
           <table id="podcasts-datatable"><thead><tr>
             <th>Status</th><th>Item</th><th>Source</th><th>Title / URL</th>
-            <th>Duration</th><th>Size</th><th>Last Attempt</th><th>Error</th><th>Actions</th>
+            <th>Duration</th><th>Size</th><th>Downloaded</th><th>Last Attempt</th>
+            <th>Error</th><th>Actions</th>
           </tr></thead><tbody>
             <tr><td>complete</td><td data-order="42">42</td><td>demo</td><td>Episode Alpha</td>
               <td data-order="90">00:01:30</td><td data-order="1024">1 KiB</td>
-              <td data-order="20">later</td><td></td><td><button>Delete episode</button></td></tr>
+              <td data-order="30">downloaded</td><td data-order="20">later</td><td></td>
+              <td><button type="button" class="btn-podcast-action"
+                data-endpoint="/api/podcast/retry/42" data-method="POST">Delete episode</button></td></tr>
           </tbody></table>
           <table id="states-datatable"><thead><tr>
             <th>State</th><th>Running?</th><th>Type</th>
@@ -288,12 +299,29 @@ test("Reader and Dashboard scripts run with the current frontend runtimes", asyn
       await page.locator("#podcasts-datatable button").innerText(),
       "Delete episode",
     );
+    assert.deepEqual(
+      await page.evaluate(() => datatable_for("#podcasts-datatable").order()),
+      [
+        [0, "asc"],
+        [6, "desc"],
+      ],
+    );
+    await page.evaluate(() => {
+      window.podcastTabReloaded = false;
+      window.reload_dashboard_tab = function () {
+        window.podcastTabReloaded = true;
+      };
+    });
+    await page.locator("#podcasts-datatable .btn-podcast-action").click();
+    await page.waitForFunction(() => window.podcastTabReloaded);
+    assert.equal(page.url(), "http://llar.test/");
+    assert.equal(podcastActionRequests, 1);
     assert.equal(
       await actionColumnIsOrderable(page, "#bookmarks-datatable", 6),
       false,
     );
     assert.equal(
-      await actionColumnIsOrderable(page, "#podcasts-datatable", 8),
+      await actionColumnIsOrderable(page, "#podcasts-datatable", 9),
       false,
     );
     assert.equal(
