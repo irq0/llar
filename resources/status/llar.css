@@ -3656,7 +3656,6 @@ div.item-content-body p > code {
 
 .word-cloud {
   break-inside: avoid;
-  page-break-inside: avoid;
 }
 
 .word-cloud .sz-a {
