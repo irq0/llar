@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>🖖 Save to LLAR settings</title>
+  </head>
+  <body>
+    <main>
+      <h1>🖖 Save to LLAR</h1>
+      <form id="settings">
+        <p>
+          <label for="capture-base">Capture base URL</label><br>
+          <input id="capture-base"
+                 name="capture-base"
+                 type="url"
+                 size="50"
+                 placeholder="https://save.example.org/"
+                 required>
+        </p>
+        <p>
+          <label for="token">Capture token</label><br>
+          <input id="token"
+                 name="token"
+                 type="password"
+                 size="50"
+                 minlength="32"
+                 pattern="[A-Za-z0-9_-]{32,}"
+                 autocomplete="new-password"
+                 spellcheck="false"
+                 required>
+        </p>
+        <button type="submit">Save</button>
+        <output id="status" role="status" aria-live="polite"></output>
+      </form>
+      <p>Use a dedicated, revocable browser token. Prefer HTTPS outside local development.</p>
+    </main>
+    <script type="module" src="options.mjs"></script>
+  </body>
+</html>

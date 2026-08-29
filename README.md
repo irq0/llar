@@ -202,7 +202,8 @@ The API is `POST /api/v1/captures` with JSON `{"url":"https://..."}` and
 revocable. Captures receive immediate feedback only after their queue row is
 committed; extraction happens asynchronously. Setup instructions for Firefox,
 Chrome, iOS Shortcuts, macOS Shortcuts, queue recovery, and alerts are in the
-Dashboard's Docs tab.
+Dashboard's Docs tab. A store-free Chromium/Arc extension is included in
+[`tools/save-to-llar-extension`](tools/save-to-llar-extension/README.md).
 
 ## Concept
 
