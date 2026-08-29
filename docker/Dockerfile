@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ARG VERSION
 ARG UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu
@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.licenses=AGPLv3
 
 RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
-RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sources.list && \
+RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sources.list.d/ubuntu.sources && \
   apt-get update && apt-get -y --no-install-recommends install \
   atomicparsley \
   ca-certificates \
@@ -33,7 +33,9 @@ RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sour
 
 RUN apt-get update && \
   apt-get -y --no-install-recommends install wget && \
-  wget -qO- https://deb.nodesource.com/setup_lts.x | bash - && \
+  wget -qO /tmp/nodesource_setup.sh https://deb.nodesource.com/setup_24.x && \
+  bash /tmp/nodesource_setup.sh && \
+  rm /tmp/nodesource_setup.sh && \
   apt-get -y --no-install-recommends install nodejs && \
   apt-get purge -y curl gnupg wget && \
   apt-get autoremove -y && \
@@ -71,9 +73,10 @@ RUN groupadd -g 42000 llar && \
    useradd -u 42000 -g llar llar \
    && chown -R llar:llar /llar
 
+WORKDIR /llar
+
 RUN apt-get update && \
   apt-get -y --no-install-recommends install build-essential && \
-  cd /llar && \
   npm ci --omit=dev && \
   npm cache clean --force && \
   chown -R 0:0 /llar && \
@@ -86,7 +89,6 @@ COPY --chown=0:0 tools/ /llar/tools
 RUN mkdir -p /llar/wekafiles && chown llar:llar /llar/wekafiles
 
 USER llar:llar
-WORKDIR /llar
 
 # Keep volatile build outputs and metadata last so dependency layers remain cached
 # when only application code or the version changes.
