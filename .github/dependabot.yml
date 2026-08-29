@@ -5,6 +5,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    commit-message:
+      prefix: deps
     groups:
       github-actions:
         patterns:
@@ -15,6 +17,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    commit-message:
+      prefix: deps
     groups:
       container-images:
         patterns:
@@ -25,6 +29,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    commit-message:
+      prefix: deps
     groups:
       compose-images:
         patterns:
@@ -35,6 +41,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    commit-message:
+      prefix: deps
     groups:
       python-runtime:
         patterns:
@@ -45,6 +53,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    commit-message:
+      prefix: deps
     groups:
       pre-commit-hooks:
         patterns:
