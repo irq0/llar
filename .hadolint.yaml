@@ -1,0 +1,6 @@
+ignored:
+  # Ubuntu package versions should receive security updates within the pinned
+  # base release instead of being frozen individually.
+  - DL3008
+  # The named runtime user is created above with a fixed UID and GID.
+  - DL3066
