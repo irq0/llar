@@ -55,6 +55,18 @@ updates:
       day: monday
     commit-message:
       prefix: deps
+    # Stylelint 17 cannot resolve ESM shareable configs from pre-commit's
+    # isolated Node environment yet.
+    ignore:
+      - dependency-name: "thibaudcolas/pre-commit-stylelint"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: stylelint
+        update-types:
+          - version-update:semver-major
+      - dependency-name: stylelint-config-standard
+        update-types:
+          - version-update:semver-major
     groups:
       pre-commit-hooks:
         patterns:

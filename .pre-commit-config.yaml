@@ -30,7 +30,7 @@ repos:
       - id: git-check
 
   - repo: https://github.com/codespell-project/codespell
-    rev: 63c8f8312b7559622c0d82815639671ae42132ac  # frozen: v2.4.1
+    rev: 57b21406f092110c18776e39b0bda50d37c945c8  # frozen: v2.4.3
     hooks:
       - id: codespell
         args: ["--ignore-words-list", "edn,juxt", "--ignore-regex=.*codespell-ignore$"]
@@ -42,7 +42,7 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: 5387279b3b4c24822c0f86d4df4f28b37e3e8992  # frozen: v0.21.0
+    rev: b82a6c8896e491b9cb377a99ff3412131920681b  # frozen: v0.23.2
     hooks:
       - id: markdownlint-cli2
 
@@ -57,12 +57,12 @@ repos:
     -   id: prettier
         types_or: [css, javascript]
 
-  - repo: https://github.com/awebdeveloper/pre-commit-stylelint
-    rev: 'f792d6b33f0673991b8c044b5bb3bcae0399ada5'  # frozen: 0.0.2
+  - repo: https://github.com/thibaudcolas/pre-commit-stylelint
+    rev: 5550a364f2b5d3a9e731a9f4e231c5dc8c5f2e5b  # frozen: v16.26.1
     hooks:
     -   id: stylelint
         args: ["--fix"]
-        additional_dependencies: ['stylelint@16.0.2', 'stylelint-config-standard@35.0.0']
+        additional_dependencies: ['stylelint@16.26.1', 'stylelint-config-standard@39.0.1']
 
   - repo: local
     hooks:
@@ -75,7 +75,7 @@ repos:
         exclude: '(^|/)\.#'
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: 7d6fb8d82a9bdc6c555912653037b1508cb0cb37  # frozen: v9.6.0
+    rev: 0a9c8bc1bdd34395466aaccbe6e095dfc8bf2bfa  # frozen: v10.1.0
     hooks:
     - id: cspell
       args:
