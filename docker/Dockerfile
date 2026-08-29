@@ -59,7 +59,7 @@ RUN mkdir -p /opt/llar /llar
 
 ENV LLAR_CONFIG=/llar/config.edn
 ENV WEKA_HOME=/llar/wekafiles
-ENV JDK_JAVA_OPTIONS="-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory -Dtika.config=tika-config.xml"
+ENV JDK_JAVA_OPTIONS="-XshowSettings:system -XX:+UseContainerSupport -XX:MaxRAMPercentage=60 -Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"
 
 COPY --chown=0:0 package.json /llar
 COPY --chown=0:0 package-lock.json /llar

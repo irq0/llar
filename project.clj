@@ -11,7 +11,6 @@
              "-XX:+TieredCompilation"
              "-XX:TieredStopAtLevel=1"
              "-Djava.awt.headless=true"
-             "-Dtika.config=tika-config.xml"
              "-Dlog4j2.statusLoggerLevel=ERROR"
              "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory"]
 
@@ -156,9 +155,11 @@
                  [org.apache.opennlp/opennlp-models-tokenizer-de "1.3.0"]
                  [org.apache.opennlp/opennlp-models-pos-en "1.3.0"]
                  [org.apache.opennlp/opennlp-models-pos-de "1.3.0"]
-                 [org.apache.tika/tika-parsers-standard-package "3.3.2" :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
-                 [org.apache.tika/tika-langdetect-optimaize "3.3.2"]
-                 [org.apache.tika/tika-core "3.3.2" :exclusions [commons-io]]
+                 [org.apache.tika/tika-parsers-standard-package "4.0.0"
+                  :extension "pom"
+                  :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
+                 [org.apache.tika/tika-langdetect-optimaize "4.0.0"]
+                 [org.apache.tika/tika-core "4.0.0" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
 
                  ;; streaming services
