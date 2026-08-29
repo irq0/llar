@@ -16,33 +16,42 @@ ibmplex_packages := \
 	"IBM-Plex-Mono @ibm/plex-mono plex-mono $(ibmplex_mono_version) ibm-plex-mono" \
 	"IBM-Plex-Serif @ibm/plex-serif plex-serif $(ibmplex_serif_version) ibm-plex-serif"
 fontawesome_version := 7.3.1
+fontawesome_dir := resources/status/fontawesome
+fontawesome_stamp := $(fontawesome_dir)/.version-$(fontawesome_version)
 bootstrap_version := 5.3.8
+bootstrap_dir := resources/status/bootstrap
+bootstrap_stamp := $(bootstrap_dir)/.version-$(bootstrap_version)
 jquery_version := 4.0.0
 jquery_dir := resources/status/jquery
 jquery_stamp := $(jquery_dir)/.version-$(jquery_version)
-chartjs_version := 4.5.1
 datatables_version := 3.0.2
 datatables_dir := resources/status/datatables
 datatables_stamp := $(datatables_dir)/.version-$(datatables_version)
 llar_uberjar := target/uberjar/llar-$(LLAR_VERSION)-standalone.jar
 DOCS_OUT ?= target/docs
 
-all: web-3rd-party uberjar
+all: uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery datatables chartjs uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery datatables uberjar docker-image
 
 $(ibmplex_stamp):
 	@set -e; \
+	rm -rf "resources/status/ibmplex"; \
 	for package in $(ibmplex_packages); do \
 		set -- $$package; \
 		dir="$$1"; \
 		scope="$$2"; \
 		archive="$$3"; \
 		version="$$4"; \
-		rm -rf "$(ibmplex_web_dir)/$$dir"; \
+		css="$$5"; \
 		mkdir -p "$(ibmplex_web_dir)/$$dir"; \
 		wget --quiet -O - "https://registry.npmjs.org/$$scope/-/$$archive-$$version.tgz" \
-		| bsdtar -xzf- -C "$(ibmplex_web_dir)/$$dir" --strip-components 1; \
+		| bsdtar -xzf- -C "$(ibmplex_web_dir)/$$dir" --strip-components 1 \
+			"package/LICENSE.txt" \
+			"package/css/$$css-all.min.css" \
+			"package/fonts/complete/woff/" \
+			"package/fonts/complete/woff2/" \
+			"package/fonts/split/woff2/"; \
 	done; \
 	touch "$@"
 
@@ -58,22 +67,32 @@ $(ibmplex_css): $(ibmplex_stamp)
 	done
 ibmplex: $(ibmplex_css)
 
-resources/status/fontawesome/LICENSE.txt:
-	mkdir -p resources/status/fontawesome
-	wget --quiet -nc -O - "https://github.com/FortAwesome/Font-Awesome/releases/download/$(fontawesome_version)/fontawesome-free-$(fontawesome_version)-web.zip" \
-	| bsdtar -xzf- -C resources/status/fontawesome --strip-components 1 "fontawesome-free-$(fontawesome_version)-web/"
-fontawesome: resources/status/fontawesome/LICENSE.txt
+$(fontawesome_stamp):
+	rm -rf "$(fontawesome_dir)"
+	mkdir -p "$(fontawesome_dir)"
+	set -e; \
+		archive="$$(mktemp)"; \
+		wget --quiet -O "$$archive" "https://github.com/FortAwesome/Font-Awesome/releases/download/$(fontawesome_version)/fontawesome-free-$(fontawesome_version)-web.zip"; \
+		bsdtar -xf "$$archive" -C "$(fontawesome_dir)" --strip-components 1 \
+			"fontawesome-free-$(fontawesome_version)-web/LICENSE.txt" \
+			"fontawesome-free-$(fontawesome_version)-web/css/all.min.css" \
+			"fontawesome-free-$(fontawesome_version)-web/webfonts/"; \
+		rm -f "$$archive"
+	touch "$@"
+fontawesome: $(fontawesome_stamp)
 
-resources/status/bootstrap/js/bootstrap.bundle.min.js:
-	mkdir -p resources/status/bootstrap
-	wget --quiet -nc -O - "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip" \
-	| bsdtar -xzf- -C resources/status/bootstrap --strip-components 1 "bootstrap-$(bootstrap_version)-dist/"
-bootstrap: resources/status/bootstrap/js/bootstrap.bundle.min.js resources/status/bootstrap/css/bootstrap.min.css
-resources/status/bootstrap/css/bootstrap.min.css: resources/status/bootstrap/js/bootstrap.bundle.min.js
-	@test -f "$@" || { \
-		wget --quiet -nc -O - "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip" \
-		| bsdtar -xzf- -C resources/status/bootstrap --strip-components 1 "bootstrap-$(bootstrap_version)-dist/"; \
-	}
+$(bootstrap_stamp):
+	rm -rf "$(bootstrap_dir)"
+	mkdir -p "$(bootstrap_dir)"
+	set -e; \
+		archive="$$(mktemp)"; \
+		wget --quiet -O "$$archive" "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip"; \
+		bsdtar -xf "$$archive" -C "$(bootstrap_dir)" --strip-components 1 \
+			"bootstrap-$(bootstrap_version)-dist/css/bootstrap.min.css" \
+			"bootstrap-$(bootstrap_version)-dist/js/bootstrap.bundle.min.js"; \
+		rm -f "$$archive"
+	touch "$@"
+bootstrap: $(bootstrap_stamp)
 
 $(jquery_stamp):
 	rm -rf "$(jquery_dir)"
@@ -92,15 +111,9 @@ $(datatables_stamp):
 
 datatables: $(datatables_stamp)
 
-resources/status/chartjs/chart.umd.min.js:
-	mkdir -p resources/status/chartjs
-	wget --quiet -nc -O resources/status/chartjs/chart.umd.min.js "https://cdn.jsdelivr.net/npm/chart.js@$(chartjs_version)/dist/chart.umd.min.js"
-chartjs: resources/status/chartjs/chart.umd.min.js
+web-3rd-party: datatables jquery bootstrap fontawesome ibmplex
 
-
-web-3rd-party: datatables jquery bootstrap fontawesome ibmplex chartjs
-
-docs-requirements: resources/status/bootstrap/css/bootstrap.min.css resources/status/ibmplex/Web/css/ibm-plex.min.css
+docs-requirements: bootstrap ibmplex
 
 docs-assets: docs-requirements resources/status/llar.css
 	mkdir -p "$(DOCS_OUT)/static/bootstrap/css" "$(DOCS_OUT)/static/ibmplex/Web/css" "$(DOCS_OUT)/static"
@@ -117,7 +130,8 @@ clean-web-3rd-party:
 	rm -rf resources/status/bootstrap
 	rm -rf resources/status/fontawesome
 	rm -rf resources/status/ibmplex
-	rm -rf resources/status/chartjs
+	rm -rf resources/status/annotator resources/status/chartjs resources/status/hammer
+	rm -rf resources/status/leaflet resources/status/popper resources/status/waypoints
 
 check-frontend-deps:
 	@set -euo pipefail; \
@@ -147,7 +161,6 @@ check-frontend-deps:
 		"ibmplex_sans_condensed $(ibmplex_sans_condensed_version) @ibm/plex-sans-condensed npm" \
 		"ibmplex_mono $(ibmplex_mono_version) @ibm/plex-mono npm" \
 		"ibmplex_serif $(ibmplex_serif_version) @ibm/plex-serif npm" \
-		"chartjs $(chartjs_version) chart.js npm" \
 		"datatables $(datatables_version) DataTables/DataTablesSrc release"; \
 	do \
 		set -- $$dep; \
@@ -171,7 +184,7 @@ check-frontend-deps:
 	done; \
 	echo "$$results" | jq .
 
-$(llar_uberjar): $(CLOJURE_FILES)
+$(llar_uberjar): web-3rd-party $(CLOJURE_FILES)
 	@echo "Building uberjar with version $(LLAR_VERSION)"
 	@echo "Clojure files: $(CLOJURE_FILES)"
 	lein uberjar

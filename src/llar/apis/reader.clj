@@ -338,17 +338,17 @@
    [:link {:rel "icon" :type "image/png" :sizes "16x16" :href "/static/img/favicon-16x16.png"}]
    [:link {:rel "manifest" :href "/static/img/site.webmanifest"}]
    [:link {:rel "preload"
-           :href "/static/ibmplex/Web/IBM-Plex-Sans/fonts/split/woff2/IBMPlexSans-Regular-Latin1.woff2"
+           :href "/static/ibmplex/Web/IBM-Plex-Sans/fonts/complete/woff2/IBMPlexSans-Regular.woff2"
            :as "font"
            :type "font/woff2"
            :crossorigin "anonymous"}]
    [:link {:rel "preload"
-           :href "/static/ibmplex/Web/IBM-Plex-Sans-Condensed/fonts/split/woff2/IBMPlexSansCondensed-LightItalic-Latin1.woff2"
+           :href "/static/ibmplex/Web/IBM-Plex-Sans-Condensed/fonts/complete/woff2/IBMPlexSansCondensed-LightItalic.woff2"
            :as "font"
            :type "font/woff2"
            :crossorigin "anonymous"}]
    [:link {:rel "preload"
-           :href "/static/ibmplex/Web/IBM-Plex-Mono/fonts/split/woff2/IBMPlexMono-Regular-Latin1.woff2"
+           :href "/static/ibmplex/Web/IBM-Plex-Mono/fonts/complete/woff2/IBMPlexMono-Regular.woff2"
            :as "font"
            :type "font/woff2"
            :crossorigin "anonymous"}]

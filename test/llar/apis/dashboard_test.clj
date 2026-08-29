@@ -312,10 +312,10 @@
   (let [header (str (h/html (uut/html-header)))
         body (apply str (map #(str (h/html %)) (uut/html-footer)))
         javascript (slurp (io/resource "status/llar-status.js"))]
-    (is (string/includes? header "/static/datatables/dataTables.bootstrap5.min.css?v=3.0.1"))
+    (is (string/includes? header "/static/datatables/dataTables.bootstrap5.min.css?v=3.0.2"))
     (is (string/includes? body "/static/jquery/jquery.min.js?v=4.0.0"))
-    (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.0.1"))
-    (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"))
+    (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.0.2"))
+    (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.2"))
     (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
     (is (string/includes? body "/static/llar-status.js?v=podcast-actions-1"))
     (is (string/includes? javascript "DataTable.isDataTable"))

@@ -1,6 +1,15 @@
 (defproject llar "_"
   :profiles {:dev {:dependencies [[com.clojure-goes-fast/clj-memory-meter "0.5.0"]]
                    :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]}
+             :test {:dependencies [[org.clojure/test.check "1.1.3"]
+                                   [prismatic/schema-generators "0.1.5"]
+                                   [clj-http-fake "1.0.4"]
+                                   [clj-test-containers "0.7.4"]
+                                   [org.testcontainers/postgresql "1.21.4"]
+                                   [lambdaisland/kaocha "1.91.1392"]
+                                   [orchestra "2021.01.01-1"]
+                                   [lambdaisland/kaocha-cloverage "1.1.89"]
+                                   [lambdaisland/kaocha-junit-xml "1.17.101"]]}
              :uberjar {:omit-source false
                        :aot :all}}
   :description "LLAR - Live Long and Read 🖖"
@@ -16,12 +25,13 @@
 
   :target-path "target/%s"
   :main llar.core
-  :plugins [[dev.weavejester/lein-cljfmt "0.16.0"] [me.arrdem/lein-git-version "2.0.8"] [lein-pprint "1.3.2"]
-            [lambdaisland/kaocha "1.91.1392"] [lambdaisland/kaocha-cloverage "1.1.89"]]
+  :plugins [[dev.weavejester/lein-cljfmt "0.16.0"]
+            [me.arrdem/lein-git-version "2.0.8"]
+            [lein-pprint "1.3.2"]]
   :aliases {"start" ["trampoline" "run"]
-            "unit" ["run" "-m" "kaocha.runner" "unit"]
-            "kaocha" ["run" "-m" "kaocha.runner"]
-            "integration" ["run" "-m" "kaocha.runner" "integration"]}
+            "unit" ["with-profile" "+test" "run" "-m" "kaocha.runner" "unit"]
+            "kaocha" ["with-profile" "+test" "run" "-m" "kaocha.runner"]
+            "integration" ["with-profile" "+test" "run" "-m" "kaocha.runner" "integration"]}
   :license {:name "AGPL-3.0-or-later"
             :url "https://www.gnu.org/licenses/agpl-3.0.en.html"
             :distribution :repo}
@@ -64,7 +74,6 @@
                  [org.clojure/tools.analyzer.jvm "1.3.4"]
                  [org.clojure/data.xml "0.2.0-alpha8"]
                  [org.clojure/data.json "2.5.2"]
-                 [org.clojure/test.check "1.1.3"]
                  [org.clojure/tools.cli "1.4.256"]
                  [org.clojure/tools.reader "1.6.0"]
                  [org.babashka/sci "0.15.58"]
@@ -107,7 +116,6 @@
 
                  ;; schema
                  [prismatic/schema "1.4.2"]
-                 [prismatic/schema-generators "0.1.5"]
 
                  ;; monitoring
                  [io.prometheus/simpleclient_hotspot "0.16.0"]
@@ -117,7 +125,6 @@
                  [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
                  [clj-http "3.13.1" :exclusions [org.apache.httpcomponents/httpcore]]
                  [clj-rome "0.4.0"]
-                 [clj-http-fake "1.0.4"]
 
                  ;; email
                  [com.draines/postal "2.0.5"]
@@ -137,8 +144,8 @@
 
                  ;; webapp
                  [ring/ring-core "1.15.5"  :exclusions [commons-io]]
-                 [ring/ring-devel "1.15.5"  :exclusions [commons-io]]
                  [ring/ring-jetty-adapter "1.15.5" :exclusions [commons-io]]
+                 [ring/ring-devel "1.15.5" :exclusions [commons-io]]
                  [ring/ring-json "0.5.1" :exclusions [cheshire]]
                  [ring/ring-codec "1.3.0"]
                  [compojure "1.7.2" :exclusions [commons-io medley]]
@@ -163,10 +170,4 @@
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
 
                  ;; streaming services
-                 [com.github.TeamNewPipe/NewPipeExtractor "0.26.4"]
-
-                 ;; testing
-                 [clj-test-containers "0.7.4"]
-                 [org.testcontainers/postgresql "1.21.4"]
-                 [lambdaisland/kaocha-cloverage "1.1.89"]
-                 [lambdaisland/kaocha-junit-xml "1.17.101"]])
+                 [com.github.TeamNewPipe/NewPipeExtractor "0.26.4"]])

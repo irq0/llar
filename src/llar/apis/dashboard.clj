@@ -53,14 +53,14 @@
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
    [:link {:rel "stylesheet" :href "/static/fontawesome/css/all.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/datatables/dataTables.bootstrap5.min.css?v=3.0.1"}]
+   [:link {:rel "stylesheet" :href "/static/datatables/dataTables.bootstrap5.min.css?v=3.0.2"}]
    [:link {:rel "stylesheet" :href "/static/llar.css?v=inspector-5"}]])
 
 (defn html-footer []
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
-   [:script {:src "/static/datatables/dataTables.min.js?v=3.0.1"}]
-   [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.1"}]
+   [:script {:src "/static/datatables/dataTables.min.js?v=3.0.2"}]
+   [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.0.2"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
    [:script {:src "/static/llar-status.js?v=podcast-actions-1"}]])
 

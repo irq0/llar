@@ -39,9 +39,12 @@ RUN apt-get update && \
   apt-get autoremove -y && \
   rm -rf /var/lib/apt/lists/*
 
+COPY --chown=0:0 docker/requirements.txt /tmp/llar-requirements.txt
+
 RUN apt-get update && \
   apt-get -y --no-install-recommends install build-essential python3-pip && \
-  pip3 install --break-system-packages --no-cache-dir "yt-dlp[default,curl-cffi]" && \
+  pip3 install --break-system-packages --no-cache-dir -r /tmp/llar-requirements.txt && \
+  rm /tmp/llar-requirements.txt && \
   apt-get purge -y build-essential python3-pip && \
   apt-get autoremove -y && \
   rm -rf /var/lib/apt/lists/*

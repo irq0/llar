@@ -24,7 +24,8 @@ repos:
           (?x)^(
             resources/status/img/.*|
             doc/img/.*|
-            resources/nlp/models.*
+            resources/nlp/models.*|
+            tools/save-to-llar-extension/icons/icon-.*\.png
           )$
       - id: git-check
 

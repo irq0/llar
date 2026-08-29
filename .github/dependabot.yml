@@ -1,0 +1,51 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      container-images:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker-compose
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      compose-images:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /docker
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      python-runtime:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      pre-commit-hooks:
+        patterns:
+          - "*"

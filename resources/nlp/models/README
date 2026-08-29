@@ -1,3 +1,6 @@
 Pre-trained Apache OpenNLP models
 Licensed under the Apache License, version 2.0.
 https://opennlp.apache.org/models.html
+
+These are the legacy OpenNLP 1.5 English named-entity models, originally
+downloaded from https://opennlp.sourceforge.net/models-1.5/.

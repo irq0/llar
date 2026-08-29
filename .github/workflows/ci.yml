@@ -142,11 +142,11 @@ jobs:
         fi
         exit "$test_status"
     - name: Install dependencies
-      run: lein deps
+      run: lein with-profile +test deps
     - name: Run tests with coverage
       id: clojure-tests
       continue-on-error: true
-      run: lein run -m kaocha.runner --plugin kaocha.plugin/cloverage
+      run: lein with-profile +test run -m kaocha.runner --plugin kaocha.plugin/cloverage
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
@@ -230,7 +230,6 @@ jobs:
       with:
         path: |
           resources/status/bootstrap
-          resources/status/chartjs
           resources/status/datatables
           resources/status/fontawesome
           resources/status/ibmplex
@@ -495,7 +494,6 @@ jobs:
       with:
         path: |
           resources/status/bootstrap
-          resources/status/chartjs
           resources/status/datatables
           resources/status/fontawesome
           resources/status/ibmplex
