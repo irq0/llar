@@ -679,8 +679,8 @@ function setBookmarkSubmitPending(button, pending) {
     .removeClass("btn-danger");
 }
 
-// Document-structure-aware reading navigation. Space and touch gestures share
-// this model, while saving a cross-device checkpoint remains explicit.
+// Document-structure-aware reading navigation. Space and mobile double-taps
+// share this model, while saving a cross-device checkpoint remains explicit.
 var readingNavigation = {
   container: null,
   blocks: [],
@@ -1262,39 +1262,30 @@ $("body").on("keydown", function (event) {
   }
 });
 
-// Swipe left uses the same forward movement as Space. Pointer Events cover
-// touch and pen input without requiring a gesture library.
+// A double-tap on non-interactive article content uses the same forward
+// movement as Space. Keep desktop double-click selection unchanged.
 $(function () {
-  var main = document.querySelector("main");
-  if (!main) return;
-  var swipeStart = null;
+  var container = readingNavigation.container;
+  if (!container) return;
 
-  main.addEventListener("pointerdown", function (event) {
-    if (event.isPrimary && event.pointerType !== "mouse") {
-      swipeStart = { x: event.clientX, y: event.clientY };
-    }
-  });
-
-  main.addEventListener("pointercancel", function () {
-    swipeStart = null;
-  });
-
-  main.addEventListener("pointerup", function (event) {
-    if (!swipeStart || !event.isPrimary || event.pointerType === "mouse") {
-      swipeStart = null;
+  container.addEventListener("dblclick", function (event) {
+    var touchLikePointer = event.pointerType
+      ? event.pointerType !== "mouse"
+      : window.matchMedia &&
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+    var interactiveTarget = event.target.closest(
+      "a, button, input, textarea, select, label, [contenteditable], [role='button']",
+    );
+    if (
+      !touchLikePointer ||
+      interactiveTarget ||
+      $("body").hasClass("modal-open")
+    ) {
       return;
     }
 
-    var deltaX = event.clientX - swipeStart.x;
-    var deltaY = event.clientY - swipeStart.y;
-    swipeStart = null;
-    if (
-      deltaX <= -50 &&
-      Math.abs(deltaX) > Math.abs(deltaY) &&
-      !$("body").hasClass("modal-open")
-    ) {
-      advanceReadingBlock();
-    }
+    event.preventDefault();
+    advanceReadingBlock();
   });
 });
 

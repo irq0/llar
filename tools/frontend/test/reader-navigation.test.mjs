@@ -17,6 +17,87 @@ async function addScript(page, ...parts) {
   await page.addScriptTag({ path: asset(...parts) });
 }
 
+test("Mobile article double-tap advances without hijacking controls", async (t) => {
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  t.after(() => browser.close());
+
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 800 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <body class="llar-reader reader-mode-show-item">
+        <main id="reader-main">
+          <div id="item-content-body">
+            <p id="article-copy">Article copy</p>
+            <a id="article-link" href="#linked">Linked copy</a>
+          </div>
+        </main>
+      </body>
+    </html>
+  `);
+  await addScript(page, "jquery", "jquery.min.js");
+  await addScript(page, "llar.js");
+  await page.waitForFunction(() => readingNavigation.container !== null);
+  await page.evaluate(() => {
+    window.mobileAdvanceCount = 0;
+    window.advanceReadingBlock = () => {
+      window.mobileAdvanceCount += 1;
+      return true;
+    };
+  });
+
+  await page.locator("#article-copy").evaluate((element) => {
+    element.dispatchEvent(
+      new PointerEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        pointerType: "touch",
+      }),
+    );
+  });
+  assert.equal(await page.evaluate(() => window.mobileAdvanceCount), 1);
+
+  await page.locator("#article-copy").evaluate((element) => {
+    element.dispatchEvent(
+      new PointerEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        pointerType: "mouse",
+      }),
+    );
+  });
+  await page.locator("#article-link").evaluate((element) => {
+    element.dispatchEvent(
+      new PointerEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        pointerType: "touch",
+      }),
+    );
+  });
+  await page.locator("#article-copy").dispatchEvent("pointerdown", {
+    pointerType: "touch",
+    clientX: 200,
+    clientY: 100,
+  });
+  await page.locator("#article-copy").dispatchEvent("pointerup", {
+    pointerType: "touch",
+    clientX: 100,
+    clientY: 100,
+  });
+  assert.equal(await page.evaluate(() => window.mobileAdvanceCount), 1);
+
+  await context.close();
+});
+
 test("Mobile drawers move and restore keyboard focus", async (t) => {
   const browser = await chromium.launch({
     channel: browserChannel,

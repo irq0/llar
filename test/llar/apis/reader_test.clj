@@ -1420,6 +1420,15 @@
     (is (re-find #"new MutationObserver" javascript))
     (is (not (re-find #"viewport-(?:bottom|pivot)" javascript)))))
 
+(deftest mobile-reading-navigation-uses-double-tap-instead-of-swipe
+  (let [javascript (slurp (io/resource "status/llar.js"))
+        css (slurp (io/resource "status/llar.css"))]
+    (is (re-find #"container\.addEventListener\(\"dblclick\"" javascript))
+    (is (re-find #"event\.pointerType !== \"mouse\"" javascript))
+    (is (re-find #"interactiveTarget" javascript))
+    (is (not (re-find #"swipeStart|deltaX <= -50" javascript)))
+    (is (re-find #"touch-action: manipulation" css))))
+
 (deftest reading-checkpoint-controls-flash-and-use-the-bottom-icon-hud
   (let [javascript (slurp (io/resource "status/llar.js"))
         css (slurp (io/resource "status/llar.css"))]
