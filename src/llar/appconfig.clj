@@ -258,18 +258,27 @@
             [:api :fever]
             fever-defaults))
 
+(defn- redact-config-secrets [config]
+  (cond-> config
+    (and (map? (get-in config [:postgresql :frontend]))
+         (contains? (get-in config [:postgresql :frontend]) :password))
+    (assoc-in [:postgresql :frontend :password] "--secret removed--")
+
+    (and (map? (get-in config [:postgresql :backend]))
+         (contains? (get-in config [:postgresql :backend]) :password))
+    (assoc-in [:postgresql :backend :password] "--secret removed--")))
+
 (defn verify-config [config]
   (let [conform (s/conform :irq0-llar/appconfig config)]
     (if (s/invalid? conform)
-      (let [err {:spec conform
-                 :explain (s/explain-str :irq0-llar/appconfig config)
-                 :type ::config-verification-failed
-                 :config config}]
-        (log/error "Config verification error: " err)
+      (let [explain (s/explain-str :irq0-llar/appconfig
+                                   (redact-config-secrets config))
+            err {:type ::config-verification-failed
+                 :explain explain}]
+        (log/error "Configuration verification failed:\n" explain)
         (throw+ err))
       (do
         (log/info "application config successfully verified")
-        (log/debug "application config: " config)
         config))))
 
 (defn read-version []
@@ -295,9 +304,7 @@
   :start (read-config))
 
 (defn appconfig-redact-secrets []
-  (-> appconfig
-      (assoc-in [:postgresql :frontend :password] "--secret removed--")
-      (assoc-in [:postgresql :backend :password] "--secret removed--")))
+  (redact-config-secrets appconfig))
 
 (defn update-max-retry []
   (get appconfig :update-max-retry))
