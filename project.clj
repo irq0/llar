@@ -25,7 +25,7 @@
 
   :target-path "target/%s"
   :main llar.core
-  :plugins [[dev.weavejester/lein-cljfmt "0.16.0"]
+  :plugins [[dev.weavejester/lein-cljfmt "0.16.5"]
             [me.arrdem/lein-git-version "2.0.8"]
             [lein-pprint "1.3.2"]]
   :aliases {"start" ["trampoline" "run"]
