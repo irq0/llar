@@ -79,7 +79,7 @@
                  [org.babashka/sci "0.15.58"]
                  [dev.weavejester/medley "1.10.0"]
                  [com.fasterxml.jackson.core/jackson-databind "2.22.2"]
-                 [org.jsoup/jsoup "1.23.1"]
+                 [org.jsoup/jsoup "1.23.2"]
                  [org.apache.httpcomponents/httpcore "4.4.16"]
                  [org.bouncycastle/bcpkix-jdk18on "1.85"]
                  [org.bouncycastle/bcprov-jdk18on "1.85.2"]
@@ -170,4 +170,4 @@
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
 
                  ;; streaming services
-                 [com.github.TeamNewPipe/NewPipeExtractor "0.26.4"]])
+                 [com.github.TeamNewPipe/NewPipeExtractor "0.26.5"]])
