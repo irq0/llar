@@ -123,18 +123,25 @@ jobs:
         fe_section="\n## Frontend Libraries (vendored)\n\n"
         if [ -s frontend-deps/frontend-outdated.json ]; then
           has_updates=false
-          fe_section+="| Library | Current | Latest | Repo |\n|---------|---------|--------|------|\n"
+          fe_rows=""
           for row in $(jq -r '.[] | @base64' frontend-deps/frontend-outdated.json); do
             name=$(echo "$row" | base64 -d | jq -r '.name')
             current=$(echo "$row" | base64 -d | jq -r '.current')
             latest=$(echo "$row" | base64 -d | jq -r '.latest')
             repo=$(echo "$row" | base64 -d | jq -r '.repo')
-            marker=""
             if [ "$current" != "$latest" ] && [ "$latest" != "unknown" ]; then
               has_updates=true
             fi
-            fe_section+="| $name | $current | $latest | $repo |\n"
+            if [ "$current" != "$latest" ]; then
+              fe_rows+="| $name | $current | $latest | $repo |\n"
+            fi
           done
+          if [ -n "$fe_rows" ]; then
+            fe_section+="| Library | Current | Latest | Repo |\n|---------|---------|--------|------|\n"
+            fe_section+="$fe_rows"
+          else
+            fe_section+="All vendored frontend libraries are up to date.\n"
+          fi
         else
           fe_section+="Could not check frontend dependencies.\n"
         fi
