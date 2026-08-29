@@ -7,193 +7,135 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-08-29
+
+### Highlights
+
+- **Redesigned Reader.** Preview, Headlines, Gallery, Search, Reading
+  Queue, Continue Reading, Gems, and Today’s Vibe now share one
+  responsive, keyboard-friendly design and a clearer reading-state
+  model.
+- **Return to what matters.** Reading checkpoints, archive-backed Gems, and
+  Related Items make it easier to resume and rediscover useful material.
+- **Capture.** A durable token-authenticated safe-for-later endpoint to
+  use with curl, bookmarklets, and a browser extension.
+- **Podcasts: A player-friendly media library.** Retained audio and video are available
+  over read-only WebDAV with artwork, subtitles, and Infuse-compatible metadata.
+- **Operations.** Bounded live-reconfigurable workers, richer
+  metrics and Dashboard controls, and keyset/indexed Reader queries improve
+  visibility and performance for large libraries.
+
 ### Added
 
-- Reader: Add explicit, cross-device reading checkpoints. **Save Place** records
-  the current reading position; **Resume** returns to it, **Save Place** can
-  update it later, and **Clear** removes it. Active checkpoints appear in a
-  small **Continue Reading** list ordered by most recently updated, making
-  unfinished items easy to find after switching devices.
-- Reader: Add the experimental **Today’s Vibe** view. It clusters recent items
-  from configured source tags into stories, prioritizes stories reported by
-  several sources, shows the matching terms and all reports, and can mark an
-  entire story seen at once. The time window, candidate limit, quality threshold,
-  and cluster budgets are runtime-configurable under `:reader :vibe`.
-- Reader: Add **Related Items** to item actions. The view builds a lexical
-  neighborhood from the search index, shows the words that matched and scores
-  relative to the strongest result, and limits one source from dominating the
-  result list.
-- Reader recommendations: Record local result-offer, qualified
-  viewport-impression, and item-open events. Links from Related Items and
-  Today’s Vibe preserve which offered result led to an opened item.
-- Observability: Export each recurring schedule's next run and the expected
-  interval to the following run for cadence-aware Prometheus alerting.
-- Observability: Export standard `hikaricp_*` metrics for the frontend and
-  backend PostgreSQL connection pools.
-- Observability: Export live capacity, utilization, queue depth, completion,
-  and permit-wait metrics for source-update and item-processing executors plus
-  command, media-download, and streaming throttles. Export aggregate in-flight
-  work counts by kind/stage and the age of the oldest source and item work.
-- Dashboard: New Activity tab replaces the raw Threads tab with bounded-resource
-  saturation, queued work, mean waits, current source/item pipeline activity,
-  stragglers, and a grouped thread census; full stack traces remain available in
-  a collapsed diagnostic section.
-- Schedules: New canned schedules `:noon`, `:now-and-noon`, `:every-4-hours`,
+- Reader: Save, resume, update, and clear cross-device reading checkpoints.
+  **Continue Reading** shows active checkpoints by recency with progress and
+  estimated time remaining.
+- Reader discovery: Add experimental **Today’s Vibe** story clustering,
+  **Related Items**, and local offer/impression/open events.
+  Vibe selection and cluster budgets are configurable under `:vibe`.
+- Reader: Add **Gems**, an archive rediscovery view with daily resurfacing,
+  full-text search, topic/source facets, sorting, and pagination.
+- Reader: Add structural article landmarks, edge reading/checkpoint controls,
+  viewport-aware Space/mobile double-tap navigation, richer item inspection,
+  semantic preview signals, and visible annotation cues throughout list views.
+- Reader: Add desktop bulk tag editing for selected Headlines, an Archive item
+  action, native image viewing, contextual sort defaults, and restoration of
+  the previous list position after returning from an item.
+- Bookmark capture: Add an authenticated `POST /api/v1/captures` service with
+  per-client bearer tokens, a durable retrying queue, immediate feedback,
+  Reader activity, Dashboard recovery controls, and Prometheus queue metrics.
+- Config Lab: Add an opt-in, token-protected Dashboard workbench for safely
+  testing supported source forms and processors. It provides staged
+  SelectorFeed diagnostics, article previews, HTTP traces, structured data
+  inspection, and exportable `.llar` configuration.
+- Media library: Expose retained podcast downloads through read-only WebDAV,
+  organized by source and date, with byte-range/HEAD delivery, subtitles,
+  artwork, generated folder covers, and Infuse-compatible NFO sidecars.
+- Dashboard and metrics: Replace Threads with an Activity view covering pool
+  and throttle saturation, queued and in-flight work, waits, stragglers, and a
+  grouped thread census. Export HikariCP, worker, throttle, work-age, and
+  schedule-cadence metrics.
+- Diagnostics: Add a shared hierarchical Clojure/EDN value inspector used by
+  the Dashboard, Reader item dumps, and Config Lab.
+- Schedules: Add `:noon`, `:now-and-noon`, `:every-4-hours`,
   `:now-and-every-4-hours`, and `:now-and-every-15-minutes`.
-- Feeds: Support feeds whose entries have no title (notably Bluesky). The item
-  title falls back to the entry description, GUID, or link, and the item hash
-  falls back to the entry GUID.
-- Streaming: `src/streaming-channel` now accepts playlist URLs in addition to
-  channel URLs.
-- Podcast: Dashboard "Untag" action removes the `:podcast` tag from an episode
-  while keeping the downloaded blob, and permanently failed downloads are
-  untagged when their tracking entry is cleaned up.
-- HTTP: New `:http` config keys `:connection-timeout-ms` (default 10000),
-  `:connection-request-timeout-ms` (default 10000), and `:socket-timeout-ms`
-  (default 120000).
-- Configuration: Add `:throttle` concurrency limits for source updates (default
-  4) and item post-processing (default `:auto`, based on available processors),
-  alongside the existing command, downloader, and streaming limits.
-- Development: Add `lein unit`, `lein integration`, and `lein kaocha` test
-  aliases, and run the JavaScript metadata-extraction tests in CI.
+- Sources: Support titleless feed entries such as Bluesky posts, streaming
+  playlist URLs, and deterministic network-free demo publications.
+- Podcast: Add an **Untag** action that removes the podcast tag while keeping
+  the downloaded blob, and redesign the existing download/retention controls.
+- Configuration: Add outbound HTTP connection/request/socket timeouts and
+  runtime-adjustable limits for source updates and item post-processing.
+- Development: Add unit/integration/Kaocha aliases, Node and browser test
+  suites, deterministic demo coverage, normalized CI reports, and automated
+  Reader/Dashboard screenshots.
 
 ### Changed
 
-- Reader: Keep list layout stable after state changes. Actions now update their
-  controls in place; list membership is reconciled on deliberate navigation or
-  refresh instead of removing rows underneath the reader.
-- Reader: Separate semantic saved/archive/Done controls from actual item-tag
-  controls, and remove the redundant unread quick action beside Done.
-- Reader: Move reading aids to neutral controls on the browser's outer rails.
-  The left rail marks the next paragraph or column and briefly marks the landing
-  point after moving forward; the right rail contains the checkpoint controls.
-  They overlay the dimmed navigation shoulders in the regular item view and use
-  the true browser edges in focus mode. Space and swipe-left share the same
-  viewport-aware forward movement, including horizontal movement in wide column
+- Reader: Unify all lists and tools with consistent navigation,
+  metadata, actions, failure feedback, mobile layouts, keyboard, dark
   mode.
-- Reader: Replace the ambiguous `in-progress` tag with a saved reading
-  position system. Existing `in-progress` items migrate to active checkpoints.
-  Saved items, active checkpoints, and unread bookmarks are independent reasons
-  for Reading Queue membership. Marking an item seen only clears unread, and
-  unsaving only clears saved. Archive and Done clear every queue reason and any
-  checkpoint; saving or marking unread restores an archived item.
-- Reader: Read current Reading Queue membership directly from the database and
-  paginate it in pages of 100 items. Scheduled clustering remains a presentation
-  layer, so a newly saved, completed, or archived item no longer waits for the
-  next clustering run before entering or leaving the queue. Continue Reading
-  remains a short, unclustered list ordered by its latest checkpoint update.
-- Fever: Map read/save/unsave and bulk-read writes through the same Clojure
-  transitions used by the Reader; queue state includes saved items, active
-  checkpoints, and unread bookmarks.
-- Dashboard: Make stale-source reporting cadence-aware, show each source's
-  matching fetch schedules and expected next run, and flag configured sources
-  that match no fetch schedule. Schedule run durations now use the same compact
-  formatting as the Activity view.
-- Schedules: Refresh search indexes, Reading Queue clusters, and Today’s Vibe in
-  separate scheduled jobs so their status, result, and failures are independent.
-- Readability: Extract passive Open Graph, Twitter Card, canonical, microdata,
-  and JSON-LD metadata from the original inert document while keeping rendered
-  article HTML on a separate hardened DOMPurify path.
-- Media extraction: Remove global `metascraper-media-provider`, iframe/oEmbed,
-  and service network lookups. Readability fetches no longer launch the bundled
-  `yt-dlp`; explicitly podcast-tagged URLs use the existing configured system
-  `yt-dlp` download and retry path.
-- HTTP: Apply connection, connection-request, and socket timeouts to all
-  outbound requests.
-- Docker: Compose now runs `postgres:18` and mounts the database volume at
-  `/var/lib/postgresql` instead of `/var/lib/postgresql/data`. See the upgrade
-  notes below.
-- Reader: YouTube previews now embed via `youtube-nocookie.com` and send
-  `referrerpolicy=strict-origin-when-cross-origin`.
-- Build: Move `clj-memory-meter` and its `-Djdk.attach.allowAttachSelf=true` JVM
-  option to the `:dev` profile.
-- Updates: Replace nested `pmap` calls with separate, named, bounded executors
-  for source updates and item post-processing. Bulk updates now preserve input
-  order, isolate per-source failures as structured outcomes, and apply the same
-  global source limit to individual dashboard-triggered updates.
-- Updates: Enforce atomic single-flight admission per source, including forced
-  updates, so overlapping schedules, Reader requests, and Dashboard requests
-  cannot fetch and store the same source concurrently.
-- Throttling: Replace command, media-download, and streaming semaphores with
-  managed, observable throttles. All pool and throttle limits now follow runtime
-  `.llar` changes without a restart; shrinking a limit gates new work without
-  interrupting work already in flight.
-- Reddit: Migrate fetching from the retired unauthenticated `.json` endpoints to
-  the OAuth2 Data API, with cached client-credentials tokens, synchronized
-  renewal, one retry after a rejected token, and rate-limit logging. Dynamic
-  score filtering now reuses the fetched listing instead of making a second
-  request.
-- Dependencies: Upgrade selected Clojure libraries (jsoup, Bouncy Castle, Apache
-  Tika, OpenNLP, NewPipeExtractor, Migratus, and REPL tooling), Node.js metadata
-  extraction dependencies (jsdom, DOMPurify, metascraper), and the vendored web
-  assets Font Awesome and DataTables. DataTables moves from `3.0.0-beta.2` to the
-  stable `3.0.1`.
-
-### Fixed
-
-- Reader: Prevent mark-read-on-view from cascading through an unread list as
-  each removed row pulled the next item into the viewport.
-- Commands: Fall back to a concurrency limit of 2 when `:throttle
-  :command-max-concurrent` or `:throttle :av-downloader-max-concurrent` is absent
-  from the configuration, instead of failing to construct the semaphore. Resolve
-  the `timeout` wrapper through `PATH` instead of requiring `/bin/timeout`.
-- Blobstore: Tolerate a broken blob properties file whose read error carries no
-  content payload, which previously threw while recreating the file.
-- Reader: Fix the lazy YouTube view so the preview thumbnail and the embedded
-  player fill their aspect-ratio container.
-- Reader: Accept state requests whose action-specific form fields are absent,
-  instead of returning a route-level `404` before the state handler runs.
-- Database: Start the backend pool, apply migrations, and only then start the web
-  interfaces and schedulers. Migration, initialization, and rollback now all use
-  the explicit multi-statement separator, preventing requests or jobs from
-  racing a partially upgraded schema.
-- Dashboard: Keep wide source-health tables inside their responsive cards, and
-  show the complete top stack frame in the Activity thread census.
-- Readability: Accept published timestamps with compact or extended numeric
-  offsets, optional zone IDs, local date-times, space-separated date-times, and
-  date-only values.
-- Updates: Prevent forced or racing requests from starting duplicate updates for
-  one source, and prevent one unexpected source failure from aborting the rest
-  of a bulk update result.
-- Updates: Recover sources left with a stale `:updating` status instead of
-  skipping them forever, and cancel queued child work when an update worker is
-  interrupted during shutdown.
-- Dashboard: Format durations consistently under non-US JVM locales instead of
-  emitting locale-dependent decimal separators.
-- Reddit: Drop malformed API entries instead of passing `nil` into
-  post-processing, accept otherwise valid entries without thumbnails, and
-  correctly combine the configured minimum score with the dynamic top-5-percent
-  cutoff.
+- Reading state: Replace the `in-progress` tag with explicit checkpoints.
+  Saved state and checkpoints independently place non-archived items in the
+  Reading Queue; unread, saved, archived, Done, and ordinary item tags now use
+  one transition model shared with Fever.
+- Reader lists: Keep rows stable after inline actions and reconcile membership
+  on deliberate refresh/navigation.
+- Reader performance: Add keyset pagination and time-ordered indexes for
+  chronological, ranked, and tag views; optimize source subsets, counts,
+  full-text search, and concurrent search-index refreshes for large libraries.
+- Dashboard: Add searchable/sortable operational tables, cadence-aware source
+  health, explicit source fetch modes, mark-source-read, bookmark-to-item links,
+  clearer podcast operations, and expanded ranking/rarity diagnostics.
+- Scheduling: Refresh search indexes, Reading Queue clusters, and Today’s Vibe
+  as independent jobs.
+- Update pipeline: Replace nested `pmap` and fixed semaphores with named,
+  bounded, observable executors and throttles. Limits follow runtime config;
+  updates are single-flight per source and isolate per-source failures.
+- Readability and HTTP: Separate passive metadata extraction from hardened
+  article rendering, remove iframe/oEmbed and global media-provider lookups,
+  apply outbound timeouts consistently, guard redirects and isolated fetches,
+  and retain the original feed item if enrichment fails. Readability no longer
+  launches `yt-dlp`; podcast-tagged URLs keep the explicit download path.
+- Reader media: Use `youtube-nocookie.com` for YouTube previews and apply a
+  stricter referrer policy.
+- Blob delivery: Share constant-time token validation and conditional,
+  cache-aware HEAD/byte-range responses across Reader, Fever, podcast, capture,
+  Config Lab, and media endpoints where applicable.
+- Podcast/media: Retain richer download metadata, subtitles, thumbnails, and
+  artwork; use more compatible video-format fallbacks and improve status/error
+  diagnostics.
+- Reddit: Move from retired unauthenticated JSON endpoints to the OAuth2 Data
+  API with cached client-credentials tokens, synchronized renewal, and
+  rate-limit handling. Dynamic score filtering now reuses the fetched listing.
+- Docker: Update Compose from PostgreSQL 16 to 18 and move the volume mount to
+  `/var/lib/postgresql`.
+- Runtime: Apply database migrations before starting web services and
+  schedulers, and coordinate graceful shutdown so queued work is cancelled and
+  final logs reach stdout.
+- Dependencies: Update selected Clojure and Node libraries plus vendored
+  Font Awesome and DataTables; DataTables moves from the 3.0 beta to 3.0.1.
 
 ### Upgrade notes
 
-- **Docker: PostgreSQL 16 to 18 requires `pg_upgrade`.** From 18 on,
-  the official image stores data in a major-version subdirectory
-  (`PGDATA` is `/var/lib/postgresql/18/docker`), which is why the
-  compose mount moved up to `/var/lib/postgresql`. An existing
-  `llar-postgresql` volume from 4.0.0 holds a version 16 cluster at
-  its root. The image detects this and refuses to start, exiting with
-  an error that points at `pg_upgrade` — it does not silently create
-  an empty cluster, so no data is destroyed, but `llar` will not come
-  up until the cluster is migrated. Either run `pg_upgrade --link`
-  with both major versions available, or dump and restore:
-  `pg_dumpall` from a `postgres:16` container with the old volume
-  mounted at `/var/lib/postgresql/data`, then restore into a fresh
-  volume under the new layout.
-- **Readability-sourced items re-import once.** Sanitization moved from the
-  whole fetched document to the extracted article content under a stricter
-  DOMPurify configuration, which changes the content that item hashes are
-  derived from. Existing Readability items will be fetched again as new items on
-  the next update.
-- **Some feed entries re-import once.** Entries that have a title but no `link`
-  now hash on their GUID rather than their title, so they will be fetched again
-  as new items on the next update.
-- **Reddit sources now require OAuth2 application credentials.** Create a
-  Reddit "script" application and configure `:reddit {:app-id "..." :secret
-  "..." :username "..."}` in `credentials.edn`; the old Reddit password is no
-  longer used. The `:random` listing is no longer accepted because Reddit returns
-  a single post rather than a listing, and `:best` remains a global front-page
-  listing that ignores the configured subreddit.
+- **PostgreSQL 16 to 18 requires a database upgrade.** The official PostgreSQL
+  18 image uses a major-version subdirectory, so Compose now mounts
+  `/var/lib/postgresql`. An existing 4.0.0 volume contains a PostgreSQL 16
+  cluster and will not start under 18 until it is migrated with `pg_upgrade`
+  or dumped from PostgreSQL 16 and restored into a fresh PostgreSQL 18 volume.
+- **Reading state is migrated.** Existing `in-progress` items become active
+  checkpoints. Existing unread, non-archived bookmarks are promoted to saved
+  so they remain in the Reading Queue under the unified state model.
+- **Readability-sourced items re-import once.** Stricter article-only
+  sanitization changes the content used to derive item hashes.
+- **Some linkless feed entries re-import once.** Entries with a title but no
+  link now hash on their GUID instead of their title.
+- **Reddit sources require OAuth2 application credentials.** Configure a Reddit
+  script app as `:reddit {:app-id "..." :secret "..." :username "..."}` in
+  `credentials.edn`. The old password is unused, and `:random` is no longer a
+  supported listing.
+- **The WebDAV media library has no application-level authentication.** Bind
+  the podcast service to a private interface or loopback address and protect
+  `/library` with authentication at the TLS reverse proxy.
 
 ## [4.0.0] - 2026-07-11
 
@@ -445,7 +387,8 @@ You can now add a GitHub repository as a source and follow its activity.
 
 ### initial tagged release
 
-[Unreleased]: https://github.com/irq0/llar/compare/4.0.0...HEAD
+[Unreleased]: https://github.com/irq0/llar/compare/5.0.0...HEAD
+[5.0.0]: https://github.com/irq0/llar/compare/4.0.0...5.0.0
 [4.0.0]: https://github.com/irq0/llar/compare/3.1.0...4.0.0
 [3.1.0]: https://github.com/irq0/llar/compare/3.0.0...3.1.0
 [3.0.0]: https://github.com/irq0/llar/compare/2.0.0...3.0.0
