@@ -58,11 +58,11 @@ repos:
         types_or: [css, javascript]
 
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
-    rev: 5550a364f2b5d3a9e731a9f4e231c5dc8c5f2e5b  # frozen: v16.26.1
+    rev: c04e74b560392d1602e683cfacff9ad134738f49  # frozen: v17.14.1
     hooks:
     -   id: stylelint
         args: ["--fix"]
-        additional_dependencies: ['stylelint@16.26.1', 'stylelint-config-standard@39.0.1']
+        additional_dependencies: ['stylelint@17.14.1', 'stylelint-config-standard@40.0.0']
 
   - repo: local
     hooks:
