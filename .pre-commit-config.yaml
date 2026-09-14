@@ -58,11 +58,11 @@ repos:
         types_or: [css, javascript]
 
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
-    rev: 5550a364f2b5d3a9e731a9f4e231c5dc8c5f2e5b  # frozen: v16.26.1
+    rev: d6d653746a0a510b098377a8919bea816eea3c09  # frozen: v17.15.0
     hooks:
     -   id: stylelint
         args: ["--fix"]
-        additional_dependencies: ['stylelint@16.26.1', 'stylelint-config-standard@39.0.1']
+        additional_dependencies: ['stylelint@17.15.0', 'stylelint-config-standard@40.0.0']
 
   - repo: local
     hooks:
@@ -75,7 +75,7 @@ repos:
         exclude: '(^|/)\.#'
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: 0a9c8bc1bdd34395466aaccbe6e095dfc8bf2bfa  # frozen: v10.1.0
+    rev: 058f44e47719e80d8f1e597a235310b60e937860  # frozen: v10.2.0
     hooks:
     - id: cspell
       args:
