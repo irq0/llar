@@ -58,7 +58,7 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3
+    rev: 341e2a331ba578029e66c2e01183e7a6b5ca9ab4  # frozen: v0.24.0
     hooks:
       - id: markdownlint-cli2
 
@@ -78,7 +78,7 @@ repos:
           - 'globals@17.13.0'
 
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
-    rev: 5550a364f2b5d3a9e731a9f4e231c5dc8c5f2e5b  # frozen: v16.26.1
+    rev: a43d64a23287d2dc2e02289bd3b2cb0da5eddfb1  # frozen: v17.16.0
     hooks:
     -   id: stylelint
         args: ["--fix"]
@@ -95,7 +95,7 @@ repos:
         exclude: '(^|/)\.#'
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: 058f44e47719e80d8f1e597a235310b60e937860  # frozen: v10.2.0
+    rev: f6467e1f1ebecf5020560405c7b26e01786a43c8  # frozen: v10.4.0
     hooks:
     - id: cspell
       args:
