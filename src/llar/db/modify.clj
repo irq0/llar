@@ -14,6 +14,7 @@
    [llar.tags :as tags]
    [next.jdbc :as jdbc])
   (:import
+   (java.nio.charset StandardCharsets)
    (llar.db.core PostgresqlDataStore)))
 
 (def item-data-table-entries
@@ -21,6 +22,33 @@
   {:contents :item_data_type/content
    :descriptions :item_data_type/description
    :thumbs :item_data_type/thumbnail})
+
+(def ^:private +max-search-lexeme-bytes+
+  ;; PostgreSQL tsvector lexemes must be no larger than 2046 bytes. The NLP
+  ;; arrays are passed to array_to_tsvector as already-normalized lexemes, so
+  ;; unlike ordinary to_tsvector input PostgreSQL cannot safely skip them.
+  2046)
+
+(defn- utf8-size [s]
+  (alength (.getBytes ^String s StandardCharsets/UTF_8)))
+
+(defn- searchable-lexeme? [lexeme]
+  (and (string? lexeme)
+       (not (empty? lexeme))
+       (<= (utf8-size lexeme) +max-search-lexeme-bytes+)))
+
+(defn- sanitize-search-lexemes [item field lexemes]
+  (let [{accepted true rejected false} (group-by searchable-lexeme? (or lexemes []))
+        accepted (vec accepted)]
+    (when (seq rejected)
+      (log/warnf
+       "Discarding %d invalid search lexeme(s) from %s for source=%s hash=%s (largest UTF-8 size: %d bytes)"
+       (count rejected)
+       (name field)
+       (get-in item [:meta :source-key])
+       (:hash item)
+       (reduce max 0 (keep #(when (string? %) (utf8-size %)) rejected))))
+    accepted))
 
 (defn- simplify-author [authors]
   (cond
@@ -51,10 +79,10 @@
        :type (keyword "item_type" (name (:type item)))
        :tags (into [] (tags/normalize-tags (or (:tags meta) [])))
        :nlp-nwords (or (:nwords nlp) -1)
-       :nlp-urls (into [] (or (:urls nlp) []))
-       :nlp-names (into [] (or (:names nlp) []))
-       :nlp-nouns (into [] (or (:nouns nlp) []))
-       :nlp-verbs (into [] (or (:verbs nlp) []))
+       :nlp-urls (sanitize-search-lexemes item :urls (:urls nlp))
+       :nlp-names (sanitize-search-lexemes item :names (:names nlp))
+       :nlp-nouns (sanitize-search-lexemes item :nouns (:nouns nlp))
+       :nlp-verbs (sanitize-search-lexemes item :verbs (:verbs nlp))
        :nlp-top (or (:top nlp) {})
        :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
                         (sql/conflict-items-ignore-dupe-snip))
