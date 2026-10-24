@@ -1,4 +1,6 @@
-LLAR_VERSION := $(shell lein pprint --no-pretty -- :version)
+# Lein can print dependency-download progress to stdout on a cold cache.  Keep
+# only the final token so that progress percentages cannot become Make targets.
+LLAR_VERSION := $(lastword $(shell lein pprint --no-pretty -- :version))
 CLOJURE_FILES := $(wildcard *.clj src/**/*.clj test/**/*.clj)
 SHELL=/bin/bash -o pipefail
 
