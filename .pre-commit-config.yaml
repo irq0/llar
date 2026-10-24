@@ -7,14 +7,30 @@ repos:
       - id: check-yaml
         args:
           - --allow-multiple-documents
+      - id: check-json
+      - id: check-xml
       - id: check-added-large-files
       - id: end-of-file-fixer
       - id: debug-statements
       - id: mixed-line-ending
       - id: detect-private-key
       - id: destroyed-symlinks
+      - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: check-case-conflict
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0494aa7fa1314e98913a41227d8f0a515b2c1049  # frozen: 0.38.2
+    hooks:
+      - id: check-compose-spec
+      - id: check-dependabot
+      - id: check-github-workflows
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint
+        args: [-shellcheck=]
 
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 38980559e3a605691d6579f96222c30778e5a69e  # frozen: 3.0.0
@@ -46,16 +62,20 @@ repos:
     hooks:
       - id: markdownlint-cli2
 
-  - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: 99470f5e12208ff0fb17ab81c3c494f7620a1d8d  # frozen: v0.11.0
-    hooks:
-      - id: shellcheck
-
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: 'f12edd9c7be1c20cfa42420fd0e6df71e42b51ea'  # frozen: v4.0.0-alpha.8
     hooks:
     -   id: prettier
         types_or: [css, javascript]
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: 7ab6b7f5c5befd162fb5ddddc4af4c1b4fbfe11d  # frozen: v10.13.0
+    hooks:
+    -   id: eslint
+        additional_dependencies:
+          - 'eslint@10.13.0'
+          - '@eslint/js@10.0.1'
+          - 'globals@17.13.0'
 
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
     rev: 5550a364f2b5d3a9e731a9f4e231c5dc8c5f2e5b  # frozen: v16.26.1

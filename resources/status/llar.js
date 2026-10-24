@@ -1878,7 +1878,7 @@ $(document).ready(function () {
 
   if ("IntersectionObserver" in window) {
     markReadObserver = new IntersectionObserver(
-      function (entries, observer) {
+      function (entries) {
         entries.forEach(function (entry) {
           if (entry.isIntersecting) {
             scheduleBottomSentinelMarkRead(entry.target);

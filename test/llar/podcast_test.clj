@@ -2,6 +2,7 @@
   (:require
    [clojure.java.io :as io]
    [cheshire.core :as json]
+   [clj-http.client :as http]
    [clojure.string :as string]
    [clojure.test :refer [deftest is testing use-fixtures]]
    [clojure.tools.logging :as log]
@@ -34,7 +35,7 @@
 (deftest thumbnail-failure-log-includes-url-and-cause
   (let [logged (atom nil)
         failure (ex-info "HTTP 503 from image host" {:status 503})]
-    (with-redefs [clj-http.client/get (fn [& _] (throw failure))
+    (with-redefs [http/get (fn [& _] (throw failure))
                   log/log* (fn [& args] (reset! logged args))]
       (is (nil? (#'uut/download-thumbnail
                  "https://images.example/thumbnail.jpg"))))

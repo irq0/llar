@@ -1127,7 +1127,7 @@ function initialize_config_lab(container) {
     $("#config-lab-source-form").val(config_lab_state.source_form);
 
   config_lab_request("/api/config-lab/status")
-    .then(function (result) {
+    .then(function () {
       $("#config-lab-login").prop("hidden", true);
       $("#config-lab-workbench").prop("hidden", false);
       config_lab_set_status("secondary", "Config Lab unlocked.");
@@ -1152,7 +1152,7 @@ function initialize_config_lab(container) {
       body: JSON.stringify({ token: $("#config-lab-token").val() }),
     }).then(function (response) {
       if (!response.ok) return config_lab_error(response);
-      return response.json().then(function (result) {
+      return response.json().then(function () {
         $("#config-lab-token").val("");
         $("#config-lab-login").prop("hidden", true);
         $("#config-lab-workbench").prop("hidden", false);
