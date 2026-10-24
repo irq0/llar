@@ -42,7 +42,7 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: b82a6c8896e491b9cb377a99ff3412131920681b  # frozen: v0.23.2
+    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3
     hooks:
       - id: markdownlint-cli2
 
@@ -75,7 +75,7 @@ repos:
         exclude: '(^|/)\.#'
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: 0a9c8bc1bdd34395466aaccbe6e095dfc8bf2bfa  # frozen: v10.1.0
+    rev: 058f44e47719e80d8f1e597a235310b60e937860  # frozen: v10.2.0
     hooks:
     - id: cspell
       args:
