@@ -81,16 +81,15 @@ jobs:
     runs-on: ubuntu-26.04
     permissions:
       contents: read
-      issues: read
       checks: write
-      pull-requests: write
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
         fetch-depth: 0
         fetch-tags: true
         filter: tree:0
-    - uses: actions/setup-java@v6
+        persist-credentials: false
+    - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
       with:
         distribution: 'temurin'
         java-version: '25'
@@ -108,7 +107,7 @@ jobs:
           -o ~/.local/bin/lein
         chmod +x ~/.local/bin/lein
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-    - uses: actions/setup-node@v7
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -129,8 +128,9 @@ jobs:
           --test-reporter-destination=stdout \
           --test-reporter-destination=target/test-results/node.xml \
           tools/readability/test/*.test.js \
-          tools/value-inspector/test/*.test.js
-        test_status=$?
+          tools/value-inspector/test/*.test.js \
+          2>&1 | tee target/test-results/node.log
+        test_status=${PIPESTATUS[0]}
         set -e
         if [[ -s target/test-results/node.xml ]]; then
           node tools/normalize-node-junit.mjs \
@@ -149,8 +149,9 @@ jobs:
           --test-reporter=junit \
           --test-reporter-destination=stdout \
           --test-reporter-destination=target/test-results/browser.xml \
-          tools/frontend/test/*.test.mjs
-        test_status=$?
+          tools/frontend/test/*.test.mjs \
+          2>&1 | tee target/test-results/browser.log
+        test_status=${PIPESTATUS[0]}
         set -e
         if [[ -s target/test-results/browser.xml ]]; then
           node tools/normalize-node-junit.mjs \
@@ -162,30 +163,92 @@ jobs:
     - name: Run tests with coverage
       id: clojure-tests
       continue-on-error: true
-      run: lein with-profile +test run -m kaocha.runner --plugin kaocha.plugin/cloverage
+      run: |
+        set +e
+        lein with-profile +test run -m kaocha.runner \
+          --plugin kaocha.plugin/cloverage \
+          > target/test-results/clojure.log 2>&1
+        test_status=$?
+        set -e
+        if [[ -s target/junit.xml ]]; then
+          mv target/junit.xml target/test-results/clojure.xml
+        fi
+        if [[ "$test_status" -eq 0 ]]; then
+          tail -n 80 target/test-results/clojure.log
+        else
+          echo "::group::Clojure test output (last 200 lines)"
+          tail -n 200 target/test-results/clojure.log
+          echo "::endgroup::"
+        fi
+        exit "$test_status"
+    - name: Validate expected test reports
+      id: test-reports
+      if: always()
+      continue-on-error: true
+      run: |
+        report_status=0
+        for report in \
+          target/test-results/node.xml \
+          target/test-results/browser.xml \
+          target/test-results/clojure.xml
+        do
+          if [[ ! -s "$report" ]]; then
+            echo "::error file=$report::Expected test report was not generated"
+            report_status=1
+          fi
+        done
+        exit "$report_status"
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v7
+      if: ${{ !cancelled() && hashFiles('target/coverage/codecov.json') != '' }}
+      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        files: target/coverage/codecov.json
+        disable_search: true
         fail_ci_if_error: false
     - name: Upload test results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       if: always()
       with:
         name: test-results
         path: |
-          target/junit.xml
           target/test-results/
           target/coverage/
-    - name: Publish test results
-      uses: EnricoMi/publish-unit-test-result-action@v2
-      if: always()
+        if-no-files-found: error
+        retention-days: 14
+    - name: Publish Node.js test results
+      uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
+      if: ${{ !cancelled() }}
       with:
-        files: |
-          target/junit.xml
-          target/test-results/*.xml
-        check_name: LLAR test results
-        comment_mode: failures
+        files: target/test-results/node.xml
+        check_name: Node.js test results
+        comment_mode: off
+        job_summary: true
+        compare_to_earlier_commit: true
+        report_individual_runs: true
+        report_suite_logs: error
+        action_fail_on_inconclusive: true
+        test_file_prefix: -${{ github.workspace }}/
+    - name: Publish browser integration test results
+      uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
+      if: ${{ !cancelled() }}
+      with:
+        files: target/test-results/browser.xml
+        check_name: Browser integration test results
+        comment_mode: off
+        job_summary: true
+        compare_to_earlier_commit: true
+        report_individual_runs: true
+        report_suite_logs: error
+        action_fail_on_inconclusive: true
+        test_file_prefix: -${{ github.workspace }}/
+    - name: Publish Clojure test results
+      uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
+      if: ${{ !cancelled() }}
+      with:
+        files: target/test-results/clojure.xml
+        check_name: Clojure test results
+        comment_mode: off
         job_summary: true
         compare_to_earlier_commit: true
         report_individual_runs: true
@@ -197,7 +260,8 @@ jobs:
         always() &&
         (steps.metadata-tests.outcome == 'failure' ||
          steps.browser-tests.outcome == 'failure' ||
-         steps.clojure-tests.outcome == 'failure')
+         steps.clojure-tests.outcome == 'failure' ||
+         steps.test-reports.outcome == 'failure')
       run: exit 1
 
   docker:
