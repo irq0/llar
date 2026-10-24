@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-10-24
+
+### Added
+
+- Browser capture: Support Firefox alongside Chromium and Arc, with a shared
+  WebExtensions implementation, distributable ZIP packaging, automated tests,
+  and a privacy notice.
+
+### Changed
+
+- Reader navigation: Store list positions per browser history entry, restore
+  surviving item anchors only on Back/Forward navigation, and make explicit
+  reloads start at the top without adding a duplicate history entry.
+- Dependencies: Update Clojure and Java libraries, Node metadata extraction and
+  browser tooling, and DataTables to 3.1.4.
+- Development: Migrate hooks to prek, expand actionlint and ESLint coverage,
+  harden CI test-result validation and reporting, support Docker 29 in
+  integration tests, optimize caches, and run GitHub-hosted jobs on Ubuntu
+  26.04.
+
+### Fixed
+
+- Readability: Restore `:has-video` tagging when analyzed article content
+  contains YouTube or Vimeo URLs.
+- Database search: Discard invalid or oversized UTF-8 NLP lexemes before
+  persistence and clean existing values during migration, preventing
+  PostgreSQL `array_to_tsvector` failures without removing source content.
+
+### Upgrade notes
+
+- The browser extension now requires Firefox 140 or Chromium 121 and later.
+  Existing non-loopback HTTP capture URLs must move behind HTTPS.
+
 ## [5.0.0] - 2026-08-29
 
 ### Highlights
