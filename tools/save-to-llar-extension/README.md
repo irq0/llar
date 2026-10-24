@@ -1,11 +1,11 @@
 # 🖖 Save to LLAR browser extension
 
-A small, store-free Chromium extension for sending the current page to LLAR's
-durable bookmark capture queue. It navigates the current tab to LLAR's existing
-capture feedback page, so the server remains responsible for authentication and
-success reporting.
+A small, store-free Firefox and Chromium extension for sending the current page
+to LLAR's durable bookmark capture queue. It navigates the current tab to LLAR's
+existing capture feedback page, so the server remains responsible for
+authentication and success reporting.
 
-## Install in Arc or Chromium
+## Install in Arc or Chromium 121+
 
 1. Open `arc://extensions` in Arc or `chrome://extensions` in Chromium.
 2. Enable **Developer mode**.
@@ -24,7 +24,13 @@ The settings are stored locally in the browser profile and are cleared when the
 extension is removed. They are not placed in this directory or synced by the
 extension.
 
-After editing extension files, use **Reload** on the extensions page.
+The extension has no telemetry and does not contact its developer or any third
+party. Firefox describes the page URL and authentication token sent to your
+configured LLAR service as `websiteActivity` and `authenticationInfo` in its
+installation consent screen. See the included [privacy notice](PRIVACY.md).
+
+After editing extension files, use **Reload** on the browser's extension
+debugging page.
 
 The toolbar PNGs are rendered from two raster masters. `icons/icon-source.png`
 provides the detailed 32, 48, and 128 pixel icons;

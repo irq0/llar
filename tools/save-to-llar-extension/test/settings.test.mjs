@@ -24,7 +24,11 @@ test("capture base URLs are normalized without losing a proxy path", () => {
 test("capture base URLs reject ambiguous or unsafe components", () => {
   assert.throws(
     () => normalizeCaptureBase("file:///tmp/capture"),
-    /HTTPS or HTTP/,
+    /must use HTTPS/,
+  );
+  assert.throws(
+    () => normalizeCaptureBase("http://save.example.org/"),
+    /must use HTTPS/,
   );
   assert.throws(
     () => normalizeCaptureBase("https://save.example.org/?token=secret"),

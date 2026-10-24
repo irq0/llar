@@ -1,15 +1,16 @@
+import { getExtensionApi } from "./extension-api.mjs";
 import { normalizeCaptureBase, validCaptureToken } from "./settings.mjs";
 
+const extensionApi = getExtensionApi();
 const form = document.getElementById("settings");
 const captureBaseInput = document.getElementById("capture-base");
 const tokenInput = document.getElementById("token");
 const status = document.getElementById("status");
 
 async function restore() {
-  const { captureBase = "", token = "" } = await chrome.storage.local.get([
-    "captureBase",
-    "token",
-  ]);
+  const { captureBase = "", token = "" } = await extensionApi.storage.local.get(
+    ["captureBase", "token"],
+  );
   captureBaseInput.value = captureBase;
   tokenInput.value = token;
 }
@@ -27,7 +28,7 @@ form.addEventListener("submit", async (event) => {
       );
     }
 
-    await chrome.storage.local.set({ captureBase, token });
+    await extensionApi.storage.local.set({ captureBase, token });
     captureBaseInput.value = captureBase;
     status.textContent = "Settings saved.";
   } catch (error) {

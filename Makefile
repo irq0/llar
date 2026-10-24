@@ -32,7 +32,7 @@ DOCS_OUT ?= target/docs
 
 all: uberjar
 
-.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery datatables uberjar docker-image
+.PHONY: all web-3rd-party clean-web-3rd-party check-frontend-deps docs-requirements docs-assets ibmplex fontawesome bootstrap jquery datatables browser-extension uberjar docker-image
 
 $(ibmplex_stamp):
 	@set -e; \
@@ -112,6 +112,9 @@ $(datatables_stamp):
 datatables: $(datatables_stamp)
 
 web-3rd-party: datatables jquery bootstrap fontawesome ibmplex
+
+browser-extension:
+	./tools/save-to-llar-extension/package.sh
 
 docs-requirements: bootstrap ibmplex
 
