@@ -108,13 +108,10 @@ function getReadingBlocks(container) {
 
 // Browsers normally restore scroll position when navigating back, but a
 // Reader list can change while an item is open (most notably when opening it
-// removes it from an unread view). Keep a few semantic anchors so we can
-// repair an apparent reset without replacing native history restoration.
-var readerListPositionStoragePrefix = "llar-reader-list-position:";
-
-function readerListPositionStorageKey() {
-  return readerListPositionStoragePrefix + window.location.href;
-}
+// removes it from an unread view). Keep semantic anchors on the current
+// history entry so repeated visits to the same URL retain independent places.
+var readerListPositionStateKey = "llarReaderListPosition";
+var readerListPositionSaveTimer = null;
 
 function readerListItems() {
   return Array.from(
@@ -131,34 +128,78 @@ function saveReaderListPosition() {
   });
   if (firstVisibleIndex < 0) return;
 
-  var anchors = items
-    .slice(firstVisibleIndex, firstVisibleIndex + 4)
-    .map(function (item) {
-      return { id: item.id, top: item.getBoundingClientRect().top };
-    });
+  var anchors = items.slice(firstVisibleIndex).map(function (item) {
+    return { id: item.id, top: item.getBoundingClientRect().top };
+  });
+
+  var currentState = window.history.state;
+  var nextState =
+    currentState &&
+    typeof currentState === "object" &&
+    !Array.isArray(currentState)
+      ? Object.assign({}, currentState)
+      : {};
+  nextState[readerListPositionStateKey] = {
+    anchors: anchors,
+    scrollY: window.scrollY,
+  };
 
   try {
-    window.sessionStorage.setItem(
-      readerListPositionStorageKey(),
-      JSON.stringify({ anchors: anchors, scrollY: window.scrollY }),
-    );
+    window.history.replaceState(nextState, "");
   } catch (_error) {
-    // Storage can be disabled without making Reader navigation unusable.
+    // History state can be unavailable without making Reader navigation
+    // unusable; native browser restoration remains as the fallback.
   }
 }
 
-function restoreReaderListPosition() {
-  // A non-zero offset means the browser already restored this history entry.
-  if (window.scrollY >= 10) return;
+function scheduleReaderListPositionSave() {
+  clearTimeout(readerListPositionSaveTimer);
+  readerListPositionSaveTimer = setTimeout(function () {
+    readerListPositionSaveTimer = null;
+    saveReaderListPosition();
+  }, 200);
+}
 
-  var saved;
-  try {
-    saved = JSON.parse(
-      window.sessionStorage.getItem(readerListPositionStorageKey()),
-    );
-  } catch (_error) {
+function flushReaderListPositionSave() {
+  clearTimeout(readerListPositionSaveTimer);
+  readerListPositionSaveTimer = null;
+  saveReaderListPosition();
+}
+
+function handleReaderListLinkActivation(event) {
+  var target = event.target.closest && event.target.closest("a[href]");
+  if (!target) return;
+
+  if (target.closest('[id^="item-"][data-id]')) {
+    flushReaderListPositionSave();
+  }
+
+  if (!target.classList.contains("btn-reload-current-view")) return;
+  if (
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) {
     return;
   }
+
+  // Reload is an action, not a new destination. Keep the current history
+  // entry so Back leaves this view instead of visiting an older copy of it.
+  event.preventDefault();
+  if ("scrollRestoration" in window.history) {
+    window.history.scrollRestoration = "manual";
+  }
+  window.location.reload();
+}
+
+function restoreReaderListPosition() {
+  var state = window.history.state;
+  var saved =
+    state && typeof state === "object"
+      ? state[readerListPositionStateKey]
+      : null;
   if (!saved) return;
 
   var anchor = (saved.anchors || []).find(function (candidate) {
@@ -172,16 +213,58 @@ function restoreReaderListPosition() {
   }
 }
 
-$(function () {
+function readerListNavigationType() {
+  if (!window.performance || !window.performance.getEntriesByType) return null;
+  var entries = window.performance.getEntriesByType("navigation");
+  return entries.length ? entries[0].type : null;
+}
+
+function scheduleReaderListScroll(callback) {
+  // Wait until after pageshow and one complete layout before overriding or
+  // correcting the browser's native scroll restoration.
+  window.requestAnimationFrame(function () {
+    window.requestAnimationFrame(callback);
+  });
+}
+
+var readerListPageNavigationType = readerListNavigationType();
+
+if (document.body.classList.contains("reader-mode-list-items")) {
+  if (
+    readerListPageNavigationType === "reload" &&
+    "scrollRestoration" in window.history
+  ) {
+    window.history.scrollRestoration = "manual";
+  }
+  window.addEventListener("scroll", scheduleReaderListPositionSave, {
+    passive: true,
+  });
+  window.addEventListener("resize", scheduleReaderListPositionSave);
+  window.addEventListener("pagehide", flushReaderListPositionSave);
+  document.addEventListener("click", handleReaderListLinkActivation, true);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      flushReaderListPositionSave();
+    }
+  });
+}
+
+window.addEventListener("pageshow", function (event) {
   if (!document.body.classList.contains("reader-mode-list-items")) return;
 
-  window.addEventListener("pagehide", saveReaderListPosition);
-  window.requestAnimationFrame(restoreReaderListPosition);
-});
-
-window.addEventListener("pageshow", function () {
-  if (!document.body.classList.contains("reader-mode-list-items")) return;
-  window.requestAnimationFrame(restoreReaderListPosition);
+  if (event.persisted || readerListPageNavigationType === "back_forward") {
+    scheduleReaderListScroll(restoreReaderListPosition);
+  } else {
+    window.scrollTo(0, 0);
+    // Native reload restoration can run after pageshow. Correct it again in
+    // the next pre-paint frame without the extra frame used for Back layout.
+    window.requestAnimationFrame(function () {
+      window.scrollTo(0, 0);
+      if ("scrollRestoration" in window.history) {
+        window.history.scrollRestoration = "auto";
+      }
+    });
+  }
 });
 
 function updateStateButton(button, isSet) {

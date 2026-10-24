@@ -361,7 +361,7 @@
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-bookmark-activity-01"}]])
+   [:script {:src "/static/llar.js?v=reader-list-position-03"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
