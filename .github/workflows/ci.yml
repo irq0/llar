@@ -23,7 +23,7 @@ env:
 
 jobs:
   format:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
     - uses: actions/cache@v6
@@ -50,7 +50,7 @@ jobs:
         sha256: e238e5a6b4e384e8d18f33d3c3b1a329be0e1237f77ac6e021e641ddd3a2bab6
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
     - name: Lint Dockerfile
@@ -75,10 +75,10 @@ jobs:
     - name: Add ~/.local/bin to PATH
       run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
     - name: Run clj-kondo
-      run: clj-kondo --lint src
+      run: clj-kondo --lint src:test:.clj-kondo/hooks
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       issues: read
@@ -201,7 +201,7 @@ jobs:
       run: exit 1
 
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
@@ -305,7 +305,7 @@ jobs:
         echo "ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
 
   compose-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: docker
     if: github.event_name != 'pull_request'
     permissions:
@@ -477,7 +477,7 @@ jobs:
       run: docker compose down -v --remove-orphans
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs:
       - docker
       - compose-e2e

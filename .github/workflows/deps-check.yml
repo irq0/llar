@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   clojure-deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
       with:
@@ -63,7 +63,7 @@ jobs:
           ancient-outdated.json
 
   node-deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
     - uses: actions/setup-node@v7
@@ -80,7 +80,7 @@ jobs:
         path: npm-outdated.json
 
   frontend-deps:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
     - name: Check vendored frontend library versions
@@ -93,7 +93,7 @@ jobs:
 
   report:
     needs: [clojure-deps, node-deps, frontend-deps]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/download-artifact@v8
     - name: Build report
