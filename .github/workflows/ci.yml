@@ -216,42 +216,18 @@ jobs:
           target/coverage/
         if-no-files-found: error
         retention-days: 14
-    - name: Publish Node.js test results
+    - name: Publish test results
       uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
       if: ${{ !cancelled() }}
       with:
-        files: target/test-results/node.xml
-        check_name: Node.js test results
+        files: |
+          target/test-results/node.xml
+          target/test-results/browser.xml
+          target/test-results/clojure.xml
+        check_name: Test results
         comment_mode: off
         job_summary: true
-        compare_to_earlier_commit: true
-        report_individual_runs: true
-        report_suite_logs: error
-        action_fail_on_inconclusive: true
-        test_file_prefix: -${{ github.workspace }}/
-    - name: Publish browser integration test results
-      uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
-      if: ${{ !cancelled() }}
-      with:
-        files: target/test-results/browser.xml
-        check_name: Browser integration test results
-        comment_mode: off
-        job_summary: true
-        compare_to_earlier_commit: true
-        report_individual_runs: true
-        report_suite_logs: error
-        action_fail_on_inconclusive: true
-        test_file_prefix: -${{ github.workspace }}/
-    - name: Publish Clojure test results
-      uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
-      if: ${{ !cancelled() }}
-      with:
-        files: target/test-results/clojure.xml
-        check_name: Clojure test results
-        comment_mode: off
-        job_summary: true
-        compare_to_earlier_commit: true
-        report_individual_runs: true
+        check_run_annotations: none
         report_suite_logs: error
         action_fail_on_inconclusive: true
         test_file_prefix: -${{ github.workspace }}/
