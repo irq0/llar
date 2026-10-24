@@ -35,9 +35,10 @@
   ReadabilityItem
   (post-process-item [item _src _state]
     (let [nlp (analysis/analyze-entry (:entry item))
+          urls (get-in nlp [:nlp :urls])
           tags (set
                 (remove nil?
-                        [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) (:urls nlp))
+                        [(when (some #(re-find #"^https?://\w+\.(youtube|vimeo|youtu)" %) urls)
                            :has-video)
                          (when (and (string? (:url item)) (re-find #"^https?://\w+\.(youtube|vimeo|youtu)" (:url item)))
                            :has-video)]))]
