@@ -2,9 +2,7 @@
   (:require [clojure.spec.alpha :as spec]
             [llar.specs]
             [slingshot.slingshot :refer [throw+]]
-            [org.bovinegenius [exploding-fish :as uri]]
-            [twitter.oauth :refer [make-oauth-creds]]
-            [twitter.api.restful :as twitter-rest]))
+            [org.bovinegenius [exploding-fish :as uri]]))
 
 ;;;; Sources - Containers for information needed by the Fetcher / Live
 ;;;; to retrieve Items
@@ -218,69 +216,6 @@
    :post [(spec/valid? source? %)]}
   (->WordpressJsonFeed (uri/uri url) (merge +http-default-args+ args)))
 
-(spec/def :irq0-src-twitter/credentials
-  (spec/keys
-   :req-un [:irq0-src-twitter/app-key
-            :irq0-src-twitter/app-secret
-            :irq0-src-twitter/user-token
-            :irq0-src-twitter/user-token-secret]))
-
-(defrecord TwitterSearch
-           [query
-            url
-            oauth-creds]
-  Source
-  (source-type [_] ::fetch)
-  Object
-  (toString [src] (str "[TwitterSearch: " (:query src) "]")))
-
-(defn twitter-search
-  "Twitter search source."
-  {:llar.config/kind :source
-   :llar.config/order 70
-   :llar.config/specs [string? :irq0-src-twitter/credentials]
-   :llar.config/example "(src/twitter-search \"clojure\" ($credentials :twitter-api))"}
-  [query
-   oauth-creds]
-  {:pre [(spec/valid? string? query)
-         (spec/valid? :irq0-src-twitter/credentials oauth-creds)]
-   :post [(spec/valid? source? %)]}
-  (->TwitterSearch
-   query
-   (uri/uri (str "https://twitter.com/search?q=" query))
-   (make-oauth-creds
-    (:app-key oauth-creds)
-    (:app-secret oauth-creds)
-    (:user-token oauth-creds)
-    (:user-token-secret oauth-creds))))
-
-(defrecord TwitterApi
-           [api-fn
-            params
-            oauth-creds]
-  Source
-  (source-type [_] ::fetch)
-  Object
-  (toString [src] (format "[TwitterApi/%s: %s]" (:api-fn src) (:params src))))
-
-(defn twitter-timeline
-  "Twitter home timeline source."
-  {:llar.config/kind :source
-   :llar.config/order 80
-   :llar.config/specs [:irq0-src-twitter/credentials]
-   :llar.config/example "(src/twitter-timeline ($credentials :twitter-api))"}
-  [oauth-creds]
-  {:pre [(spec/valid? :irq0-src-twitter/credentials oauth-creds)]
-   :post [(spec/valid? source? %)]}
-  (->TwitterApi
-   twitter-rest/statuses-home-timeline
-   {:count 200}
-   (make-oauth-creds
-    (:app-key oauth-creds)
-    (:app-secret oauth-creds)
-    (:user-token oauth-creds)
-    (:user-token-secret oauth-creds))))
-
 (defrecord Readability
            [url args]
   Source
@@ -435,9 +370,6 @@
 
 (defn feed? [src]
   (some #(instance? % src) [Feed SelectorFeed WordpressJsonFeed Reddit]))
-
-(defn twitter? [src]
-  (some #(instance? % src) [TwitterSearch TwitterApi]))
 
 (defn reddit? [src]
   (some #(instance? % src) [Reddit]))

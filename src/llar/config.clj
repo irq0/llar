@@ -20,7 +20,6 @@
    [llar.fetch.imap]
    [llar.fetch.readability]
    [llar.fetch.reddit]
-   [llar.fetch.twitter]
    [llar.fetch.hackernews]
    [llar.fetch.streaming]
    [llar.fetch.github]

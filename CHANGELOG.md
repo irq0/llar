@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Sources: Remove the legacy `src/twitter-search` and `src/twitter-timeline`
+  integrations and their obsolete Netty 3 dependency chain. Existing Twitter
+  source forms must be removed from runtime configuration; previously stored
+  tweet items remain readable.
+
+### Security
+
+- Container: Remove unused npm/npx tooling and the Ubuntu Pebble service
+  manager from the runtime image, and exclude Hickory's unused ClojureScript
+  dependency.
+
 ## [5.1.0] - 2026-10-24
 
 ### Added

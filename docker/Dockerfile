@@ -11,7 +11,8 @@ LABEL org.opencontainers.image.description="Live Long and Read: Container Image"
 LABEL org.opencontainers.image.authors="llar@irq0.org"
 LABEL org.opencontainers.image.licenses=AGPLv3
 
-RUN ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+RUN rm -f /usr/bin/pebble && \
+  ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 
 RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR}|g" /etc/apt/sources.list.d/ubuntu.sources && \
   apt-get update && apt-get -y --no-install-recommends install \
@@ -79,6 +80,8 @@ RUN apt-get update && \
   apt-get -y --no-install-recommends install build-essential && \
   npm ci --omit=dev && \
   npm cache clean --force && \
+  rm -rf "$(npm root -g)/npm" && \
+  rm -f /usr/bin/npm /usr/bin/npx && \
   chown -R 0:0 /llar && \
   apt-get purge -y build-essential && \
   apt-get autoremove -y && \

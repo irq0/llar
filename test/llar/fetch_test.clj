@@ -15,7 +15,6 @@
    [llar.converter :as converter]
    [hickory.select :as S]
    [llar.fetch.reddit :as reddit]
-   [llar.fetch.twitter]
    [llar.http :as http]
    [mount.core :as mount]
    [hickory.core :as hick]

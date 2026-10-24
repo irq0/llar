@@ -124,7 +124,6 @@
                  [clj-commons/iapetos "0.1.15"]
 
                  ;; apis
-                 [twitter-api "1.8.0" :exclusions [org.clojure/data.json org.bouncycastle/bcprov-jdk15on]]
                  [clj-http "3.13.1" :exclusions [org.apache.httpcomponents/httpcore]]
                  [clj-rome "0.4.0"]
 
@@ -154,7 +153,7 @@
 
                  ;; html
                  [hiccup "2.0.0"]
-                 [hickory "0.7.1" :exclusions [org.jsoup/jsoup]]
+                 [hickory "0.7.1" :exclusions [org.clojure/clojurescript org.jsoup/jsoup]]
                  [org.bovinegenius/exploding-fish "0.3.6"]
 
                  ;; data processing and analysis

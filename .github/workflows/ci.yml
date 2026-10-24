@@ -391,8 +391,7 @@ jobs:
     - name: Create CI credentials
       run: |
         cat > docker/credentials.edn <<'EOF'
-        {:twitter-api {}
-         :lwn {}
+        {:lwn {}
          :imap {}
          :smtp {}
          :zotero {}
