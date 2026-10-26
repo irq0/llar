@@ -82,7 +82,7 @@ repos:
     hooks:
     -   id: stylelint
         args: ["--fix"]
-        additional_dependencies: ['stylelint@16.26.1', 'stylelint-config-standard@39.0.1']
+        additional_dependencies: ['stylelint@17.16.0', 'stylelint-config-standard@40.0.0']
 
   - repo: local
     hooks:
