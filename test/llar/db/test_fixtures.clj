@@ -23,7 +23,10 @@
                   :env-vars {"POSTGRES_USER" "postgres"
                              "POSTGRES_PASSWORD" "test"
                              "POSTGRES_DB" "llar_test"}
-                  :wait-for {:wait-strategy :port}})
+                  :wait-for {:wait-strategy :log
+                             :message "database system is ready to accept connections"
+                             :times 2
+                             :startup-timeout 60}})
       (tc/start!)))
 
 (defn get-db-config
