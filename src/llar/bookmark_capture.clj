@@ -174,7 +174,11 @@
     (process-capture! db capture)))
 
 (defn run-scheduled! []
-  (pool/call-on pool/source-pool #(process-next! store/backend-db)))
+  ;; Keep empty polling off the shared source pool. The early feed batch can fill
+  ;; that pool for minutes, but a newly ready capture will be found on the next
+  ;; tick if it races with this preflight check.
+  (when (capture-db/oldest-ready store/backend-db)
+    (pool/call-on pool/source-pool #(process-next! store/backend-db))))
 
 (defn- configured-schedule []
   (or (appconfig/capture :schedule) :now-and-every-minute))

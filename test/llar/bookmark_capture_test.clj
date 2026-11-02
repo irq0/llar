@@ -8,6 +8,8 @@
    [llar.fetch :as fetch]
    [llar.fetch.bookmark :as bookmark]
    [llar.persistency :as persistency]
+   [llar.pool :as pool]
+   [llar.store :as store]
    [llar.work :as work]))
 
 (deftest processing-schedule-comes-from-static-appconfig
@@ -16,6 +18,33 @@
       (is (= :hourly (configured-schedule))))
     (with-redefs [appconfig/capture (constantly nil)]
       (is (= :now-and-every-minute (configured-schedule))))))
+
+(deftest scheduled-processing-skips-the-source-pool-when-no-capture-is-ready
+  (let [pool-calls (atom 0)]
+    (with-redefs [store/backend-db :db
+                  capture-db/oldest-ready (fn [db]
+                                            (is (= :db db))
+                                            nil)
+                  pool/call-on (fn [& _]
+                                 (swap! pool-calls inc))]
+      (is (nil? (uut/run-scheduled!)))
+      (is (zero? @pool-calls)))))
+
+(deftest scheduled-processing-uses-the-source-pool-when-a-capture-is-ready
+  (let [pool-used (atom nil)]
+    (with-redefs [store/backend-db :db
+                  pool/source-pool :source-pool
+                  capture-db/oldest-ready (fn [db]
+                                            (is (= :db db))
+                                            :ready-at)
+                  uut/process-next! (fn [db]
+                                      (is (= :db db))
+                                      :processed)
+                  pool/call-on (fn [worker-pool f]
+                                 (reset! pool-used worker-pool)
+                                 (f))]
+      (is (= :processed (uut/run-scheduled!)))
+      (is (= :source-pool @pool-used)))))
 
 (deftest capture-url-normalization-is-bounded-and-deterministic
   (is (= "https://example.com/article?a=1#section"
