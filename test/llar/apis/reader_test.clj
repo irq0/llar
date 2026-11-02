@@ -423,6 +423,51 @@
     (is (re-find #"reader-defensive-image" rendered))
     (is (re-find #"data-error-remove=\"\.ratio\"" rendered))))
 
+(deftest feed-media-images-use-cached-files-and-safe-link-fallbacks
+  (let [item {:title "Photo post"
+              :url "https://example.com/post"
+              :entry {:thumbnail "/blob/first.jpg"
+                      :media [{:kind :image
+                               :url "https://cdn.example/first.jpg"
+                               :local-url "/blob/first.jpg"
+                               :description "First photo"}
+                              {:kind "image"
+                               :url "https://cdn.example/second.jpg"
+                               :local-url "https://tracker.example/second.jpg"}]}}
+        full (str (uut/render-special-item-content item #{}))
+        compact (str (uut/render-special-item-content
+                      item #{:llar.apis.reader/compact-media}))]
+    (is (string/includes? full "reader-media-attachments"))
+    (is (string/includes? full "src=\"/blob/first.jpg\""))
+    (is (string/includes? full "alt=\"First photo\""))
+    (is (string/includes? full "href=\"https://cdn.example/second.jpg\""))
+    (is (not (string/includes? full "src=\"https://tracker.example")))
+    (is (= 1 (count (re-seq #"src=\"/blob/first.jpg\"" full))))
+    (is (not (string/includes? compact "reader-media-attachments")))
+    (is (string/includes? compact "src=\"/blob/first.jpg\""))))
+
+(deftest feed-media-images-render-with-normal-item-content
+  (with-redefs [appconfig/credentials (constantly nil)
+                rc/rc (constantly nil)]
+    (let [rendered (str
+                    (h/html
+                     (uut/main-show-item
+                      {:items [{:id 1
+                                :source-key "feed"
+                                :title "Photo post"
+                                :url "https://example.com/post"
+                                :ts (time/zoned-date-time)
+                                :tags []
+                                :entry {:media [{:kind :image
+                                                 :url "https://cdn.example/photo.jpg"
+                                                 :local-url "/blob/photo.jpg"}]}
+                                :data {:description {"text/html" "<p>Post body</p>"}}}]})))]
+      (is (string/includes? rendered "reader-media-attachments"))
+      (is (string/includes? rendered "src=\"/blob/photo.jpg\""))
+      (is (string/includes? rendered "<p>Post body</p>"))
+      (is (< (string/index-of rendered "<p>Post body</p>")
+             (string/index-of rendered "reader-media-attachments"))))))
+
 (deftest reader-uses-video-duration-instead-of-description-reading-time
   (with-redefs [appconfig/credentials (constantly nil)
                 rc/rc (constantly nil)]

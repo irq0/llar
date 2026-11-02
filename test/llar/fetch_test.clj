@@ -398,6 +398,80 @@
         (is (= (uut/make-item-hash "Test" post-url)
                (:hash item)))))))
 
+(deftest rss-media-is-normalized-without-replacing-the-item-url
+  (let [url "https://example.com/feed.xml"
+        response {:raw {:body (slurp (io/resource "test/media_rss.xml"))}
+                  :summary {:ts (time/zoned-date-time)
+                            :title "Media feed"}}]
+    (with-redefs [http/fetch (fn [& _] response)
+                  http/raw-sanitize identity
+                  commands/html2text identity
+                  http/try-blobify-url!
+                  (fn [image-url]
+                    (str "/blob/" (last (string/split (str image-url) #"/"))))]
+      (let [fetched (uut/fetch-source (src/feed url) {})
+            items (vec fetched)
+            photo (first items)
+            episode (second items)
+            photo-media (get-in photo [:entry :media])
+            episode-media (get-in episode [:entry :media])
+            diagnostics (:media-summary (meta fetched))]
+        (is (= 2 (count items)))
+        (is (= "https://example.com/photo-post"
+               (str (get-in photo [:entry :url]))))
+        (is (= ["https://cdn.example/photo-1.jpg"
+                "https://cdn.example/photo-2.webp"]
+               (mapv :url photo-media)))
+        (is (= [:image :image] (mapv :kind photo-media)))
+        (is (= ["/blob/photo-1.jpg" "/blob/photo-2.webp"]
+               (mapv :local-url photo-media)))
+        (is (= "First photo" (:description (first photo-media))))
+        (is (= "/blob/photo-1.jpg" (get-in photo [:entry :thumbnail])))
+        (is (= "https://example.com/episode"
+               (str (get-in episode [:entry :url]))))
+        (is (= [:audio :video] (mapv :kind episode-media)))
+        (is (= ["https://cdn.example/episode.mp3"
+                "https://cdn.example/trailer.mp4"]
+               (mapv :url episode-media)))
+        (is (= {:media-content {:image 2}
+                :enclosure {:audio 1 :video 1}}
+               (:accepted diagnostics)))
+        (is (= {:duplicate 1
+                :adult 1
+                :document 1
+                :grouped 1
+                :player-only 1
+                :multiple-enclosures 1}
+               (:ignored diagnostics)))))))
+
+(deftest rss-media-skips-unused-html-work-and-bounds-thumbnail-downloads
+  (let [diagnostics (atom {})
+        parse-calls (atom 0)]
+    (with-redefs [hick/parse (fn [& _] (swap! parse-calls inc))]
+      (is (= []
+             (#'feed/collect-media
+              {:enclosures []}
+              {:contents [] :group-count 0 :player-count 0}
+              (http/get-base-url (http/absolutify-url "https://example.com/post"))
+              "<p>No media</p>"
+              diagnostics)))
+      (is (zero? @parse-calls)))
+    (let [attempts (atom [])
+          thumbnails (mapv (fn [n]
+                             {:url (str "https://cdn.example/thumb-" n ".jpg")
+                              :source :media-thumbnail})
+                           (range 10))]
+      (with-redefs [http/try-blobify-url! (fn [url]
+                                            (swap! attempts conj url)
+                                            url)]
+        (is (nil? (#'feed/collect-thumbnail
+                   {:thumbnails thumbnails}
+                   (http/get-base-url (http/absolutify-url "https://example.com/post"))
+                   diagnostics))))
+      (is (= 8 (count @attempts)))
+      (is (= 8 (get-in @diagnostics [:ignored :cache-failed])))
+      (is (= 2 (get-in @diagnostics [:ignored :over-limit]))))))
+
 (deftest rss-feed-preserves-conditional-tokens-on-not-modified
   (let [source (src/feed "https://example.com/feed.xml")
         conditional-tokens {:etag "W/\"ec627-nOlkMvp2fc86N4xolHdhQgksVmY\""}

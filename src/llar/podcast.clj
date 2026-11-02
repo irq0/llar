@@ -39,12 +39,32 @@
       (re-find #"\.(mp4|m4v|webm)(\?|$)" url-str) :video
       :else nil)))
 
+(defn- media-name [value]
+  (cond
+    (keyword? value) (str/lower-case (name value))
+    (string? value) (str/lower-case value)))
+
+(defn- podcast-media [item]
+  (->> (get-in item [:entry :media])
+       (filter #(contains? #{"audio" "video"}
+                           (media-name (:kind %))))
+       (filter #(and (string? (:url %)) (not (str/blank? (:url %)))))
+       (sort-by #(get {["enclosure" "audio"] 0
+                       ["media-content" "audio"] 1
+                       ["enclosure" "video"] 2
+                       ["media-content" "video"] 3}
+                      [(media-name (:source %))
+                       (media-name (:kind %))]
+                      4))
+       first))
+
 ;;;; Download state tracking
 
 (defonce download-state (atom {}))
 ;; {item-id {:status :pending/:downloading/:complete/:failed
 ;;           :blob-hash "sha256..."
 ;;           :media-url "original url"
+;;           :media-kind :audio/:video
 ;;           :metadata {:duration 123 :title "..." ...}
 ;;           :mime-type "video/mp4"
 ;;           :error nil
@@ -61,7 +81,7 @@
 
 ;;;; Podcast index file
 ;; Maintained at {blob-store-dir}/podcast-index.edn
-;; Maps blob-hash -> {:item-id :source-key :item-title :media-url :mime-type :completed-at}
+;; Maps blob-hash -> {:item-id :source-key :item-title :media-url :media-kind :mime-type :completed-at}
 
 (defn- podcast-index-file []
   (io/as-file (str (appconfig/blob-store-dir) "/podcast-index.edn")))
@@ -213,9 +233,9 @@
 
 (defn- store-media!
   "Download and store media for an item. Returns updated state entry."
-  [media-url {:keys [item-id source-key item-title]}]
+  [media-url {:keys [item-id source-key item-title media-kind]}]
   (commands/with-temp-dir dir
-    (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir)
+    (let [{:keys [file metadata mime-type]} (commands/download-media media-url dir media-kind)
           thumbnail-metadata (download-thumbnail (:thumbnail metadata))
           sub-file (find-subtitle-file dir)
           transcript (when sub-file (slurp sub-file :encoding "UTF-8"))
@@ -240,11 +260,13 @@
                                                     str/trim
                                                     not-empty)
                               :media-url media-url
+                              :media-kind media-kind
                               :mime-type mime-type
                               :completed-at completed-at})
       {:status :complete
        :blob-hash content-hash
        :media-url media-url
+       :media-kind media-kind
        :metadata enriched-metadata
        :mime-type mime-type
        :completed-at completed-at})))
@@ -289,11 +311,15 @@
              :let [item-id (:id item)
                    item-title (:title item)
                    source-key (:source-key item)
-                   url (or (get-in item [:entry :url])
+                   declared-media (podcast-media item)
+                   url (or (:url declared-media)
+                           (get-in item [:entry :url])
                            (:url item))
-                   url-str (str url)]
+                   url-str (str url)
+                   media-kind (or (some-> (:kind declared-media) media-name keyword)
+                                  (media-type url-str))]
              :when (and (some? url)
-                        (downloadable-media-url? url-str)
+                        (or declared-media (downloadable-media-url? url-str))
                         (not (contains? @download-state item-id)))]
        (if-let [existing-hash (blobstore/find-in-url-index url-str)]
          (let [blob (blobstore/get-blob existing-hash)]
@@ -301,6 +327,7 @@
                   {:status :complete
                    :blob-hash existing-hash
                    :media-url url-str
+                   :media-kind media-kind
                    :item-title item-title
                    :source-key source-key
                    :metadata (:podcast-metadata blob)
@@ -309,6 +336,7 @@
          (swap! download-state assoc item-id
                 {:status :pending
                  :media-url url-str
+                 :media-kind media-kind
                  :item-title item-title
                  :source-key source-key}))))
    (catch Object e
@@ -347,9 +375,10 @@
      (let [result (store-media! (:media-url state)
                                 {:item-id item-id
                                  :source-key (:source-key state)
-                                 :item-title (:item-title state)})]
+                                 :item-title (:item-title state)
+                                 :media-kind (:media-kind state)})]
        (swap! download-state assoc item-id
-              (merge (select-keys state [:item-title :source-key]) result))
+              (merge (select-keys state [:item-title :source-key :media-kind]) result))
        (log/infof "podcast: download complete for item %s -> %s" item-id (:blob-hash result))
        {:item-id item-id
         :result :complete
@@ -374,6 +403,7 @@
          (swap! download-state assoc item-id
                 {:status status
                  :media-url (:media-url state)
+                 :media-kind (:media-kind state)
                  :item-title (:item-title state)
                  :source-key (:source-key state)
                  :attempt attempt
@@ -406,6 +436,7 @@
              {:status :complete
               :blob-hash blob-hash
               :media-url (:media-url entry)
+              :media-kind (:media-kind entry)
               :item-title (:item-title entry)
               :source-key (:source-key entry)
               :mime-type (:mime-type entry)

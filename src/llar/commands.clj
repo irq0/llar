@@ -141,8 +141,10 @@
 
 (defn- download-media-file!
   "Download media file via yt-dlp into dir. Returns the downloaded File."
-  [url dir]
-  (let [format-spec (rc/rc [:podcast :download :video-format])
+  [url dir media-kind]
+  (let [format-spec (if (= :audio media-kind)
+                      "bestaudio/best"
+                      (rc/rc [:podcast :download :video-format]))
         extra-args (rc/rc [:podcast :download :extra-args])
         timeout (get-in appconfig [:timeouts :av-downloader-transcode]
                         (get-in appconfig [:timeouts :av-downloader]))
@@ -160,7 +162,8 @@
                           (conj (str url)))))
         media-file (->> (file-seq (nio2/file dir))
                         (filter #(.isFile %))
-                        (filter #(re-find #"\.(mp4|m4a|mp3|webm)$" (.getName %)))
+                        (filter #(re-find #"\.(mp4|m4v|mov|mkv|m4a|mp3|webm|ogg|oga|opus|wav|aac|flac)$"
+                                          (.getName %)))
                         first)]
     (cond
       (and (zero? exit) media-file) media-file
@@ -201,20 +204,30 @@
 (defn download-media
   "Download media via yt-dlp into dir. Returns {:file File :metadata map :mime-type string} or throws.
    Caller must manage dir lifecycle (e.g. with-temp-dir). Metadata extracted from .info.json sidecar."
-  [url dir]
-  (let [media-file (download-media-file! url dir)
-        metadata (read-info-json dir)
-        ext (some->> (.getName media-file) (re-find #"\.(\w+)$") second)
-        mime-type (case ext
-                    "mp4" "video/mp4"
-                    "m4a" "audio/mp4"
-                    "mp3" "audio/mpeg"
-                    "webm" "video/webm"
-                    "ogg" "audio/ogg"
-                    "video/mp4")]
-    {:file media-file
-     :metadata (retain-media-metadata metadata ext)
-     :mime-type mime-type}))
+  ([url dir]
+   (download-media url dir nil))
+  ([url dir media-kind]
+   (let [media-file (download-media-file! url dir media-kind)
+         metadata (read-info-json dir)
+         ext (some->> (.getName media-file) (re-find #"\.(\w+)$") second)
+         mime-type (case ext
+                     "mp4" (if (= :audio media-kind) "audio/mp4" "video/mp4")
+                     "m4v" "video/x-m4v"
+                     "mov" "video/quicktime"
+                     "mkv" "video/x-matroska"
+                     "m4a" "audio/mp4"
+                     "mp3" "audio/mpeg"
+                     "webm" (if (= :audio media-kind) "audio/webm" "video/webm")
+                     "ogg" "audio/ogg"
+                     "oga" "audio/ogg"
+                     "opus" "audio/ogg"
+                     "wav" "audio/wav"
+                     "aac" "audio/aac"
+                     "flac" "audio/flac"
+                     "video/mp4")]
+     {:file media-file
+      :metadata (retain-media-metadata metadata ext)
+      :mime-type mime-type})))
 
 (defn download-subtitles [url]
   (with-temp-dir dir

@@ -85,6 +85,68 @@
     (is (nil? (uut/media-type "https://example.com/article")))
     (is (nil? (uut/media-type nil)))))
 
+(deftest podcast-media-prefers-audio-enclosures
+  (let [item {:entry {:url "https://example.com/episode"
+                      :media [{:kind :video
+                               :source :media-content
+                               :url "https://cdn.example/video"}
+                              {:kind "audio"
+                               :source "media-content"
+                               :url "https://cdn.example/alternate-audio"}
+                              {:kind :audio
+                               :source :enclosure
+                               :url "https://cdn.example/episode"}]}}]
+    (is (= {:kind :audio
+            :source :enclosure
+            :url "https://cdn.example/episode"}
+           (#'uut/podcast-media item)))))
+
+(deftest podcast-scanner-uses-declared-media-instead-of-the-article-url
+  (reset! uut/download-state {})
+  (try
+    (with-redefs [llar.persistency/get-items-recent
+                  (fn [_ _]
+                    [{:id 42
+                      :title "Episode"
+                      :source-key :feed
+                      :entry {:url "https://example.com/episode"
+                              :media [{:kind "audio"
+                                       :source "enclosure"
+                                       :url "https://cdn.example/download?id=42"}]}}])
+                  blobstore/find-in-url-index (constantly nil)
+                  rc/rc (constantly 10)]
+      (#'uut/scan-podcast-items!)
+      (is (= {:status :pending
+              :media-url "https://cdn.example/download?id=42"
+              :media-kind :audio
+              :item-title "Episode"
+              :source-key :feed}
+             (get @uut/download-state 42))))
+    (finally
+      (reset! uut/download-state {}))))
+
+(deftest audio-download-selects-audio-format-and-mime-type
+  (commands/with-temp-dir dir
+    (let [command (atom nil)]
+      (with-redefs [commands/av-download-throttle
+                    {:name :test-av-download
+                     :semaphore (java.util.concurrent.Semaphore. 1)}
+                    commands/sh+timeout
+                    (fn [_ args & _]
+                      (reset! command args)
+                      (spit (io/file (str dir) "media.webm") "audio")
+                      {:exit 0 :out "" :err ""})
+                    llar.appconfig/command (constantly "yt-dlp")
+                    llar.appconfig/credentials (constantly nil)
+                    rc/rc (fn [path]
+                            (when (= path [:podcast :download :extra-args]) []))]
+        (let [result (commands/download-media
+                      "https://cdn.example/episode" dir :audio)
+              format-index (.indexOf ^java.util.List @command "--format")]
+          (is (= "bestaudio/best" (nth @command (inc format-index))))
+          (is (= "audio/webm" (:mime-type result)))
+          (is (= "webm" (get-in result [:metadata :ext]))))))))
+
 (deftest download-failure-classification
   (testing "private YouTube videos are permanent failures"
     (is (= :private-video

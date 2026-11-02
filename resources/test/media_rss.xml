@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:media="http://search.yahoo.com/mrss/" version="2.0">
+  <channel>
+    <title>Media feed</title>
+    <link>https://example.com/</link>
+    <description>Media feed test</description>
+    <item>
+      <guid>https://example.com/photo-post</guid>
+      <link>https://example.com/photo-post</link>
+      <title>Photo post</title>
+      <pubDate>Sun, 01 Nov 2026 12:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Photos</p><img src="https://cdn.example/already.jpg">]]></description>
+      <media:content url="https://cdn.example/already.jpg" type="image/jpeg" />
+      <media:content url="https://cdn.example/photo-1.jpg" type="image/jpeg" fileSize="100" medium="image">
+        <media:rating scheme="urn:simple">nonadult</media:rating>
+        <media:description type="plain">First photo</media:description>
+      </media:content>
+      <media:content url="https://cdn.example/photo-2.webp" medium="image" />
+      <media:content url="https://cdn.example/adult.jpg" type="image/jpeg">
+        <media:rating scheme="urn:simple">adult</media:rating>
+      </media:content>
+      <media:content url="https://cdn.example/report.pdf" type="application/pdf" medium="document" />
+      <media:group>
+        <media:content url="https://cdn.example/grouped.mp4" type="video/mp4" />
+      </media:group>
+      <media:player url="https://cdn.example/player" />
+      <media:thumbnail url="https://cdn.example/thumbnail.jpg" />
+    </item>
+    <item>
+      <guid>https://example.com/episode</guid>
+      <link>https://example.com/episode</link>
+      <title>Podcast episode</title>
+      <pubDate>Sun, 01 Nov 2026 13:00:00 GMT</pubDate>
+      <description>Episode notes</description>
+      <enclosure url="https://cdn.example/episode.mp3" type="audio/mpeg" length="12345" />
+      <enclosure url="https://cdn.example/trailer.mp4" type="video/mp4" length="23456" />
+    </item>
+  </channel>
+</rss>

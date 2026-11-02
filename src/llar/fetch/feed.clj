@@ -10,16 +10,17 @@
             [llar.src]
             [llar.postproc :refer [ItemProcessor]]
             [llar.persistency :refer [CouchItem]]
-            [llar.http :refer [fetch
-                               absolutify-links-in-hick
-                               absolutify-url
-                               get-base-url
-                               get-base-url-with-path
-                               blobify
-                               logged-error?
-                               sanitize
-                               resolve-user-agent
-                               with-http-exception-handler]]
+            [llar.http :as llar-http
+             :refer [fetch
+                     absolutify-links-in-hick
+                     absolutify-url
+                     get-base-url
+                     get-base-url-with-path
+                     blobify
+                     logged-error?
+                     sanitize
+                     resolve-user-agent
+                     with-http-exception-handler]]
             [llar.analysis :as analysis]
             [llar.commands :refer [html2text]]
             [org.bovinegenius [exploding-fish :as uri]]
@@ -33,7 +34,8 @@
             [clj-http.client :as http]
             [cheshire.core :as cheshire]
             [java-time.api :as time])
-  (:import (llar.src Feed)))
+  (:import (llar.src Feed)
+           (org.jdom Element)))
 
 (defrecord FeedItem
            [meta
@@ -72,6 +74,205 @@
 
 (def rome-content-type-to-mime {"html" "text/html"
                                 "text" "text/plain"})
+
+(def ^:private +media-rss-namespace+ "http://search.yahoo.com/mrss")
+(def ^:private +max-media-per-item+ 8)
+
+(defn- media-rss-element? [^Element node local-name]
+  (and (= local-name (.getName node))
+       (= +media-rss-namespace+
+          (string/replace (.getNamespaceURI node) #"/$" ""))))
+
+(defn- media-child-text [^Element node local-name]
+  (some (fn [^Element child]
+          (when (media-rss-element? child local-name)
+            (not-empty (.getTextTrim child))))
+        (.getChildren node)))
+
+(defn- raw-media-content [^Element node source]
+  {:url (.getAttributeValue node "url")
+   :mime-type (.getAttributeValue node "type")
+   :medium (.getAttributeValue node "medium")
+   :size-bytes (.getAttributeValue node "fileSize")
+   :description (media-child-text node "description")
+   :rating (media-child-text node "rating")
+   :player? (boolean (some #(media-rss-element? % "player")
+                           (.getChildren node)))
+   :source source})
+
+(defn- raw-media-rss-item [entry]
+  (let [children (filter #(instance? Element %) (:foreign-markup entry))]
+    {:contents (mapv #(raw-media-content % :media-content)
+                     (filter #(media-rss-element? % "content") children))
+     :thumbnails (mapv #(raw-media-content % :media-thumbnail)
+                       (filter #(media-rss-element? % "thumbnail") children))
+     :group-count (count (filter #(media-rss-element? % "group") children))
+     :player-count (count (filter #(media-rss-element? % "player") children))}))
+
+(def ^:private media-extension-kinds
+  {"jpg" :image "jpeg" :image "png" :image "gif" :image "webp" :image
+   "mp3" :audio "m4a" :audio "ogg" :audio "oga" :audio "opus" :audio
+   "wav" :audio "aac" :audio "flac" :audio
+   "mp4" :video "m4v" :video "webm" :video "mov" :video "mkv" :video
+   "pdf" :document})
+
+(defn- mime-kind [mime-type]
+  (let [family (some-> mime-type string/lower-case (string/split #"[;/]") first)]
+    (when (contains? #{"image" "audio" "video"} family)
+      (keyword family))))
+
+(defn- medium-kind [medium]
+  (case (some-> medium string/lower-case)
+    "image" :image
+    "audio" :audio
+    "video" :video
+    "document" :document
+    "executable" :executable
+    nil))
+
+(defn- extension-kind [url]
+  (some->> url
+           (re-find #"(?i)\.([a-z0-9]+)(?:[?#]|$)")
+           second
+           string/lower-case
+           (get media-extension-kinds)))
+
+(defn- parse-positive-long [x]
+  (try
+    (let [n (parse-long (str x))]
+      (when (and n (pos? n)) n))
+    (catch Exception _ nil)))
+
+(defn- absolute-http-url [raw-url base-url]
+  (try
+    (when-not (string/blank? raw-url)
+      (let [url (absolutify-url raw-url base-url)]
+        (when (contains? #{"http" "https"} (uri/scheme url))
+          (str url))))
+    (catch Exception _ nil)))
+
+(defn- ignored! [diagnostics reason]
+  (swap! diagnostics update-in [:ignored reason] (fnil inc 0)))
+
+(defn- accepted! [diagnostics source kind]
+  (swap! diagnostics update-in [:accepted source kind] (fnil inc 0)))
+
+(defn- normalize-media [candidate base-url]
+  (let [url (absolute-http-url (:url candidate) base-url)
+        mime (mime-kind (:mime-type candidate))
+        medium (medium-kind (:medium candidate))
+        extension (extension-kind (:url candidate))
+        conflict? (and mime medium (not= mime medium))
+        kind (or mime medium extension)]
+    (cond
+      (nil? url) {:ignored (if (:player? candidate) :player-only :invalid-url)}
+      conflict? {:ignored :conflicting-type}
+      (nil? kind) {:ignored :unknown-type}
+      (contains? #{:document :executable} kind) {:ignored kind}
+      (= "adult" (some-> (:rating candidate) string/lower-case)) {:ignored :adult}
+      :else
+      {:media (cond-> {:url url
+                       :kind kind
+                       :source (:source candidate)}
+                (not (string/blank? (:mime-type candidate)))
+                (assoc :mime-type (string/lower-case (:mime-type candidate)))
+
+                (parse-positive-long (:size-bytes candidate))
+                (assoc :size-bytes (parse-positive-long (:size-bytes candidate)))
+
+                (not (string/blank? (:description candidate)))
+                (assoc :description (:description candidate))
+
+                (not (string/blank? (:rating candidate)))
+                (assoc :rating (string/lower-case (:rating candidate))))})))
+
+(defn- html-image-urls [html base-url]
+  (if (string/blank? html)
+    #{}
+    (try
+      (->> (hick/as-hickory (hick/parse html))
+           (tree-seq map? :content)
+           (filter #(and (= :element (:type %)) (= :img (:tag %))))
+           (keep #(absolute-http-url (get-in % [:attrs :src]) base-url))
+           set)
+      (catch Exception _ #{}))))
+
+(defn- cache-image [media diagnostics]
+  (let [cached-url (llar-http/try-blobify-url! (:url media))]
+    (if (and (string? cached-url) (string/starts-with? cached-url "/blob/"))
+      (assoc media :local-url cached-url)
+      (do
+        (ignored! diagnostics :cache-failed)
+        media))))
+
+(defn- collect-media [entry raw-media base-url description-html diagnostics]
+  (let [enclosures (map #(hash-map :url (:url %)
+                                   :mime-type (:type %)
+                                   :size-bytes (:length %)
+                                   :source :enclosure)
+                        (:enclosures entry))
+        _ (when (> (count enclosures) 1)
+            (ignored! diagnostics :multiple-enclosures))
+        _ (dotimes [_ (:group-count raw-media)]
+            (ignored! diagnostics :grouped))
+        _ (dotimes [_ (:player-count raw-media)]
+            (ignored! diagnostics :player-only))
+        candidates (concat enclosures (:contents raw-media))
+        embedded (if (seq candidates)
+                   (html-image-urls description-html base-url)
+                   #{})]
+    (loop [remaining candidates
+           seen embedded
+           collected []]
+      (if-let [candidate (first remaining)]
+        (let [{media-item :media ignored :ignored} (normalize-media candidate base-url)]
+          (cond
+            ignored
+            (do (ignored! diagnostics ignored)
+                (recur (next remaining) seen collected))
+
+            (contains? seen (:url media-item))
+            (do (ignored! diagnostics :duplicate)
+                (recur (next remaining) seen collected))
+
+            (>= (count collected) +max-media-per-item+)
+            (do (ignored! diagnostics :over-limit)
+                (recur (next remaining) (conj seen (:url media-item)) collected))
+
+            :else
+            (let [media-item (if (= :image (:kind media-item))
+                               (cache-image media-item diagnostics)
+                               media-item)]
+              (accepted! diagnostics (:source media-item) (:kind media-item))
+              (recur (next remaining)
+                     (conj seen (:url media-item))
+                     (conj collected media-item)))))
+        collected))))
+
+(defn- collect-thumbnail [raw-media base-url diagnostics]
+  (let [thumbnails (:thumbnails raw-media)]
+    (dotimes [_ (max 0 (- (count thumbnails) +max-media-per-item+))]
+      (ignored! diagnostics :over-limit))
+    (loop [[candidate & remaining] (take +max-media-per-item+ thumbnails)]
+      (when candidate
+        (let [{media-item :media ignored :ignored}
+              (normalize-media (assoc candidate :medium "image") base-url)]
+          (cond
+            ignored
+            (do (ignored! diagnostics ignored)
+                (recur remaining))
+
+            (not= :image (:kind media-item))
+            (do (ignored! diagnostics :thumbnail-non-image)
+                (recur remaining))
+
+            :else
+            (let [cached (cache-image media-item diagnostics)]
+              (if-let [local-url (:local-url cached)]
+                (do
+                  (accepted! diagnostics :media-thumbnail :image)
+                  local-url)
+                (recur remaining)))))))))
 
 (defn- extract-feed-content
   "Extract feed content from rome feed item"
@@ -145,20 +346,29 @@
                          (get-base-url feed-url))]
     (absolutify-url entry-url entry-base-url)))
 
-(defn- rome-entry-to-llar-entry [feed-url entry]
+(defn- rome-entry-to-llar-entry [feed-url entry raw-media diagnostics]
   (let [contents-url (get-rome-entry-url feed-url entry)
+        base-url (get-base-url contents-url)
+        raw-descriptions (extract-feed-description (:description entry))
+        media (collect-media entry raw-media base-url
+                             (get raw-descriptions "text/html") diagnostics)
+        thumbnail (or (some (fn [{:keys [kind local-url]}]
+                              (when (= :image kind) local-url))
+                            media)
+                      (collect-thumbnail raw-media base-url diagnostics))
         contents (fetchutils/process-html-contents (get-base-url contents-url) (extract-feed-content (:contents entry)))
-        descriptions (fetchutils/process-html-contents (get-base-url contents-url)
-                                                       (extract-feed-description (:description entry)))]
-    {:updated-ts (some-> entry :updated-date feed-date-to-zoned-date-time)
-     :pub-ts (some-> entry :published-date feed-date-to-zoned-date-time)
-     :url contents-url
-     :categories (some->> entry :categories
-                          (map :name) (remove nil?))
-     :title (-> entry :title)
-     :authors (extract-feed-authors (:authors entry))
-     :contents contents
-     :descriptions descriptions}))
+        descriptions (fetchutils/process-html-contents base-url raw-descriptions)]
+    (cond-> {:updated-ts (some-> entry :updated-date feed-date-to-zoned-date-time)
+             :pub-ts (some-> entry :published-date feed-date-to-zoned-date-time)
+             :url contents-url
+             :categories (some->> entry :categories
+                                  (map :name) (remove nil?))
+             :title (-> entry :title)
+             :authors (extract-feed-authors (:authors entry))
+             :contents contents
+             :descriptions descriptions}
+      (seq media) (assoc :media media)
+      thumbnail (assoc :thumbnail thumbnail))))
 
 (extend-protocol FetchSource
   Feed
@@ -171,26 +381,32 @@
         (with-meta []
           {:conditional-tokens (:conditional-tokens http-response)})
         (let [res (rome-parse-http-response url http-response)
-              feed (make-rome-feed url res)]
-          (with-meta
-            (doall
-             (for [entry (:entries res)]
-               (let [llar-entry (rome-entry-to-llar-entry url entry)
-                     title (or (:title entry)
-                               (get-in llar-entry [:descriptions "text/plain"])
-                               (:uri entry)
-                               (:link entry)
-                               "")]
-                 (make-feed-item
-                  (merge (make-meta src)
-                         {:source-name (:title feed)})
-                  {:ts (extract-feed-timestamp entry http-response)
-                   :title title}
-                  (make-rome-entry-hash entry)
-                  llar-entry
-                  entry
-                  feed))))
-            {:conditional-tokens (:conditional-tokens http-response)}))))))
+              feed (make-rome-feed url res)
+              diagnostics (atom {})
+              items (doall
+                     (for [entry (:entries res)]
+                       (let [raw-media (raw-media-rss-item entry)
+                             llar-entry (rome-entry-to-llar-entry url entry raw-media diagnostics)
+                             title (or (:title entry)
+                                       (get-in llar-entry [:descriptions "text/plain"])
+                                       (:uri entry)
+                                       (:link entry)
+                                       "")]
+                         (make-feed-item
+                          (merge (make-meta src)
+                                 {:source-name (:title feed)})
+                          {:ts (extract-feed-timestamp entry http-response)
+                           :title title}
+                          (make-rome-entry-hash entry)
+                          llar-entry
+                          entry
+                          feed))))
+              media-summary @diagnostics]
+          (when (seq media-summary)
+            (log/infof "feed media %s: %s" url media-summary))
+          (with-meta items
+            (cond-> {:conditional-tokens (:conditional-tokens http-response)}
+              (seq media-summary) (assoc :media-summary media-summary))))))))
 
 (defn default-selector-feed-extractor [hick]
   (-> hick first :content first))

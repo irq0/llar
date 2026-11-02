@@ -1172,13 +1172,42 @@
       [:span {:class "reader-lazy-video-cue" :aria-hidden "true"}
        (action-icon "fas fa-play")]]]))
 
+(defn- entry-image-media [entry]
+  (filter #(= "image" (let [kind (:kind %)]
+                        (cond
+                          (keyword? kind) (string/lower-case (name kind))
+                          (string? kind) (string/lower-case kind))))
+          (:media entry)))
+
+(defn- render-entry-images [item images]
+  [:div {:class "reader-media-attachments"}
+   (for [{:keys [url local-url description]} images]
+     (if-let [image-url (when (and (usable-image-url? local-url)
+                                   (string/starts-with? local-url "/blob/"))
+                          local-url)]
+       [:figure {:class "reader-media-attachment reader-image-container"}
+        [:img {:src image-url
+               :class "img-fluid reader-defensive-image"
+               :data-error-remove ".reader-media-attachment"
+               :alt (or (some-> description not-empty)
+                        (item-image-alt item))
+               :loading "lazy"
+               :decoding "async"}]
+        (when-not (string/blank? description)
+          [:figcaption description])]
+       (when (and (string? url) (re-find #"(?i)^https?://" url))
+         [:p {:class "reader-media-attachment"}
+          [:a {:href url :target "_blank" :rel "noopener noreferrer"}
+           "Open image attachment"]])))])
+
 (defn render-special-item-content
   "Renders item content that is somehow unique to a source and benefits from special rendering
   (e.g youtube videos, twitter images)"
   [item options]
   (let [{:keys [entry url]} item
         youtube-url (parse-youtube-url url)
-        compact-media? (contains? options ::compact-media)]
+        compact-media? (contains? options ::compact-media)
+        media-images (entry-image-media entry)]
     (html
      (when youtube-url
        (when-let [player (lazy-youtube-player item {:error-remove ".ratio"})]
@@ -1196,7 +1225,11 @@
                :loading "lazy"
                :decoding "async"}]])
 
-     (when-let [image-url (and (not youtube-url)
+     (when (and (not compact-media?) (seq media-images))
+       (render-entry-images item media-images))
+
+     (when-let [image-url (and (or compact-media? (empty? media-images))
+                               (not youtube-url)
                                (first-usable-image-url (:thumbnail entry)
                                                        (:lead-image-url entry)))]
        [:div {:class "item-preview-small float-end reader-image-container"
@@ -1489,6 +1522,7 @@
         consumption (item/consumption-time item)
         consumption-meta (consumption-time-meta item true)
         {:keys [id url ts tags entry nwords]} item
+        attached-media? (seq (:media entry))
         lang (if (#{"de" "en"} (:language entry))
                (:language entry)
                "en")]
@@ -1550,13 +1584,17 @@
           ;; render video content with special first followed by description
           (video-content? item)
           [:div
-           (render-special-item-content item #{})
+           (when-not attached-media?
+             (render-special-item-content item #{}))
            [:p {:style "white-space: pre-line"} (get-html-content item :description "text/plain")]]
 
           :else
           (if-let [content (get-html-content item selected-data selected-content-type)]
             content
-            (render-special-item-content item #{})))]]]
+            (when-not attached-media?
+              (render-special-item-content item #{}))))
+        (when attached-media?
+          (render-special-item-content item #{}))]]]
      [:div {:id "annotation-bottom-bar"
             :class "reader-annotation-tray-shell fixed-bottom"
             :role "region"
