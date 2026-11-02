@@ -58,6 +58,81 @@
   {:headers {}
    :body {:data {:children (mapv (fn [c] {:data c}) children)}}})
 
+(deftest reddit-native-media-test
+  (testing "normalizes a native image without changing the post target"
+    (let [entry (uut/make-reddit-entry
+                 (assoc valid-child
+                        :url "https://www.reddit.com/gallery/abc123"
+                        :post_hint "image"
+                        :preview {:images [{:source {:url "https://preview.redd.it/photo.jpg"
+                                                     :width 1200
+                                                     :height 800}}]}))]
+      (is (= "https://www.reddit.com/gallery/abc123" (str (:url entry))))
+      (is (= [{:url "https://preview.redd.it/photo.jpg"
+               :kind :image
+               :source :reddit-image
+               :width 1200
+               :height 800}]
+             (:media entry)))
+      (is (= "https://preview.redd.it/photo.jpg" (:thumbnail entry)))))
+
+  (testing "preserves gallery order and captions"
+    (let [entry (uut/make-reddit-entry
+                 (assoc valid-child
+                        :gallery_data {:items [{:media_id "second" :caption "Second"}
+                                               {:media_id "first"}]}
+                        :media_metadata
+                        {:first {:m "image/png"
+                                 :s {:u "https://i.redd.it/first.png" :x 640 :y 480}}
+                         :second {:m "image/jpeg"
+                                  :s {:u "https://i.redd.it/second.jpg" :x 800 :y 600}}}))]
+      (is (= ["https://i.redd.it/second.jpg" "https://i.redd.it/first.png"]
+             (mapv :url (:media entry))))
+      (is (= ["Second" nil] (mapv :description (:media entry))))
+      (is (every? #(= :reddit-gallery (:source %)) (:media entry)))))
+
+  (testing "normalizes Reddit-hosted video metadata"
+    (let [entry (uut/make-reddit-entry
+                 (assoc valid-child
+                        :post_hint "hosted:video"
+                        :preview {:images [{:source {:url "https://preview.redd.it/poster.jpg"}}]}
+                        :secure_media {:reddit_video {:fallback_url "https://v.redd.it/vid/DASH_720.mp4"
+                                                      :width 1280
+                                                      :height 720
+                                                      :duration 31}}))]
+      (is (= [{:url "https://v.redd.it/vid/DASH_720.mp4"
+               :kind :video
+               :source :reddit-video
+               :mime-type "video/mp4"
+               :width 1280
+               :height 720
+               :duration 31}]
+             (:media entry)))
+      (is (= "https://preview.redd.it/poster.jpg" (:thumbnail entry)))))
+
+  (testing "does not suppress media flagged by Reddit"
+    (let [adult (uut/make-reddit-entry
+                 (assoc valid-child
+                        :over_18 true
+                        :post_hint "image"
+                        :preview {:images [{:source {:url "https://preview.redd.it/nsfw.jpg"}}]}))
+          spoiler (uut/make-reddit-entry
+                   (assoc valid-child
+                          :spoiler true
+                          :post_hint "image"
+                          :preview {:images [{:source {:url "https://preview.redd.it/spoiler.jpg"}}]}))]
+      (is (= "https://preview.redd.it/nsfw.jpg" (:thumbnail adult)))
+      (is (= "https://preview.redd.it/nsfw.jpg" (get-in adult [:media 0 :url])))
+      (is (= "https://preview.redd.it/spoiler.jpg" (:thumbnail spoiler)))
+      (is (= "https://preview.redd.it/spoiler.jpg" (get-in spoiler [:media 0 :url])))))
+
+  (testing "leaves external rich media as a link"
+    (let [external (uut/make-reddit-entry
+                    (assoc valid-child
+                           :post_hint "rich:video"
+                           :media_embed {:content "<iframe src='https://example.com'>"}))]
+      (is (nil? (:media external))))))
+
 ;; ---------------------------------------------------------------- url building
 
 (deftest listing-path-test

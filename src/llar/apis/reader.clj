@@ -1172,12 +1172,36 @@
       [:span {:class "reader-lazy-video-cue" :aria-hidden "true"}
        (action-icon "fas fa-play")]]]))
 
+(defn- media-kind [media]
+  (let [kind (:kind media)]
+    (cond
+      (keyword? kind) (string/lower-case (name kind))
+      (string? kind) (string/lower-case kind))))
+
 (defn- entry-image-media [entry]
-  (filter #(= "image" (let [kind (:kind %)]
-                        (cond
-                          (keyword? kind) (string/lower-case (name kind))
-                          (string? kind) (string/lower-case kind))))
+  (filter #(= "image" (media-kind %))
           (:media entry)))
+
+(defn- attachment-cue [entry]
+  (let [kinds (keep media-kind (:media entry))
+        attachment-count (count kinds)]
+    (when (pos? attachment-count)
+      (let [kind (when (= 1 (count (set kinds))) (first kinds))
+            noun (case kind
+                   "image" "image"
+                   "video" "video"
+                   "audio" "audio"
+                   "attachment")
+            label (str attachment-count " " noun
+                       (when (not= 1 attachment-count) "s"))]
+        [:li {:class "list-inline-item reader-attachment-cue"
+              :title (str "Attached media: " label)}
+         (icon (case kind
+                 "image" "far fa-images"
+                 "video" "far fa-play-circle"
+                 "audio" "fas fa-headphones"
+                 "fas fa-paperclip"))
+         [:span label]]))))
 
 (defn- render-entry-images [item images]
   [:div {:class "reader-media-attachments"}
@@ -2354,6 +2378,7 @@
 
       [:ul {:class "list-inline"}
        metadata-before
+       (attachment-cue entry)
        [:li {:class "list-inline-item"}
         (icon "far fa-calendar")
         "\u00a0"

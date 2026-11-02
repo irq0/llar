@@ -110,6 +110,28 @@
                  (vec (map blobify-preview-url photos))))
     item))
 
+(defn- blobify-media-images [item]
+  (if (seq (get-in item [:entry :media]))
+    (let [thumbnail (get-in item [:entry :thumbnail])
+          item (update-in item [:entry :media]
+                          (fn [media]
+                            (mapv (fn [{:keys [kind url local-url] :as attachment}]
+                                    (if (and (= "image" (some-> kind name string/lower-case))
+                                             (not (and (string? local-url)
+                                                       (string/starts-with? local-url "/blob/"))))
+                                      (let [cached-url (blobify-preview-url url)]
+                                        (if (and (string? cached-url)
+                                                 (string/starts-with? cached-url "/blob/"))
+                                          (assoc attachment :local-url cached-url)
+                                          attachment))
+                                      attachment))
+                                  media)))
+          cached-thumbnail (some #(when (= thumbnail (:url %)) (:local-url %))
+                                 (get-in item [:entry :media]))]
+      (cond-> item
+        cached-thumbnail (assoc-in [:entry :thumbnail] cached-thumbnail)))
+    item))
+
 (defn- youtube-thumbnail-url [video-id]
   (let [maxres-url (str "https://img.youtube.com/vi/" video-id "/maxresdefault.jpg")
         hq-url (str "https://img.youtube.com/vi/" video-id "/hqdefault.jpg")
@@ -129,6 +151,7 @@
 
 (defn- blobify-preview-media [item]
   (-> item
+      (blobify-media-images)
       (blobify-preview-field [:entry :thumbnail])
       (blobify-preview-field [:entry :lead-image-url])
       (blobify-preview-photos)

@@ -198,18 +198,112 @@
         (str "https://www.reddit.com" (:permalink c))]]]]
     [:p {:style "white-space: pre-line"} (:selftext c)])))
 
+(def ^:private +max-reddit-media+ 8)
+
+(defn- reddit-media-url [url]
+  (try
+    (when (string? url)
+      (let [url (str (llar-http/absolutify-url url "https://www.reddit.com"))
+            host (some-> url uri/host string/lower-case)]
+        (when (and (#{"http" "https"} (uri/scheme url))
+                   (some #(or (= host %) (string/ends-with? host (str "." %)))
+                         ["redd.it" "redditmedia.com"]))
+          url)))
+    (catch Exception _ nil)))
+
+(defn- preview-source [c]
+  (get-in c [:preview :images 0 :source]))
+
+(defn- media-metadata [metadata media-id]
+  (some (fn [[k value]]
+          (when (= (if (keyword? k) (name k) (str k)) (str media-id))
+            value))
+        metadata))
+
+(defn- reddit-gallery-media [c]
+  (->> (get-in c [:gallery_data :items])
+       (keep (fn [{:keys [media_id caption]}]
+               (let [metadata (media-metadata (:media_metadata c) media_id)
+                     mime-type (:m metadata)
+                     url (reddit-media-url (get-in metadata [:s :u]))]
+                 (when (and url
+                            (string? mime-type)
+                            (string/starts-with? (string/lower-case mime-type) "image/"))
+                   (cond-> {:url url
+                            :kind :image
+                            :source :reddit-gallery
+                            :mime-type mime-type}
+                     (number? (get-in metadata [:s :x]))
+                     (assoc :width (get-in metadata [:s :x]))
+                     (number? (get-in metadata [:s :y]))
+                     (assoc :height (get-in metadata [:s :y]))
+                     (not (string/blank? caption))
+                     (assoc :description caption))))))
+       (take +max-reddit-media+)
+       vec))
+
+(defn- reddit-video-media [c]
+  (when-let [video (or (get-in c [:secure_media :reddit_video])
+                       (get-in c [:media :reddit_video]))]
+    (when-let [url (reddit-media-url (:fallback_url video))]
+      [(cond-> {:url url
+                :kind :video
+                :source :reddit-video
+                :mime-type "video/mp4"}
+         (number? (:width video)) (assoc :width (:width video))
+         (number? (:height video)) (assoc :height (:height video))
+         (number? (:duration video)) (assoc :duration (:duration video)))])))
+
+(defn- reddit-image-media [c]
+  (when (or (= "image" (:post_hint c))
+            (= "i.redd.it" (:domain c)))
+    (when-let [url (some reddit-media-url
+                         [(get-in (preview-source c) [:url])
+                          (:url_overridden_by_dest c)
+                          (:url c)])]
+      [(cond-> {:url url
+                :kind :image
+                :source :reddit-image}
+         (number? (get-in (preview-source c) [:width]))
+         (assoc :width (get-in (preview-source c) [:width]))
+         (number? (get-in (preview-source c) [:height]))
+         (assoc :height (get-in (preview-source c) [:height])))])))
+
+(defn- reddit-media [c]
+  (cond
+    (seq (get-in c [:gallery_data :items]))
+    (let [media (reddit-gallery-media c)
+          candidate-count (count (get-in c [:gallery_data :items]))]
+      (when (< (count media) candidate-count)
+        (log/debugf "reddit: ignored %s unsupported gallery attachments on item %s"
+                    (- candidate-count (count media)) (:id c)))
+      media)
+    (or (get-in c [:secure_media :reddit_video])
+        (get-in c [:media :reddit_video])) (reddit-video-media c)
+    :else
+    (or (reddit-image-media c)
+        ;; shortcut: external rich embeds remain links, add providers only when demand is known.
+        (when (or (= "rich:video" (:post_hint c)) (seq (:media_embed c)))
+          (log/debugf "reddit: unsupported rich media on item %s" (:id c))
+          []))))
+
 (defn make-reddit-entry [c]
-  {:url (llar-http/absolutify-url (:url c) "https://www.reddit.com")
-   :comments-url (uri/uri (str "https://www.reddit.com" (:permalink c)))
-   :thumbnail (:thumbnail c)
-   :pub-ts (reddit-ts-to-zoned-date-time (:created_utc c))
-   :title (:title c)
-   :authors [(:author c)]
-   :id (:id c)
-   :score (:score c)
-   :contents {"text/plain" (:selftext c)
-              "text/html" (reddit-html-summary c)}
-   :descriptions {"text/plain" (:selftext c)}})
+  (let [media (reddit-media c)
+        thumbnail (or (some->> media (filter #(= :image (:kind %))) first :url)
+                      (reddit-media-url (get-in (preview-source c) [:url]))
+                      (:thumbnail c))]
+    (cond-> {:url (llar-http/absolutify-url (:url c) "https://www.reddit.com")
+             :comments-url (uri/uri (str "https://www.reddit.com" (:permalink c)))
+             :thumbnail thumbnail
+             :pub-ts (reddit-ts-to-zoned-date-time (:created_utc c))
+             :title (:title c)
+             :authors [(:author c)]
+             :id (:id c)
+             :score (:score c)
+             :contents {"text/plain" (:selftext c)
+                        "text/html" (reddit-html-summary c)}
+             :descriptions {"text/plain" (:selftext c)}}
+      (seq media) (assoc :media media))))
 
 (s/def :irq0-src-reddit/title string?)
 (s/def :irq0-src-reddit/created_utc number?)

@@ -446,6 +446,23 @@
     (is (not (string/includes? compact "reader-media-attachments")))
     (is (string/includes? compact "src=\"/blob/first.jpg\""))))
 
+(deftest list-items-show-a-compact-media-cue
+  (let [item {:id 42
+              :source-key "reddit"
+              :title "Gallery"
+              :url "https://www.reddit.com/gallery/abc"
+              :ts (time/zoned-date-time)
+              :tags ["unread"]
+              :entry {:media [{:kind :image :url "https://i.redd.it/a.jpg"}
+                              {:kind "image" :url "https://i.redd.it/b.jpg"}]}}
+        rendered (str (h/html (uut/main-list-item
+                               {:sources {:reddit {:options #{}}}}
+                               "/reader/source/reddit"
+                               item)))]
+    (is (string/includes? rendered "reader-attachment-cue"))
+    (is (string/includes? rendered "Attached media: 2 images"))
+    (is (string/includes? rendered ">2 images</span>"))))
+
 (deftest feed-media-images-render-with-normal-item-content
   (with-redefs [appconfig/credentials (constantly nil)
                 rc/rc (constantly nil)]

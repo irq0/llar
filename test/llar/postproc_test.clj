@@ -125,18 +125,35 @@
                            :contents {}}}
         state {:key :test}]
     (testing "blobifies stored reader preview fields"
-      (with-redefs [http/try-blobify-url! (fn [url] (str "/blob/" (last (re-find #"/([^/]+)$" url))))]
-        (let [item (assoc base-item :entry {:url "https://example.com/article"
-                                            :thumbnail "https://cdn.example.com/thumb.jpg"
-                                            :lead-image-url "https://cdn.example.com/lead.jpg"
-                                            :entities {:photos ["https://cdn.example.com/a.jpg"
-                                                                "https://cdn.example.com/b.jpg"]}
-                                            :contents {}})
-              result (uut/all-items-process-first item example-src state)]
-          (is (= "/blob/thumb.jpg" (get-in result [:entry :thumbnail])))
-          (is (= "/blob/lead.jpg" (get-in result [:entry :lead-image-url])))
-          (is (= ["/blob/a.jpg" "/blob/b.jpg"]
-                 (get-in result [:entry :entities :photos]))))))
+      (let [seen (atom [])]
+        (with-redefs [http/try-blobify-url! (fn [url]
+                                              (swap! seen conj url)
+                                              (str "/blob/" (last (re-find #"/([^/]+)$" url))))]
+          (let [item (assoc base-item :entry {:url "https://example.com/article"
+                                              :thumbnail "https://cdn.example.com/thumb.jpg"
+                                              :lead-image-url "https://cdn.example.com/lead.jpg"
+                                              :entities {:photos ["https://cdn.example.com/a.jpg"
+                                                                  "https://cdn.example.com/b.jpg"]}
+                                              :media [{:kind :image
+                                                       :url "https://cdn.example.com/thumb.jpg"}
+                                                      {:kind :image
+                                                       :url "https://cdn.example.com/already.jpg"
+                                                       :local-url "/blob/already.jpg"}
+                                                      {:kind :video
+                                                       :url "https://cdn.example.com/video.mp4"}]
+                                              :contents {}})
+                result (uut/all-items-process-first item example-src state)]
+            (is (= "/blob/thumb.jpg" (get-in result [:entry :thumbnail])))
+            (is (= "/blob/lead.jpg" (get-in result [:entry :lead-image-url])))
+            (is (= ["/blob/a.jpg" "/blob/b.jpg"]
+                   (get-in result [:entry :entities :photos])))
+            (is (= "/blob/thumb.jpg"
+                   (get-in result [:entry :media 0 :local-url])))
+            (is (= 1 (count (filter #{"https://cdn.example.com/thumb.jpg"} @seen)))
+                "a media image reused as the thumbnail is fetched once")
+            (is (= "/blob/already.jpg"
+                   (get-in result [:entry :media 1 :local-url])))
+            (is (nil? (get-in result [:entry :media 2 :local-url])))))))
 
     (testing "leaves sentinel preview values unchanged"
       (with-redefs [http/try-blobify-url! (fn [url] (str "/blob/" url))]
