@@ -257,7 +257,7 @@ jobs:
         filter: tree:0
 
     - name: Log in to the Container registry
-      uses: docker/login-action@783ae9cac559640a24c9212dfa6cd9e998252f9a
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -379,7 +379,7 @@ jobs:
     - uses: actions/checkout@v7
 
     - name: Log in to the Container registry
-      uses: docker/login-action@783ae9cac559640a24c9212dfa6cd9e998252f9a
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -582,7 +582,7 @@ jobs:
       run: sudo apt update && sudo apt-get install -y make libarchive-tools wget
 
     - name: Log in to the Container registry
-      uses: docker/login-action@783ae9cac559640a24c9212dfa6cd9e998252f9a
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
