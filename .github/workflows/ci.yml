@@ -129,6 +129,7 @@ jobs:
           --test-reporter-destination=target/test-results/node.xml \
           tools/readability/test/*.test.js \
           tools/value-inspector/test/*.test.js \
+          tools/test-macos.test.mjs \
           2>&1 | tee target/test-results/node.log
         test_status=${PIPESTATUS[0]}
         set -e

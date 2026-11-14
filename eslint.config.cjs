@@ -41,6 +41,7 @@ module.exports = [
       "demo/**/*.mjs",
       "tools/frontend/**/*.mjs",
       "tools/normalize-node-junit.mjs",
+      "tools/test-macos.test.mjs",
       "tools/save-to-llar-extension/test/**/*.mjs",
     ],
     languageOptions: {

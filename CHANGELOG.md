@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependencies: Update JVM libraries, article extraction and browser tooling,
   DataTables to 3.1.5, yt-dlp, and CI hooks.
 - Tests: Upgrade Testcontainers to 2.0.5 and remove its unused PostgreSQL module.
+- Development: Add a macOS test wrapper for Apple Container and Socktainer,
+  with test commands for agents.
 
 ### Fixed
 
