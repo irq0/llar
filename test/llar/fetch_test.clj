@@ -34,6 +34,38 @@
 
 (s/check-asserts true)
 
+(deftest rss-url-normalization-keeps-entry-identity
+  (doseq [link ["https://example.com/plain"
+                "https://example.com/article%E2%80%93title?q=a+b&value=%26%3D"]]
+    (let [entry {:title "Article" :link link}
+          expected-hash (uut/make-item-hash "Article" link)]
+      (is (= link (str (#'feed/get-rome-entry-url "https://example.com/feed.xml" entry))))
+      (is (= expected-hash (#'feed/make-rome-entry-hash entry)))
+      (is (= expected-hash (#'feed/make-rome-entry-hash
+                            (assoc entry :description {:value "Updated text"})))))))
+
+(deftest selector-url-encoding-changes-stored-identity
+  (let [source (src/selector-feed "https://example.com/index.html" {:urls (S/tag :a)} {} {})
+        ts (time/zoned-date-time "2026-11-14T12:00:00Z")
+        context {:meta (uut/make-meta source)
+                 :feed {:title "Index" :url (http/absolutify-url "https://example.com/index.html")
+                        :feed-type "selector-feed"}}
+        response {:summary {:title "Article" :ts ts}
+                  :hickory (-> "<html><body><p>Article body</p></body></html>" hick/parse hick/as-hickory)}]
+    (with-redefs [commands/html2text identity]
+      (let [extract (fn [url]
+                      (:item (feed/extract-selector-item
+                              source context
+                              {:base-url (http/absolutify-url "https://example.com/")
+                               :item-url (http/absolutify-url url)
+                               :http response})))
+            legacy (extract "https://example.com/a/b")
+            current (extract "https://example.com/a%2Fb")]
+        (is (= (:summary legacy) (:summary current)))
+        (is (= (get-in legacy [:entry :contents]) (get-in current [:entry :contents])))
+        (is (not= (:hash legacy) (:hash current))
+            "compatibility loss: preserving an escaped slash changes the stored SelectorFeed ID")))))
+
 (deftest readability-published-time-test
   (let [parse-published-time @#'readability/parse-published-time]
     (testing "compact numeric UTC offset"

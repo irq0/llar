@@ -1,6 +1,8 @@
 (ns llar.fetch.reddit-test
   (:require
    [clojure.test :refer [deftest testing is]]
+   [hickory.core :as hick]
+   [hickory.select :as hick-s]
    [llar.appconfig :as appconfig]
    [llar.apis.reader :as reader]
    [llar.repl :as repl]
@@ -328,6 +330,35 @@
           (is (= "" (get-in (nth items 2) [:entry :contents "text/plain"])))
           (is (= "https://www.reddit.com/r/clojure/comments/xyz/"
                  (str (get-in (nth items 3) [:entry :url])))))))))
+
+(deftest fetch-source-preserves-url-encoding-test
+  (start-appconfig!)
+  (let [cases [["https://www.reuters.com/world/europe/covert-russian-network-exploited-french-riots-social-media-eu-report-says-2026-11-09/?taid=6af16ac693ecc90001db89e3&utm_campaign=trueAnthem: Trending Content&utm_medium=trueAnthem&utm_source=twitter"
+                "https://www.reuters.com/world/europe/covert-russian-network-exploited-french-riots-social-media-eu-report-says-2026-11-09/?taid=6af16ac693ecc90001db89e3&utm_campaign=trueAnthem:%20Trending%20Content&utm_medium=trueAnthem&utm_source=twitter"]
+               ["https://www.bgnes.com/politics/bulgarian-pm-radev-russia-s-demand-for-nato-to-return-to-pre-1997-borders-is-unthinkable#:~:text=Bulgarian Prime Minister Rumen Radev firmly rejected Russia's,It is not open to discussion at all"
+                "https://www.bgnes.com/politics/bulgarian-pm-radev-russia-s-demand-for-nato-to-return-to-pre-1997-borders-is-unthinkable#:~:text=Bulgarian%20Prime%20Minister%20Rumen%20Radev%20firmly%20rejected%20Russia's,It%20is%20not%20open%20to%20discussion%20at%20all"]
+               ["https://www.telegraph.co.uk/news/2026/11/07/russia-spymaster-claimed-topple-austrian-chancellor/#:~:text=Russian spymaster claimed to have toppled Austrian leader"
+                "https://www.telegraph.co.uk/news/2026/11/07/russia-spymaster-claimed-topple-austrian-chancellor/#:~:text=Russian%20spymaster%20claimed%20to%20have%20toppled%20Austrian%20leader"]
+               ["https://example.com/a%2Fb?q=a+b&value=%26%20"
+                "https://example.com/a%2Fb?q=a+b&value=%26%20"]
+               ["/r/clojure/comments/a post/"
+                "https://www.reddit.com/r/clojure/comments/a%20post/"]]
+        children (map #(assoc valid-child :url (first %)) cases)]
+    (with-redefs [uut/access-token (constantly "tok")
+                  http-client/get (fn [_url _opts] (listing-response children))]
+      (let [items (vec (fetch/fetch-source (src/reddit "clojure" :top) {}))]
+        (is (= (count cases) (count items)) "none of the logged URL failures drops a post")
+        (doseq [[[raw expected] item] (map vector cases items)]
+          (testing raw
+            (is (= expected (str (get-in item [:entry :url]))))
+            (is (= (fetch/make-item-hash (:id valid-child)) (:hash item))
+                "URL normalization does not change Reddit post identity")
+            (is (= (:title valid-child) (get-in item [:summary :title])))
+            (is (= [(:author valid-child)] (get-in item [:entry :authors])))
+            (let [summary (-> (get-in item [:entry :contents "text/html"])
+                              hick/parse hick/as-hickory)
+                  target (-> (hick-s/select (hick-s/tag :a) summary) first :attrs :href)]
+              (is (= expected target) "the summary link and stored URL agree"))))))))
 
 (deftest fetch-source-records-scores-test
   (start-appconfig!)

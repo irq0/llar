@@ -196,6 +196,29 @@
     (is (= "https://example.com/small.png?w=1 1x, https://example.com/big.png?w=2 2x"
            (:srcset img)))))
 
+(deftest absolutify-html-links-preserves-url-meaning
+  (let [doc {:type :document
+             :content [{:type :element :tag :a
+                        :attrs {:href "/a%2Fb?q=a+b&value=%26%3D&hint=two words&utm_source=x#part%23one"}
+                        :content ["link"]}
+                       {:type :element :tag :img
+                        :attrs {:src "/photo%20one.jpg?sig=a+b%2Fc%3D&fbclid=x"
+                                :srcset "/photo%20one.jpg?sig=a+b%2Fc%3D 1x"}
+                        :content []}]}
+        rewritten (uut/absolutify-links-in-hick doc (#'uut/parse-url "https://example.com/base/"))
+        href (-> rewritten :content first :attrs :href)
+        img (-> rewritten :content second :attrs)]
+    (is (= "https://example.com/a%2Fb?q=a+b&value=%26%3D&hint=two%20words#part%23one" href))
+    (let [url (java.net.URI. href)]
+      (is (= "/a%2Fb" (.getRawPath url)))
+      (is (= "q=a+b&value=%26%3D&hint=two%20words" (.getRawQuery url)))
+      (is (= "part%23one" (.getRawFragment url))))
+    (is (= "https://example.com/photo%20one.jpg?sig=a+b%2Fc%3D" (:src img)))
+    (is (= (str (:src img) " 1x") (:srcset img))
+        "src and srcset must agree on the same signed URL")
+    (is (= rewritten (uut/absolutify-links-in-hick rewritten
+                                                   (#'uut/parse-url "https://example.com/base/"))))))
+
 (deftest parse-img-srcset-preserves-commas-and-encoding
   (let [srcset (str "https://cdn.example/w_424,c_limit,f_auto,q_auto/image.jpg?sig=a+b%2Cc 424w, "
                     "https://cdn.example/w_848,c_limit,f_auto,q_auto/image.jpg?sig=d+e%2Cf 848w")]

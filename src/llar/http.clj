@@ -136,9 +136,14 @@
                :url s} nil))))
 
 (defn- parse-href [s]
-  (let [decoded (or (swallow-exceptions (java.net.URLDecoder/decode s)) s)]
-    (when-let [url (or (swallow-exceptions (parse-url decoded))
-                       (swallow-exceptions (parse-url (str "/" decoded))))]
+  ;; Decode encoded URL prefixes once; leave escapes inside ordinary URLs alone.
+  (let [raw (str s)
+        href (if (re-find #"(?i)^(?:https?%3a%2f%2f|%2f)" raw)
+               (or (swallow-exceptions (java.net.URLDecoder/decode raw "UTF-8")) raw)
+               raw)
+        encoded (string/replace href " " "%20")]
+    (when-let [url (or (swallow-exceptions (parse-url encoded))
+                       (swallow-exceptions (parse-url (str "/" encoded))))]
       url)))
 
 (defn- append-path-if-not-exist [url]
@@ -270,8 +275,7 @@
 
 (defn- absolutify-srcset-url [raw-url base-url]
   ;; Srcset URLs frequently contain signed or transformation parameters. Resolve
-  ;; their encoded representation directly instead of using parse-href's legacy
-  ;; quirks-mode form decoding.
+  ;; their encoded representation directly without applying link repairs.
   (let [url (uri/uri raw-url)]
     (if (uri/absolute? url)
       url
