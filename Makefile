@@ -20,7 +20,7 @@ ibmplex_packages := \
 fontawesome_version := 7.3.1
 fontawesome_dir := resources/status/fontawesome
 fontawesome_stamp := $(fontawesome_dir)/.version-$(fontawesome_version)
-bootstrap_version := 5.3.8
+bootstrap_version := 5.3.9
 bootstrap_dir := resources/status/bootstrap
 bootstrap_stamp := $(bootstrap_dir)/.version-$(bootstrap_version)
 jquery_version := 4.0.0
@@ -88,10 +88,10 @@ $(bootstrap_stamp):
 	mkdir -p "$(bootstrap_dir)"
 	set -e; \
 		archive="$$(mktemp)"; \
-		wget --quiet -O "$$archive" "https://github.com/twbs/bootstrap/releases/download/v$(bootstrap_version)/bootstrap-$(bootstrap_version)-dist.zip"; \
-		bsdtar -xf "$$archive" -C "$(bootstrap_dir)" --strip-components 1 \
-			"bootstrap-$(bootstrap_version)-dist/css/bootstrap.min.css" \
-			"bootstrap-$(bootstrap_version)-dist/js/bootstrap.bundle.min.js"; \
+		wget --quiet -O "$$archive" "https://github.com/twbs/bootstrap/archive/v$(bootstrap_version).zip"; \
+		bsdtar -xf "$$archive" -C "$(bootstrap_dir)" --strip-components 2 \
+			"bootstrap-$(bootstrap_version)/dist/css/bootstrap.min.css" \
+			"bootstrap-$(bootstrap_version)/dist/js/bootstrap.bundle.min.js"; \
 		rm -f "$$archive"
 	touch "$@"
 bootstrap: $(bootstrap_stamp)
