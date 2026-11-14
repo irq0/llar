@@ -2303,20 +2303,10 @@ function loadAnnotations() {
 //
 
 function getTextOffset(container, node, offset) {
-  var walker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null,
-    false,
-  );
-  var pos = 0;
-  while (walker.nextNode()) {
-    if (walker.currentNode === node) {
-      return pos + offset;
-    }
-    pos += walker.currentNode.textContent.length;
-  }
-  return pos + offset;
+  var range = document.createRange();
+  range.selectNodeContents(container);
+  range.setEnd(node, offset);
+  return range.toString().length;
 }
 
 function getContainerText(container) {
@@ -2374,6 +2364,10 @@ function onTextSelected() {
   var end = getTextOffset(container, range.endContainer, range.endOffset);
   // Derive exact from DOM text, not sel.toString() which normalizes whitespace
   var exact = fullText.substring(start, end);
+  if (!exact.trim()) {
+    clearPendingAnnotationSelection();
+    return;
+  }
   var prefixStart = Math.max(0, start - 32);
   var suffixEnd = Math.min(fullText.length, end + 32);
 
@@ -2524,6 +2518,9 @@ function textToFlexibleRegex(text) {
 }
 
 function findByQuoteSelector(container, quote) {
+  if (!quote || typeof quote.exact !== "string" || !quote.exact.trim()) {
+    return null;
+  }
   var fullText = getContainerText(container);
 
   // Prefer an exact occurrence whose surrounding text also matches. This

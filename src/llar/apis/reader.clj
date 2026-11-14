@@ -361,7 +361,7 @@
   [[:script {:src "/static/jquery/jquery.min.js?v=4.0.0"}]
    [:script {:src "/static/bootstrap/js/bootstrap.bundle.min.js"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar.js?v=reader-list-position-03"}]])
+   [:script {:src "/static/llar.js?v=reader-annotations-04"}]])
 
 (def ^:private tag-action-labels
   {:podcast "Toggle podcast"
@@ -4942,6 +4942,10 @@
 (defn reader-create-annotation [item-id selector-str body]
   (try
     (let [selector (when selector-str (cheshire/parse-string selector-str true))]
+      (when (and selector
+                 (or (not (string? (get-in selector [:quote :exact])))
+                     (string/blank? (get-in selector [:quote :exact]))))
+        (throw (ex-info "Select non-empty text to highlight" {})))
       {:status 200
        :body {:annotation (persistency/create-annotation! frontend-db item-id selector body)}})
     (catch Exception e

@@ -37,6 +37,20 @@
                               :uri (str "/blob/" hash)
                               :headers {}}))))))
 
+(deftest annotations-reject-empty-quotes-without-writing
+  (let [writes (atom [])]
+    (with-redefs [persistency/create-annotation!
+                  (fn [_ id selector body]
+                    (swap! writes conj [id selector body])
+                    {:id 1})]
+      (doseq [selector ["{}" "{\"quote\":{\"exact\":\"\"}}"
+                        "{\"quote\":{\"exact\":\"   \"}}"]]
+        (is (= 400 (:status (uut/reader-create-annotation 7 selector nil)))))
+      (is (empty? @writes))
+      (is (= 200 (:status (uut/reader-create-annotation 7 "{\"quote\":{\"exact\":\"A passage\"}}" nil))))
+      (is (= 200 (:status (uut/reader-create-annotation 7 nil "A note"))))
+      (is (= 2 (count @writes))))))
+
 (deftest reader-bookmark-form-uses-the-durable-capture-queue
   (let [call (atom nil)]
     (with-redefs [bookmark-capture/enqueue!
@@ -1340,7 +1354,7 @@
                    shell))
       (is (not (string/includes? shell "<template>")))
       (is (string/includes? shell "id=\"reader-global-status\""))
-      (is (re-find #"<script src=\"/static/llar.js\?v=reader-list-position-03\"></script></body></html>$"
+      (is (re-find #"<script src=\"/static/llar.js\?v=reader-annotations-04\"></script></body></html>$"
                    shell)))))
 
 (deftest reader-global-status-is-a-calm-dismissible-error-region
