@@ -34,6 +34,7 @@
  get-items-recent-by-source-ids
  get-items-ranked-bounded
  get-item-by-id
+ get-item-id-by-hash
  store-item
  store-item-data
  get-sources

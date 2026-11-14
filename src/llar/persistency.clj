@@ -44,6 +44,7 @@
   (get-word-count-groups [this]))
 
 (defprotocol ItemQueries
+  (get-item-id-by-hash [this hash])
   (get-items-recent [this args]
     "get-items-recent returns :limit recent items, optionally
     offsetted with :before {:ts :id} to implement pagination.

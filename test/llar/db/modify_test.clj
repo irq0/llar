@@ -7,6 +7,8 @@
    [llar.db.test-fixtures :refer [*test-db* with-test-db-fixture with-clean-db-fixture
                                   create-test-item create-test-tag create-test-item-data]]
    [llar.db.modify]  ; Load protocol implementations
+   [llar.db.query]
+   [llar.db.annotations]
    [llar.events :as events]
    [llar.item-state :as item-state]
    [llar.persistency :as persistency]
@@ -65,6 +67,28 @@
                                     {:builder-fn rs/as-unqualified-lower-maps})]
       (is (= [1] (:tagi stored)))
       (is (empty? (persistency/get-events-for-item *test-db* item-id))))))
+
+(deftest overwritten-content-preserves-original-and-annotations
+  (let [item {:type :mail :hash (str "SHA-256:" (apply str (repeat 64 "b")))
+              :meta {:source-key :newsletter :source-name "Newsletter" :tags #{:saved}}
+              :summary {:title "Newsletter" :ts (time/zoned-date-time)}
+              :entry {:contents {"text/html" "<p>Original email</p>" "text/plain" "Original email"}}}
+        id (get-in (persistency/store-item! *test-db* item {}) [:item :id])
+        ann (persistency/create-annotation! *test-db* id
+                                            {:quote {:exact "Original email"}} nil)
+        replacement (-> item
+                        (assoc-in [:meta :tags] #{:unread})
+                        (assoc-in [:entry :source-snapshot] (get-in item [:entry :contents]))
+                        (assoc-in [:entry :contents "text/html"] "<p>Clean article</p>")
+                        (assoc-in [:entry :contents "text/plain"] "Clean article"))]
+    (is (= id (get-in (persistency/store-item! *test-db* replacement {:overwrite? true}) [:item :id])))
+    (let [stored (persistency/get-item-by-id *test-db* id)]
+      (is (= (:hash item) (:hash stored)))
+      (is (= "<p>Clean article</p>" (get-in stored [:data :content "text/html"])))
+      (is (= "Clean article" (get-in stored [:data :content "text/plain"])))
+      (is (= (get-in item [:entry :contents]) (get-in stored [:data :source-snapshot])))
+      (is (= #{"saved" "has-annotations"} (set (:tags stored))))
+      (is (= [(:id ann)] (mapv :id (persistency/get-annotations *test-db* id)))))))
 
 (deftest test-store-item-with-tags
   (testing "Store item with tags creates tag associations"
@@ -301,3 +325,24 @@
                                       ["SELECT * FROM item_data WHERE item_id NOT IN (SELECT id FROM items)"]
                                       {:builder-fn rs/as-unqualified-lower-maps})]
           (is (empty? orphaned) "Should have no orphaned item_data entries"))))))
+
+(deftest fresh-captures-replace-or-remove-the-previous-snapshot
+  (let [item {:type :feed :hash (str "SHA-256:" (apply str (repeat 64 "d")))
+              :meta {:source-key :snapshot-test :source-name "Snapshot test" :tags #{:saved}}
+              :summary {:title "Article" :ts (time/zoned-date-time)}
+              :entry {:contents {"text/html" "Article one"}
+                      :source-snapshot {"text/html" "Source one" "text/plain" "Source one"}
+                      :source-snapshot-url "https://example.com/article"}}
+        id (get-in (persistency/store-item! *test-db* item {}) [:item :id])
+        next-capture (assoc item :entry {:contents {"text/html" "Article two"}
+                                         :source-snapshot {"text/html" "Source two"}
+                                         :source-snapshot-url "https://example.com/article"})]
+    (persistency/store-item! *test-db* next-capture {:overwrite? true})
+    (let [stored (persistency/get-item-by-id *test-db* id)]
+      (is (= {"text/html" "Source two"} (get-in stored [:data :source-snapshot])))
+      (is (= {"text/html" "Article two"} (get-in stored [:data :content]))))
+    (persistency/store-item! *test-db* (assoc item :entry {:contents {"text/html" "Unextracted fresh capture"}}) {:overwrite? true})
+    (let [stored (persistency/get-item-by-id *test-db* id)]
+      (is (nil? (get-in stored [:data :source-snapshot])))
+      (is (not (contains? (:entry stored) :source-snapshot-url)))
+      (is (= {"text/html" "Unextracted fresh capture"} (get-in stored [:data :content]))))))

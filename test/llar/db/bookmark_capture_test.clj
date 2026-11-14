@@ -2,10 +2,15 @@
   (:require
    [clojure.test :refer [deftest is use-fixtures]]
    [java-time.api :as time]
+   [llar.bookmark-capture :as capture]
    [llar.db.bookmark-capture :as capture-db]
+   [llar.db.modify]
+   [llar.db.query]
    [llar.db.test-fixtures :refer [*test-db* create-test-item
                                   with-clean-db-fixture with-test-db-fixture]]
    [llar.persistency :as persistency]
+   [llar.fetch :as fetch]
+   [llar.fetch.bookmark :as bookmark]
    [next.jdbc :as jdbc]))
 
 (use-fixtures :once with-test-db-fixture)
@@ -136,3 +141,34 @@
         queue-ids (set (map :id (persistency/get-reading-queue-items *test-db* {})))]
     (is (not (contains? queue-ids unread-bookmark)))
     (is (contains? queue-ids saved-bookmark))))
+
+(deftest capturing-an-existing-bookmark-preserves-content-and-snapshot
+  (let [url "https://example.com/previously-saved"
+        item (-> (bookmark/make-raw-bookmark url "Saved article" (time/zoned-date-time))
+                 (assoc-in [:entry :authors] ["Saved author"])
+                 (assoc-in [:entry :contents] {"text/html" "<p>Saved full article</p>"})
+                 (assoc-in [:entry :source-snapshot] {"text/html" "<article>Saved source</article>"}))
+        id (get-in (persistency/store-item! *test-db* (persistency/to-couch item) {}) [:item :id])
+        before (persistency/get-item-by-id *test-db* id)]
+    (capture/enqueue! *test-db* url "Replacement title" "test")
+    (let [claimed (capture-db/claim-next! *test-db* 1200)
+          result (with-redefs [fetch/fetch (fn [& _] (throw (AssertionError. "Must reuse saved content")))]
+                   (capture/process-capture! *test-db* claimed))
+          after (persistency/get-item-by-id *test-db* id)]
+      (is (= :complete (:status result)))
+      (is (= id (:item-id result)))
+      (is (= (select-keys before [:title :author :entry :data])
+             (select-keys after [:title :author :entry :data])))
+      (is (= #{"saved" "unread"} (set (:tags after)))))))
+
+(deftest new-capture-keeps-its-placeholder-when-enrichment-fails
+  (let [url "https://example.com/new-capture"]
+    (capture/enqueue! *test-db* url "New article" "test")
+    (let [claimed (capture-db/claim-next! *test-db* 1200)
+          result (with-redefs [fetch/fetch (fn [& _] (throw (ex-info "Unavailable" {})))]
+                   (capture/process-capture! *test-db* claimed))
+          stored (persistency/get-item-by-id *test-db* (:item-id result))]
+      (is (= :pending (:status result)))
+      (is (= "New article" (:title stored)))
+      (is (= url (get-in stored [:entry :url])))
+      (is (= #{"saved" "unread"} (set (:tags stored)))))))

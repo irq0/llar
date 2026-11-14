@@ -100,7 +100,9 @@
     (ensure-saved-unread! db (:item-id capture))
     (let [raw (bookmark/make-raw-bookmark
                (:url capture) (:title capture) (:created-ts capture))
-          item-id (stored-item-id (store-items! db [raw]))]
+          item-id (stored-item-id
+                   [(or (persistency/store-item! db (persistency/to-couch raw) {})
+                        {:item {:id (persistency/get-item-id-by-hash db (:hash raw))}})])]
       (ensure-saved-unread! db item-id)
       (when-not (capture-db/set-item! db (:id capture) (:lease-version capture) item-id)
         (throw (ex-info "Bookmark capture lost its processing lease before item linkage"

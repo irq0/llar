@@ -41,7 +41,8 @@
    [llar.db.gems]
    [llar.db.search :as db-search]
    [llar.export.zotero :as zotero]
-   [llar.export.url-handler :as url-handler]))
+   [llar.export.url-handler :as url-handler])
+  (:import [org.jsoup Jsoup]))
 
 (defn- html5
   "Render a complete HTML5 document with Hiccup 2 escaping semantics.
@@ -1275,7 +1276,10 @@
         (h/raw data)))
     (if (= sel-content-type "text/plain")
       [:p {:style "white-space: pre-line"} (get-in doc [:data sel-descr sel-content-type])]
-      (some-> (get-in doc [:data sel-descr sel-content-type]) h/raw))))
+      (when-let [content (get-in doc [:data sel-descr sel-content-type])]
+        (h/raw (if (= sel-descr :source-snapshot)
+                 (.html (.body (Jsoup/parse content)))
+                 content))))))
 
 (defn related-button
   ([id]
@@ -1374,12 +1378,16 @@
 (def ^:private +representation-order+
   [[:content "text/html"]
    [:content "text/plain"]
+   [:source-snapshot "text/html"]
+   [:source-snapshot "text/plain"]
    [:description "text/html"]
    [:description "text/plain"]])
 
 (defn- representation-label [data-key content-type]
   (or (get {[:content "text/html"] "Extracted HTML"
             [:content "text/plain"] "Extracted text"
+            [:source-snapshot "text/html"] "Source snapshot HTML"
+            [:source-snapshot "text/plain"] "Source snapshot text"
             [:description "text/html"] "Summary HTML"
             [:description "text/plain"] "Summary text"}
            [data-key content-type])

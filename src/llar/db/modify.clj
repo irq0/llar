@@ -20,6 +20,7 @@
 (def item-data-table-entries
   "Item entries stored in the item_data table, rather than in the items entry column"
   {:contents :item_data_type/content
+   :source-snapshot :item_data_type/source-snapshot
    :descriptions :item_data_type/description
    :thumbs :item_data_type/thumbnail})
 
@@ -123,6 +124,8 @@
     (jdbc/with-transaction [tx (:datasource db)]
       (sql/ensure-tags tx {:tags (map vector (tags/normalize-tags (get-in item [:meta :tags])))})
       (when-let [{:keys [id hash]} (store-item-without-data! tx item args)]
+        (when (:overwrite? args)
+          (sql/delete-item-content-data tx {:item-id id}))
         (when legacy-progress?
           (transition-item-state-in-tx! tx [id] {:action :save-checkpoint
                                                  :selector nil

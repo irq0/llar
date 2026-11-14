@@ -259,6 +259,9 @@
         (attach-preview-descriptions-best-effort this items)
         items)))
 
+  (get-item-id-by-hash [this hash]
+    (:id (sql/get-item-id-by-hash this {:hash hash})))
+
   (get-items-by-tag [this tag]
     (sql/get-items-by-tag this {:tag (tags/normalize-tag tag)}))
 

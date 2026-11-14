@@ -23,6 +23,9 @@ where items.source_id in (:v*:source-ids)
 --~ (when (:with-tag params) "and items.tagi @@ (select format('(%s)', id) from tags where tag = :with-tag)::query_int")
 group by items.source_id
 
+-- :name get-item-id-by-hash :? :1
+select id from items where hash = :hash
+
 -- :name get-items-by-tag :? :*
 select key, title, author, items.type, items.id, entry
 from items inner join sources
@@ -65,6 +68,7 @@ select
 
 -- :snip item-select-with-data-snip
 select
+  items.hash,
   items.source_id as feed_id,
   title,
   author,
@@ -100,7 +104,7 @@ from items
   inner join sources on items.source_id = sources.id
   left join item_data on
     items.id = item_data.item_id
-    and (item_data.type = 'content' or item_data.type = 'description')
+    and item_data.type in ('content', 'description', 'source-snapshot')
 
 -- :snip item-from-join-ranked-snip
 from items
@@ -112,7 +116,7 @@ from items
   inner join sources on items.source_id = sources.id
   left join item_data on
     items.id = item_data.item_id
-    and (item_data.type = 'content' or item_data.type = 'description')
+    and item_data.type in ('content', 'description', 'source-snapshot')
   left join source_stats ss on items.source_id = ss.source_id
 
 -- :name get-item-by-id :? :1

@@ -89,5 +89,10 @@ values (
 on conflict on constraint item_data_mime_type_type_item_id_key do update set
   mime_type = excluded.mime_type,
   type = excluded.type,
-  item_id = excluded.item_id
+  item_id = excluded.item_id,
+  text = excluded.text,
+  data = excluded.data
 returning id, mime_type, type, data is not null as is_binary
+
+-- :name delete-item-content-data :! :n
+delete from item_data where item_id = :item-id and type in ('content', 'description', 'source-snapshot')

@@ -2144,3 +2144,16 @@
       (is (re-find #"Search failed" rendered))
       (is (re-find #"bad tsquery" rendered))
       (is (not (re-find #"No matches" rendered))))))
+
+(deftest source-snapshot-is-a-separate-reader-representation
+  (let [representations (#'uut/item-representations
+                         {:data {:content {"text/html" "Article"}
+                                 :source-snapshot {"text/html" "Source"}}})]
+    (is (= [:content :source-snapshot] (mapv :data-key representations)))
+    (is (= "Source snapshot HTML" (:label (second representations))))))
+
+(deftest source-snapshot-renders-only-its-body
+  (let [doc {:data {:source-snapshot
+                    {"text/html" "<html lang=\"de\"><head><title>Source title</title></head><body class=\"article-page\"><p>Source body</p></body></html>"}}}
+        rendered (str (h/html (uut/get-html-content doc :source-snapshot "text/html")))]
+    (is (= "<p>Source body</p>" rendered))))
