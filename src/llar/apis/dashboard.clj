@@ -62,7 +62,7 @@
    [:script {:src "/static/datatables/dataTables.min.js?v=3.1.5"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.1.5"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar-status.js?v=reprocess-1"}]])
+   [:script {:src "/static/llar-status.js?v=reprocess-3"}]])
 
 (defn wrap-body [body]
   (str
@@ -134,28 +134,6 @@
 
 (defn source-tab []
   [:div
-   [:details.mb-3
-    [:summary "Reapply rules to stored items"]
-    [:p "Reapply a source’s post-processing rules to recent items, newest first. Tags, reading progress, and annotations stay unchanged."]
-    [:form#reprocess-form.row.g-2.align-items-end
-     [:div.col-auto
-      [:label.form-label {:for "reprocess-source"} "Source"]
-      [:select#reprocess-source.form-select {:name "source-key" :required true}
-       [:option {:value ""} "Choose a source"]
-       (for [[k source] (sort-by key (config/get-sources))
-             :when (seq (get-in source [:proc :post]))]
-         [:option {:value (name k)} (name k)])]]
-     [:div.col-auto
-      [:label.form-label {:for "reprocess-days"} "Last days"]
-      [:input#reprocess-days.form-control {:name "days" :type "number" :min 1 :max 365 :value 30 :required true}]]
-     [:div.col-auto
-      [:label.form-label {:for "reprocess-limit"} "Maximum items"]
-      [:input#reprocess-limit.form-control {:name "limit" :type "number" :min 1 :max 500 :value 100 :required true}]]
-     [:div.col-auto
-      [:button.btn.btn-secondary {:type "submit"} "Preview"]
-      " "
-      [:button#reprocess-start.btn.btn-primary {:type "button" :disabled true} "Reapply"]]
-     [:p#reprocess-status {:role "status" :aria-live "polite"}]]]
    [:table {:id "sources-datatable" :class "table"}
     [:thead
      [:tr
@@ -340,6 +318,24 @@
            0)
       0)))
 
+(defn- source-reprocess-form [source-key]
+  [:details.source-reprocess.mb-3
+   [:summary "Reapply rules to stored items"]
+   [:p "Reapply this source’s post-processing rules to recent items, newest first. Tags, reading progress, and annotations stay unchanged."]
+   [:form.reprocess-form.row.g-2.align-items-end
+    [:input {:name "source-key" :type "hidden" :value (name source-key)}]
+    [:div.col-auto
+     [:label.form-label.mb-0 "Last days"
+      [:input.form-control {:name "days" :type "number" :min 1 :max 365 :value 30 :required true}]]]
+    [:div.col-auto
+     [:label.form-label.mb-0 "Maximum items"
+      [:input.form-control {:name "limit" :type "number" :min 1 :max 500 :value 100 :required true}]]]
+    [:div.col-auto
+     [:button.btn.btn-secondary {:type "submit"} "Preview"]
+     " "
+     [:button.reprocess-start.btn.btn-primary {:type "button" :disabled true} "Reapply"]]
+    [:p.reprocess-status {:role "status" :aria-live "polite"}]]])
+
 (defn source-details [src-k]
   (let [k (keyword src-k)
         source (config/get-source k)
@@ -352,20 +348,10 @@
              [:section {:class "source-reader-state mb-3"
                         :data-source-key (name k)}
               [:h5 "Reader state"]
-              [:div {:class "d-flex align-items-center gap-2"}
-               [:span {:class "source-unread-count"}
-                "Unread: " [:strong unread-count]]
-               [:button (cond-> {:type "button"
-                                 :class "btn btn-sm btn-outline-secondary btn-mark-source-read"
-                                 :data-source-key (name k)
-                                 :data-unread-count unread-count}
-                          (zero? unread-count)
-                          (assoc :disabled true :aria-disabled "true"))
-                "Mark read…"]]
-              [:div {:class "source-reader-state-status small mt-2"
-                     :role "status"
-                     :aria-live "polite"
-                     :hidden true}]])
+              [:span {:class "source-unread-count"}
+               "Unread: " [:strong unread-count]]])
+           (when (seq (get-in source [:proc :post]))
+             (source-reprocess-form k))
            [:h5 "Source data"]
            (value-inspector/value-inspector
             (cond-> [[:configuration "Configuration" source]

@@ -4988,3 +4988,7 @@ table.exception-chain tr {
     transform: none;
   }
 }
+
+.btn-source-details[aria-expanded="true"] .fa-chevron-right {
+  transform: rotate(90deg);
+}

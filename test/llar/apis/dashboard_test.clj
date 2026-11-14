@@ -118,7 +118,7 @@
     (let [body (uut/source-details "example")]
       (is (string/includes? body "Reader state"))
       (is (string/includes? body "Unread: <strong>146</strong>"))
-      (is (string/includes? body "btn-mark-source-read"))
+      (is (not (string/includes? body "btn-mark-source-read")))
       (is (string/includes? body "data-source-key=\"example\""))
       (is (not (re-find #"btn-mark-source-read[^>]*disabled" body)))))
   (with-redefs [config/get-source (constantly {:src :feed})
@@ -126,7 +126,7 @@
                 uut/source-unread-count (constantly 0)]
     (let [body (uut/source-details "empty")]
       (is (string/includes? body "Unread: <strong>0</strong>"))
-      (is (re-find #"btn-mark-source-read[^>]*disabled" body)))))
+      (is (not (string/includes? body "btn-mark-source-read"))))))
 
 (deftest source-unread-count-queries-only-the-selected-source
   (with-redefs [config/get-sources (constantly {:example {:src :feed}})
@@ -317,7 +317,7 @@
     (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.1.5"))
     (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.1.5"))
     (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
-    (is (string/includes? body "/static/llar-status.js?v=reprocess-1"))
+    (is (string/includes? body "/static/llar-status.js?v=reprocess-3"))
     (is (string/includes? javascript "DataTable.isDataTable"))
     (is (string/includes? javascript "new DataTable"))
     (is (not (re-find #"[.$]DataTable\(" javascript)))))
@@ -525,7 +525,7 @@
 (deftest source-actions-offer-primary-fetch-and-complete-options-menu
   (let [javascript (slurp (io/resource "status/llar-status.js"))]
     (is (string/includes? javascript "fas fa-download"))
-    (is (string/includes? javascript "More fetch options"))
+    (is (string/includes? javascript "Source actions"))
     (doseq [flags ["data-force=\"false\" data-overwrite=\"false\""
                    "data-force=\"false\" data-overwrite=\"true\""
                    "data-force=\"true\" data-overwrite=\"false\""
@@ -622,12 +622,20 @@
         (resources/unregister! resources/resources :pinned-pool)))))
 
 (deftest reprocess-dashboard-validates-limits-and-keeps-preview-read-only
-  (with-redefs [config/get-sources (constantly {:newsletter {:proc {:post [identity]}}})]
-    (let [html (str (h/html (uut/source-tab)))]
-      (is (string/includes? html "Reapply rules to stored items"))
+  (is (not (string/includes? (str (h/html (uut/source-tab))) "reprocess-form")))
+  (with-redefs [config/get-source (constantly {:proc {:post [identity]}})
+                uut/get-state (constantly {})
+                uut/source-unread-count (constantly 0)]
+    (let [html (uut/source-details "newsletter")]
+      (is (string/includes? html "<details class=\"source-reprocess mb-3\">"))
+      (is (string/includes? html "<summary>Reapply rules to stored items</summary>"))
       (is (string/includes? html "value=\"30\""))
       (is (string/includes? html "value=\"100\""))
-      (is (string/includes? html "value=\"newsletter\""))))
+      (is (string/includes? html "value=\"newsletter\""))
+      (is (string/includes? html "type=\"hidden\""))
+      (is (not (string/includes? html "<select"))))
+    (with-redefs [config/get-source (constantly {:proc {:post []}})]
+      (is (not (string/includes? (uut/source-details "plain") "reprocess-form")))))
   (let [calls (atom [])
         plan {:source-key :newsletter :item-ids [3 2] :total 2}]
     (with-redefs [update/reprocess-plan (fn [& args] (swap! calls conj [:preview args]) plan)

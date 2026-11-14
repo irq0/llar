@@ -42,10 +42,13 @@ function sources_row_actions_html(source_key) {
 <span class="visually-hidden">Fetch updates</span></button>
 <span class="dropdown d-inline-block me-1">
   <button type="button" class="btn btn-sm btn-link p-0" data-bs-toggle="dropdown"
-    aria-expanded="false" title="More fetch options" aria-label="More fetch options">
+    aria-expanded="false" data-bs-auto-close="outside" title="Source actions" aria-label="Source actions">
     <i aria-hidden="true" class="fas fa-ellipsis-v"></i>
   </button>
   <span class="dropdown-menu dropdown-menu-end">
+    <button type="button" class="dropdown-item btn-mark-source-read" data-source-key="${source_key}">Mark all read…</button>
+    <button type="button" class="dropdown-item btn-source-reapply" data-source-key="${source_key}">Reapply rules…</button>
+    <hr class="dropdown-divider">
     <button type="button" class="dropdown-item btn-update-source"
       data-source-key="${source_key}" data-force="false" data-overwrite="true">
       Fetch and overwrite existing
@@ -65,9 +68,10 @@ function sources_row_actions_html(source_key) {
 </span>
 <button type="button" data-source-key="${source_key}"
   class="btn btn-sm btn-link p-0 me-1 btn-source-details" aria-expanded="false"
-  title="Show or hide state details">
-<i aria-hidden="true" class="fas fa-info-circle"></i>
-<span class="visually-hidden">Show or hide state details</span></button>`;
+  title="Show or hide source details">
+<i aria-hidden="true" class="fas fa-chevron-right"></i>
+<span class="visually-hidden">Show or hide source details</span></button>
+<span class="source-action-status small d-block" role="status" aria-live="polite" hidden></span>`;
 }
 
 function datatable_for(selector) {
@@ -165,7 +169,7 @@ function initialize_state_datatable(container) {
 }
 
 function initialize_datatables(container) {
-  if ($(container).find("#reprocess-form").length) poll_reprocess();
+  if ($(container).find(".reprocess-form").length) poll_reprocess();
   var sources_table = $(container).find("#sources-datatable");
 
   if (sources_table.length && !DataTable.isDataTable(sources_table[0])) {
@@ -1289,15 +1293,23 @@ var reprocess_poll_timer;
 
 function poll_reprocess() {
   clearTimeout(reprocess_poll_timer);
-  if (!$("#reprocess-form").length) return;
+  if (!$(".reprocess-form").length) return;
   $.getJSON("/api/reprocess")
     .done(function (job) {
       var running = job.status === "running";
-      $("#reprocess-form").data("running", running);
-      $("#reprocess-form :input").prop("disabled", running);
-      $("#reprocess-start").prop("disabled", true);
-      if (job.status !== "idle") {
-        $("#reprocess-status").text(
+      $(".reprocess-form").data("running", running);
+      $(".reprocess-form :input").prop("disabled", running);
+      $(".reprocess-start").prop("disabled", true);
+      $(".reprocess-form").each(function () {
+        var form = $(this);
+        var status = form.find(".reprocess-status");
+        if (form.find('[name="source-key"]').val() !== job["source-key"]) {
+          status.text(
+            running ? "Waiting for " + job["source-key"] + " to finish." : "",
+          );
+          return;
+        }
+        status.text(
           job["source-key"] +
             ": " +
             job.completed +
@@ -1312,12 +1324,12 @@ function poll_reprocess() {
                   job["item-id"] +
                   ". Check the server log; earlier items were saved."),
         );
-      }
+      });
       if (running) reprocess_poll_timer = setTimeout(poll_reprocess, 1000);
     })
     .fail(function () {
-      $("#reprocess-status").text(
-        "Could not read progress. Reload this tab to retry.",
+      $(".reprocess-status").text(
+        "Could not read progress. Reopen source details to retry.",
       );
     });
 }
@@ -1325,54 +1337,53 @@ function poll_reprocess() {
 $(document).ready(function () {
   initialize_datatables(document);
 
-  $(document).on(
-    "input change",
-    "#reprocess-form input, #reprocess-form select",
-    function () {
-      $("#reprocess-start").prop("disabled", true);
-      $("#reprocess-status").empty();
-    },
-  );
+  $(document).on("input change", ".reprocess-form input", function () {
+    var form = $(this).closest(".reprocess-form");
+    form.find(".reprocess-start").prop("disabled", true);
+    form.find(".reprocess-status").empty();
+  });
 
-  $(document).on("submit", "#reprocess-form", function (event) {
+  $(document).on("submit", ".reprocess-form", function (event) {
     event.preventDefault();
     var form = $(this);
     var selection = form.serialize();
-    $("#reprocess-start").prop("disabled", true);
+    form.find(".reprocess-start").prop("disabled", true);
     $.getJSON("/api/reprocess/preview", selection)
       .done(function (plan) {
         if (form.data("running") || form.serialize() !== selection) return;
-        $("#reprocess-status").text(
-          "Will reapply rules to " +
-            plan.total +
-            " recent items." +
-            (plan["limited?"]
-              ? " More match; only the newest " + plan.limit + " will run."
-              : ""),
-        );
-        $("#reprocess-start").prop("disabled", plan.total === 0);
+        form
+          .find(".reprocess-status")
+          .text(
+            "Will reapply rules to " +
+              plan.total +
+              " recent items." +
+              (plan["limited?"]
+                ? " More match; only the newest " + plan.limit + " will run."
+                : ""),
+          );
+        form.find(".reprocess-start").prop("disabled", plan.total === 0);
       })
       .fail(function (xhr) {
-        $("#reprocess-status").text(
-          xhr.responseJSON?.error || "Could not preview items.",
-        );
+        form
+          .find(".reprocess-status")
+          .text(xhr.responseJSON?.error || "Could not preview items.");
       });
   });
 
-  $(document).on("click", "#reprocess-start", function () {
-    var form = $("#reprocess-form");
+  $(document).on("click", ".reprocess-start", function () {
+    var form = $(this).closest(".reprocess-form");
     var selection = form.serialize();
-    form.data("running", true);
-    form.find(":input").prop("disabled", true);
+    $(".reprocess-form").data("running", true);
+    $(".reprocess-form :input").prop("disabled", true);
     $.post("/api/reprocess", selection)
       .done(poll_reprocess)
       .fail(function (xhr) {
-        form.data("running", false);
-        form.find(":input").prop("disabled", false);
-        $("#reprocess-start").prop("disabled", true);
-        $("#reprocess-status").text(
-          xhr.responseJSON?.error || "Could not start reprocessing.",
-        );
+        $(".reprocess-form").data("running", false);
+        $(".reprocess-form :input").prop("disabled", false);
+        $(".reprocess-start").prop("disabled", true);
+        form
+          .find(".reprocess-status")
+          .text(xhr.responseJSON?.error || "Could not start reprocessing.");
       });
   });
 
@@ -1390,36 +1401,51 @@ $(document).ready(function () {
 
   $(document).on(
     "click",
-    "#sources-datatable .btn-source-details",
+    "#sources-datatable .btn-source-details, #sources-datatable .btn-source-reapply",
     function (event) {
       event.stopPropagation();
       var k = $(this).data("source-key");
-      var toggle = $(this);
+      var reapply = $(this).hasClass("btn-source-reapply");
       var tr = $(this).closest("tr");
+      var toggle = tr.find(".btn-source-details");
       var sources_datatable = datatable_for("#sources-datatable");
       if (!sources_datatable) return;
       var row = sources_datatable.row(tr[0]);
+      if (reapply && row.child.isShown()) {
+        var section = row.child().find(".source-reprocess");
+        if (section.length) {
+          section.prop("open", true);
+          section.find('[name="days"]').trigger("focus");
+        } else {
+          tr.find(".source-action-status")
+            .prop("hidden", false)
+            .text("This source has no post-processing rules.");
+        }
+        return;
+      }
       if (row.child.isShown()) {
         row.child.hide();
         toggle.attr("aria-expanded", "false");
       } else {
         $.ajax({
-          url: "/source-details/" + k,
+          url: "/source-details/" + encodeURIComponent(k),
         })
           .done(function (msg) {
             var details = $("<div>").addClass("source-details-panel");
-            var close = $("<button>")
-              .attr("type", "button")
-              .addClass("btn btn-sm btn-outline-secondary mb-2")
-              .text("Close details")
-              .on("click", function () {
-                row.child.hide();
-                toggle.attr("aria-expanded", "false");
-              });
-            details.append(close, $("<div>").html(msg));
+            details.html(msg);
             row.child(details).show();
             toggle.attr("aria-expanded", "true");
             window.llarValueInspector.mountAll(row.child()[0]);
+            if (reapply) {
+              var section = details.find(".source-reprocess");
+              section.prop("open", true);
+              section.find('[name="days"]').trigger("focus");
+              if (!section.length)
+                tr.find(".source-action-status")
+                  .prop("hidden", false)
+                  .text("This source has no post-processing rules.");
+            }
+            if (details.find(".reprocess-form").length) poll_reprocess();
           })
           .fail(function () {
             row.child("<em>Failed to load details</em>").show();
@@ -1429,20 +1455,28 @@ $(document).ready(function () {
     },
   );
 
+  $(document).on(
+    "click",
+    "#sources-datatable button.dropdown-item",
+    function () {
+      var toggle = $(this)
+        .closest(".dropdown")
+        .find('[data-bs-toggle="dropdown"]')[0];
+      window.bootstrap?.Dropdown.getInstance(toggle)?.hide();
+    },
+  );
+
   $(document).on("click", ".btn-mark-source-read", function () {
     var button = $(this);
     if (button.prop("disabled") || button.data("pending")) return;
-    var panel = button.closest(".source-reader-state");
-    var status = panel.find(".source-reader-state-status");
+    var tr = button.closest("tr");
+    var table = datatable_for("#sources-datatable");
+    var panel = table ? table.row(tr[0]).child() : $();
+    var status = tr.find(".source-action-status");
     var sourceKey = String(button.data("source-key"));
-    var unreadCount = Number(button.data("unread-count")) || 0;
     if (
       !window.confirm(
-        "Mark " +
-          unreadCount +
-          " unread " +
-          (unreadCount === 1 ? "item" : "items") +
-          " from " +
+        "Mark all unread items from " +
           sourceKey +
           " as read? Saved items and reading progress will be preserved.",
       )
@@ -1459,7 +1493,7 @@ $(document).ready(function () {
       .done(function (response) {
         var count = Number(response["affected-count"]) || 0;
         var currentUnread = Number(response["unread-count"]) || 0;
-        panel.find(".source-unread-count strong").text(currentUnread);
+        panel?.find(".source-unread-count strong").text(currentUnread);
         button.data("unread-count", currentUnread);
         status
           .removeClass("text-danger")
