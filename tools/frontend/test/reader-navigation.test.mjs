@@ -28,71 +28,152 @@ test("Mobile article double-tap advances without hijacking controls", async (t) 
     viewport: { width: 390, height: 800 },
     hasTouch: true,
     isMobile: true,
+    reducedMotion: "reduce",
   });
   const page = await context.newPage();
   await page.setContent(`
     <!doctype html>
     <html>
+      <head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
       <body class="llar-reader reader-mode-show-item">
         <main id="reader-main">
-          <div id="item-content-body">
-            <p id="article-copy">Article copy</p>
+          <div id="item-content-body" class="item-content-body">
+            <p id="article-copy" style="height:240px">Article copy</p>
             <a id="article-link" href="#linked">Linked copy</a>
+            <button id="article-button">Action</button>
+            <input id="article-input" aria-label="Article input">
+            ${Array.from({ length: 10 }, (_, i) => `<p style="height:240px">Paragraph ${i}</p>`).join("")}
           </div>
         </main>
       </body>
     </html>
   `);
+  await page.addStyleTag({ path: asset("llar.css") });
   await addScript(page, "jquery", "jquery.min.js");
   await addScript(page, "llar.js");
   await page.waitForFunction(() => readingNavigation.container !== null);
   await page.evaluate(() => {
     window.mobileAdvanceCount = 0;
+    const advance = window.advanceReadingBlock;
     window.advanceReadingBlock = () => {
       window.mobileAdvanceCount += 1;
-      return true;
+      return advance();
     };
   });
 
-  await page.locator("#article-copy").evaluate((element) => {
-    element.dispatchEvent(
-      new PointerEvent("dblclick", {
-        bubbles: true,
-        cancelable: true,
-        pointerType: "touch",
-      }),
-    );
-  });
+  const expectedScroll = await page.evaluate(
+    () =>
+      window.nextReadingTarget().rect.top -
+      window.readingViewport(readingNavigation.container).top,
+  );
+  assert.ok(expectedScroll > 0);
+  await page.touchscreen.tap(100, 100);
+  assert.equal(await page.evaluate(() => window.mobileAdvanceCount), 0);
+  await page.touchscreen.tap(100, 100);
+  assert.equal(await page.evaluate(() => window.mobileAdvanceCount), 1);
+  assert.equal(
+    Math.round(await page.evaluate(() => scrollY)),
+    Math.round(expectedScroll),
+  );
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator("#article-copy").dblclick();
+  for (const selector of [
+    "#article-link",
+    "#article-button",
+    "#article-input",
+  ]) {
+    await page.locator(selector).tap();
+    await page.locator(selector).tap();
+  }
   assert.equal(await page.evaluate(() => window.mobileAdvanceCount), 1);
 
-  await page.locator("#article-copy").evaluate((element) => {
-    element.dispatchEvent(
-      new PointerEvent("dblclick", {
+  // Synthetic touch sequences cover timing and cancellation without sleeps.
+  const touchGestures = await page.evaluate(() => {
+    const target = document.getElementById("article-copy");
+    function touch(type, time, x = 100, count = 1) {
+      const touches = Array.from(
+        { length: count },
+        (_, identifier) =>
+          new Touch({
+            identifier,
+            target,
+            clientX: x + identifier * 10,
+            clientY: 100,
+          }),
+      );
+      const event = new TouchEvent(type, {
         bubbles: true,
         cancelable: true,
-        pointerType: "mouse",
-      }),
-    );
+        touches: type === "touchend" || type === "touchcancel" ? [] : touches,
+        changedTouches: touches,
+      });
+      Object.defineProperty(event, "timeStamp", { value: time });
+      target.dispatchEvent(event);
+    }
+    const gestures = {
+      "slow taps": [
+        ["touchstart", 0],
+        ["touchend", 50],
+        ["touchstart", 500],
+        ["touchend", 550],
+      ],
+      "long press": [
+        ["touchstart", 0],
+        ["touchend", 500],
+        ["touchstart", 550],
+        ["touchend", 600],
+      ],
+      "distant taps": [
+        ["touchstart", 0],
+        ["touchend", 50],
+        ["touchstart", 100, 200],
+        ["touchend", 150, 200],
+      ],
+      "swipe returning to origin": [
+        ["touchstart", 0],
+        ["touchmove", 30, 200],
+        ["touchmove", 40],
+        ["touchend", 50],
+        ["touchstart", 100],
+        ["touchend", 150],
+      ],
+      "canceled tap": [
+        ["touchstart", 0],
+        ["touchend", 50],
+        ["touchstart", 100],
+        ["touchcancel", 120],
+        ["touchstart", 150],
+        ["touchend", 200],
+      ],
+      "multiple fingers": [
+        ["touchstart", 0],
+        ["touchstart", 20, 100, 2],
+        ["touchend", 50],
+        ["touchstart", 100],
+        ["touchend", 150],
+      ],
+    };
+    gestures["double tap without dblclick"] = [
+      ["touchstart", 0],
+      ["touchend", 50],
+      ["touchstart", 100],
+      ["touchend", 150],
+    ];
+    return Object.entries(gestures).map(([name, events]) => {
+      touch("touchcancel", 0);
+      window.mobileAdvanceCount = 0;
+      for (const event of events) touch(...event);
+      return [name, window.mobileAdvanceCount];
+    });
   });
-  await page.locator("#article-link").evaluate((element) => {
-    element.dispatchEvent(
-      new PointerEvent("dblclick", {
-        bubbles: true,
-        cancelable: true,
-        pointerType: "touch",
-      }),
-    );
-  });
-  await page.locator("#article-copy").dispatchEvent("pointerdown", {
-    pointerType: "touch",
-    clientX: 200,
-    clientY: 100,
-  });
-  await page.locator("#article-copy").dispatchEvent("pointerup", {
-    pointerType: "touch",
-    clientX: 100,
-    clientY: 100,
-  });
+  for (const [name, count] of touchGestures) {
+    assert.equal(count, name === "double tap without dblclick" ? 1 : 0, name);
+  }
+
+  await page.evaluate(() => document.body.classList.add("modal-open"));
+  await page.touchscreen.tap(100, 100);
+  await page.touchscreen.tap(100, 100);
   assert.equal(await page.evaluate(() => window.mobileAdvanceCount), 1);
 
   await context.close();

@@ -1351,25 +1351,84 @@ $(function () {
   var container = readingNavigation.container;
   if (!container) return;
 
-  container.addEventListener("dblclick", function (event) {
-    var touchLikePointer = event.pointerType
-      ? event.pointerType !== "mouse"
-      : window.matchMedia &&
-        window.matchMedia("(hover: none) and (pointer: coarse)").matches;
-    var interactiveTarget = event.target.closest(
-      "a, button, input, textarea, select, label, [contenteditable], [role='button']",
-    );
-    if (
-      !touchLikePointer ||
-      interactiveTarget ||
-      $("body").hasClass("modal-open")
-    ) {
-      return;
-    }
+  var tapStart = null;
+  var lastTap = null;
 
-    event.preventDefault();
-    advanceReadingBlock();
-  });
+  function cancelTap() {
+    tapStart = null;
+    lastTap = null;
+  }
+
+  container.addEventListener(
+    "touchstart",
+    function (event) {
+      var interactiveTarget = event.target.closest(
+        "a, button, input, textarea, select, label, audio, video, summary, [contenteditable], [role='button']",
+      );
+      if (
+        event.touches.length !== 1 ||
+        interactiveTarget ||
+        $("body").hasClass("modal-open")
+      ) {
+        cancelTap();
+        return;
+      }
+      tapStart = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+        time: event.timeStamp,
+      };
+    },
+    { passive: true },
+  );
+
+  container.addEventListener(
+    "touchmove",
+    function (event) {
+      if (
+        tapStart &&
+        Math.hypot(
+          event.touches[0].clientX - tapStart.x,
+          event.touches[0].clientY - tapStart.y,
+        ) > 24
+      ) {
+        cancelTap();
+      }
+    },
+    { passive: true },
+  );
+  container.addEventListener("touchcancel", cancelTap);
+
+  // Mobile browsers do not consistently turn two taps into a dblclick.
+  container.addEventListener(
+    "touchend",
+    function (event) {
+      if (
+        !tapStart ||
+        event.touches.length ||
+        event.timeStamp - tapStart.time > 300 ||
+        $("body").hasClass("modal-open")
+      ) {
+        cancelTap();
+        return;
+      }
+      var tap = tapStart;
+      tapStart = null;
+      if (
+        lastTap &&
+        event.timeStamp - lastTap.time <= 350 &&
+        Math.hypot(tap.x - lastTap.x, tap.y - lastTap.y) <= 24
+      ) {
+        lastTap = null;
+        event.preventDefault();
+        advanceReadingBlock();
+      } else {
+        tap.time = event.timeStamp;
+        lastTap = tap;
+      }
+    },
+    { passive: false },
+  );
 });
 
 $(document).ready(function () {
