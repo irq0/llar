@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies: Update JVM libraries, article extraction and browser tooling,
+  DataTables to 3.1.5, yt-dlp, and CI hooks; retain Testcontainers 1.21.4.
+
+### Fixed
+
+- Reader: Correct translucent accent colors that mixed comma-separated RGB
+  variables with slash-separated alpha values.
+- Development: Resolve the shared CSS lint configuration in Stylelint 18 hooks.
+
 ### Removed
 
 - Sources: Remove the legacy `src/twitter-search` and `src/twitter-timeline`

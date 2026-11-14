@@ -79,8 +79,8 @@
                  [org.clojure/tools.reader "1.6.0"]
                  [org.babashka/sci "0.15.59"]
                  [dev.weavejester/medley "1.10.0"]
-                 [com.fasterxml.jackson.core/jackson-databind "2.22.4"]
-                 [org.jsoup/jsoup "1.23.2"]
+                 [com.fasterxml.jackson.core/jackson-databind "2.23.0"]
+                 [org.jsoup/jsoup "1.24.1"]
                  [org.apache.httpcomponents/httpcore "4.4.16"]
                  [org.bouncycastle/bcpkix-jdk18on "1.86"]
                  [org.bouncycastle/bcprov-jdk18on "1.86"]
@@ -88,7 +88,7 @@
                  [javax.activation/activation "1.1.1"]
                  [net.java.dev.jna/jna "5.19.1"]
                  [riddley "0.2.2"]
-                 [cheshire "6.2.0"]
+                 [cheshire "6.2.1"]
                  [bk/ring-gzip "0.3.0"]
                  [org.tukaani/xz "1.12"]
                  [table "0.5.0"]
@@ -107,7 +107,7 @@
                  [commons-io/commons-io "2.22.0"]
                  [com.sun.activation/jakarta.activation "2.0.1"]
                  [com.google.guava/guava "31.1-jre"]
-                 [cider/cider-nrepl "0.63.1"]
+                 [cider/cider-nrepl "0.64.1"]
                  [potemkin "0.4.9" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
                  [nrepl "1.8.0"]
@@ -163,12 +163,12 @@
                  [org.apache.opennlp/opennlp-models-tokenizer-de "1.3.0"]
                  [org.apache.opennlp/opennlp-models-pos-en "1.3.0"]
                  [org.apache.opennlp/opennlp-models-pos-de "1.3.0"]
-                 [org.apache.tika/tika-parsers-standard-package "4.1.0"
+                 [org.apache.tika/tika-parsers-standard-package "4.2.0"
                   :extension "pom"
                   :exclusions [org.bouncycastle/bcpkix-jdk18on org.bouncycastle/bcprov-jdk18on org.bouncycastle/bcutil-jdk18on]]
-                 [org.apache.tika/tika-langdetect-optimaize "4.1.0"]
-                 [org.apache.tika/tika-core "4.1.0" :exclusions [commons-io]]
+                 [org.apache.tika/tika-langdetect-optimaize "4.2.0"]
+                 [org.apache.tika/tika-core "4.2.0" :exclusions [commons-io]]
                  [cc.artifice/clj-ml "0.8.7" :exclusions [org.clojure/data.xml]]
 
                  ;; streaming services
-                 [com.github.TeamNewPipe/NewPipeExtractor "0.26.5"]])
+                 [com.github.TeamNewPipe/NewPipeExtractor "0.27.0"]])

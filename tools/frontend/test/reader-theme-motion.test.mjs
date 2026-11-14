@@ -51,7 +51,7 @@ test("Automatic dark mode keeps Bootstrap and Reader surfaces coherent", async (
   t.after(() => browser.close());
 
   const page = await browser.newPage();
-  await page.emulateMedia({ colorScheme: "dark" });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await renderThemeFixture(page);
 
   const theme = await page.evaluate(() => {
@@ -74,6 +74,7 @@ test("Automatic dark mode keeps Bootstrap and Reader surfaces coherent", async (
       dropdownBackground: style(".dropdown-menu").backgroundColor,
       modalBackground: style(".modal-content").backgroundColor,
       closeFilter: style(".btn-close").filter,
+      checkpointBackground: style(".checkpoint-resume-target").backgroundColor,
     };
   });
 
@@ -91,6 +92,14 @@ test("Automatic dark mode keeps Bootstrap and Reader surfaces coherent", async (
   assert.equal(theme.dropdownBackground, "rgb(32, 34, 32)");
   assert.equal(theme.modalBackground, "rgb(48, 50, 48)");
   assert.notEqual(theme.closeFilter, "none");
+  assert.equal(theme.checkpointBackground, "rgba(242, 113, 28, 0.22)");
+  await page.locator(".form-select").focus();
+  assert.equal(
+    await page
+      .locator(".form-select")
+      .evaluate((element) => getComputedStyle(element).boxShadow),
+    "rgba(242, 113, 28, 0.25) 0px 0px 0px 4px",
+  );
   await page.close();
 });
 

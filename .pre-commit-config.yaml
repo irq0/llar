@@ -20,7 +20,7 @@ repos:
       - id: check-case-conflict
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0494aa7fa1314e98913a41227d8f0a515b2c1049  # frozen: 0.38.2
+    rev: a76b92851fc9eede9f9bc4073eb55202f34eb0df  # frozen: 0.39.0
     hooks:
       - id: check-compose-spec
       - id: check-dependabot
@@ -69,20 +69,22 @@ repos:
         types_or: [css, javascript]
 
   - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: 7ab6b7f5c5befd162fb5ddddc4af4c1b4fbfe11d  # frozen: v10.13.0
+    rev: 28bccd32cd8c825b0d0913b486f8ef0f56bfb08a  # frozen: v10.14.0
     hooks:
     -   id: eslint
         additional_dependencies:
-          - 'eslint@10.13.0'
+          - 'eslint@10.14.0'
           - '@eslint/js@10.0.1'
-          - 'globals@17.13.0'
+          - 'globals@17.14.0'
 
   - repo: https://github.com/thibaudcolas/pre-commit-stylelint
-    rev: a43d64a23287d2dc2e02289bd3b2cb0da5eddfb1  # frozen: v17.16.0
+    rev: e48ba09830adcf6ad3351bde49abdf5b46b13c16  # frozen: v18.0.0
     hooks:
     -   id: stylelint
+        # Stylelint 18 no longer searches the hook's global packages for shared configs.
+        entry: bash -c 'stylelint --config-basedir "$(npm root -g)" "$@"' --
         args: ["--fix"]
-        additional_dependencies: ['stylelint@16.26.1', 'stylelint-config-standard@39.0.1']
+        additional_dependencies: ['stylelint@18.0.0', 'stylelint-config-standard@41.0.0']
 
   - repo: local
     hooks:
