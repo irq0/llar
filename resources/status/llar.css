@@ -75,7 +75,7 @@ body {
   --bs-primary-text-emphasis: #6d2f07;
   --bs-primary-bg-subtle: var(--llar-primary-subtle);
   --bs-primary-border-subtle: #fac09a;
-  --bs-focus-ring-color: rgb(var(--llar-primary-rgb) / 25%);
+  --bs-focus-ring-color: rgb(var(--llar-primary-rgb), 25%);
 
   min-height: 100vh;
   color: var(--llar-ink);
@@ -231,7 +231,7 @@ body {
 .llar-reader .form-select:focus,
 .llar-reader .form-check-input:focus {
   border-color: #f8ae7d;
-  box-shadow: 0 0 0 0.25rem rgb(var(--llar-primary-rgb) / 25%);
+  box-shadow: 0 0 0 0.25rem rgb(var(--llar-primary-rgb), 25%);
 }
 
 .llar-reader :where(a, button, input, select, textarea, summary):focus-visible {
@@ -852,6 +852,7 @@ code,
 kbd,
 samp,
 pre,
+/* stylelint-disable-next-line selector-no-deprecated -- Feed content can contain legacy teletype markup. */
 tt,
 var,
 textarea {
@@ -1472,7 +1473,7 @@ figure {
 
 .reader-search-query-control:focus-within {
   border-color: var(--llar-primary-control);
-  box-shadow: 0 0 0 0.2rem rgb(var(--llar-primary-rgb) / 18%);
+  box-shadow: 0 0 0 0.2rem rgb(var(--llar-primary-rgb), 18%);
 }
 
 .reader-search-submit {
@@ -1595,7 +1596,7 @@ figure {
 
 .reader-search-source:hover,
 .reader-search-source[aria-current="true"] {
-  border-color: rgb(var(--llar-primary-rgb) / 38%);
+  border-color: rgb(var(--llar-primary-rgb), 38%);
   color: var(--llar-primary);
   background: var(--llar-primary-subtle);
 }
@@ -2239,7 +2240,7 @@ figure {
 
 .reader-gem-search-control:focus-within {
   border-color: var(--llar-primary-control);
-  box-shadow: 0 0 0 0.2rem rgb(var(--llar-primary-rgb) / 18%);
+  box-shadow: 0 0 0 0.2rem rgb(var(--llar-primary-rgb), 18%);
 }
 
 .reader-gem-search-submit {
@@ -2326,7 +2327,7 @@ figure {
 }
 
 .reader-gem-topic:hover {
-  border-color: rgb(var(--llar-primary-rgb) / 38%);
+  border-color: rgb(var(--llar-primary-rgb), 38%);
   color: var(--llar-primary);
   background: var(--llar-primary-subtle);
 }
@@ -3599,7 +3600,7 @@ div.item-content-body p > code {
 
 .feed-item a.reader-preview-entity,
 .feed-item a.reader-preview-entity:hover {
-  border-color: rgb(var(--llar-primary-rgb) / 38%);
+  border-color: rgb(var(--llar-primary-rgb), 38%);
   color: var(--llar-primary);
   background: var(--llar-primary-subtle);
 }
@@ -3609,7 +3610,7 @@ div.item-content-body p > code {
 }
 
 .feed-item a.reader-preview-reference:hover {
-  border-color: rgb(var(--llar-link-rgb) / 45%);
+  border-color: rgb(var(--llar-link-rgb), 45%);
   color: rgb(var(--llar-link-hover-rgb));
 }
 
@@ -3835,7 +3836,7 @@ div.item-content-body p > code {
 
 .reader-annotation-note-compose:focus-within {
   border-color: var(--llar-primary-control);
-  box-shadow: 0 0 0 0.18rem rgb(var(--llar-primary-rgb) / 18%);
+  box-shadow: 0 0 0 0.18rem rgb(var(--llar-primary-rgb), 18%);
 }
 
 #annotation-note-input {
@@ -4221,7 +4222,7 @@ div.item-content-body p > code {
 
 .reader-gallery-item-link:focus-visible {
   border-radius: 0.15rem;
-  outline: 2px solid rgb(var(--llar-primary-rgb) / 35%);
+  outline: 2px solid rgb(var(--llar-primary-rgb), 35%);
   outline-offset: 2px;
 }
 
@@ -4405,7 +4406,7 @@ div.item-content-body p > code {
 
 .reader-headline-link:focus-visible {
   border-radius: 0.15rem;
-  outline: 2px solid rgb(var(--llar-primary-rgb) / 35%);
+  outline: 2px solid rgb(var(--llar-primary-rgb), 35%);
   outline-offset: 2px;
 }
 
@@ -4506,7 +4507,7 @@ div.item-content-body p > code {
   gap: var(--llar-space-1);
   align-items: center;
   padding: 0.18rem 0.45rem;
-  border: 1px solid rgb(var(--llar-primary-rgb) / 35%);
+  border: 1px solid rgb(var(--llar-primary-rgb), 35%);
   border-radius: 999px;
   color: var(--llar-primary);
   background: var(--llar-primary-subtle);
@@ -4972,7 +4973,7 @@ table.exception-chain tr {
 }
 
 .checkpoint-resume-target {
-  background-color: rgb(var(--llar-primary-rgb) / 22%);
+  background-color: rgb(var(--llar-primary-rgb), 22%);
   transition: background-color 1.8s ease-out;
 }
 

@@ -178,3 +178,20 @@ test("snapshot replay preserves title, document attributes, and selector context
     assert.equal(replay.textContent, first.textContent);
   }
 });
+
+test("parses the full article without executing inline or blocking external scripts", async () => {
+  const html = `<!doctype html><html><head>
+    <title>Passive article</title>
+    <script src="https://attacker.invalid/blocking.js"></script>
+  </head><body>
+    <script>document.documentElement.textContent = "Page script executed";</script>
+    ${articleBody}
+    <p>End of the complete article.</p>
+  </body></html>`;
+
+  const result = await extract(html, "https://example.com/article");
+
+  assert.match(result.content, /Visible article title/);
+  assert.match(result.content, /End of the complete article/);
+  assert.doesNotMatch(result.content, /Page script executed|<script/i);
+});

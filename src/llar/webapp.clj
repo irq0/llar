@@ -30,7 +30,7 @@
    [:title "500 Internal Server Error"]
    [:link {:rel "stylesheet" :href "/static/bootstrap/css/bootstrap.min.css"}]
    [:link {:rel "stylesheet" :href "/static/ibmplex/Web/css/ibm-plex.min.css"}]
-   [:link {:rel "stylesheet" :href "/static/llar.css?v=inspector-5"}]])
+   [:link {:rel "stylesheet" :href "/static/llar.css?v=colors-1"}]])
 
 (defn- exception-details [request ex]
   [[:h4 "Request"]

@@ -129,6 +129,7 @@ jobs:
           --test-reporter-destination=target/test-results/node.xml \
           tools/readability/test/*.test.js \
           tools/value-inspector/test/*.test.js \
+          tools/test-macos.test.mjs \
           2>&1 | tee target/test-results/node.log
         test_status=${PIPESTATUS[0]}
         set -e
@@ -217,7 +218,7 @@ jobs:
         if-no-files-found: error
         retention-days: 14
     - name: Publish test results
-      uses: EnricoMi/publish-unit-test-result-action@7622c5bf3d112a72ab4fa3951c2aa5723d8ab92d # v2.25.0
+      uses: EnricoMi/publish-unit-test-result-action@da5b7be67623cd59bbbd1a0ce4f022050a55605f # v2.26.0
       if: ${{ !cancelled() }}
       with:
         files: |
@@ -257,7 +258,7 @@ jobs:
         filter: tree:0
 
     - name: Log in to the Container registry
-      uses: docker/login-action@783ae9cac559640a24c9212dfa6cd9e998252f9a
+      uses: docker/login-action@d0b8297dd55199249f38268efae35fcb03f75aab
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -379,7 +380,7 @@ jobs:
     - uses: actions/checkout@v7
 
     - name: Log in to the Container registry
-      uses: docker/login-action@783ae9cac559640a24c9212dfa6cd9e998252f9a
+      uses: docker/login-action@d0b8297dd55199249f38268efae35fcb03f75aab
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -582,7 +583,7 @@ jobs:
       run: sudo apt update && sudo apt-get install -y make libarchive-tools wget
 
     - name: Log in to the Container registry
-      uses: docker/login-action@783ae9cac559640a24c9212dfa6cd9e998252f9a
+      uses: docker/login-action@d0b8297dd55199249f38268efae35fcb03f75aab
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
