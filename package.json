@@ -21,6 +21,6 @@
     "metascraper-url": "^5.58.4"
   },
   "devDependencies": {
-    "playwright": "1.65.0"
+    "playwright": "1.65.1"
   }
 }
