@@ -38,9 +38,18 @@ async function fixture(
   await page.route(`${origin}/reader/**`, (route) => {
     const url = new URL(route.request().url());
     const isItem = url.pathname.includes("/item/by-id/");
-    const listName = url.pathname.replace(/\/item\/by-id\/\d+$/, "/items");
+    const isInspect = url.pathname.endsWith("/dump");
+    const articlePath = url.pathname.replace(/\/dump$/, "");
+    const listName =
+      url.pathname === "/reader/"
+        ? "/reader/group/default/all/source/all/items"
+        : articlePath.replace(/\/item\/by-id\/\d+$/, "/items");
     const itemPrefix = listName.replace(/\/items$/, "/item/by-id/");
-    const currentListPath = listName + url.search;
+    const listQuery = new URLSearchParams(url.search);
+    for (const key of ["range-before", "rank-score", "rank-id", "ranked-at"])
+      listQuery.delete(key);
+    // LLAR's generated list links omit the originating batch cursor.
+    const currentListPath = `${listName}?${listQuery}`;
     const otherFilter = new URLSearchParams(url.search);
     otherFilter.set(
       "filter",
@@ -66,12 +75,14 @@ async function fixture(
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="/static/llar.css">
         <style>body { margin:0 } #top-nav { position:fixed; top:0; height:48px; width:100%; background:white; z-index:1100 }</style>
-      </head><body class="llar-reader reader-mode-${isItem ? "show-item" : "list-items"}">
+      </head><body class="llar-reader reader-mode-${isInspect ? "dump-item" : isItem ? "show-item" : "list-items"}" data-reader-list-url="${currentListPath}">
         <nav id="top-nav"><a id="return-list" href="${currentListPath}">all</a>
+          <a id="skip-content" href="#reader-main">Skip to content</a>
           <a id="different-list" href="/reader/group/default/other/source/all/items">Other list</a>
           <a id="other-filter" href="${listName}?${otherFilter}">Other filter</a>
+          ${isItem ? `<a id="btn-next-item" href="${itemPrefix}${Number(articlePath.split("/").at(-1)) + 1}${url.search}">Next item</a><a id="inspect-item" href="${articlePath}/dump${url.search}">Inspect item</a>` : ""}
           <a class="btn-reload-current-view" href="${currentListPath}">Refresh list</a></nav>
-        <main id="reader-main">${isItem ? '<div id="item-content-body"><p>Article text</p></div>' : rows}</main>
+        <main id="reader-main">${isInspect ? '<div class="reader-inspect-workspace">Inspect item</div>' : isItem ? '<div id="item-content-body"><p>Article text</p><a href="http://[">Malformed source link</a></div>' : rows}</main>
         <script src="/static/jquery/jquery.min.js"></script>
         <script src="/static/llar.js"></script>
       </body></html>`,
@@ -204,11 +215,14 @@ for (const [device, viewport] of [
       "Clicking the originating list name resumes its position",
       async () => {
         const page = await fixture(browser, viewport);
+        const errors = [];
+        page.on("pageerror", (error) => errors.push(error.message));
         try {
           const before = await openFromPosition(page);
           await page.locator("#return-list").click();
           await settle(page);
           samePosition(before, await position(page));
+          assert.deepEqual(errors, []);
         } finally {
           await page.close();
         }
@@ -341,6 +355,119 @@ for (const [device, viewport] of [
         },
       );
     }
+
+    for (const action of ["Reload article", "Next article", "Inspect item"]) {
+      await t.test(
+        `${action} keeps the originating batch and position`,
+        async () => {
+          const page = await fixture(browser, viewport, {
+            list: rankedListPath,
+          });
+          try {
+            const before = await openFromPosition(page, 105);
+            if (action === "Reload article") await page.reload();
+            else if (action === "Inspect item") {
+              await page.locator("#inspect-item").click();
+              await page.locator(".reader-inspect-workspace").waitFor();
+            } else {
+              await page.keyboard.press("n");
+              await page.waitForURL("**/item/by-id/106?*");
+            }
+            await page.locator("#return-list").click();
+            await settle(page);
+            assert.equal(page.url(), before.url);
+            samePosition(before, await position(page, 105));
+          } finally {
+            await page.close();
+          }
+        },
+      );
+    }
+
+    for (const where of ["list", "article", "article then Reload"]) {
+      await t.test(
+        `Skip to content on ${where} preserves the return position`,
+        async () => {
+          const page = await fixture(browser, viewport, {
+            list: rankedListPath,
+          });
+          try {
+            if (where === "list") await page.locator("#skip-content").click();
+            const before = await openFromPosition(page, 105);
+            if (where !== "list") await page.locator("#skip-content").click();
+            if (where === "article then Reload") await page.reload();
+            await page.locator("#return-list").click();
+            await settle(page);
+            assert.equal(page.url(), before.url);
+            samePosition(before, await position(page, 105));
+          } finally {
+            await page.close();
+          }
+        },
+      );
+    }
+
+    await t.test(
+      "The Reader home URL resumes through its canonical list link",
+      async () => {
+        const page = await fixture(browser, viewport, {
+          list: "/reader/?list-style=preview",
+        });
+        try {
+          const before = await openFromPosition(page);
+          await page.locator("#return-list").click();
+          await settle(page);
+          samePosition(before, await position(page));
+        } finally {
+          await page.close();
+        }
+      },
+    );
+
+    await t.test(
+      "An article link to another filter starts that filter at the top",
+      async () => {
+        const page = await fixture(browser, viewport);
+        try {
+          await openFromPosition(page);
+          await page.locator("#other-filter").click();
+          await settle(page);
+          assert.equal(new URL(page.url()).searchParams.get("filter"), "today");
+          assert.equal(await page.evaluate(() => scrollY), 0);
+        } finally {
+          await page.close();
+        }
+      },
+    );
+
+    await t.test(
+      "Blocked session storage keeps Back and Reload usable",
+      async () => {
+        const page = await fixture(browser, viewport);
+        try {
+          await page.addInitScript(() => {
+            Object.defineProperty(window, "sessionStorage", {
+              get() {
+                throw new DOMException("Storage blocked", "SecurityError");
+              },
+            });
+          });
+          await page.reload();
+          const errors = [];
+          page.on("pageerror", (error) => errors.push(error.message));
+          const before = await openFromPosition(page);
+          await page.goBack();
+          await settle(page);
+          samePosition(before, await position(page));
+          await page.reload();
+          await settle(page);
+          samePosition(before, await position(page));
+          assert.deepEqual(errors, []);
+        } finally {
+          await page.close();
+        }
+      },
+    );
 
     await t.test(
       "Filters on the same path retain separate items and positions",

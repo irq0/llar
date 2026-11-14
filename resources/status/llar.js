@@ -112,6 +112,102 @@ function getReadingBlocks(container) {
 // history entry so repeated visits to the same URL retain independent places.
 var readerListPositionStateKey = "llarReaderListPosition";
 var readerListPositionSaveTimer = null;
+var readerListReset = false;
+var readerListOriginKey = "llarReaderListOrigin";
+var readerListTransferKey = "llarReaderListTransfer";
+var readerIsList = document.body.classList.contains("reader-mode-list-items");
+var readerIsItem =
+  !!document.getElementById("item-content-body") ||
+  document.body.classList.contains("reader-mode-dump-item");
+var readerItemListOrigin = null;
+
+function setReaderHistoryState(key, value) {
+  var state = Object.assign({}, window.history.state);
+  state[key] = value;
+  try {
+    window.history.replaceState(state, "");
+  } catch (_error) {
+    // Native browser restoration remains available when history writes fail.
+  }
+}
+
+function readerListContext(href) {
+  var url = new URL(href, window.location.href);
+  ["range-before", "rank-score", "rank-id", "ranked-at"].forEach(
+    function (key) {
+      url.searchParams.delete(key);
+    },
+  );
+  url.hash = "";
+  url.searchParams.sort();
+  return url.href;
+}
+
+// Pass the originating entry through article navigation, without sharing a
+// position between separate visits to the same list URL.
+function transferReaderListOrigin() {
+  if (readerIsList) flushReaderListPositionSave();
+  var state = window.history.state || {};
+  var origin = readerIsList
+    ? {
+        url: window.location.href,
+        context: document.body.dataset.readerListUrl || window.location.href,
+        position: state[readerListPositionStateKey],
+      }
+    : state[readerListOriginKey] || readerItemListOrigin;
+  try {
+    window.sessionStorage.setItem(
+      readerListTransferKey,
+      JSON.stringify({ from: window.location.href, origin: origin }),
+    );
+  } catch (_error) {
+    // Back and Reload still use the current history entry if storage is blocked.
+  }
+}
+
+function receiveReaderListOrigin() {
+  // Reload can snapshot history before pagehide saves the latest scroll position.
+  try {
+    var transfer = JSON.parse(
+      window.sessionStorage.getItem(readerListTransferKey),
+    );
+    window.sessionStorage.removeItem(readerListTransferKey);
+    if (
+      transfer &&
+      (transfer.from.split("#")[0] === document.referrer ||
+        (readerListPageNavigationType === "reload" &&
+          transfer.from === window.location.href)) &&
+      transfer.origin &&
+      new URL(transfer.origin.url).origin === window.location.origin
+    ) {
+      var origin = transfer.origin;
+      if (readerIsItem && !window.history.state?.[readerListOriginKey]) {
+        setReaderHistoryState(readerListOriginKey, origin);
+      } else if (
+        readerIsList &&
+        ["navigate", "reload"].includes(readerListPageNavigationType) &&
+        origin.url === window.location.href
+      ) {
+        setReaderHistoryState(readerListPositionStateKey, origin.position);
+      }
+    }
+  } catch (_error) {
+    // Navigation must also work when session storage is unavailable.
+  }
+  // Fragment links create history entries without state; keep the document's origin.
+  var savedOrigin = window.history.state?.[readerListOriginKey];
+  readerItemListOrigin = savedOrigin;
+  if (!readerIsItem || !savedOrigin) return;
+  document
+    .querySelectorAll("#top-nav a[href], #groupnav a[href], #sourcenav a[href]")
+    .forEach(function (link) {
+      if (
+        readerListContext(link.href) === readerListContext(savedOrigin.context)
+      ) {
+        link.href = savedOrigin.url;
+      }
+    });
+}
 
 function readerListItems() {
   return Array.from(
@@ -122,6 +218,7 @@ function readerListItems() {
 }
 
 function saveReaderListPosition() {
+  if (readerListReset) return;
   var items = readerListItems();
   var firstVisibleIndex = items.findIndex(function (item) {
     return item.getBoundingClientRect().bottom > 0;
@@ -132,24 +229,10 @@ function saveReaderListPosition() {
     return { id: item.id, top: item.getBoundingClientRect().top };
   });
 
-  var currentState = window.history.state;
-  var nextState =
-    currentState &&
-    typeof currentState === "object" &&
-    !Array.isArray(currentState)
-      ? Object.assign({}, currentState)
-      : {};
-  nextState[readerListPositionStateKey] = {
+  setReaderHistoryState(readerListPositionStateKey, {
     anchors: anchors,
     scrollY: window.scrollY,
-  };
-
-  try {
-    window.history.replaceState(nextState, "");
-  } catch (_error) {
-    // History state can be unavailable without making Reader navigation
-    // unusable; native browser restoration remains as the fallback.
-  }
+  });
 }
 
 function scheduleReaderListPositionSave() {
@@ -188,6 +271,8 @@ function handleReaderListLinkActivation(event) {
   // Reload is an action, not a new destination. Keep the current history
   // entry so Back leaves this view instead of visiting an older copy of it.
   event.preventDefault();
+  readerListReset = true;
+  setReaderHistoryState(readerListPositionStateKey, null);
   if ("scrollRestoration" in window.history) {
     window.history.scrollRestoration = "manual";
   }
@@ -207,7 +292,12 @@ function restoreReaderListPosition() {
   });
   if (anchor) {
     var item = document.getElementById(anchor.id);
-    window.scrollBy(0, item.getBoundingClientRect().top - anchor.top);
+    var toolbar = document.getElementById("top-nav");
+    var top =
+      anchor === saved.anchors[0]
+        ? anchor.top
+        : Math.max(0, toolbar ? toolbar.getBoundingClientRect().bottom : 0);
+    window.scrollBy(0, item.getBoundingClientRect().top - top);
   } else if (Number.isFinite(saved.scrollY)) {
     window.scrollTo(0, saved.scrollY);
   }
@@ -228,19 +318,16 @@ function scheduleReaderListScroll(callback) {
 }
 
 var readerListPageNavigationType = readerListNavigationType();
+if (readerIsList || readerIsItem) {
+  receiveReaderListOrigin();
+  window.addEventListener("pagehide", transferReaderListOrigin);
+}
 
-if (document.body.classList.contains("reader-mode-list-items")) {
-  if (
-    readerListPageNavigationType === "reload" &&
-    "scrollRestoration" in window.history
-  ) {
-    window.history.scrollRestoration = "manual";
-  }
+if (readerIsList) {
   window.addEventListener("scroll", scheduleReaderListPositionSave, {
     passive: true,
   });
   window.addEventListener("resize", scheduleReaderListPositionSave);
-  window.addEventListener("pagehide", flushReaderListPositionSave);
   document.addEventListener("click", handleReaderListLinkActivation, true);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") {
@@ -249,10 +336,10 @@ if (document.body.classList.contains("reader-mode-list-items")) {
   });
 }
 
-window.addEventListener("pageshow", function (event) {
+window.addEventListener("pageshow", function () {
   if (!document.body.classList.contains("reader-mode-list-items")) return;
 
-  if (event.persisted || readerListPageNavigationType === "back_forward") {
+  if (window.history.state?.[readerListPositionStateKey]) {
     scheduleReaderListScroll(restoreReaderListPosition);
   } else {
     window.scrollTo(0, 0);

@@ -2098,6 +2098,19 @@
         (is (= :focus-item (:mode @captured)))
         (is (= 42 (:item-id @captured)))))))
 
+(deftest inspect-route-preserves-list-style
+  (let [captured (atom nil)]
+    (with-redefs [uut/reader-index (fn [params]
+                                     (reset! captured params)
+                                     {:status 200 :body "inspect"})]
+      (let [response (uut/app {:request-method :get
+                               :uri "/reader/group/default/all/source/all/item/by-id/42/dump"
+                               :params {:list-style "gallery" :filter "unread" :sort-order "oldest"}})]
+        (is (= 200 (:status response)))
+        (is (= {:mode :dump-item :item-id 42 :list-style :gallery
+                :filter :unread :sort-order :oldest}
+               (select-keys @captured [:mode :item-id :list-style :filter :sort-order])))))))
+
 (deftest search-headline-renders-markers-as-mark-elements
   (is (= [:span "foo " [:mark "bar"] " baz"]
          (#'uut/render-search-headline "foo [[[bar]]] baz")))

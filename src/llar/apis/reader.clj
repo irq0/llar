@@ -877,7 +877,7 @@
             [:a (cond-> {:class (str "nav-link" (when (and (not (get +filter-overrides+ (:group-item x)))
                                                            (= (:filter x) k))
                                                   " active"))
-                         :href (make-site-href [(:uri x)] {:filter k} x)}
+                         :href (make-site-href (reader/items-path x) {:filter k} x)}
                   (and (not (get +filter-overrides+ (:group-item x)))
                        (= (:filter x) k)) (assoc :aria-current "page"))
              (sidebar-link-content ico name)]])])
@@ -3306,7 +3306,8 @@
                           (reading-viewport-overlay (first (:items params))))]
     (html5
      (html-header title (:mode params) (first (:items params)))
-     [:body {:class (str "llar-reader reader-mode-" (name (:mode params)))}
+     [:body {:class (str "llar-reader reader-mode-" (name (:mode params)))
+             :data-reader-list-url (make-site-href (reader/items-path params) params)}
       (concat
        [(reader-skip-link) nav-bar (reader-global-status)]
        [reading-overlay]
@@ -5249,6 +5250,7 @@
                                  :source-key source-key
                                  :item-id item-id
                                  :mode :dump-item
+                                 :list-style (as-keyword (get-in req [:params :list-style]))
                                  :sort-order (as-keyword (get-in req [:params :sort-order]))}
                                 (request-rank-context req item-id))))))
 
