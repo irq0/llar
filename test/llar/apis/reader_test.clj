@@ -1305,6 +1305,10 @@
                                 {:uri "/reader/item/by-id/42"
                                  :items [item]})))
           overlay (str (h/html (uut/reading-viewport-overlay item)))
+          focus-article (str (h/html (uut/main-show-item
+                                      {:mode :focus-item
+                                       :uri "/reader/item/by-id/42/focus"
+                                       :items [item]})))
           focus-shell (str (#'uut/render-reader-shell
                             {:mode :focus-item :items [item]}
                             [:main "article"]
@@ -1317,6 +1321,9 @@
       (is (re-find #"class=\"reader-item-toolbar\"" article))
       (is (re-find #"class=\"reader-item-meta\"" article))
       (is (re-find #"class=\"reader-item-document-actions\"" article))
+      (is (not (string/includes? article "btn-annotation-mode")))
+      (is (re-find #"reader-item-document-actions[^>]*>\s*<a[^>]*aria-pressed=\"false\"[^>]*btn-annotation-mode"
+                   focus-article))
       (is (re-find #"id=\"item-more-menu\"" article))
       (is (re-find #">Inspect item</span>" article))
       (is (re-find #">Raw extracted HTML</span>" article))

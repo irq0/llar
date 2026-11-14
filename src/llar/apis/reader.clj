@@ -1582,6 +1582,8 @@
        [:div {:class "reader-item-document-actions"
               :role "group"
               :aria-label "Document actions"}
+        (when (= :focus-item (:mode x))
+          (annotation-button))
         (external-link-button url "_blank")
         (related-button x item)]
        (item-more-menu x item)]]
