@@ -35,8 +35,11 @@
  get-items-ranked-bounded
  get-item-by-id
  get-item-id-by-hash
+ get-reprocess-item-ids
  store-item
  store-item-data
+ replace-item-content
+ delete-item-content-data
  get-sources
  resolve-source-keys-to-ids
  set-tags
