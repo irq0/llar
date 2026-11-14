@@ -1046,7 +1046,7 @@ function nextVerticalReadingTarget(container, blocks) {
       if (rect.top <= viewport.top + 2 && rect.bottom > viewport.bottom + 2) {
         return {
           axis: "vertical",
-          block: null,
+          block: block,
           rect: { top: viewport.bottom },
           beyondViewport: true,
           fallback: true,
@@ -1212,13 +1212,22 @@ function refreshReadingBlocks() {
 function showReadingLanding(block) {
   var marker = document.querySelector(".reading-step-landing");
   if (!marker) return;
+  if (readingNavigation.landingBlock) {
+    readingNavigation.landingBlock.classList.remove("reading-landing-target");
+  }
+  if (block) {
+    // Restart the highlight when another step lands within the same long block.
+    void block.offsetWidth;
+    block.classList.add("reading-landing-target");
+  }
   readingNavigation.landingBlock = block;
   marker.classList.add("is-visible");
   clearTimeout(readingNavigation.landingTimer);
   readingNavigation.landingTimer = setTimeout(function () {
     marker.classList.remove("is-visible");
+    if (block) block.classList.remove("reading-landing-target");
     readingNavigation.landingBlock = null;
-  }, 1500);
+  }, 2000);
   requestReadingNavigationUpdate();
 }
 

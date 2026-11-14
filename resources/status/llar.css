@@ -4884,6 +4884,24 @@ table.exception-chain tr {
   opacity: 0.6;
 }
 
+.reading-landing-target {
+  animation: reading-landing-highlight 2s ease-out;
+}
+
+@keyframes reading-landing-highlight {
+  0%,
+  50% {
+    background-color: rgb(var(--llar-primary-rgb), 22%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-landing-target {
+    background-color: rgb(var(--llar-primary-rgb), 22%) !important;
+    animation: none;
+  }
+}
+
 .reading-checkpoint-tools {
   position: absolute;
   right: 0.75rem;

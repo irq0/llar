@@ -179,6 +179,111 @@ test("Mobile article double-tap advances without hijacking controls", async (t) 
   await context.close();
 });
 
+test("Reading steps highlight the landing block, restart, and clear it", async (t) => {
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  t.after(() => browser.close());
+
+  for (const reducedMotion of ["no-preference", "reduce"]) {
+    const page = await browser.newPage({
+      viewport: { width: 390, height: 400 },
+      reducedMotion,
+      colorScheme: reducedMotion === "reduce" ? "dark" : "light",
+    });
+    await page.setContent(`
+      <body class="llar-reader">
+        <div id="item-content-body" class="item-content-body">
+          <p id="long" style="height:1200px">A paragraph taller than the screen.</p>
+          <p id="next" style="height:240px; background:var(--llar-surface-raised)">The next paragraph.</p>
+          <p style="height:800px">More text.</p>
+        </div>
+        <div class="reading-step-rail">
+          <span class="reading-step-indicator reading-step-next"></span>
+          <span class="reading-step-indicator reading-step-landing"></span>
+        </div>
+      </body>
+    `);
+    await page.addStyleTag({ path: asset("llar.css") });
+    await addScript(page, "jquery", "jquery.min.js");
+    await addScript(page, "llar.js");
+    await page.waitForFunction(() => readingNavigation.container !== null);
+
+    await page.keyboard.press("Space");
+    assert.equal(await page.locator("#long.reading-landing-target").count(), 1);
+    assert.equal(
+      await page
+        .locator("#long")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      "rgba(242, 113, 28, 0.22)",
+    );
+    if (reducedMotion === "no-preference") {
+      await page.locator("#long").evaluate((el) => {
+        el.getAnimations()[0].currentTime = 700;
+      });
+    } else {
+      assert.equal(
+        await page
+          .locator("#long")
+          .evaluate((el) => getComputedStyle(el).animationName),
+        "none",
+      );
+    }
+
+    await page.keyboard.press("Space");
+    assert.equal(await page.locator("#long.reading-landing-target").count(), 1);
+    if (reducedMotion === "no-preference") {
+      assert.ok(
+        await page
+          .locator("#long")
+          .evaluate((el) => el.getAnimations()[0].currentTime < 700),
+      );
+    }
+
+    const originalBackground = await page
+      .locator("#next")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const originalHeight = await page
+      .locator("#next")
+      .evaluate((el) => el.offsetHeight);
+    await page.evaluate(() =>
+      window.scrollTo({ top: 900, behavior: "instant" }),
+    );
+    await page.keyboard.press("Space");
+    assert.equal(await page.locator("#long.reading-landing-target").count(), 0);
+    assert.equal(await page.locator("#next.reading-landing-target").count(), 1);
+    assert.equal(
+      await page
+        .locator("#next")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      "rgba(242, 113, 28, 0.22)",
+    );
+    assert.equal(
+      await page.locator("#next").evaluate((el) => el.offsetHeight),
+      originalHeight,
+    );
+    if (reducedMotion === "no-preference") {
+      const fadingBackground = await page.locator("#next").evaluate((el) => {
+        el.getAnimations()[0].currentTime = 1500;
+        return getComputedStyle(el).backgroundColor;
+      });
+      assert.notEqual(fadingBackground, "rgba(242, 113, 28, 0.22)");
+      assert.notEqual(fadingBackground, originalBackground);
+    }
+    await page.waitForFunction(
+      () => !document.querySelector(".reading-landing-target"),
+    );
+    assert.equal(
+      await page
+        .locator("#next")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      originalBackground,
+    );
+    await page.close();
+  }
+});
+
 test("Mobile drawers move and restore keyboard focus", async (t) => {
   const browser = await chromium.launch({
     channel: browserChannel,
