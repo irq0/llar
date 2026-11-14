@@ -22,6 +22,44 @@
 ;;;; Update - Combines fetch and persistency with additional state management
 ;;;; Source state is managed in the core/state atom.
 
+(defn- reprocess-stored-item!
+  "Caller holds the source reservation. Reload after admission to avoid stale writes."
+  [item-id expected-source-key]
+  (pool/call-on
+   pool/item-pool
+   (fn []
+     (let [stored (persistency/get-item-by-id store/backend-db item-id)
+           source-key (some-> stored :source-key keyword)
+           source (config/get-source source-key)]
+       (when-not stored
+         (throw (ex-info "Item not found" {:status 404})))
+       (when-not (= expected-source-key source-key)
+         (throw (ex-info "Item source changed; retry reprocessing" {:status 409})))
+       (when-not (seq (get-in source [:proc :post]))
+         (throw (ex-info "Source has no configured post-processing rules" {:status 422})))
+       (let [item {:type (:type stored) :hash (:hash stored)
+                   :meta (assoc (fetch/make-meta (:src source))
+                                :source-key source-key :tags (set (map keyword (:tags stored))))
+                   :summary {:ts (:ts stored) :title (:title stored)}
+                   :entry (merge (:entry stored)
+                                 {:contents (get-in stored [:data :content])
+                                  :descriptions (get-in stored [:data :description])
+                                  :source-snapshot (get-in stored [:data :source-snapshot])
+                                  :nlp {:nwords (:nwords stored) :urls (:urls stored)
+                                        :names (:names stored) :nouns (:nouns stored)
+                                        :verbs (:verbs stored) :top (:top-words stored)}})}
+             processed ((apply comp (get-in source [:proc :post])) item)]
+         (when-not (and (map? processed) (map? (:entry processed))
+                        (= (select-keys item [:hash :type]) (select-keys processed [:hash :type]))
+                        (= source-key (get-in processed [:meta :source-key])))
+           (throw (ex-info "Post-processing must return the same item" {:status 422})))
+         (or (persistency/replace-item-content!
+              store/backend-db item-id
+              (cond-> processed
+                (get-in item [:entry :source-snapshot])
+                (update :entry merge (select-keys (:entry item) [:source-snapshot :source-snapshot-url]))))
+             (throw (ex-info "Item no longer exists" {:status 404}))))))))
+
 (defonce prom-registry
   (-> metrics/prom-registry
       (prometheus/register
@@ -407,6 +445,64 @@
 
 (defn reset-in-flight! []
   (reset! in-flight {}))
+
+(defn reprocess-item!
+  "Reapply configured :post rules under the source reservation. No refetch or ingestion filters.
+  Identity and user state are preserved; upstream :raw data is unavailable."
+  [item-id]
+  (if-let [stored (persistency/get-item-by-id store/backend-db item-id)]
+    (let [source-key (keyword (:source-key stored))]
+      (if-let [token (reserve! source-key)]
+        (try
+          (reprocess-stored-item! item-id source-key)
+          (finally (release! source-key token)))
+        (throw (ex-info "This source is currently updating" {:status 409}))))
+    (throw (ex-info "Item not found" {:status 404}))))
+
+(defonce reprocess-state (atom {:status :idle}))
+
+(defn reprocess-plan [source-key days limit]
+  (when-not (and (integer? days) (<= 1 days 365)
+                 (integer? limit) (<= 1 limit 500))
+    (throw (ex-info "Use 1–365 days and 1–500 items" {:status 400})))
+  (when-not (seq (get-in (config/get-source source-key) [:proc :post]))
+    (throw (ex-info "Source has no configured post-processing rules" {:status 422})))
+  (let [since (time/minus (time/zoned-date-time) (time/days days))
+        ids (persistency/get-reprocess-item-ids store/backend-db source-key since (inc limit))]
+    {:source-key source-key :days days :limit limit
+     :item-ids (vec (take limit ids)) :total (min limit (count ids))
+     :limited? (> (count ids) limit)}))
+
+(defn start-reprocess! [source-key days limit]
+  (let [plan (reprocess-plan source-key days limit)
+        before @reprocess-state
+        job (assoc (dissoc plan :item-ids) :status :running :completed 0)]
+    (when (or (= :running (:status before))
+              (not (compare-and-set! reprocess-state before job)))
+      (throw (ex-info "A reprocessing job is already running" {:status 409})))
+    (if-let [token (reserve! source-key)]
+      (try
+        ;; shortcut: jobs live in memory and stop on restart; committed items remain updated.
+        (future
+          (try
+            (work/with-work {:kind :source :source source-key :stage :reprocess}
+              (doseq [id (:item-ids plan)]
+                (swap! reprocess-state assoc :item-id id)
+                (reprocess-stored-item! id source-key)
+                (swap! reprocess-state update :completed inc))
+              (swap! reprocess-state assoc :status :complete))
+            (catch Throwable ex
+              (log/error ex "Stored item reprocessing failed" source-key)
+              (swap! reprocess-state assoc :status :failed))
+            (finally (release! source-key token))))
+        job
+        (catch Exception ex
+          (release! source-key token)
+          (reset! reprocess-state before)
+          (throw ex)))
+      (do
+        (reset! reprocess-state before)
+        (throw (ex-info "This source is currently updating" {:status 409}))))))
 
 (defn- assert-updateable! [k]
   (when (nil? (config/get-source k))

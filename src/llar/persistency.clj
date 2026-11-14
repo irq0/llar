@@ -16,7 +16,9 @@
   (to-couch [item] "Convert item to database form"))
 
 (defprotocol ItemPersistency
-  (store-item! [this item args]))
+  (store-item! [this item args])
+  (replace-item-content! [this item-id item]
+    "Replace content and derived metadata in place; preserve identity, source, and user state."))
 
 (defprotocol ItemTagsPersistency
   (item-set-tags! [this item-id tags])
@@ -45,6 +47,8 @@
 
 (defprotocol ItemQueries
   (get-item-id-by-hash [this hash])
+  (get-reprocess-item-ids [this source-key since limit]
+    "Newest stored item IDs for one source since a timestamp, bounded by limit.")
   (get-items-recent [this args]
     "get-items-recent returns :limit recent items, optionally
     offsetted with :before {:ts :id} to implement pagination.

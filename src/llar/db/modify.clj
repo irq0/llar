@@ -57,37 +57,37 @@
     (> (count authors) 3) (str (first authors) " et al.")
     :else (string/join "; " authors)))
 
+(defn- item-content-params [item]
+  (let [{:keys [summary entry]} item
+        nlp (:nlp entry)]
+    {:title (:title summary)
+     :author (simplify-author (:authors entry))
+     :nlp-nwords (or (:nwords nlp) -1)
+     :nlp-urls (sanitize-search-lexemes item :urls (:urls nlp))
+     :nlp-names (sanitize-search-lexemes item :names (:names nlp))
+     :nlp-nouns (sanitize-search-lexemes item :nouns (:nouns nlp))
+     :nlp-verbs (sanitize-search-lexemes item :verbs (:verbs nlp))
+     :nlp-top (or (:top nlp) {})
+     :entry (apply dissoc entry (cons :nlp (keys item-data-table-entries)))}))
+
 (defn store-item-without-data!
-  "store-item! persists item to the database, without data attachment like
-  contents and descriptions. Return {:id .. :hash .. } or nil if the item
-  already exists. Setting the optional overwrite? flag to true overwrites the
-  database row in case of an item hash collision."
+  "Store item metadata, optionally overwriting an existing hash."
   [db item {:keys [overwrite?]}]
-  (let [{:keys [meta feed summary entry]} item
-        nlp (get-in item [:entry :nlp])]
+  (let [{:keys [meta feed summary]} item]
     (first
      (sql/store-item
       db
-      {:source {:name (:source-name meta)
-                :key (name (:source-key meta))
-                :type (keyword "item_type" (name (:type item)))
-                :data (select-keys
-                       feed [:feed-type :language :title :url])}
-       :hash (:hash item)
-       :ts (or (:ts summary) (time/zoned-date-time))
-       :title (:title summary)
-       :author (simplify-author (:authors entry))
-       :type (keyword "item_type" (name (:type item)))
-       :tags (into [] (tags/normalize-tags (or (:tags meta) [])))
-       :nlp-nwords (or (:nwords nlp) -1)
-       :nlp-urls (sanitize-search-lexemes item :urls (:urls nlp))
-       :nlp-names (sanitize-search-lexemes item :names (:names nlp))
-       :nlp-nouns (sanitize-search-lexemes item :nouns (:nouns nlp))
-       :nlp-verbs (sanitize-search-lexemes item :verbs (:verbs nlp))
-       :nlp-top (or (:top nlp) {})
-       :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
-                        (sql/conflict-items-ignore-dupe-snip))
-       :entry (apply dissoc entry (concat [:nlp] (map first item-data-table-entries)))}))))
+      (merge (item-content-params item)
+             {:source {:name (:source-name meta)
+                       :key (name (:source-key meta))
+                       :type (keyword "item_type" (name (:type item)))
+                       :data (select-keys feed [:feed-type :language :title :url])}
+              :hash (:hash item)
+              :ts (or (:ts summary) (time/zoned-date-time))
+              :type (keyword "item_type" (name (:type item)))
+              :tags (into [] (tags/normalize-tags (or (:tags meta) [])))
+              :on-conflict (if overwrite? (sql/conflict-items-overwrite-snip)
+                               (sql/conflict-items-ignore-dupe-snip))})))))
 
 (defn store-item-data!
   "store-item-data! persists item data as rows in the item_data table. See
@@ -136,7 +136,14 @@
 (extend-protocol
  ItemPersistency
   PostgresqlDataStore
-  (store-item! [this item args] (store-item-and-data! this item args)))
+  (store-item! [this item args] (store-item-and-data! this item args))
+  (replace-item-content! [this item-id item]
+    (jdbc/with-transaction [tx (:datasource this)]
+      (when-let [stored (first (sql/replace-item-content
+                                tx (assoc (item-content-params item) :item-id item-id)))]
+        (sql/delete-item-content-data tx {:item-id item-id})
+        (store-item-data! tx item-id item)
+        stored))))
 
 ;; ----------
 

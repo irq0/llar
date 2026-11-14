@@ -317,7 +317,7 @@
     (is (string/includes? body "/static/datatables/dataTables.min.js?v=3.1.4"))
     (is (string/includes? body "/static/datatables/dataTables.bootstrap5.min.js?v=3.1.4"))
     (is (not (string/includes? body "/static/datatables/jquery.dataTables.min.js")))
-    (is (string/includes? body "/static/llar-status.js?v=podcast-actions-1"))
+    (is (string/includes? body "/static/llar-status.js?v=reprocess-1"))
     (is (string/includes? javascript "DataTable.isDataTable"))
     (is (string/includes? javascript "new DataTable"))
     (is (not (re-find #"[.$]DataTable\(" javascript)))))
@@ -620,3 +620,25 @@
       (finally
         (work/unregister! work-id)
         (resources/unregister! resources/resources :pinned-pool)))))
+
+(deftest reprocess-dashboard-validates-limits-and-keeps-preview-read-only
+  (with-redefs [config/get-sources (constantly {:newsletter {:proc {:post [identity]}}})]
+    (let [html (str (h/html (uut/source-tab)))]
+      (is (string/includes? html "Reapply rules to stored items"))
+      (is (string/includes? html "value=\"30\""))
+      (is (string/includes? html "value=\"100\""))
+      (is (string/includes? html "value=\"newsletter\""))))
+  (let [calls (atom [])
+        plan {:source-key :newsletter :item-ids [3 2] :total 2}]
+    (with-redefs [update/reprocess-plan (fn [& args] (swap! calls conj [:preview args]) plan)
+                  update/start-reprocess! (fn [& args] (swap! calls conj [:start args]) {:status :running})]
+      (doseq [[method uri status] [[:get "/api/reprocess/preview" 200] [:post "/api/reprocess" 202]]]
+        (let [response (uut/app {:request-method method :uri uri
+                                 :params {:source-key "newsletter" :days "30" :limit "100"}})]
+          (is (= status (:status response)))
+          (is (not (contains? (:body response) :item-ids)))))
+      (is (= [[:preview [:newsletter 30 100]] [:start [:newsletter 30 100]]] @calls))))
+  (doseq [params [{:days "0" :limit "100"} {:days "30" :limit "501"} {:days ["30"] :limit "100"}]]
+    (is (= 400 (:status (uut/reprocess-response params false)))))
+  (with-redefs [update/start-reprocess! (fn [& _] (throw (ex-info "Already running" {:status 409})))]
+    (is (= 409 (:status (uut/reprocess-response {} true))))))

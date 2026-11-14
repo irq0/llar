@@ -326,6 +326,49 @@
                                       {:builder-fn rs/as-unqualified-lower-maps})]
           (is (empty? orphaned) "Should have no orphaned item_data entries"))))))
 
+(deftest replace-content-preserves-source-and-user-state-and-rolls-back-on-failure
+  (let [item {:type :feed :hash (str "SHA-256:" (apply str (repeat 64 "c")))
+              :meta {:source-key :example :source-name "Example" :tags #{:saved}}
+              :feed {:title "Source metadata" :url "https://example.com/feed"}
+              :summary {:title "Before" :ts (time/zoned-date-time)}
+              :entry {:contents {"text/html" "<p>Before</p>" "text/plain" "Before"}}}
+        id (get-in (persistency/store-item! *test-db* item {}) [:item :id])
+        _ (persistency/transition-item-state! *test-db* id {:action :save-checkpoint :selector {:quote {:exact "Before"}} :progress 0.4})
+        ann (persistency/create-annotation! *test-db* id {:quote {:exact "Before"}} "Note")
+        before (persistency/get-item-by-id *test-db* id)
+        source-before (jdbc/execute! *test-db* ["select * from sources where key = 'example'"])
+        replacement (-> item
+                        (assoc :type :mail :hash "should-not-change")
+                        (assoc :meta {:source-key :wrong-source :tags #{:unread}})
+                        (assoc :summary {:title "After" :ts (time/minus (time/zoned-date-time) (time/days 90))})
+                        (assoc :entry {:authors ["Ada"] :nlp {:nwords 1}
+                                       :source-snapshot (get-in item [:entry :contents])
+                                       :contents {"text/plain" "After"}}))]
+    (is (= id (:id (persistency/replace-item-content! *test-db* id replacement))))
+    (let [after (persistency/get-item-by-id *test-db* id)
+          preserved [:id :hash :feed_id :source-key :ts :type :tags
+                     :checkpoint-selector :checkpoint-progress :checkpoint-updated-ts]]
+      (is (= (select-keys before preserved) (select-keys after preserved)))
+      (is (= "After" (:title after)))
+      (is (= 1 (:nwords after)))
+      (is (= {"text/plain" "After"} (get-in after [:data :content])))
+      (is (= (get-in item [:entry :contents]) (get-in after [:data :source-snapshot])))
+      (is (= [(:id ann)] (mapv :id (persistency/get-annotations *test-db* id))))
+      (is (= source-before (jdbc/execute! *test-db* ["select * from sources where key = 'example'"])))
+      (with-redefs [llar.db.modify/store-item-data! (fn [& _] (throw (ex-info "Write failed" {})))]
+        (is (thrown? clojure.lang.ExceptionInfo (persistency/replace-item-content! *test-db* id item))))
+      (is (= after (persistency/get-item-by-id *test-db* id))))))
+
+(deftest reprocess-selection-obeys-source-date-and-limit
+  (let [now (time/zoned-date-time)
+        old (:id (create-test-item *test-db* :src-name "selected" :hash "old" :ts (time/minus now (time/days 31))))
+        recent (:id (create-test-item *test-db* :src-name "selected" :hash "recent" :ts (time/minus now (time/days 2))))
+        newest (:id (create-test-item *test-db* :src-name "selected" :hash "newest" :ts now))]
+    (create-test-item *test-db* :src-name "other" :hash "other" :ts now)
+    (is (= [newest recent] (persistency/get-reprocess-item-ids *test-db* :test-selected (time/minus now (time/days 30)) 100)))
+    (is (= [newest] (persistency/get-reprocess-item-ids *test-db* :test-selected (time/minus now (time/days 30)) 1)))
+    (is (= [newest recent old] (persistency/get-reprocess-item-ids *test-db* :test-selected (time/minus now (time/days 40)) 100)))))
+
 (deftest fresh-captures-replace-or-remove-the-previous-snapshot
   (let [item {:type :feed :hash (str "SHA-256:" (apply str (repeat 64 "d")))
               :meta {:source-key :snapshot-test :source-name "Snapshot test" :tags #{:saved}}

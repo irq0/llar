@@ -26,6 +26,14 @@ group by items.source_id
 -- :name get-item-id-by-hash :? :1
 select id from items where hash = :hash
 
+-- :name get-reprocess-item-ids :? :*
+select items.id
+from items
+where source_id = (select id from sources where key = :source-key)
+  and ts >= :since
+order by ts desc, id desc
+limit :limit
+
 -- :name get-items-by-tag :? :*
 select key, title, author, items.type, items.id, entry
 from items inner join sources

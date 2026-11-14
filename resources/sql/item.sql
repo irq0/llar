@@ -94,5 +94,19 @@ on conflict on constraint item_data_mime_type_type_item_id_key do update set
   data = excluded.data
 returning id, mime_type, type, data is not null as is_binary
 
+-- :name replace-item-content :i! :*
+update items set
+  title = :title,
+  author = :author,
+  nlp_nwords = :nlp-nwords,
+  nlp_urls = :nlp-urls,
+  nlp_names = :nlp-names,
+  nlp_nouns = :nlp-nouns,
+  nlp_verbs = :nlp-verbs,
+  nlp_top = :nlp-top,
+  entry = :entry
+where id = :item-id
+returning id, hash
+
 -- :name delete-item-content-data :! :n
 delete from item_data where item_id = :item-id and type in ('content', 'description', 'source-snapshot')

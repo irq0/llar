@@ -62,7 +62,7 @@
    [:script {:src "/static/datatables/dataTables.min.js?v=3.1.4"}]
    [:script {:src "/static/datatables/dataTables.bootstrap5.min.js?v=3.1.4"}]
    [:script {:src "/static/llar-value-inspector.js?v=clojure-3"}]
-   [:script {:src "/static/llar-status.js?v=podcast-actions-1"}]])
+   [:script {:src "/static/llar-status.js?v=reprocess-1"}]])
 
 (defn wrap-body [body]
   (str
@@ -134,6 +134,28 @@
 
 (defn source-tab []
   [:div
+   [:details.mb-3
+    [:summary "Reapply rules to stored items"]
+    [:p "Reapply a source’s post-processing rules to recent items, newest first. Tags, reading progress, and annotations stay unchanged."]
+    [:form#reprocess-form.row.g-2.align-items-end
+     [:div.col-auto
+      [:label.form-label {:for "reprocess-source"} "Source"]
+      [:select#reprocess-source.form-select {:name "source-key" :required true}
+       [:option {:value ""} "Choose a source"]
+       (for [[k source] (sort-by key (config/get-sources))
+             :when (seq (get-in source [:proc :post]))]
+         [:option {:value (name k)} (name k)])]]
+     [:div.col-auto
+      [:label.form-label {:for "reprocess-days"} "Last days"]
+      [:input#reprocess-days.form-control {:name "days" :type "number" :min 1 :max 365 :value 30 :required true}]]
+     [:div.col-auto
+      [:label.form-label {:for "reprocess-limit"} "Maximum items"]
+      [:input#reprocess-limit.form-control {:name "limit" :type "number" :min 1 :max 500 :value 100 :required true}]]
+     [:div.col-auto
+      [:button.btn.btn-secondary {:type "submit"} "Preview"]
+      " "
+      [:button#reprocess-start.btn.btn-primary {:type "button" :disabled true} "Reapply"]]
+     [:p#reprocess-status {:role "status" :aria-live "polite"}]]]
    [:table {:id "sources-datatable" :class "table"}
     [:thead
      [:tr
@@ -1242,6 +1264,20 @@
 
 (def update-futures (atom {}))
 
+(defn reprocess-response [params start?]
+  (try
+    (let [{:keys [source-key days limit]} params
+          source-key (when (string? source-key) (keyword source-key))
+          days (when (string? days) (parse-long days))
+          limit (when (string? limit) (parse-long limit))]
+      {:status (if start? 202 200)
+       :body (dissoc ((if start? update/start-reprocess! update/reprocess-plan)
+                      source-key days limit) :item-ids)})
+    (catch clojure.lang.ExceptionInfo ex
+      (if-let [status (:status (ex-data ex))]
+        {:status status :body {:error (ex-message ex)}}
+        (throw ex)))))
+
 (defn update-source [str-k force overwrite]
   {:pre [(string? str-k)
          (boolean? force)
@@ -1407,6 +1443,10 @@
    (GET "/" [] (status-index))
 
    (context "/api" []
+     (GET "/reprocess" [] {:status 200 :body @update/reprocess-state})
+     (GET "/reprocess/preview" request (reprocess-response (:params request) false))
+     (POST "/reprocess" request (reprocess-response (:params request) true))
+
      (POST "/config-lab/login" request
        (config-lab-api/login-response request))
 

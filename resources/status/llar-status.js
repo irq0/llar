@@ -165,6 +165,7 @@ function initialize_state_datatable(container) {
 }
 
 function initialize_datatables(container) {
+  if ($(container).find("#reprocess-form").length) poll_reprocess();
   var sources_table = $(container).find("#sources-datatable");
 
   if (sources_table.length && !DataTable.isDataTable(sources_table[0])) {
@@ -1284,8 +1285,96 @@ function reload_dashboard_tab(target_selector) {
     });
 }
 
+var reprocess_poll_timer;
+
+function poll_reprocess() {
+  clearTimeout(reprocess_poll_timer);
+  if (!$("#reprocess-form").length) return;
+  $.getJSON("/api/reprocess")
+    .done(function (job) {
+      var running = job.status === "running";
+      $("#reprocess-form").data("running", running);
+      $("#reprocess-form :input").prop("disabled", running);
+      $("#reprocess-start").prop("disabled", true);
+      if (job.status !== "idle") {
+        $("#reprocess-status").text(
+          job["source-key"] +
+            ": " +
+            job.completed +
+            "/" +
+            job.total +
+            " items processed. " +
+            (running
+              ? "Running…"
+              : job.status === "complete"
+                ? "Complete."
+                : "Stopped at item " +
+                  job["item-id"] +
+                  ". Check the server log; earlier items were saved."),
+        );
+      }
+      if (running) reprocess_poll_timer = setTimeout(poll_reprocess, 1000);
+    })
+    .fail(function () {
+      $("#reprocess-status").text(
+        "Could not read progress. Reload this tab to retry.",
+      );
+    });
+}
+
 $(document).ready(function () {
   initialize_datatables(document);
+
+  $(document).on(
+    "input change",
+    "#reprocess-form input, #reprocess-form select",
+    function () {
+      $("#reprocess-start").prop("disabled", true);
+      $("#reprocess-status").empty();
+    },
+  );
+
+  $(document).on("submit", "#reprocess-form", function (event) {
+    event.preventDefault();
+    var form = $(this);
+    var selection = form.serialize();
+    $("#reprocess-start").prop("disabled", true);
+    $.getJSON("/api/reprocess/preview", selection)
+      .done(function (plan) {
+        if (form.data("running") || form.serialize() !== selection) return;
+        $("#reprocess-status").text(
+          "Will reapply rules to " +
+            plan.total +
+            " recent items." +
+            (plan["limited?"]
+              ? " More match; only the newest " + plan.limit + " will run."
+              : ""),
+        );
+        $("#reprocess-start").prop("disabled", plan.total === 0);
+      })
+      .fail(function (xhr) {
+        $("#reprocess-status").text(
+          xhr.responseJSON?.error || "Could not preview items.",
+        );
+      });
+  });
+
+  $(document).on("click", "#reprocess-start", function () {
+    var form = $("#reprocess-form");
+    var selection = form.serialize();
+    form.data("running", true);
+    form.find(":input").prop("disabled", true);
+    $.post("/api/reprocess", selection)
+      .done(poll_reprocess)
+      .fail(function (xhr) {
+        form.data("running", false);
+        form.find(":input").prop("disabled", false);
+        $("#reprocess-start").prop("disabled", true);
+        $("#reprocess-status").text(
+          xhr.responseJSON?.error || "Could not start reprocessing.",
+        );
+      });
+  });
 
   $('a[data-bs-toggle="tab"]').on("click", function () {
     load_dashboard_tab($(this).attr("href"));

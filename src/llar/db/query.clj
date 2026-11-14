@@ -262,6 +262,10 @@
   (get-item-id-by-hash [this hash]
     (:id (sql/get-item-id-by-hash this {:hash hash})))
 
+  (get-reprocess-item-ids [this source-key since limit]
+    (mapv :id (sql/get-reprocess-item-ids this {:source-key (name source-key)
+                                                :since since :limit limit})))
+
   (get-items-by-tag [this tag]
     (sql/get-items-by-tag this {:tag (tags/normalize-tag tag)}))
 
