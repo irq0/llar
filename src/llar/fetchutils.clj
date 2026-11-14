@@ -1,6 +1,7 @@
 (ns llar.fetchutils
   (:require
    [clojure.set :refer [intersection]]
+   [clojure.string :as string]
    [clojure.tools.logging :as log]
    [clojure.spec.alpha :as s]
    [java-time.api :as time]
@@ -10,6 +11,7 @@
    [hickory.core :as hick]
    [hickory.render :as hick-r]
    [llar.fetch :as fetch]
+   [llar.analysis :as analysis]
    [llar.fetch.reddit :as reddit]
    [llar.http :as http]
    [llar.postproc :as proc]
@@ -104,64 +106,88 @@
 (def +readability-site-denylist+
   #"www\.washingtonpost\.com|semiaccurate\.com|gitlab\.com|youtube|vimeo|reddit|redd\.it|open\.spotify\.com|news\.ycombinator\.com|www\.amazon\.com")
 
-(defn- replace-contents-with-readability [item keep-orig?]
+(defn- replace-contents-with-readability [item]
   (let [url (get-in item [:entry :url])
         src (src/readability (str url))
-        mercu (proc/process-feedless-item src (first (fetch/fetch-source src {})))
-        html (if keep-orig?
-               (str "<div class=\"orig-content\">" (get-in item [:entry :contents "text/html"]) "</div>"
-                    "<div class=\"readability\">" (get-in mercu [:entry :contents "text/html"]) "</div>")
-               (get-in mercu [:entry :contents "text/html"]))
-        text (if keep-orig?
-               (str (get-in item [:entry :contents "text/plain"])
-                    "\n"
-                    (get-in mercu [:entry :contents "text/plain"]))
-               (get-in mercu [:entry :contents "text/plain"]))]
-    (cond-> (-> item
-                (assoc-in [:entry :nlp] (get-in mercu [:entry :nlp]))
-                (assoc-in [:entry :descriptions "text/plain"] (get-in mercu [:entry :descriptions "text/plain"]))
-                (assoc-in [:entry :contents "text/plain"] text)
-                (assoc-in [:entry :lead-image-url] (get-in mercu [:entry :lead-image-url]))
-                (assoc-in [:entry :contents "text/html"] html))
+        extracted (:entry (proc/process-feedless-item src (first (fetch/fetch-source src {}))))]
+    (cond-> (update item :entry merge
+                    (select-keys extracted [:nlp :contents :descriptions :lead-image-url
+                                            :source-snapshot :source-snapshot-url]))
       (empty? (get-in item [:entry :authors]))
-      (assoc-in [:entry :authors] (get-in mercu [:entry :authors])))))
+      (assoc-in [:entry :authors] (:authors extracted)))))
+
+(defn- extract-stored-contents [item selector]
+  (let [snapshot (or (get-in item [:entry :source-snapshot])
+                     (get-in item [:entry :contents]))
+        html (get snapshot "text/html")]
+    (if (string/blank? html)
+      item
+      (try
+        (let [data (http/raw-readability html
+                                         (some-> (or (get-in item [:entry :source-snapshot-url])
+                                                     (get-in item [:entry :url])) str)
+                                         {:from :contents :selector selector})]
+          (if (or (string/blank? (:content data)) (string/blank? (:textContent data))
+                  (string/blank? (:sourceSnapshot data)))
+            item
+            (let [entry (-> (:entry item)
+                            (assoc :source-snapshot (or (get-in item [:entry :source-snapshot])
+                                                        (assoc snapshot "text/html" (:sourceSnapshot data)))
+                                   :source-snapshot-url (or (get-in item [:entry :source-snapshot-url])
+                                                            (:sourceSnapshotUrl data)
+                                                            (some-> item :entry :url str))
+                                   :contents {"text/html" (-> (:content data)
+                                                              hick/parse hick/as-hickory
+                                                              http/blobify hick-r/hickory-to-html)
+                                              "text/plain" (:textContent data)})
+                            (assoc-in [:descriptions "text/plain"] (:excerpt data))
+                            (dissoc :nlp))]
+              (assoc item :entry (merge entry (analysis/analyze-entry entry))))))
+        (catch Exception exception
+          (log/warn exception "Stored content extraction failed; keeping original item")
+          item)))))
 
 (defn readability-contents
-  [& {:keys [keep-orig?]
-      :or {keep-orig? false}}]
+  [& {:keys [from selector] :or {from :url} :as options}]
+  {:pre [(every? #{:from :selector} (keys options))
+         (#{:url :contents} from)
+         (or (nil? selector) (and (= from :contents) (string? selector)))]}
   (fn [item]
-    (let [site (some-> item :entry :url uri/host)
-          path (or (some-> item :entry :url uri/path) "")]
-      (cond
+    (if (or (= from :contents) (get-in item [:entry :source-snapshot "text/html"]))
+      (extract-stored-contents item selector)
+      (let [site (or (some-> item :entry :url uri/host) "")
+            path (or (some-> item :entry :url uri/path) "")]
+        (cond
+          (string/blank? site) item
         ;; images
-        (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
-            (re-find #"\.(jpg|jpeg|gif|png|pdf)$" path))
-        (update-in item [:entry :contents "text/html"]
-                   str "<img src=\"" (get-in item [:entry :url]) "\"/>")
+          (or (re-find #"i\.imgur\.com|i\.redd\.it|twimg\.com" site)
+              (re-find #"\.(jpg|jpeg|gif|png|pdf)$" path))
+          (update-in item [:entry :contents "text/html"]
+                     str "<img src=\"" (get-in item [:entry :url]) "\"/>")
 
         ;; denylisted sites
-        (re-find +readability-site-denylist+ site)
-        item
+          (re-find +readability-site-denylist+ site)
+          item
 
         ;; rest: replace with readability version
-        :else
-        (try+
-         (replace-contents-with-readability item keep-orig?)
-         (catch [:type :llar.fetch.readability/not-parsable] _
-           (log/error (str item) "Readability Error. Not replacing content with readability version")
-           item)
-         (catch [:type :llar.http/request-error] failure
-           (log/warnf "Readability request failed for %s (%s); keeping original content"
-                      (get-in item [:entry :url]) (:code failure))
-           item)
-         (catch [:type :llar.http/server-error-retry-later] failure
-           (log/warnf "Readability server request failed for %s (%s); keeping original content"
-                      (get-in item [:entry :url]) (:reason-class failure))
-           item)
-         (catch [:type :llar.http/client-error-retry-later] failure
-           (log/warnf "Readability throttled/timed out for %s (%s); keeping original content"
-                      (get-in item [:entry :url]) (:reason-class failure))
-           item))))))
+          :else
+          (try+
+           (replace-contents-with-readability item)
+           (catch [:type :llar.fetch.readability/not-parsable] _
+             (log/error (str item) "Readability Error. Not replacing content with readability version")
+             item)
+           (catch [:type :llar.http/request-error] failure
+             (log/warnf "Readability request failed for %s (%s); keeping original content"
+                        (get-in item [:entry :url]) (:code failure))
+             item)
+           (catch [:type :llar.http/server-error-retry-later] failure
+             (log/warnf "Readability server request failed for %s (%s); keeping original content"
+                        (get-in item [:entry :url]) (:reason-class failure))
+             item)
+           (catch [:type :llar.http/client-error-retry-later] failure
+             (log/warnf "Readability throttled/timed out for %s (%s); keeping original content"
+                        (get-in item [:entry :url]) (:reason-class failure))
+             item)))))))
 
 (defn make-category-filter-deny [denylist]
   (fn [item]
@@ -204,7 +230,7 @@
                   (update-in item [:entry :contents "text/html"]
                              str "<img src=\"" (get-in item [:entry :url]) "\"/>")
                   (re-find #"youtube|vimeo|reddit|redd\.it|open\.spotify\.com" site) item
-                  :else ((readability-contents :keep-orig? true) item))))])))
+                  :else ((readability-contents) item))))])))
 
 (defn add-tag [tag]
   (fn [item]

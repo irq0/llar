@@ -394,8 +394,9 @@
 (defn raw-sanitize [raw-html]
   (commands/sanitize raw-html))
 
-(defn raw-readability [raw-html url]
-  (commands/readability raw-html url))
+(defn raw-readability
+  ([raw-html url] (commands/readability raw-html url))
+  ([raw-html url options] (commands/readability raw-html url options)))
 
 (defn- utf8-size [s]
   (count (.getBytes (str s) StandardCharsets/UTF_8)))

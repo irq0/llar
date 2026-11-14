@@ -397,7 +397,8 @@
 (defconfig-symbol $extract
   :var llar.fetchutils/readability-contents
   :kind :helper
-  :doc "Run article extraction on HTML content.")
+  :doc "Extract an article from its URL (default), or from received HTML with :from :contents. Optional :selector selects the article container. Both modes retain a sanitized source snapshot. Existing snapshots are reused without refetching."
+  :llar.config/example "($extract :from :contents :selector \".body.markup\")")
 
 (defconfig-symbol $add-tag
   :var llar.fetchutils/add-tag

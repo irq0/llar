@@ -76,9 +76,16 @@
                          hick/parse
                          hick/as-hickory)
             processed (-> hick
-                          (http/blobify))]
+                          (http/blobify))
+            snapshot-url (or (:sourceSnapshotUrl readab) (str url))
+            snapshot (some-> (:sourceSnapshot readab)
+                             hick/parse hick/as-hickory
+                             (http/absolutify-links-in-hick snapshot-url)
+                             hick-r/hickory-to-html)]
         (-> response
             (assoc :readability readab)
+            (assoc :source-snapshot {"text/html" snapshot})
+            (assoc :source-snapshot-url snapshot-url)
             ;; overwrite http/fetch hickory with processed readability html
             (assoc :body (when processed (hick-r/hickory-to-html processed)))
             (assoc :hickory processed))))))
@@ -154,7 +161,9 @@
         {:url (http/absolutify-url (uri/uri url) base-url)
          :pub-ts pub-ts
          :title title
-         :readability (-> data (dissoc :textContent) (dissoc :content))
+         :readability (dissoc data :textContent :content :sourceSnapshot :sourceSnapshotUrl)
+         :source-snapshot (:source-snapshot fetch)
+         :source-snapshot-url (:source-snapshot-url fetch)
          :lead-image-url (get-in data [:metadata :image])
          :authors [(or (:byline data) (:author metadata) (:siteName data) (:publisher metadata))]
          :descriptions {"text/plain" (or (:excerpt data) (:description metadata))}

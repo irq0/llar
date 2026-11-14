@@ -82,16 +82,18 @@
                :message err
                :ret exit}))))
 
-(defn readability [raw-html url]
-  (let [{:keys [out exit err]}
-        (with-throttle command-throttle
-          (sh+timeout (get-in appconfig [:timeouts :readability])
-                      ["node" "tools/readability"] {:in (cheshire/generate-string {:url url :html raw-html})}))]
-    (if (zero? exit)
-      (cheshire/parse-string out true)
-      (throw+ {:type :llar.http/sanitize-error
-               :message err
-               :ret exit}))))
+(defn readability
+  ([raw-html url] (readability raw-html url {}))
+  ([raw-html url options]
+   (let [{:keys [out exit err]}
+         (with-throttle command-throttle
+           (sh+timeout (get-in appconfig [:timeouts :readability])
+                       ["node" "tools/readability"] {:in (cheshire/generate-string (merge options {:url url :html raw-html}))}))]
+     (if (zero? exit)
+       (cheshire/parse-string out true)
+       (throw+ {:type :llar.http/sanitize-error
+                :message err
+                :ret exit})))))
 
 (defn html-to-text-command [tool]
   (get {:pandoc [(appcfg/command :pandoc) "-f" "html" "-t" "plain" "--reference-links"]
