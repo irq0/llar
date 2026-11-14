@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Dependencies: Update JVM libraries, article extraction and browser tooling,
-  DataTables to 3.1.5, yt-dlp, and CI hooks; retain Testcontainers 1.21.4.
+  DataTables to 3.1.5, yt-dlp, and CI hooks.
+- Tests: Upgrade Testcontainers to 2.0.5 and remove its unused PostgreSQL module.
 
 ### Fixed
 
