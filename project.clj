@@ -105,7 +105,7 @@
                  [net.datafaker/datafaker "2.7.0"]
                  [commons-io/commons-io "2.22.0"]
                  [com.sun.activation/jakarta.activation "2.0.1"]
-                 [com.google.guava/guava "31.1-jre"]
+                 [com.google.guava/guava "33.7.2-jre"]
                  [cider/cider-nrepl "0.64.1"]
                  [potemkin "0.4.9" :exclusions [riddley]]
                  [mvxcvi/puget "1.3.4"]
