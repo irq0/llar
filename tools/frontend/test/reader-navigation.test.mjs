@@ -389,9 +389,6 @@ test("Reader list position falls back to a surviving item anchor", async (t) => 
   await addScript(page, "llar.js");
 
   await page.evaluate(() => window.scrollTo(0, 650));
-  const expectedTop = await page
-    .locator("#item-2")
-    .evaluate((item) => item.getBoundingClientRect().top);
   await page.evaluate(() => saveReaderListPosition());
   assert.equal(
     await page.evaluate(
@@ -415,12 +412,12 @@ test("Reader list position falls back to a surviving item anchor", async (t) => 
         .locator("#item-3")
         .evaluate((item) => item.getBoundingClientRect().top),
     ),
-    Math.round(expectedTop + 600),
+    0,
   );
   await page.close();
 });
 
-test("Reader list restores only for history traversal", async (t) => {
+test("Reader list restores for Back and Reload; explicit refresh starts at the top", async (t) => {
   const browser = await chromium.launch({
     channel: browserChannel,
     headless: true,
@@ -503,9 +500,6 @@ test("Reader list restores only for history traversal", async (t) => {
   // Link activation must flush a newer position without waiting for the
   // throttled scroll save or relying exclusively on pagehide.
   await page.evaluate(() => window.scrollTo(0, 700));
-  const expectedTop = await page
-    .locator("#item-2")
-    .evaluate((item) => item.getBoundingClientRect().top);
   await page.locator("#item-2 a").click();
 
   await page.goBack({ waitUntil: "load" });
@@ -523,16 +517,20 @@ test("Reader list restores only for history traversal", async (t) => {
     savedPosition: history.state?.llarReaderListPosition,
     scrollY: window.scrollY,
   }));
-  assert.equal(
-    Math.round(restored.itemTop),
-    Math.round(expectedTop + 600),
-    JSON.stringify(restored),
-  );
+  assert.equal(Math.round(restored.itemTop), 0, JSON.stringify(restored));
   assert.equal(Math.round(restored.savedPosition.scrollY), 700);
 
   await page.evaluate(() => window.scrollTo(0, 650));
   await page.reload({ waitUntil: "load" });
-  await page.waitForFunction(() => window.scrollY === 0);
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        ),
+      ),
+  );
+  assert.equal(Math.round(await page.evaluate(() => window.scrollY)), 650);
 
   await page.evaluate(() => window.scrollTo(0, 650));
   const historyLengthBeforeReload = await page.evaluate(() => history.length);

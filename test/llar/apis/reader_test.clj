@@ -166,6 +166,36 @@
       (is (re-find #"(?s)id=\"view-style-select\".*?nav-link active.*?list-style=headlines.*?Headlines"
                    rendered)))))
 
+(deftest article-filter-navigation-links-lead-to-the-list
+  (with-redefs [rc/rc (constantly nil)]
+    (doseq [[filter label] [[nil "all"] [:unread "unread"] [:today "today"]]]
+      (let [navigation (uut/group-nav
+                        {:mode :show-item
+                         :uri "/reader/group/default/all/source/all/item/by-id/42"
+                         :group-name :default
+                         :group-item :all
+                         :source-key :all
+                         :filter filter
+                         :list-style :gallery
+                         :sort-order :oldest
+                         :sources {}
+                         :item-tags []
+                         :bookmark-activity {}})
+            link (first (for [node (tree-seq coll? seq navigation)
+                              :when (and (vector? node)
+                                         (= :a (first node))
+                                         (some #{label} (flatten node)))]
+                          node))
+            href (get-in link [1 :href])]
+        (is (some? href) (str "Missing filter link: " label))
+        (is (= "/reader/group/default/all/source/all/items"
+               (some-> href java.net.URI. .getPath))
+            (str label " must leave the article and return to its list"))
+        (is (string/includes? (or href "") "list-style=gallery"))
+        (is (string/includes? (or href "") "sort-order=oldest"))
+        (when filter
+          (is (string/includes? (or href "") (str "filter=" (name filter)))))))))
+
 (deftest reader-sort-defaults-are-contextual-and-overridable
   (with-redefs [config/get-sort-order-defaults (constantly {})]
     (is (= :ranked (uut/get-sort-order {:group-name :default
