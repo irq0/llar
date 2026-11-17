@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reader: Keep main list titles the same size and weight after marking items read.
 - Dependencies: Update JVM libraries, article extraction and browser tooling,
   DataTables to 3.1.5, yt-dlp, and CI hooks.
 - Tests: Upgrade Testcontainers to 2.0.5 and remove its unused PostgreSQL module.
