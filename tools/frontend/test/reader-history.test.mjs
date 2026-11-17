@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 
 const assets = fileURLToPath(
   new URL("../../../resources/status/", import.meta.url),
@@ -22,6 +22,7 @@ async function fixture(
     isMobile: viewport.width < 768,
     hasTouch: viewport.width < 768,
   });
+  const mobile = viewport.width < 768;
   let opened = false;
   await page.route(`${origin}/late-image.svg`, async (route) => {
     if (opened) await new Promise((resolve) => setTimeout(resolve, 750));
@@ -68,39 +69,56 @@ async function fixture(
           `${delayedImage && id === 5 ? `<img id="late-image" src="/late-image.svg" ${opened ? 'loading="lazy"' : ""} style="display:block;width:400px;max-width:100%" alt="Delayed preview">` : ""}<div class="feed-item" id="item-${id}" data-id="${id}" style="height:1000px; margin:0; padding:100px 16px; box-sizing:border-box"><a href="${itemPrefix}${id}${url.search}">Open item ${id}</a></div>`,
       )
       .join("");
+    const destinations = `<a class="${mobile ? "nav-link" : ""}" id="return-list" href="${currentListPath}">all</a>
+      <a class="${mobile ? "nav-link" : ""}" id="different-list" href="/reader/group/default/other/source/all/items">Other list</a>
+      <a class="${mobile ? "nav-link" : ""}" id="other-filter" href="${listName}?${otherFilter}">Other filter</a>`;
     return route.fulfill({
       contentType: "text/html",
-      headers: { "Cache-Control": "no-store" },
+      headers: {
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+      },
       body: `<!doctype html><html><head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.min.css">
         <link rel="stylesheet" href="/static/llar.css">
         <style>body { margin:0 } #top-nav { position:fixed; top:0; height:48px; width:100%; background:white; z-index:1100 }</style>
       </head><body class="llar-reader reader-mode-${isInspect ? "dump-item" : isItem ? "show-item" : "list-items"}" data-reader-list-url="${currentListPath}">
-        <nav id="top-nav"><a id="return-list" href="${currentListPath}">all</a>
+        <nav id="top-nav">${mobile ? '<a class="reader-mobile-navigation-toggle" href="#groupnav" data-bs-toggle="collapse" data-bs-target="#groupnav" aria-controls="groupnav" aria-expanded="false" aria-label="Open Reader navigation">Menu</a>' : destinations}
           <a id="skip-content" href="#reader-main">Skip to content</a>
-          <a id="different-list" href="/reader/group/default/other/source/all/items">Other list</a>
-          <a id="other-filter" href="${listName}?${otherFilter}">Other filter</a>
           ${isItem ? `<a id="btn-next-item" href="${itemPrefix}${Number(articlePath.split("/").at(-1)) + 1}${url.search}">Next item</a><a id="inspect-item" href="${articlePath}/dump${url.search}">Inspect item</a>` : ""}
           <a class="btn-reload-current-view" href="${currentListPath}">Refresh list</a></nav>
+        ${mobile ? `<nav id="groupnav" class="collapse sidebar sidebar-left"><div id="left-nav">${destinations}</div></nav>` : ""}
         <main id="reader-main">${isInspect ? '<div class="reader-inspect-workspace">Inspect item</div>' : isItem ? '<div id="item-content-body"><p>Article text</p><a href="http://[">Malformed source link</a></div>' : rows}</main>
         <script src="/static/jquery/jquery.min.js"></script>
+        <script src="/static/bootstrap/js/bootstrap.bundle.min.js"></script>
         <script src="/static/llar.js"></script>
       </body></html>`,
     });
   });
+  page.setDefaultTimeout(10000);
   await page.goto(origin + list);
   await settle(page);
   return page;
 }
 
 async function settle(page) {
-  await page.evaluate(
+  await page.waitForFunction(
     () =>
-      new Promise((resolve) =>
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => requestAnimationFrame(resolve)),
-        ),
-      ),
+      new Promise((resolve, reject) => {
+        let lastY = scrollY;
+        let stableFrames = 0;
+        const started = performance.now();
+        function frame() {
+          stableFrames = scrollY === lastY ? stableFrames + 1 : 0;
+          lastY = scrollY;
+          if (stableFrames >= 4) resolve(true);
+          else if (performance.now() - started > 3000)
+            reject(new Error("Scrolling did not settle"));
+          else requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+      }),
   );
 }
 
@@ -118,13 +136,39 @@ async function itemIds(page) {
     .evaluateAll((rows) => rows.map((row) => Number(row.dataset.id)));
 }
 
+async function activate(page, selector) {
+  const link = page.locator(selector);
+  const mobile = page.viewportSize().width < 768;
+  if (
+    mobile &&
+    (await link.evaluate((el) => !!el.closest("#groupnav"))) &&
+    !(await link.isVisible())
+  ) {
+    await page.locator(".reader-mobile-navigation-toggle").tap();
+    await page.waitForFunction(() =>
+      document.body.classList.contains("reader-mobile-navigation-open"),
+    );
+  }
+  const href = await link.getAttribute("href");
+  // replaceState also emits a navigation event; wait for the new document instead.
+  await Promise.all([
+    href.startsWith("#")
+      ? page.waitForURL(new URL(href, page.url()).href)
+      : page.waitForEvent("load"),
+    mobile ? link.tap() : link.click(),
+  ]);
+}
+
 async function openFromPosition(page, id = 5) {
   await page.locator(`#item-${id}`).evaluate((el) => {
-    window.scrollBy(0, el.getBoundingClientRect().top + 20);
+    window.scrollBy({
+      top: el.getBoundingClientRect().top + 20,
+      behavior: "instant",
+    });
   });
   const before = await position(page, id);
   // Open immediately: do not wait for the 200 ms scroll-save timer.
-  await page.locator(`#item-${id} a`).click();
+  await activate(page, `#item-${id} a`);
   await page.locator("#item-content-body").waitFor();
   return before;
 }
@@ -141,13 +185,16 @@ function samePosition(before, after) {
   );
 }
 
-for (const [device, viewport] of [
-  ["desktop", { width: 1440, height: 900 }],
-  ["mobile", { width: 390, height: 800 }],
+for (const [device, engine, viewport] of [
+  ["desktop Chromium", chromium, { width: 1440, height: 900 }],
+  ["mobile Chromium", chromium, { width: 390, height: 800 }],
+  ["mobile WebKit", webkit, { width: 390, height: 800 }],
 ]) {
   test(`Reader history UX: ${device}`, async (t) => {
-    const browser = await chromium.launch({
-      channel: process.env.LLAR_BROWSER_CHANNEL ?? "chrome",
+    const browser = await engine.launch({
+      ...(engine === chromium
+        ? { channel: process.env.LLAR_BROWSER_CHANNEL ?? "chrome" }
+        : {}),
       headless: true,
     });
     t.after(() => browser.close());
@@ -219,7 +266,7 @@ for (const [device, viewport] of [
         page.on("pageerror", (error) => errors.push(error.message));
         try {
           const before = await openFromPosition(page);
-          await page.locator("#return-list").click();
+          await activate(page, "#return-list");
           await settle(page);
           samePosition(before, await position(page));
           assert.deepEqual(errors, []);
@@ -275,7 +322,7 @@ for (const [device, viewport] of [
           await page.goBack();
           await settle(page);
           const length = await page.evaluate(() => history.length);
-          await page.locator(".btn-reload-current-view").click();
+          await activate(page, ".btn-reload-current-view");
           await settle(page);
           assert.equal(await page.evaluate(() => scrollY), 0);
           assert.equal(await page.evaluate(() => history.length), length);
@@ -294,7 +341,7 @@ for (const [device, viewport] of [
           await page.goBack();
           await settle(page);
           const before = await position(page);
-          await page.locator("#different-list").click();
+          await activate(page, "#different-list");
           await settle(page);
           assert.equal(await page.evaluate(() => scrollY), 0);
           await page.goBack();
@@ -312,7 +359,7 @@ for (const [device, viewport] of [
         const page = await fixture(browser, viewport);
         try {
           const first = await openFromPosition(page);
-          await page.locator("#return-list").click();
+          await activate(page, "#return-list");
           await settle(page);
           const second = await openFromPosition(page, 9);
           await page.goBack();
@@ -345,8 +392,9 @@ for (const [device, viewport] of [
               new URL(origin + rankedListPath).search,
             );
             if (action === "Back") await page.goBack();
-            else await page.locator("#return-list").click();
+            else await activate(page, "#return-list");
             await settle(page);
+            assert.equal(page.url(), before.url);
             samePosition(before, await position(page, 105));
             assert.deepEqual(await itemIds(page), expectedIds);
           } finally {
@@ -367,13 +415,13 @@ for (const [device, viewport] of [
             const before = await openFromPosition(page, 105);
             if (action === "Reload article") await page.reload();
             else if (action === "Inspect item") {
-              await page.locator("#inspect-item").click();
+              await activate(page, "#inspect-item");
               await page.locator(".reader-inspect-workspace").waitFor();
             } else {
               await page.keyboard.press("n");
               await page.waitForURL("**/item/by-id/106?*");
             }
-            await page.locator("#return-list").click();
+            await activate(page, "#return-list");
             await settle(page);
             assert.equal(page.url(), before.url);
             samePosition(before, await position(page, 105));
@@ -392,11 +440,11 @@ for (const [device, viewport] of [
             list: rankedListPath,
           });
           try {
-            if (where === "list") await page.locator("#skip-content").click();
+            if (where === "list") await activate(page, "#skip-content");
             const before = await openFromPosition(page, 105);
-            if (where !== "list") await page.locator("#skip-content").click();
+            if (where !== "list") await activate(page, "#skip-content");
             if (where === "article then Reload") await page.reload();
-            await page.locator("#return-list").click();
+            await activate(page, "#return-list");
             await settle(page);
             assert.equal(page.url(), before.url);
             samePosition(before, await position(page, 105));
@@ -415,7 +463,7 @@ for (const [device, viewport] of [
         });
         try {
           const before = await openFromPosition(page);
-          await page.locator("#return-list").click();
+          await activate(page, "#return-list");
           await settle(page);
           samePosition(before, await position(page));
         } finally {
@@ -430,7 +478,7 @@ for (const [device, viewport] of [
         const page = await fixture(browser, viewport);
         try {
           await openFromPosition(page);
-          await page.locator("#other-filter").click();
+          await activate(page, "#other-filter");
           await settle(page);
           assert.equal(new URL(page.url()).searchParams.get("filter"), "today");
           assert.equal(await page.evaluate(() => scrollY), 0);
@@ -480,7 +528,7 @@ for (const [device, viewport] of [
           const unread = await openFromPosition(page);
           await page.goBack();
           await settle(page);
-          await page.locator("#other-filter").click();
+          await activate(page, "#other-filter");
           await settle(page);
           assert.equal(
             new URL(page.url()).pathname,

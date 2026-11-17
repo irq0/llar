@@ -20,6 +20,41 @@ Use these commands from the repository root:
 Before you run Node or browser tests, install the project dependencies with `npm ci`.
 Before you run browser tests, download the frontend assets with `make bootstrap jquery datatables`.
 The browser tests use the files in `tools/frontend/test`.
+Install WebKit for the mobile history tests with `npx playwright install webkit`.
+On Linux, add `--with-deps` to install its system libraries. CI installs them automatically.
+
+## Reader history tests
+
+The same history scenarios run in desktop Chromium, mobile Chromium, and mobile WebKit.
+WebKit covers Safari's browser engine, but it does not replace testing on a physical iPhone or iPad.
+Mobile cases use touch taps and the Bootstrap navigation drawer with Reader's actual CSS and JavaScript.
+The local pages send LLAR's `Referrer-Policy: no-referrer` header.
+
+Run only this suite with:
+
+```sh
+node --test tools/frontend/test/reader-history.test.mjs
+```
+
+The scenarios cover Back, Forward, Reload, list links, separate visits, filters, ranked batches,
+missing items, delayed images, Skip to content, Inspect item, and blocked session storage.
+They measure item position within eight pixels and require the original URL, including its batch.
+The tests wait for scrolling to stop before measuring. They do not accept a different position to make a test pass.
+
+For a running local Reader, use:
+
+```sh
+LLAR_READER_URL=http://127.0.0.1:8023 node tools/frontend/reader-history-live.mjs
+```
+
+This command opens already-read items in Preview, Headlines, and Gallery across the three browser profiles.
+Normal Reader activity still applies. Reports and screenshots go to `target/reader-history`.
+A list that cannot scroll is reported as untested and makes the command fail.
+
+Chromium runs use installed Chrome by default.
+For Playwright's Chromium, install it with `npx playwright install chromium` and set `LLAR_BROWSER_CHANNEL=chromium`.
+If browsers use a custom installation directory, set `PLAYWRIGHT_BROWSERS_PATH` to that directory
+for both installation and testing.
 
 ## macOS test wrapper
 

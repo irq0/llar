@@ -140,6 +140,8 @@ jobs:
         exit "$test_status"
     - name: Install browser test assets
       run: make bootstrap jquery datatables
+    - name: Install WebKit for mobile history tests
+      run: npx playwright install --with-deps webkit
     - name: Run frontend browser integration tests
       id: browser-tests
       continue-on-error: true

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 
 if (!process.env.LLAR_READER_URL)
   throw new Error(
@@ -12,23 +12,29 @@ const output = fileURLToPath(
 );
 await mkdir(output, { recursive: true });
 const results = [];
-const browser = await chromium.launch({
-  channel: process.env.LLAR_BROWSER_CHANNEL ?? "chrome",
-  headless: true,
-  // Exercise the browser page cache, which Playwright disables by default.
-  ignoreDefaultArgs: ["--disable-back-forward-cache"],
-});
-
+let browser;
 try {
-  for (const [device, viewport] of [
-    ["desktop", { width: 1440, height: 900 }],
-    ["mobile", { width: 390, height: 800 }],
+  for (const [device, engine, viewport] of [
+    ["desktop-chromium", chromium, { width: 1440, height: 900 }],
+    ["mobile-chromium", chromium, { width: 390, height: 800 }],
+    ["mobile-webkit", webkit, { width: 390, height: 800 }],
   ]) {
+    const mobile = viewport.width < 768;
+    browser = await engine.launch({
+      ...(engine === chromium
+        ? {
+            channel: process.env.LLAR_BROWSER_CHANNEL ?? "chrome",
+            // Exercise the browser page cache, which Playwright disables by default.
+            ignoreDefaultArgs: ["--disable-back-forward-cache"],
+          }
+        : {}),
+      headless: true,
+    });
     for (const style of ["preview", "headlines", "gallery"]) {
       const page = await browser.newPage({
         viewport,
-        isMobile: device === "mobile",
-        hasTouch: device === "mobile",
+        isMobile: mobile,
+        hasTouch: mobile,
       });
       page.setDefaultTimeout(15000);
       await page.addInitScript(() => {
@@ -99,7 +105,11 @@ try {
         }
         async function openItem() {
           await align();
-          await page.locator(`#${id} a[href*="/item/by-id/"]`).first().click();
+          const link = page.locator(`#${id} a[href*="/item/by-id/"]`).first();
+          await Promise.all([
+            page.waitForEvent("domcontentloaded"),
+            mobile ? link.tap() : link.click(),
+          ]);
           await page.locator("#item-content-body").waitFor();
           // Measure at activation, after any browser scroll needed to expose the link.
           return page.evaluate(() =>
@@ -164,16 +174,22 @@ try {
         await record("browser-reload", before);
 
         before = await openItem();
-        if (device === "mobile") {
-          await page.locator(".reader-mobile-navigation-toggle").click();
-          await page
+        let returnLink;
+        if (mobile) {
+          await page.locator(".reader-mobile-navigation-toggle").tap();
+          await page.waitForFunction(() =>
+            document.body.classList.contains("reader-mobile-navigation-open"),
+          );
+          returnLink = page
             .locator("#groupnav")
-            .getByRole("link", { name: "all", exact: true })
-            .click();
+            .getByRole("link", { name: "all", exact: true });
         } else {
-          await page.locator(".reader-navbar-path a").first().click();
+          returnLink = page.locator(".reader-navbar-path a").first();
         }
-        await page.waitForLoadState("domcontentloaded");
+        await Promise.all([
+          page.waitForEvent("domcontentloaded"),
+          mobile ? returnLink.tap() : returnLink.click(),
+        ]);
         await record("list-link", before);
       } catch (error) {
         results.push({ device, style, pass: false, error: error.message });
@@ -182,9 +198,11 @@ try {
         await page.close();
       }
     }
+    await browser.close();
+    browser = null;
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   await writeFile(
     `${output}/live-results.json`,
     JSON.stringify(results, null, 2) + "\n",
