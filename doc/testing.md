@@ -18,12 +18,56 @@ Use these commands from the repository root:
 | Browser tests | `npm run test:browser` |
 
 Before you run Node or browser tests, install the project dependencies with `npm ci`.
-Before you run browser tests, download the frontend assets with `make bootstrap jquery datatables`.
-The browser tests use the files in `tools/frontend/test`.
-Install WebKit for the mobile history tests with `npx playwright install webkit`.
+Before you run browser tests, download the frontend assets with `make bootstrap jquery datatables ibmplex fontawesome`.
+Install the browser engines with `npx playwright install chromium webkit`.
 On Linux, add `--with-deps` to install its system libraries. CI installs them automatically.
 
+## Local Reader integration tests
+
+`npm run test:browser` runs both the isolated fixtures and the real Reader integration tests.
+Use `npm run test:browser:integration` to run only the real Reader tests.
+Use `npm run test:browser:fixtures` to run only the isolated fixtures in `tools/frontend/test`.
+
+The real Reader tests require Java, Leiningen, and PostgreSQL server tools on `PATH`:
+`initdb`, `pg_ctl`, and `createdb`. Run them as an ordinary user, not root.
+On macOS, Homebrew PostgreSQL supplies these tools.
+On Linux, install PostgreSQL and add the directory from `pg_config --bindir` to `PATH`.
+The test runner starts PostgreSQL itself. It does not use an installed database service.
+
+The harness creates a temporary PostgreSQL cluster and blob directory, then applies LLAR's migrations.
+It starts the normal Reader handler from the current checkout on an automatically assigned loopback port.
+Requests use the real routes, renderer, middleware, assets, and database operations.
+The harness does not start fetch schedules, background jobs, or configuration watchers.
+It never connects to a running personal Reader or database.
+
+Before each scenario, the harness clears the test tables and restores 32 items from LLAR's demo generator.
+The seed is `4242`, and the content reference time is `2026-11-17T12:00:00Z`.
+Reset also clears runtime overrides and source update state.
+Reset commands travel through the child process's input pipe. There is no reset HTTP endpoint.
+The suite runs serially and creates a fresh browser context for every scenario.
+Database processes and temporary storage are removed during teardown, including after failed assertions.
+
+The fixed content dates support repeatable history tests. They do not freeze the application or database clock.
+Tests of time-relative filters such as `today` need a separate clock fixture.
+The current scenarios do not write blobs or start background jobs. Extend reset before adding those scenarios.
+
+The suite covers Preview, Headlines, and Gallery in desktop Chromium, mobile Chromium, and mobile WebKit.
+It asserts nonzero departure scroll, the original URL, and item position within eight pixels.
+Additional cases cover ranked batches, fragment links, Inspect, separate visits, blocked storage, and database reset.
+The tests do not replace page HTML or mock LLAR's API responses.
+The focused artificial-page tests remain useful for delayed images and missing-item edge cases.
+Chromium tests distinguish a new document from a cache restore through `pageshow.persisted`.
+Separate cache tests require two successful cached returns. WebKit cache-hit tests are explicitly skipped.
+Mobile explicit-refresh cases are marked `fixme`: the real mobile renderer has no visible refresh control.
+The existing fixture suite includes an artificial mobile refresh link and cannot establish that this control exists in LLAR.
+
+Failure screenshots and traces, plus Reader and PostgreSQL logs, go to `target/browser-integration`.
+JUnit results go to `target/test-results/browser-integration.xml`.
+CI runs this suite on pull requests and retains these artifacts.
+
 ## Reader history tests
+
+This section describes the isolated fixture suite and the optional runner for an existing local Reader.
 
 The same history scenarios run in desktop Chromium, mobile Chromium, and mobile WebKit.
 WebKit covers Safari's browser engine, but it does not replace testing on a physical iPhone or iPad.
@@ -51,8 +95,9 @@ This command opens already-read items in Preview, Headlines, and Gallery across 
 Normal Reader activity still applies. Reports and screenshots go to `target/reader-history`.
 A list that cannot scroll is reported as untested and makes the command fail.
 
-Chromium runs use installed Chrome by default.
-For Playwright's Chromium, install it with `npx playwright install chromium` and set `LLAR_BROWSER_CHANNEL=chromium`.
+The isolated fixtures and optional live runner use installed Chrome by default.
+The real Reader integration tests use Playwright's Chromium by default.
+Set `LLAR_BROWSER_CHANNEL=chromium` to use Playwright's Chromium for both suites.
 If browsers use a custom installation directory, set `PLAYWRIGHT_BROWSERS_PATH` to that directory
 for both installation and testing.
 

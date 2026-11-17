@@ -139,9 +139,9 @@ jobs:
         fi
         exit "$test_status"
     - name: Install browser test assets
-      run: make bootstrap jquery datatables
-    - name: Install WebKit for mobile history tests
-      run: npx playwright install --with-deps webkit
+      run: make bootstrap jquery datatables ibmplex fontawesome
+    - name: Install browser engines
+      run: npx playwright install --with-deps chromium webkit
     - name: Run frontend browser integration tests
       id: browser-tests
       continue-on-error: true
@@ -163,6 +163,17 @@ jobs:
         exit "$test_status"
     - name: Install dependencies
       run: lein with-profile +test deps
+    - name: Install PostgreSQL for browser integration tests
+      run: |
+        sudo apt-get install -y postgresql
+        pg_config --bindir >> "$GITHUB_PATH"
+    - name: Test browser journeys against local LLAR
+      id: browser-integration
+      continue-on-error: true
+      env:
+        TZ: UTC
+        LLAR_BROWSER_CHANNEL: chromium
+      run: npm run test:browser:integration
     - name: Run tests with coverage
       id: clojure-tests
       continue-on-error: true
@@ -193,6 +204,7 @@ jobs:
         for report in \
           target/test-results/node.xml \
           target/test-results/browser.xml \
+          target/test-results/browser-integration.xml \
           target/test-results/clojure.xml
         do
           if [[ ! -s "$report" ]]; then
@@ -216,6 +228,7 @@ jobs:
         name: test-results
         path: |
           target/test-results/
+          target/browser-integration/
           target/coverage/
         if-no-files-found: error
         retention-days: 14
@@ -226,6 +239,7 @@ jobs:
         files: |
           target/test-results/node.xml
           target/test-results/browser.xml
+          target/test-results/browser-integration.xml
           target/test-results/clojure.xml
         check_name: Test results
         comment_mode: off
@@ -239,6 +253,7 @@ jobs:
         always() &&
         (steps.metadata-tests.outcome == 'failure' ||
          steps.browser-tests.outcome == 'failure' ||
+         steps.browser-integration.outcome == 'failure' ||
          steps.clojure-tests.outcome == 'failure' ||
          steps.test-reports.outcome == 'failure')
       run: exit 1

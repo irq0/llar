@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Browser tests: Run Reader navigation against a disposable local LLAR and
+  PostgreSQL instance with repeatable demo data and reset before each scenario.
+
 ### Changed
 
 - Reader: Keep main list titles the same size and weight after marking items read.

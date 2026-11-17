@@ -1,7 +1,9 @@
 {
   "scripts": {
     "test": "node --test tools/readability/test/*.test.js tools/value-inspector/test/*.test.js tools/save-to-llar-extension/test/*.test.mjs tools/test-macos.test.mjs",
-    "test:browser": "node --test tools/frontend/test/*.test.mjs",
+    "test:browser": "npm run test:browser:fixtures && npm run test:browser:integration",
+    "test:browser:fixtures": "node --test tools/frontend/test/*.test.mjs",
+    "test:browser:integration": "playwright test --config tools/frontend/integration/playwright.config.mjs",
     "package:extension": "./tools/save-to-llar-extension/package.sh",
     "demo:screenshots": "node demo/media/capture-screenshots.mjs"
   },
@@ -21,6 +23,7 @@
     "metascraper-url": "^5.58.4"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "playwright": "1.65.1"
   }
 }
