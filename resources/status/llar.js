@@ -120,6 +120,9 @@ var readerIsItem =
   !!document.getElementById("item-content-body") ||
   document.body.classList.contains("reader-mode-dump-item");
 var readerItemListOrigin = null;
+var readerNavigationTarget = null;
+var readerPageLeaving = false;
+var readerListRestoring = false;
 
 function setReaderHistoryState(key, value) {
   var state = Object.assign({}, window.history.state);
@@ -146,19 +149,24 @@ function readerListContext(href) {
 // Pass the originating entry through article navigation, without sharing a
 // position between separate visits to the same list URL.
 function transferReaderListOrigin() {
-  if (readerIsList) flushReaderListPositionSave();
-  var state = window.history.state || {};
+  // WebKit can expose the destination history entry during pagehide.
+  readerPageLeaving = true;
+  clearTimeout(readerListPositionSaveTimer);
   var origin = readerIsList
     ? {
         url: window.location.href,
         context: document.body.dataset.readerListUrl || window.location.href,
-        position: state[readerListPositionStateKey],
+        position: readerListReset ? null : readerListPosition(),
       }
-    : state[readerListOriginKey] || readerItemListOrigin;
+    : readerItemListOrigin;
   try {
     window.sessionStorage.setItem(
       readerListTransferKey,
-      JSON.stringify({ from: window.location.href, origin: origin }),
+      JSON.stringify({
+        from: window.location.href,
+        to: readerNavigationTarget,
+        origin: origin,
+      }),
     );
   } catch (_error) {
     // Back and Reload still use the current history entry if storage is blocked.
@@ -174,7 +182,7 @@ function receiveReaderListOrigin() {
     window.sessionStorage.removeItem(readerListTransferKey);
     if (
       transfer &&
-      (transfer.from.split("#")[0] === document.referrer ||
+      (transfer.to === window.location.href ||
         (readerListPageNavigationType === "reload" &&
           transfer.from === window.location.href)) &&
       transfer.origin &&
@@ -217,22 +225,27 @@ function readerListItems() {
   );
 }
 
-function saveReaderListPosition() {
-  if (readerListReset) return;
+function readerListPosition() {
   var items = readerListItems();
   var firstVisibleIndex = items.findIndex(function (item) {
     return item.getBoundingClientRect().bottom > 0;
   });
-  if (firstVisibleIndex < 0) return;
+  if (firstVisibleIndex < 0) return null;
 
   var anchors = items.slice(firstVisibleIndex).map(function (item) {
     return { id: item.id, top: item.getBoundingClientRect().top };
   });
 
-  setReaderHistoryState(readerListPositionStateKey, {
+  return {
     anchors: anchors,
     scrollY: window.scrollY,
-  });
+  };
+}
+
+function saveReaderListPosition() {
+  if (readerListReset || readerPageLeaving || readerListRestoring) return;
+  var position = readerListPosition();
+  if (position) setReaderHistoryState(readerListPositionStateKey, position);
 }
 
 function scheduleReaderListPositionSave() {
@@ -249,25 +262,30 @@ function flushReaderListPositionSave() {
   saveReaderListPosition();
 }
 
-function handleReaderListLinkActivation(event) {
+function handleReaderLinkActivation(event) {
   var target = event.target.closest && event.target.closest("a[href]");
   if (!target) return;
 
-  if (target.closest('[id^="item-"][data-id]')) {
+  if (readerIsList) {
+    readerListRestoring = false;
     flushReaderListPositionSave();
   }
 
-  if (!target.classList.contains("btn-reload-current-view")) return;
   if (
     event.button !== 0 ||
     event.metaKey ||
     event.ctrlKey ||
     event.shiftKey ||
-    event.altKey
+    event.altKey ||
+    target.hasAttribute("download") ||
+    (target.target && target.target !== "_self")
   ) {
     return;
   }
 
+  readerNavigationTarget = target.href;
+  if (!readerIsList || !target.classList.contains("btn-reload-current-view"))
+    return;
   // Reload is an action, not a new destination. Keep the current history
   // entry so Back leaves this view instead of visiting an older copy of it.
   event.preventDefault();
@@ -297,9 +315,12 @@ function restoreReaderListPosition() {
       anchor === saved.anchors[0]
         ? anchor.top
         : Math.max(0, toolbar ? toolbar.getBoundingClientRect().bottom : 0);
-    window.scrollBy(0, item.getBoundingClientRect().top - top);
+    window.scrollBy({
+      top: item.getBoundingClientRect().top - top,
+      behavior: "instant",
+    });
   } else if (Number.isFinite(saved.scrollY)) {
-    window.scrollTo(0, saved.scrollY);
+    window.scrollTo({ top: saved.scrollY, behavior: "instant" });
   }
 }
 
@@ -321,14 +342,16 @@ var readerListPageNavigationType = readerListNavigationType();
 if (readerIsList || readerIsItem) {
   receiveReaderListOrigin();
   window.addEventListener("pagehide", transferReaderListOrigin);
+  document.addEventListener("click", handleReaderLinkActivation, true);
 }
 
 if (readerIsList) {
+  // Loading images and native scrolling must not overwrite the position being restored.
+  readerListRestoring = !!window.history.state?.[readerListPositionStateKey];
   window.addEventListener("scroll", scheduleReaderListPositionSave, {
     passive: true,
   });
   window.addEventListener("resize", scheduleReaderListPositionSave);
-  document.addEventListener("click", handleReaderListLinkActivation, true);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") {
       flushReaderListPositionSave();
@@ -337,10 +360,15 @@ if (readerIsList) {
 }
 
 window.addEventListener("pageshow", function () {
+  readerPageLeaving = false;
   if (!document.body.classList.contains("reader-mode-list-items")) return;
 
   if (window.history.state?.[readerListPositionStateKey]) {
-    scheduleReaderListScroll(restoreReaderListPosition);
+    readerListRestoring = true;
+    scheduleReaderListScroll(function () {
+      restoreReaderListPosition();
+      readerListRestoring = false;
+    });
   } else {
     window.scrollTo(0, 0);
     // Native reload restoration can run after pageshow. Correct it again in
@@ -1416,7 +1444,10 @@ $("body").on("keydown", function (event) {
   var nextUrl = null;
   if (event.key === "n") {
     nextUrl = $("#btn-next-item").attr("href");
-    if (nextUrl) window.location.href = nextUrl;
+    if (nextUrl) {
+      readerNavigationTarget = new URL(nextUrl, window.location.href).href;
+      window.location.href = nextUrl;
+    }
   } else if (event.key === "p") {
     window.history.back();
   } else if (event.key === "N") {
@@ -1424,6 +1455,7 @@ $("body").on("keydown", function (event) {
     nextUrl = $("#btn-next-item").attr("href");
     if (nextUrl) {
       keepCurrentItemUnread(function () {
+        readerNavigationTarget = new URL(nextUrl, window.location.href).href;
         window.location.href = nextUrl;
       });
     }

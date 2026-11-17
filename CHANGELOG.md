@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reader: Restore list positions without browser referrers. Preserve WebKit history
+  entries during navigation and restore positions without a scroll animation.
 - Reader: Correct translucent accent colors that mixed comma-separated RGB
   variables with slash-separated alpha values.
 - Development: Resolve the shared CSS lint configuration in Stylelint 18 hooks.
