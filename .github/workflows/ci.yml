@@ -44,7 +44,7 @@ jobs:
         tar -xzf "$archive" -C ~/.local/bin
     - name: Add ~/.local/bin to PATH
       run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-    - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
+    - uses: j178/prek-action@7b101f8338a08d2bd6fdb3625e4e7692428763a3 # v3.1.1
       with:
         prek-version: 0.5.7
         sha256: e238e5a6b4e384e8d18f33d3c3b1a329be0e1237f77ac6e021e641ddd3a2bab6
