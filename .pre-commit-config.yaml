@@ -58,7 +58,7 @@ repos:
           )$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: 341e2a331ba578029e66c2e01183e7a6b5ca9ab4  # frozen: v0.24.0
+    rev: d4df4cec471ce155946474590d7b95920f623ccb  # frozen: v0.24.2
     hooks:
       - id: markdownlint-cli2
 
@@ -69,11 +69,11 @@ repos:
         types_or: [css, javascript]
 
   - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: 28bccd32cd8c825b0d0913b486f8ef0f56bfb08a  # frozen: v10.14.0
+    rev: 73e3fe97594aeeb7151061de3b7792b5fc451e55  # frozen: v10.15.0
     hooks:
     -   id: eslint
         additional_dependencies:
-          - 'eslint@10.14.0'
+          - 'eslint@10.15.0'
           - '@eslint/js@10.0.1'
           - 'globals@17.14.0'
 
@@ -97,7 +97,7 @@ repos:
         exclude: '(^|/)\.#'
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: f6467e1f1ebecf5020560405c7b26e01786a43c8  # frozen: v10.4.0
+    rev: d3550f5482c2ed73e13f59eb33d95db4678a9343  # frozen: v10.4.1
     hooks:
     - id: cspell
       args:
